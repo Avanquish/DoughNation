@@ -8,7 +8,7 @@ import {
   Store,
   Package,
   Heart,
-  Upload,
+  Upload, 
   Clock,
   Users,
   AlertTriangle,
@@ -17,7 +17,9 @@ import { useNavigate } from "react-router-dom";
 
   const BakeryDashboard = () => {
   const [name, setName] = useState("");
+  const [isVerified, setIsVerified] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
+  const navigate = useNavigate();
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -25,18 +27,39 @@ import { useNavigate } from "react-router-dom";
       try {
         const decoded = JSON.parse(atob(token.split(".")[1]));
         setName(decoded.name || "Bakery User");
+        setIsVerified(decoded.is_verified);
       } catch (error) {
         console.error("Failed to decode token:", error);
       }
     }
   }, []);
 
-  const navigate = useNavigate();
-
   const handleLogout = () => {
     localStorage.removeItem("token"); 
     navigate("/");
   };
+
+  // If user is not verified, show "verification pending" screen
+  if (!isVerified) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-surface to-primary/5 p-6">
+        <Card className="max-w-md shadow-elegant">
+          <CardHeader>
+            <CardTitle>Account Verification Required</CardTitle>
+            <CardDescription>
+              Hello {name}, your account is pending verification.  
+              Please wait until an admin verifies your account before using the dashboard features.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center gap-4">
+            <Button onClick={handleLogout} variant="destructive">
+              Log Out
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-surface to-primary/5">
@@ -153,6 +176,8 @@ import { useNavigate } from "react-router-dom";
               </Card>
             </div>
           </TabsContent>
+
+            
 
           {/* Other TabsContent sections for inventory, donations, profile can be added here */}
         </Tabs>

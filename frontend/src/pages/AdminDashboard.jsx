@@ -27,6 +27,12 @@ const AdminDashboard = () => {
   const [name, setName] = useState("");
   const [activeTab, setActiveTab] = useState("dashboard");
   const [pendingUsers, setPendingUsers] = useState([]);
+  const [stats, setStats] = useState({
+    totalBakeries: 0,
+    totalCharities: 0,
+    totalUsers: 0,
+    pendingUsersCount: 0,
+  });
 
   const navigate = useNavigate();
 
@@ -42,6 +48,28 @@ const AdminDashboard = () => {
     }
   }, []);
 
+  // Fetch Admin Dashboard Stats
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await axios.get("/admin-dashboard-stats", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setStats({
+          totalBakeries: res.data.totalBakeries,
+          totalCharities: res.data.totalCharities,
+          totalUsers: res.data.totalUsers,
+          pendingUsersCount: res.data.pendingUsers,
+        });
+      } catch (error) {
+        console.error("Error fetching dashboard stats:", error);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  // Fetch Pending Users (for table)
   useEffect(() => {
     const fetchPending = async () => {
       try {
@@ -64,6 +92,7 @@ const AdminDashboard = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       setPendingUsers((prev) => prev.filter((u) => u.id !== id));
+      setStats(prev => ({ ...prev, pendingUsersCount: prev.pendingUsersCount - 1 }));
     } catch (error) {
       console.error("Error verifying user:", error);
     }
@@ -76,6 +105,7 @@ const AdminDashboard = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       setPendingUsers((prev) => prev.filter((u) => u.id !== id));
+      setStats(prev => ({ ...prev, pendingUsersCount: prev.pendingUsersCount - 1 }));
     } catch (error) {
       console.error("Error rejecting user:", error);
     }
@@ -122,19 +152,37 @@ const AdminDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <Card className="shadow-elegant">
                 <CardContent className="p-6 flex items-center justify-between">
-                  <p className="text-sm font-medium text-muted-foreground">Total Bakeries</p>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Total Bakeries</p>
+                    <p className="text-lg font-medium">{stats.totalBakeries}</p>
+                  </div>
                   <Building2 className="h-8 w-8 text-primary" />
                 </CardContent>
               </Card>
               <Card className="shadow-elegant">
                 <CardContent className="p-6 flex items-center justify-between">
-                  <p className="text-sm font-medium text-muted-foreground">Total Charities</p>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Total Charities</p>
+                    <p className="text-lg font-medium">{stats.totalCharities}</p>
+                  </div>
                   <HelpingHand className="h-8 w-8 text-success" />
                 </CardContent>
               </Card>
               <Card className="shadow-elegant">
                 <CardContent className="p-6 flex items-center justify-between">
-                  <p className="text-sm font-medium text-muted-foreground">Total Users</p>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Total Users</p>
+                    <p className="text-lg font-medium">{stats.totalUsers}</p>
+                  </div>
+                  <UserCog className="h-8 w-8 text-admin" />
+                </CardContent>
+              </Card>
+              <Card className="shadow-elegant">
+                <CardContent className="p-6 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Pending Users</p>
+                    <p className="text-lg font-medium">{stats.pendingUsersCount}</p>
+                  </div>
                   <UserCog className="h-8 w-8 text-admin" />
                 </CardContent>
               </Card>

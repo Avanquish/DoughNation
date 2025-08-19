@@ -14,6 +14,9 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import BakeryInventory from "../pages/BakeryInventory";
+import BakeryEmployee from "../pages/BakeryEmployee";
+import BakeryDonation from "../pages/BakeryDonation";
 
   const BakeryDashboard = () => {
   const [name, setName] = useState("");
@@ -21,13 +24,44 @@ import { useNavigate } from "react-router-dom";
   const [activeTab, setActiveTab] = useState("dashboard");
   const navigate = useNavigate();
 
+  const [stats, setStats] = useState({
+    totalDonations: 0,
+    totalInventory: 0,
+    uploadedProducts: 0,
+    employeeCount: 0,
+    expiredProducts: 0,
+    nearingExpiration: 0,
+  });
+
   useEffect(() => {
     const token = localStorage.getItem("token");
+
     if (token) {
       try {
         const decoded = JSON.parse(atob(token.split(".")[1]));
         setName(decoded.name || "Bakery User");
         setIsVerified(decoded.is_verified);
+
+        const fetchStats = () => {
+          fetch("http://localhost:8000/dashboard-stats", {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          })
+            .then((res) => res.json())
+            .then((data) => setStats(data))
+            .catch((err) => console.error("Error fetching dashboard stats:", err));
+        };
+
+        // Initial fetch
+        fetchStats();
+
+        // Poll every 10 seconds
+        const intervalId = setInterval(fetchStats, 10000);
+
+        // Cleanup
+        return () => clearInterval(intervalId);
+
       } catch (error) {
         console.error("Failed to decode token:", error);
       }
@@ -98,6 +132,7 @@ import { useNavigate } from "react-router-dom";
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Total Donations</p>
+                      <p className="text-2xl font-bold">{stats.totalDonations}</p>
                     </div>
                     <Heart className="h-8 w-8 text-primary" />
                   </div>
@@ -109,6 +144,7 @@ import { useNavigate } from "react-router-dom";
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Product in Inventory</p>
+                      <p className="text-2xl font-bold">{stats.totalInventory}</p>
                     </div>
                     <Package className="h-8 w-8 text-bakery" />
                   </div>
@@ -120,6 +156,7 @@ import { useNavigate } from "react-router-dom";
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Uploaded Products</p>
+                      <p className="text-2xl font-bold">{stats.uploadedProducts}</p>
                     </div>
                     <Upload className="h-8 w-8 text-success" />
                   </div>
@@ -131,6 +168,7 @@ import { useNavigate } from "react-router-dom";
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Employee</p>
+                      <p className="text-2xl font-bold">{stats.employeeCount}</p>
                     </div>
                     <Users className="h-8 w-8 text-charity" />
                   </div>
@@ -142,6 +180,7 @@ import { useNavigate } from "react-router-dom";
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Expired Product</p>
+                      <p className="text-2xl font-bold">{stats.expiredProducts}</p>
                     </div>
                     <AlertTriangle className="h-8 w-8 text-destructive" />
                   </div>
@@ -153,6 +192,7 @@ import { useNavigate } from "react-router-dom";
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Nearing Expiration</p>
+                      <p className="text-2xl font-bold">{stats.nearingExpiration}</p>
                     </div>
                     <Clock className="h-8 w-8 text-warning" />
                   </div>
@@ -177,7 +217,17 @@ import { useNavigate } from "react-router-dom";
             </div>
           </TabsContent>
 
-            
+          <TabsContent value="inventory">
+            <BakeryInventory />
+          </TabsContent>
+
+          <TabsContent value="employee">
+            <BakeryEmployee />
+          </TabsContent>
+
+          <TabsContent value="donations">
+            <BakeryDonation activeTab={activeTab} />
+          </TabsContent>
 
           {/* Other TabsContent sections for inventory, donations, profile can be added here */}
         </Tabs>

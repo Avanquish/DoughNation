@@ -22,11 +22,12 @@ import {
   Users,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import CharityDonation  from "./../pages/CharityDonation";
 
 const CharityDashboard = () => {
   const [name, setName] = useState("");
-  const [activeTab, setActiveTab] = useState("dashboard");
-
+  const [isVerified, setIsVerified] = useState(false);
+  const [activeTab, setActiveTab] = useState("donation");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -35,6 +36,7 @@ const CharityDashboard = () => {
       try {
         const decoded = JSON.parse(atob(token.split(".")[1]));
         setName(decoded.name || "Charity User");
+        setIsVerified(decoded.is_verified);
       } catch (error) {
         console.error("Failed to decode token:", error);
       }
@@ -45,6 +47,28 @@ const CharityDashboard = () => {
     localStorage.removeItem("token");
     navigate("/");
   };
+
+  // If user is not verified, show "verification pending" screen
+    if (!isVerified) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-surface to-primary/5 p-6">
+          <Card className="max-w-md shadow-elegant">
+            <CardHeader>
+              <CardTitle>Account Verification Required</CardTitle>
+              <CardDescription>
+                Hello {name}, your account is pending verification.  
+                Please wait until an admin verifies your account before using the dashboard features.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center gap-4">
+              <Button onClick={handleLogout} variant="destructive">
+                Log Out
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-surface to-primary/5">
@@ -69,7 +93,8 @@ const CharityDashboard = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsList className="grid w-full max-w-md grid-cols-4">
+            <TabsTrigger value="donation">Donation</TabsTrigger>
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="received">Received</TabsTrigger>
             <TabsTrigger value="feedback">Feedback</TabsTrigger>
@@ -154,6 +179,11 @@ const CharityDashboard = () => {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="donation">
+            <CharityDonation />
+          </TabsContent>
+          
         </Tabs>
       </div>
     </div>

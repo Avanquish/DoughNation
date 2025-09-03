@@ -1,10 +1,13 @@
+from typing import Optional
 from fastapi import HTTPException, status, UploadFile, File, Form
 import os
 import shutil
 from passlib.context import CryptContext
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+
+from app import schemas
 from . import models, auth
-from datetime import date
+from datetime import date, datetime
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -84,6 +87,62 @@ def create_user(
     db.commit()
     db.refresh(db_user)
     return db_user
+
+#Update User Information
+def update_user_info(
+    db: Session,
+    user_id: int,
+    name: Optional[str] = None,
+    contact_person: Optional[str] = None,
+    contact_number: Optional[str] = None,
+    address: Optional[str] = None,
+    profile_picture: UploadFile = None
+):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.role.lower() == "admin":
+        raise HTTPException(status_code=403, detail="Admin information cannot be edited")
+
+    if name is not None and name != "":
+        user.name = name
+    if contact_person is not None and contact_person != "":
+        user.contact_person = contact_person
+    if contact_number is not None and contact_number != "":
+        user.contact_number = contact_number
+    if address is not None and address != "":
+        user.address = address
+
+    if profile_picture:
+        os.makedirs("uploads/profile_pictures", exist_ok=True)
+        profile_pic_path = f"uploads/profile_pictures/{profile_picture.filename}"
+        with open(profile_pic_path, "wb") as buffer:
+            shutil.copyfileobj(profile_picture.file, buffer)
+        user.profile_picture = profile_pic_path
+
+    db.commit()
+    db.refresh(user)
+    return user
+
+#Change Password
+def change_user_password(db: Session, user_id: int, current_password: str, new_password: str, confirm_password: str):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.role.lower() == "admin":
+        raise HTTPException(status_code=403, detail="Admin password cannot be changed")
+
+    if not auth.verify_password(current_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+
+    if new_password != confirm_password:
+        raise HTTPException(status_code=400, detail="New passwords do not match")
+
+    user.hashed_password = pwd_context.hash(new_password)
+    db.commit()
+    return {"message": "Password updated successfully"}
 
 
 #login w/ authentication
@@ -273,3 +332,53 @@ def delete_employee(db: Session, employee_id: int):
 
 def list_donations(db: Session, bakery_id: int):
     return db.query(models.Donation).filter(models.Donation.bakery_id == bakery_id).all()
+
+# ------------------ Complaint ------------------
+# Create Complaint
+def create_complaint(db: Session, complaint: schemas.ComplaintCreate, user_id: int):
+    db_complaint = models.Complaint(
+        subject=complaint.subject,
+        description=complaint.description,
+        status="Pending",
+        user_id=user_id
+    )
+    db.add(db_complaint)
+    db.commit()
+    db.refresh(db_complaint)
+    return db_complaint
+
+# Get all complaints
+def get_complaints(db: Session):
+    complaints = (
+        db.query(models.Complaint)
+        .options(joinedload(models.Complaint.user))
+        .all()
+    )
+
+    result = []
+    for c in complaints:
+        result.append(
+            schemas.ComplaintOut(
+                id=c.id,
+                subject=c.subject,
+                description=c.description,
+                status=c.status,
+                created_at=c.created_at,
+                updated_at=c.updated_at,
+                user_id=c.user_id,
+                user_name=c.user.name if c.user else None,
+                user_email=c.user.email if c.user else None,
+            )
+        )
+    return result
+
+# Update complaint status
+def update_complaint_status(db: Session, complaint_id: int, status: str):
+    complaint = db.query(models.Complaint).filter(models.Complaint.id == complaint_id).first()
+    if not complaint:
+        return None
+    complaint.status = status
+    complaint.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(complaint)
+    return complaint

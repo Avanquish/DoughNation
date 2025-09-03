@@ -1,4 +1,7 @@
-from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, Date
+
+from datetime import datetime
+import enum
+from sqlalchemy import Column, Enum, Integer, String, Boolean, DateTime, ForeignKey, Date, Text, func
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -23,6 +26,11 @@ class User(Base):
 
     # Parent side of donations
     donations = relationship("Donation", back_populates="bakery")
+    
+    sent_messages = relationship("Message", back_populates="sender", foreign_keys="Message.sender_id")
+    received_messages = relationship("Message", back_populates="receiver", foreign_keys="Message.receiver_id")
+    
+    complaints = relationship("Complaint", back_populates="user")
     
 class BakeryInventory(Base):
     __tablename__ = "bakery_inventory"
@@ -73,3 +81,34 @@ class Donation(Base):
 
     bakery = relationship("User", back_populates="donations")
     inventory_item = relationship("BakeryInventory", back_populates="donations")
+    
+class Message(Base):
+    __tablename__ = "messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    receiver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    content = Column(String, nullable=False)
+    timestamp = Column(DateTime, default=func.now())
+    is_read = Column(Boolean, default=False)
+
+    sender = relationship("User", back_populates="sent_messages", foreign_keys=[sender_id])
+    receiver = relationship("User", back_populates="received_messages", foreign_keys=[receiver_id])
+    
+class ComplaintStatus(str, enum.Enum):
+    pending = "Pending"
+    in_review = "In Review"
+    resolved = "Resolved"
+    
+class Complaint(Base):
+    __tablename__ = "complaints"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    subject = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False)
+    status = Column(Enum(ComplaintStatus), default=ComplaintStatus.pending)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="complaints")

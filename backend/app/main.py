@@ -2,8 +2,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI
-from app.routes import auth_routes, admin_routes, binventory_routes, bemployee_routes, bakerydashboardstats, admindashboardstats, bdonation_routes
-from app.routes import charitydonation_routes
+from app.routes import (auth_routes, admin_routes, binventory_routes, 
+                        bemployee_routes, bakerydashboardstats, admindashboardstats, 
+                        bdonation_routes, charitydonation_routes, bnotification, messages,
+                        complaint_routes
+                        )
 from app.database import engine, SessionLocal
 from app import models, crud
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,6 +37,9 @@ app.include_router(bemployee_routes.router)
 app.include_router(bakerydashboardstats.router)
 app.include_router(admindashboardstats.router)
 app.include_router(bdonation_routes.router)
+app.include_router(bnotification.router)
+app.include_router(messages.router)
+app.include_router(complaint_routes.router)
 app.include_router(charitydonation_routes.router)
 
 @app.on_event("startup")
@@ -48,7 +54,6 @@ if not os.path.exists("uploads"):
     os.makedirs("uploads")
 
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-
 
 @app.on_event("startup")
 @repeat_every(seconds=3600) 

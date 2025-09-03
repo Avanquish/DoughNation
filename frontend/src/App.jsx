@@ -7,6 +7,8 @@ import Register from './pages/Register';
 import BakeryDashboard from "./pages/BakeryDashboard";
 import CharityDashboard from "./pages/CharityDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
+import Profile from "./pages/BakeryProfile";
+import CharityProfile from "./pages/CharityProfile";
 
 function App() {
   return (
@@ -17,10 +19,12 @@ function App() {
 
           <Route element={<ProtectedRoute allowedRoles={["Bakery"]} />}>
             <Route path="/bakery-dashboard/:id" element={<BakeryDashboard />} />
+            <Route path="/bakery-dashboard/:id/profile" element={<Profile />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={["Charity"]} />}>
             <Route path="/charity-dashboard/:id" element={<CharityDashboard />} />
+            <Route path="/charity-dashboard/:id/profile" element={<CharityProfile />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={["Admin"]} />}>

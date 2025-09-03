@@ -2,6 +2,8 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import date, datetime
 
+from enum import Enum
+
 # ------------------ USER MANAGEMENT  ------------------
 class UserCreate(BaseModel):
     role: str  # Bakery or Charity
@@ -35,6 +37,18 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    contact_person: Optional[str] = None
+    contact_number: Optional[str] = None
+    address: Optional[str] = None
+    
+class ChangePassword(BaseModel):
+    current_password: str
+    new_password: str
+    confirm_password: str
+
+
 # ------------------ BAKERY INVENTORY ------------------
 class BakeryInventoryBase(BaseModel):
     name: str
@@ -102,6 +116,71 @@ class DonationCreate(BaseModel):
 class DonationRead(DonationBase):
     bakery_id: int
     bakery_name: str   # add this
+
+    class Config:
+        from_attributes = True
+        
+
+#---------Messages-----------
+class MessageIn(BaseModel):
+    receiver_id: int
+    content: str
+
+class MessageOut(BaseModel):
+    id: int
+    sender_id: int
+    receiver_id: int
+    content: str
+    timestamp: datetime
+    is_read: bool
+
+    class Config:
+        from_attributes = True
+
+
+class CharityOut(BaseModel):
+    id: int
+    name: str
+    email: str
+    profile_picture: Optional[str]
+
+    class Config:
+        from_attributes = True   
+
+
+class BakeryOut(BaseModel):
+    id: int
+    name: str
+    email: str
+    profile_picture: Optional[str]
+
+    class Config:
+        from_attributes = True   
+
+#--------Complaint-----------
+class ComplaintStatus(str, Enum):
+    pending = "Pending"
+    in_review = "In Review"
+    resolved = "Resolved"
+    
+class ComplaintBase(BaseModel):
+    subject: str
+    description: str
+
+class ComplaintCreate(ComplaintBase):
+    pass
+
+class ComplaintUpdateStatus(BaseModel):
+    status: ComplaintStatus
+
+class ComplaintOut(ComplaintBase):
+    id: int
+    status: ComplaintStatus
+    created_at: datetime
+    updated_at: datetime 
+    user_id: int
+    user_name: Optional[str] = None  
+    user_email: Optional[str] = None  
 
     class Config:
         from_attributes = True

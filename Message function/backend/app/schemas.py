@@ -114,7 +114,7 @@ class DonationRequestCreate(BaseModel):
     
 class DonationRequestRead(BaseModel):
     id: int
-    donation_id: int
+    donation_id: Optional[int]
     charity_id: int
     bakery_id: int
     timestamp: datetime

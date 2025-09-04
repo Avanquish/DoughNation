@@ -83,11 +83,13 @@ class DonationRequest(Base):
     __tablename__ = "donation_requests"
 
     id = Column(Integer, primary_key=True, index=True)
-    donation_id = Column(Integer, ForeignKey("donations.id"))
+    donation_id = Column(Integer, ForeignKey("donations.id", ondelete="CASCADE"))
     charity_id = Column(Integer, ForeignKey("users.id"))
     bakery_id = Column(Integer, ForeignKey("users.id"))
     timestamp = Column(DateTime, default=datetime.utcnow)
     status = Column(String, default="pending") 
+
+    donation = relationship("Donation", backref="requests", passive_deletes=True)
 
 class Message(Base):
     __tablename__ = "messages"

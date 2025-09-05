@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import axios from "axios";
 
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -132,6 +133,38 @@ export default function Messenger({ setActiveTab, setHighlightedDonationId }) {
     window.addEventListener("open_chat", handler);
     return () => window.removeEventListener("open_chat", handler);
   }, [currentUser]);
+
+  // Clear notification for this charity when chat is opened directly
+useEffect(() => {
+  if (!selectedUser || !currentUser) return;
+
+  // Reset unread count in sidebar instantly
+  setActiveChats((prev) => {
+    const newMap = new Map(prev);
+    if (newMap.has(selectedUser.id)) {
+      const chat = newMap.get(selectedUser.id);
+      newMap.set(selectedUser.id, { ...chat, unread: 0 });
+    }
+    return newMap;
+  });
+
+  //  Mark notification as read on backend
+  const token = localStorage.getItem("token");
+  const opts = token
+    ? { headers: { Authorization: `Bearer ${token}` } }
+    : { withCredentials: true };
+
+  const notifId = `msg-${selectedUser.id}`;
+
+  axios
+    .patch(`${API_URL}/notifications/${notifId}/read`, {}, opts)
+    .then(() => {
+      console.log("Cleared notification for", notifId);
+      window.dispatchEvent(new Event("refresh_notifications"));
+    })
+    .catch((err) => console.error("Failed to clear notification:", err));
+}, [selectedUser, currentUser]);
+
 
   // WebSocket setup
   useEffect(() => {
@@ -561,6 +594,14 @@ useEffect(() => {
     return Array.from(activeChats.values());
   }, [search, searchResults, activeChats]);
 
+  const totalUnread = useMemo(() => {
+  let sum = 0;
+  activeChats.forEach((chat) => {
+    sum += chat.unread || 0;
+  });
+  return sum;
+}, [activeChats]);
+
   return (
     <div>
       <button
@@ -568,6 +609,11 @@ useEffect(() => {
         className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-blue-600 text-white shadow-lg text-2xl flex items-center justify-center z-50"
       >
         💬
+      {totalUnread > 0 && (
+      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+        {totalUnread}
+      </span>
+      )}
       </button>
 
       {open && (

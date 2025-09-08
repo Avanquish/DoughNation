@@ -17,10 +17,6 @@ import {
   Users,
   AlertTriangle,
   LogOut,
-  Bell,
-  MessageSquareText,
-  X,
-  ChevronRight,
   CheckCircle
 } from "lucide-react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
@@ -30,6 +26,7 @@ import BakeryDonation from "./BakeryDonation";
 import Messages from "../pages/Messages";
 import Complaint from "../pages/Complaint";
 import BakeryReportGeneration from "../pages/BakeryReportGeneration";
+import BakeryNotification from "./BakeryNotification";
 
 const API = "http://localhost:8000";
 
@@ -59,19 +56,11 @@ const BakeryDashboard = () => {
 
   const [highlightedDonationId, setHighlightedDonationId] = useState(null);
 
-  // Panels
-  const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [isMsgOpen, setIsMsgOpen] = useState(false);
-
   // Live data for cards
   const [inventory, setInventory] = useState([]);
   const [employeeCount, setEmployeeCount] = useState(0);
   const [uploadedProducts, setUploadedProducts] = useState(0);
   const [donatedProducts, setDonatedProducts] = useState(0);
-
-  // Notification unread tracking
-  const [readProductIds, setReadProductIds] = useState(new Set());
-  const [readMessageIds, setReadMessageIds] = useState(new Set());
 
   const [currentUser, setCurrentUser] = useState(null);
 
@@ -196,46 +185,6 @@ const BakeryDashboard = () => {
     };
   }, [inventory, employeeCount, uploadedProducts, donatedProducts]);
 
-  // Notifs
-  const productAlerts = useMemo(() => {
-    const arr = [];
-    for (const item of inventory) {
-      const st = statusOf(item);
-      if (st === "fresh") continue;
-      const d = daysUntil(item.expiration_date);
-      arr.push({
-        id: `inv-${item.id}`,
-        name: item.name,
-        quantity: item.quantity,
-        status: st, // "expired" | "soon" | "fresh"
-        days: d,
-        dateText: item.expiration_date,
-      });
-    }
-    return arr.sort((a, b) => {
-      if (a.status !== b.status) return a.status === "expired" ? -1 : 1;
-      return (a.days ?? 0) - (b.days ?? 0);
-    });
-  }, [inventory]);
-
-  // design-only message notifs (no backend yet)
-  const messageNotifs = useMemo(
-    () => [
-      { id: "msg-1", title: "New message (design)", snippet: "Placeholder only" },
-      { id: "msg-2", title: "New message (design)", snippet: "Placeholder only" },
-    ],
-    []
-  );
-
-  const unreadProductCount = useMemo(
-    () => productAlerts.filter((n) => !readProductIds.has(n.id)).length,
-    [productAlerts, readProductIds]
-  );
-  const unreadMessageCount = useMemo(
-    () => messageNotifs.filter((m) => !readMessageIds.has(m.id)).length,
-    [messageNotifs, readMessageIds]
-  );
-  const totalUnread = unreadProductCount + unreadMessageCount;
 
   // ui helpers
   const handleLogout = () => {
@@ -254,40 +203,6 @@ const BakeryDashboard = () => {
         );
     }
   }, [activeTab]);
-
-  const openInventory = () => {
-    setActiveTab("inventory");
-    navigate(`/bakery-dashboard/${id}?tab=inventory`, { replace: true });
-    setIsNotifOpen(false);
-    setIsMsgOpen(false);
-    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "smooth" }));
-  };
-
-  useEffect(() => {
-    document.documentElement.style.overflow = isNotifOpen ? "hidden" : "";
-    return () => {
-      document.documentElement.style.overflow = "";
-    };
-  }, [isNotifOpen]);
-
-  const handleClickProductNotification = (n) => {
-    setReadProductIds((prev) => {
-      const next = new Set(prev);
-      next.add(n.id);
-      return next;
-    });
-    openInventory();
-  };
-
-  const handleClickMessageNotification = (m) => {
-    setReadMessageIds((prev) => {
-      const next = new Set(prev);
-      next.add(m.id);
-      return next;
-    });
-    setIsNotifOpen(false);
-    setIsMsgOpen(true);
-  };
 
     // If user is not verified, show "verification pending" screen
   if (!isVerified) {
@@ -400,7 +315,7 @@ const BakeryDashboard = () => {
   );
 
   return (
-    <div className="min-h-screen relative">
+      <div className="min-h-screen relative">
       <Styles />
 
       <div className="page-bg">
@@ -416,8 +331,22 @@ const BakeryDashboard = () => {
               <div className="brand">
                 <div className="ring">
                   <div>
-                    <svg width="28" height="28" viewBox="0 0 64 48" aria-hidden="true" className="bread">
-                      <rect x="4" y="12" rx="12" ry="12" width="56" height="28" fill="#E8B06A" />
+                    <svg
+                      width="28"
+                      height="28"
+                      viewBox="0 0 64 48"
+                      aria-hidden="true"
+                      className="bread"
+                    >
+                      <rect
+                        x="4"
+                        y="12"
+                        rx="12"
+                        ry="12"
+                        width="56"
+                        height="28"
+                        fill="#E8B06A"
+                      />
                       <path
                         d="M18 24c0-3 3-5 7-5s7 2 7 5m4 0c0-3 3-5 7-5s7 2 7 5"
                         stroke="#9A5E22"
@@ -429,62 +358,22 @@ const BakeryDashboard = () => {
                   </div>
                 </div>
                 <div className="min-w-0">
-                  <h1 className="title-ink text-2xl sm:text-[26px] truncate">{name}</h1>
+                  <h1 className="title-ink text-2xl sm:text-[26px] truncate">
+                    {name}
+                  </h1>
                   <span className="status-chip">{statusText}</span>
                 </div>
               </div>
             </div>
 
             <div className="pt-1 iconbar">
-              {/* messages (design for now)*/}
-              <div className="msg-wrap">
-                {isMsgOpen && (
-                  <div className="msg-panel">
-                    <div className="p-3 flex items-center justify-between border-b border-[rgba(0,0,0,.06)] bg-[#fff9f0]">
-                      <div className="font-semibold text-sm text-[var(--ink)]">Messages</div>
-                      <button
-                        className="rounded-md p-1 hover:bg-black/5"
-                        aria-label="Close messages"
-                        onClick={() => setIsMsgOpen(false)}
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <ul className="max-h-[360px] overflow-auto">
-                      {Array.from({ length: 4 }).map((_, idx) => (
-                        <li key={idx} className="p-3 flex items-start gap-3 cursor-default">
-                          <div className="chip shrink-0 skeleton" style={{ width: 40, height: 40, borderRadius: 9999 }} />
-                          <div className="min-w-0 flex-1 space-y-2">
-                            <div className="h-3 rounded skeleton w-2/3" />
-                            <div className="h-3 rounded skeleton w-5/6" />
-                          </div>
-                          <ChevronRight className="h-4 w-4 ml-auto text-muted-foreground opacity-30" />
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="p-2 text-right">
-                      <Button size="sm" variant="ghost" onClick={() => setIsMsgOpen(false)}>
-                        Close
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
+              {/* Messages Button */}
+              <Messages currentUser={currentUser} />
 
-              {/* notif icon */}
-              <button
-                className="icon-btn"
-                aria-label="Open notifications"
-                onClick={() => {
-                  setIsNotifOpen(true);
-                  setIsMsgOpen(false);
-                }}
-              >
-                <Bell className="h-[18px] w-[18px]" />
-                {totalUnread > 0 && <span className="badge">{totalUnread}</span>}
-              </button>
+              {/* Notifications Bell */}
+              <BakeryNotification />
 
-              {/* profile icon */}
+              {/* Profile Icon */}
               <button
                 className="icon-btn"
                 aria-label="Open profile"
@@ -499,11 +388,14 @@ const BakeryDashboard = () => {
                     border: "1px solid #fff3e0",
                   }}
                 >
-                  {name ?.trim()?.charAt(0).toUpperCase() || " "}
+                  {name?.trim()?.charAt(0).toUpperCase() || " "}
                 </span>
               </button>
 
-              <Button onClick={handleLogout} className="btn-logout flex items-center">
+              <Button
+                onClick={handleLogout}
+                className="btn-logout flex items-center"
+              >
                 <LogOut className="h-4 w-4" />
                 <span>Log Out</span>
               </Button>
@@ -512,128 +404,17 @@ const BakeryDashboard = () => {
         </div>
       </header>
 
-      {/* notifs overlay */}
-      {isNotifOpen && (
-        <div className="overlay-root" role="dialog" aria-modal="true" aria-label="Notifications">
-          <div className="overlay-bg" onClick={() => setIsNotifOpen(false)} />
-          <div className="overlay-panel overlay-enter">
-            <Card className="glass-card shadow-none">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Notifications</CardTitle>
-                    <CardDescription>Product alerts & message notifications</CardDescription>
-                  </div>
-                  <button
-                    className="rounded-md p-2 hover:bg-black/5"
-                    aria-label="Close notifications"
-                    onClick={() => setIsNotifOpen(false)}
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-              </CardHeader>
-
-              <CardContent className="p-0">
-                <ul className="max-h-[60vh] overflow-auto divide-y divide-[rgba(0,0,0,.06)]">
-                  <li className="p-3 text-xs font-semibold text-[var(--ink)] bg-[#fff9f0]">Inventory</li>
-                  {productAlerts.length === 0 && (
-                    <li className="p-6 text-sm text-muted-foreground">No inventory alerts.</li>
-                  )}
-                  {productAlerts
-                    .filter((n) => !readProductIds.has(n.id))
-                    .map((n) => (
-                      <li
-                        key={n.id}
-                        className="p-4 hover:bg-black/5 cursor-pointer"
-                        onClick={() => handleClickProductNotification(n)}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="chip mt-0.5">
-                            {n.status === "expired" ? <AlertTriangle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="font-semibold truncate">{n.name}</p>
-                              <span className="text-xs text-muted-foreground whitespace-nowrap">{n.dateText}</span>
-                            </div>
-                            <p className="text-sm text-muted-foreground">
-                              {n.status === "expired"
-                                ? `${n.quantity} item(s) expired`
-                                : `${n.quantity} item(s) expiring in ${n.days} day(s)`}
-                            </p>
-                            <div
-                              className="mt-1 inline-flex items-center gap-2 text-xs font-medium px-2 py-1 rounded-full border"
-                              style={{
-                                background: n.status === "expired" ? "#fff1f0" : "#fff8e6",
-                                borderColor: n.status === "expired" ? "#ffd6d6" : "#ffe7bf",
-                                color: n.status === "expired" ? "#c92a2a" : "#8a5a25",
-                              }}
-                            >
-                              {n.status === "expired" ? "Expired" : "Expires Soon"}
-                            </div>
-                          </div>
-                          <ChevronRight className="h-4 w-4 ml-auto text-muted-foreground" />
-                        </div>
-                      </li>
-                    ))}
-
-                  <li className="p-3 text-xs font-semibold text-[var(--ink)] bg-[#fff9f0]">Messages</li>
-                  {messageNotifs.filter((m) => !readMessageIds.has(m.id)).length === 0 && (
-                    <li className="p-6 text-sm text-muted-foreground">No message notifications.</li>
-                  )}
-                  {messageNotifs
-                    .filter((m) => !readMessageIds.has(m.id))
-                    .map((m) => (
-                      <li
-                        key={m.id}
-                        className="p-4 hover:bg-black/5 cursor-pointer"
-                        onClick={() => handleClickMessageNotification(m)}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="chip mt-0.5">
-                            <MessageSquareText className="h-4 w-4" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-semibold truncate">{m.title}</p>
-                            <p className="text-sm text-muted-foreground">{m.snippet}</p>
-                          </div>
-                          <ChevronRight className="h-4 w-4 ml-auto text-muted-foreground" />
-                        </div>
-                      </li>
-                    ))}
-
-                  <li className="p-4 bg-[#fff9f0]">
-                    <div className="flex items-center gap-3">
-                      <div className="chip">
-                        <Package className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <p className="font-semibold">Inventory Alerts</p>
-                        <p className="text-sm text-muted-foreground">
-                          Expired: {stats.expiredProducts} • Nearing Expiration: {stats.nearingExpiration}
-                        </p>
-                      </div>
-                    </div>
-                  </li>
-                </ul>
-
-                <div className="p-3 flex justify-end gap-2">
-                  <Button variant="ghost" onClick={() => setIsNotifOpen(false)}>
-                    Close
-                  </Button>
-                  <Button onClick={openInventory}>View Inventory</Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      )}
-
-      <Messages currentUser={currentUser} />
-
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => {
+          setActiveTab(v);
+          const base = `/bakery-dashboard/${id}`;
+          const url = v === "dashboard" ? base : `${base}?tab=${v}`;
+          navigate(url, { replace: true });
+        }}
+      >
+
         <div className="seg-wrap">
           <div className="seg">
             <TabsList className="bg-transparent p-0 border-0">

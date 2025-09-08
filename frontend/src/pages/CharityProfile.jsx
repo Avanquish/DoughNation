@@ -51,7 +51,7 @@ const statusOf = (item) => {
   return "fresh";
 };
 
-export default function BakeryProfile() {
+export default function CharityProfile() {
   const { id } = useParams();
   const [name, setName] = useState("Bakery Name");
   const [activeSubTab, setActiveSubTab] = useState("about");
@@ -393,12 +393,7 @@ export default function BakeryProfile() {
     `}</style>
   );
 
-  const statusPie = [
-    { name: "Fresh", value: statusCounts.fresh },
-    { name: "Soon", value: statusCounts.soon },
-    { name: "Expired", value: statusCounts.expired },
-  ];
-  const COLORS = ["#68b266", "#f3c04f", "#e05b5b"];
+  
 
   return (
     <div className="min-h-screen relative">
@@ -883,9 +878,6 @@ export default function BakeryProfile() {
                   <TabsList className="bg-transparent p-0 border-0">
                     <TabsTrigger value="about">About</TabsTrigger>
                     <TabsTrigger value="history">Donation History</TabsTrigger>
-                    <TabsTrigger value="analytics">
-                      Analytics &amp; Badges
-                    </TabsTrigger>
                   </TabsList>
                 </div>
 
@@ -903,32 +895,6 @@ export default function BakeryProfile() {
                           Update this section in <em>Edit Profile</em> to
                           display your story, mission, and donation preferences.
                         </p>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          <div className="p-4 rounded-lg border bg-white/70">
-                            <div className="text-sm text-muted-foreground">
-                              Employees
-                            </div>
-                            <div className="text-2xl font-bold">
-                              {employeeCount}
-                            </div>
-                          </div>
-                          <div className="p-4 rounded-lg border bg-white/70">
-                            <div className="text-sm text-muted-foreground">
-                              Products Tracked
-                            </div>
-                            <div className="text-2xl font-bold">
-                              {statusCounts.total}
-                            </div>
-                          </div>
-                          <div className="p-4 rounded-lg border bg-white/70">
-                            <div className="text-sm text-muted-foreground">
-                              Active Alerts
-                            </div>
-                            <div className="text-2xl font-bold">
-                              {statusCounts.expired + statusCounts.soon}
-                            </div>
-                          </div>
-                        </div>
                       </CardContent>
                     </Card>
                   </div>
@@ -944,128 +910,6 @@ export default function BakeryProfile() {
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="min-h-[140px]" />
-                    </Card>
-                  </div>
-                </TabsContent>
-
-                {/* Badges (designing pa & not yet ready)*/}
-                <TabsContent value="analytics" className="pt-6 space-y-6">
-                  <div className="gwrap">
-                    <Card className="glass-card shadow-none">
-                      <CardHeader className="pb-2">
-                        <CardTitle>Badges</CardTitle>
-                        <CardDescription />
-                      </CardHeader>
-                      <CardContent className="min-h-[80px]" />
-                    </Card>
-                  </div>
-
-                  {/* Data Visualization */}
-                  <div className="gwrap">
-                    <Card className="glass-card shadow-none">
-                      <CardHeader className="pb-2">
-                        <CardTitle>Data Visualization</CardTitle>
-                        <CardDescription>
-                          Inventory status at a glance
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div className="p-4 rounded-lg border bg-white/70">
-                          <div className="text-sm text-muted-foreground mb-2">
-                            Total
-                          </div>
-                          <div className="h-56">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <PieChart>
-                                <Pie
-                                  data={statusPie}
-                                  dataKey="value"
-                                  nameKey="name"
-                                  innerRadius={60}
-                                  outerRadius={80}
-                                  paddingAngle={2}
-                                >
-                                  {statusPie.map((_, i) => (
-                                    <Cell
-                                      key={i}
-                                      fill={
-                                        ["#68b266", "#f3c04f", "#e05b5b"][i % 3]
-                                      }
-                                    />
-                                  ))}
-                                </Pie>
-                                <Tooltip />
-                                <Legend />
-                              </PieChart>
-                            </ResponsiveContainer>
-                          </div>
-                        </div>
-                        <div className="p-4 rounded-lg border bg-white/70">
-                          <div className="text-sm text-muted-foreground mb-2">
-                            Fresh vs Soon
-                          </div>
-                          <div className="h-56">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <PieChart>
-                                <Pie
-                                  data={[
-                                    {
-                                      name: "Fresh",
-                                      value: statusCounts.fresh,
-                                    },
-                                    { name: "Soon", value: statusCounts.soon },
-                                  ]}
-                                  dataKey="value"
-                                  nameKey="name"
-                                  innerRadius={50}
-                                  outerRadius={75}
-                                >
-                                  <Cell fill="#68b266" />
-                                  <Cell fill="#f3c04f" />
-                                </Pie>
-                                <Tooltip />
-                                <Legend />
-                              </PieChart>
-                            </ResponsiveContainer>
-                          </div>
-                        </div>
-                        <div className="p-4 rounded-lg border bg-white/70">
-                          <div className="text-sm text-muted-foreground mb-2">
-                            Expired Share
-                          </div>
-                          <div className="h-56">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <PieChart>
-                                <Pie
-                                  data={[
-                                    {
-                                      name: "Expired",
-                                      value: statusCounts.expired,
-                                    },
-                                    {
-                                      name: "Other",
-                                      value: Math.max(
-                                        statusCounts.total -
-                                          statusCounts.expired,
-                                        0
-                                      ),
-                                    },
-                                  ]}
-                                  dataKey="value"
-                                  nameKey="name"
-                                  innerRadius={50}
-                                  outerRadius={75}
-                                >
-                                  <Cell fill="#e05b5b" />
-                                  <Cell fill="#e5decf" />
-                                </Pie>
-                                <Tooltip />
-                                <Legend />
-                              </PieChart>
-                            </ResponsiveContainer>
-                          </div>
-                        </div>
-                      </CardContent>
                     </Card>
                   </div>
                 </TabsContent>

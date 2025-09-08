@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -7,61 +7,57 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   HeartHandshake,
   PackageCheck,
   MessageCircleHeart,
+  LogOut,
   Smile,
+  CheckCircle,
   Users,
-  User,
-  Bell,
-  MessageSquare,
-  X,
 } from "lucide-react";
-import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
-import CharityDonation from "./../pages/CharityDonation";
-import DonationTracking from "./../pages/DonationTracking";
-import Messages from "../pages/Messages.jsx";
-import Complaint from "./Complaint";
+import CharityDonation from "./CharityDonation.jsx";
+import Messages from "./Messages.jsx";
 import CharityReceived from "./CharityReceived.jsx";
+import CharityNotification from "./CharityNotification.jsx";
+import Complaint from "./Complaint.jsx";
 
 const CharityDashboard = () => {
   const [name, setName] = useState("");
   const [isVerified, setIsVerified] = useState(false);
   const [userId, setUserId] = useState(null);
   const [activeTab, setActiveTab] = useState("donation");
-  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]); // <-- Notifications list
-  const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(null);
+  const navigate = useNavigate();
 
-  // Fetch notifications on mount
-  useEffect(() => {
-    // Example: fetch notifications from API or localStorage
-    const notifData = JSON.parse(localStorage.getItem("notifications")) || [];
-    setNotifications(notifData);
-  }, []);
-
-  // You can also fetch user info from token
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
       try {
         const decoded = JSON.parse(atob(token.split(".")[1]));
-        setName(decoded.name || "Charity User");
+        setName(decoded.name || "FoodCharity");
         setIsVerified(decoded.is_verified);
         setUserId(decoded.id);
       } catch (error) {
         console.error("Failed to decode token:", error);
       }
     }
+  }, []);
+
+  useEffect(() => {
+    const handleSwitch = () => setActiveTab("donation");
+    window.addEventListener("switch_to_donation_tab", handleSwitch);
+    return () =>
+      window.removeEventListener("switch_to_donation_tab", handleSwitch);
+  }, []);
+
+  useEffect(() => {
+    const handleSwitch = () => setActiveTab("received");
+    window.addEventListener("switch_to_received_tab", handleSwitch);
+    return () =>
+      window.removeEventListener("switch_to_received_tab", handleSwitch);
   }, []);
 
   useEffect(() => {
@@ -74,7 +70,116 @@ const CharityDashboard = () => {
     navigate("/");
   };
 
-  // Render verification screen if not verified
+  const statusText = useMemo(() => {
+    switch (activeTab) {
+      default:
+        return (
+          <span className="flex items-center gap-1 text-green-600">
+            <CheckCircle className="w-4 h-4" />
+            Verified
+          </span>
+        );
+    }
+  }, [activeTab]);
+
+  // If user is not verified, show "verification pending" screen
+    if (!isVerified) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-surface to-primary/5 p-6">
+          <Card className="max-w-md shadow-elegant">
+            <CardHeader>
+              <CardTitle>Account Verification Required</CardTitle>
+              <CardDescription>
+                Hello {name}, your account is pending verification.  
+                Please wait until an admin verifies your account before using the dashboard features.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center gap-4">
+              <Button onClick={handleLogout} variant="destructive">
+                Log Out
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+  
+
+  const Styles = () => (
+    <style>{`
+      :root{
+        --ink:#7a4f1c;
+        --brand1:#F6C17C; --brand2:#E49A52; --brand3:#BF7327;
+      }
+
+      /* Background */
+      .page-bg{position:fixed; inset:0; z-index:-10; overflow:hidden; pointer-events:none;}
+      .page-bg::before, .page-bg::after{content:""; position:absolute; inset:0}
+      .page-bg::before{
+        background:
+          radial-gradient(1200px 520px at 12% -10%, #fff7ec 0%, #ffe7c8 42%, transparent 70%),
+          radial-gradient(900px 420px at 110% 18%, rgba(255,208,153,.40), transparent 70%),
+          linear-gradient(135deg, #FFF9EF 0%, #FFF2E3 60%, #FFE7D1 100%);
+      }
+      .page-bg::after{
+        background: repeating-linear-gradient(-35deg, rgba(201,124,44,.06) 0 8px, rgba(201,124,44,0) 8px 18px);
+        mix-blend-mode:multiply; opacity:.12;
+      }
+      .blob{position:absolute; width:420px; height:420px; border-radius:50%; filter:blur(36px); mix-blend-mode:multiply; opacity:.22}
+      .blob.a{left:-120px; top:30%; background:radial-gradient(circle at 35% 35%, #ffd9aa, transparent 60%);}
+      .blob.b{right:-140px; top:6%; background:radial-gradient(circle at 60% 40%, #ffc985, transparent 58%);}
+
+      /* Header */
+      .head{position:sticky; top:0; z-index:40; border-bottom:1px solid rgba(0,0,0,.06); backdrop-filter: blur(10px);}
+      .head-bg{position:absolute; inset:0; z-index:-1; opacity:.92;
+        background: linear-gradient(110deg, #ffffff 0%, #fff8ec 28%, #ffeccd 55%, #ffd7a6 100%);
+      }
+      .head-inner{max-width:80rem; margin:0 auto; padding:.9rem 1rem;}
+      .brand{display:flex; gap:.8rem; align-items:center}
+      .ring{width:48px; height:48px; border-radius:9999px; padding:2px;
+        background:conic-gradient(from 210deg, #F7C789, #E8A765, #C97C2C, #E8A765, #F7C789)}
+      .ring>div{width:100%; height:100%; border-radius:9999px; background:#fff; display:flex; align-items:center; justify-content:center}
+      .title-ink{font-weight:800; letter-spacing:.2px;
+        background:linear-gradient(90deg,#F3B56F,#E59B50,#C97C2C);
+        -webkit-background-clip:text; background-clip:text; color:transparent}
+      .status-chip{display:inline-flex; align-items:center; gap:.5rem; margin-top:.15rem;
+        padding:.28rem .6rem; font-size:.78rem; border-radius:9999px;
+        color:#7a4f1c; background:linear-gradient(180deg,#FFE7C5,#F7C489); border:1px solid #fff3e0}
+
+      /* Bakery-style segmented tabs */
+      .tabwrap{max-width:80rem; margin:.75rem auto 0; padding:0 1rem;}
+      .tabbar{display:flex; gap:.5rem; background:rgba(255,255,255,.95); border:1px solid rgba(0,0,0,.06);
+        border-radius:16px; padding:.4rem; box-shadow:0 10px 26px rgba(201,124,44,.15); width:fit-content}
+      .tabbar [role="tab"]{border-radius:12px; padding:.6rem 1rem; color:#6b4b2b; font-weight:800; letter-spacing:.2px}
+      .tabbar [role="tab"][data-state="active"]{color:#fff;
+        background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3));
+        box-shadow:0 8px 18px rgba(201,124,44,.28)}
+
+      /* Cards */
+      .gwrap{position:relative; border-radius:16px; padding:1px;
+        background:linear-gradient(135deg, rgba(247,199,137,.9), rgba(201,124,44,.55))}
+      .glass-card{border-radius:15px; background:rgba(255,255,255,.94); backdrop-filter:blur(8px)}
+      .chip{width:46px; height:46px; display:flex; align-items:center; justify-content:center; border-radius:9999px;
+        background:linear-gradient(180deg,#FFE7C5,#F7C489); color:#8a5a25; border:1px solid #fff3e0}
+      .metric{margin-top:.25rem; font-size:1.75rem; line-height:2rem; font-weight:900; letter-spacing:-.02em}
+
+      /* Right-side icon cluster (matches Bakery) */
+      .iconbar{display:flex; align-items:center; gap:.5rem}
+      .icon-btn{position:relative; display:inline-flex; align-items:center; justify-content:center;
+        width:40px; height:40px; border-radius:9999px; background:rgba(255,255,255,.9);
+        border:1px solid rgba(0,0,0,.06); box-shadow:0 6px 16px rgba(201,124,44,.14)}
+
+      /* Logout button like Bakery */
+      .btn-logout{position:relative; overflow:hidden; border-radius:9999px; padding:.58rem .95rem; gap:.5rem;
+        background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); color:#fff;
+        border:1px solid rgba(255,255,255,.6); box-shadow:0 8px 26px rgba(201,124,44,.25)}
+      .btn-logout:before{content:""; position:absolute; top:-40%; bottom:-40%; left:-70%; width:60%;
+        transform:rotate(10deg); background:linear-gradient(90deg, rgba(255,255,255,.26), rgba(255,255,255,0) 55%);
+        animation: shine 3.2s linear infinite}
+      @keyframes shine{from{left:-70%}to{left:120%}}
+    `}</style>
+  );
+
   if (!isVerified) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-surface to-primary/5 p-6">
@@ -82,8 +187,9 @@ const CharityDashboard = () => {
           <CardHeader>
             <CardTitle>Account Verification Required</CardTitle>
             <CardDescription>
-              Hello {name}, your account is pending verification.  
-              Please wait until an admin verifies your account before using the dashboard features.
+              Hello {name}, your account is pending verification. Please wait
+              until an admin verifies your account before using the dashboard
+              features.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4">
@@ -97,168 +203,166 @@ const CharityDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-surface to-primary/5">
-      {/* Header */}
-      <div className="bg-white border-b border-border shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-charity-light rounded-lg">
-                <HeartHandshake className="h-6 w-6 text-charity" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-foreground">{name}</h1>
-                <p className="text-muted-foreground">Charity Dashboard</p>
-              </div>
-            </div>
-
-            {/* Right Icons */}
-            <div className="flex items-center gap-4">
-              {/* Notification Icon with badge */}
-              <div className="relative">
-                <Button
-                  variant="ghost"
-                  className="p-2"
-                  onClick={() => setIsNotificationOpen(true)}
-                >
-                  <Bell className="h-6 w-6 text-foreground" />
-                </Button>
-                {notifications.length > 0 && (
-                  <span className="absolute -top-1 -right-1 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
-                    {notifications.length}
-                  </span>
-                )}
-              </div>
-
-              <Button
-                variant="ghost"
-                className="p-2"
-              >
-                <Messages currentUser={currentUser} />
-              </Button>
-
-              <Button
-                variant="ghost"
-                className="p-2"
-                onClick={() => navigate(`/charity-dashboard/${userId}/profile`)}
-              >
-                <User className="h-6 w-6 text-foreground" />
-              </Button>
-
-              <Button variant="charity" onClick={handleLogout}>
-                Log Out
-              </Button>
-            </div>
-          </div>
-        </div>
+    <div className="min-h-screen relative">
+      <Styles />
+      <div className="page-bg">
+        <span className="blob a" />
+        <span className="blob b" />
       </div>
 
-      
+      {/* Header */}
+      <header className="head">
+        <div className="head-bg" />
+        <div className="head-inner">
+          <div className="flex justify-between items-center gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="ring">
+                <div>
+                  <HeartHandshake className="h-6 w-6 text-amber-700" />
+                </div>
+              </div>
+              <div className="min-w-0">
+                <h1 className="title-ink text-2xl sm:text-[26px] truncate">
+                  {name}
+                </h1>
+                <span className="status-chip">{statusText}</span>
+              </div>
+            </div>
+            <div className="iconbar">
+              <div className="icon-btn">
+                <Messages currentUser={currentUser} compact />
+              </div>
 
-      {/* Notification Modal */}
-      {isNotificationOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg shadow-lg w-96 p-6 relative max-h-[80vh] overflow-y-auto">
-            <button
-              className="absolute top-2 right-2 p-1 hover:bg-gray-200 rounded-full"
-              onClick={() => setIsNotificationOpen(false)}
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <h2 className="text-lg font-bold mb-4">Notifications</h2>
+              <div className="icon-btn">
+                <CharityNotification />
+              </div>
 
-            {notifications.length === 0 ? (
-              <p className="text-sm text-muted-foreground">You have no new notifications.</p>
-            ) : (
-              <ul className="space-y-3">
-                {notifications.map((notif, index) => (
-                  <li key={index} className="border-b border-gray-200 pb-2">
-                    <p className="text-sm font-medium">{notif.bakeryName} has offered a donation!</p>
-                    <p className="text-xs text-muted-foreground">
-                      Product: {notif.productName} | Quantity: {notif.quantity}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {format(new Date(notif.timestamp), "PPP p")}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
+              {/* Simple profile initial (backend not wired yet) */}
+              <span className="icon-btn" title="CharityProfile" onClick={()=> navigate(`/charity-dashboard/${userId}/profile`)}>
+                <span
+                  className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold"
+                  style={{
+                    background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
+                    color: "#7a4f1c",
+                    border: "1px solid #fff3e0",
+                  }}
+                >
+                  {name?.trim()?.charAt(0).toUpperCase() || " "}
+                </span>
+              </span>
+
+              <Button onClick={handleLogout} className="btn-logout flex items-center">
+                <LogOut className="h-4 w-4" />
+                <span>Log Out</span>
+              </Button>
+            </div>
           </div>
         </div>
-      )}
+      </header>
 
-      {/* Tabs Section */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-5">
-            <TabsTrigger value="donation">Donation</TabsTrigger>
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="received">To Receive</TabsTrigger>
-            <TabsTrigger value="feedback">Feedback</TabsTrigger>
-            <TabsTrigger value="complaint">Complaints</TabsTrigger>
-          </TabsList>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <div className="tabwrap">
+          <div className="tabbar">
+            <TabsList className="bg-transparent p-0 border-0">
+              <TabsTrigger value="donation">Donation</TabsTrigger>
+              <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+              <TabsTrigger value="received">Received</TabsTrigger>
+              <TabsTrigger value="feedback">Feedback</TabsTrigger>
+              <TabsTrigger value="complaint">Complaint</TabsTrigger>
+            </TabsList>
+          </div>
+        </div>
 
+        {/* Content */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7">
+          {/* Dashboard */}
           <TabsContent value="dashboard" className="space-y-6">
-            {/* Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <Card className="shadow-elegant">
-                <CardContent className="p-6 flex items-center justify-between">
-                  <p className="text-sm font-medium text-muted-foreground">Total Donations Received</p>
-                  <PackageCheck className="h-8 w-8 text-primary" />
-                </CardContent>
-              </Card>
+              <div className="gwrap">
+                <Card className="glass-card shadow-none">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">
+                          Total Donations Received
+                        </p>
+                        <div className="metric">0</div>
+                      </div>
+                      <div className="chip">
+                        <PackageCheck className="h-5 w-5" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>       
+            </div>
 
-              <Card className="shadow-elegant">
-                <CardContent className="p-6 flex items-center justify-between">
-                  <p className="text-sm font-medium text-muted-foreground">Partnered Bakeries</p>
-                  <Users className="h-8 w-8 text-charity" />
-                </CardContent>
-              </Card>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="gwrap">
+                <Card className="glass-card shadow-none">
+                  <CardHeader className="pb-2">
+                    <CardTitle>Recent Donations</CardTitle>
+                    <CardDescription>
+                      Donations you've recently accepted
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              </div>
 
-              <Card className="shadow-elegant">
-                <CardContent className="p-6 flex items-center justify-between">
-                  <p className="text-sm font-medium text-muted-foreground">Badges Earned</p>
-                  <Smile className="h-8 w-8 text-success" />
+              
+            </div>
+          </TabsContent>
+
+          {/* Received */}
+          <TabsContent value="received">
+            <div className="gwrap">
+              <Card className="glass-card shadow-none">
+                <CardContent>
+                  <CharityReceived />
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
-          <TabsContent value="received">
-            <Card className="shadow-elegant">
-              <CardHeader>
-                <CardTitle>Received Donations</CardTitle>
-                <CardDescription>Track all items you've received</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <CharityReceived />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
+          {/* Feedback */}
           <TabsContent value="feedback">
-            <Card className="shadow-elegant">
-              <CardHeader>
-                <CardTitle>Feedback</CardTitle>
-                <CardDescription>Charity feedback system</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <MessageCircleHeart className="h-8 w-8 text-charity" />
-                <p className="mt-4 text-sm text-muted-foreground">You have no feedback yet.</p>
-              </CardContent>
-            </Card>
+            <div className="gwrap">
+              <Card className="glass-card shadow-none">
+                <CardHeader className="pb-2">
+                  <CardTitle>Feedback</CardTitle>
+                  <CardDescription>Charity feedback system</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <MessageCircleHeart className="h-8 w-8 text-amber-700" />
+                  <p className="mt-4 text-sm text-muted-foreground">
+                    You have no feedback yet.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
+          {/* Donation */}
           <TabsContent value="donation">
-            <CharityDonation />
+            <div className="gwrap">
+              <Card className="glass-card shadow-none">
+                <CharityDonation />
+                <CardContent className="min-h-[40px]" />
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="complaint">
-            <Complaint />
+            <div className="gwrap">
+              <Card className="glass-card shadow-none">
+                <Complaint />
+                <CardContent className="min-h-[40px]" />
+              </Card>
+            </div>
           </TabsContent>
-        </Tabs>
-      </div>
+        </div>
+      </Tabs>
     </div>
   );
 };

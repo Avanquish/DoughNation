@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from app.routes import (auth_routes, admin_routes, binventory_routes, 
                         bemployee_routes, bakerydashboardstats, admindashboardstats, 
                         bdonation_routes, charitydonation_routes, bnotification, messages,
-                        complaint_routes
+                        complaint_routes, reports_route
                         )
 from app.database import engine, SessionLocal
 from app import models, crud
@@ -41,6 +41,7 @@ app.include_router(bnotification.router)
 app.include_router(messages.router)
 app.include_router(complaint_routes.router)
 app.include_router(charitydonation_routes.router)
+app.include_router(reports_route.router)
 
 @app.on_event("startup")
 def seed_admin():

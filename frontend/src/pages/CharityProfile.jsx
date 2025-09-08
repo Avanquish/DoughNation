@@ -181,7 +181,7 @@ export default function BakeryProfile() {
       next.add(n.id);
       return next;
     });
-    navigate(`/bakery-dashboard/${id}?tab=inventory`);
+    navigate(`/charity-dashboard/${id}?tab=donation`);
   };
 
   const handleClickMessageNotification = (m) => {
@@ -457,7 +457,7 @@ export default function BakeryProfile() {
           className="icon-btn"
           aria-label="Back to dashboard"
           title="Back to Dashboard"
-          onClick={() => navigate(`/bakery-dashboard/${id}?tab=dashboard`)}
+          onClick={() => navigate(`/charity-dashboard/${id}?tab=donation`)}
         >
           <ChevronLeft className="h-[18px] w-[18px]" />
         </button>
@@ -696,10 +696,10 @@ export default function BakeryProfile() {
                   </Button>
                   <Button
                     onClick={() =>
-                      navigate(`/bakery-dashboard/${id}?tab=inventory`)
+                      navigate(`/charity-dashboard/${id}?tab=donation`)
                     }
                   >
-                    View Inventory
+                    View Donations
                   </Button>
                 </div>
               </CardContent>

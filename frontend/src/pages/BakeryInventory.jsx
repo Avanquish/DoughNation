@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
 import axios from "axios";
 import Swal from "sweetalert2";
 
 const API = "http://localhost:8000";
 
-// Helpers 
+// Helpers
 const parseDate = (s) => (s ? new Date(s) : null);
 const daysUntil = (dateStr) => {
   const d = parseDate(dateStr);
@@ -29,19 +29,6 @@ const rowTone = (s) =>
     ? "bg-amber-200 hover:bg-amber-100/70"
     : "bg-green-200 hover:bg-green-100/70";
 
-// Unique Product ID generator
-const productCode = (name) => {
-  const base = (name || "").trim().toUpperCase().replace(/[^A-Z0-9 ]+/g, "");
-  const words = base.split(/\s+/).filter(Boolean);
-  const prefix =
-    (words[0]?.[0] || "P") + (words[1]?.[0] || words[0]?.[1] || "R");
-
-  // Add timestamp + random part
-  const unique = Date.now().toString().slice(-6) + Math.floor(Math.random() * 1000).toString().padStart(3, "0");
-
-  return `${prefix}-${unique}`;
-};
-
 // Overlays
 function Overlay({ onClose, children }) {
   useEffect(() => {
@@ -50,9 +37,15 @@ function Overlay({ onClose, children }) {
     return () => (document.body.style.overflow = prev);
   }, []);
   const node = (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
+      onClick={onClose}
+    >
       <div className="absolute inset-0 bg-black/5 backdrop-blur-[1px]" />
-      <div className="relative w-full max-w-3xl" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="relative w-full max-w-3xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         {children}
       </div>
     </div>
@@ -70,7 +63,10 @@ function SlideOver({ open, onClose, children, width = 620 }) {
   if (!open) return null;
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[100]">
-      <div className="absolute inset-0 bg-black/5 backdrop-blur-[1px]" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/5 backdrop-blur-[1px]"
+        onClick={onClose}
+      />
       <aside
         className="absolute right-8 md:right-12 top-6 bottom-6 bg-white shadow-2xl border border-black/15 rounded-xl max-w-[92vw] overflow-hidden"
         style={{ width }}
@@ -102,19 +98,26 @@ export default function BakeryInventory() {
   });
 
   // Filters
-  const [query, setQuery] = useState("");                // name search
+  const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all"); // 'all' | 'fresh' | 'soon' | 'expired'
 
-  // Bakery tones
+  // Selection (bulk)
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const masterRef = useRef(null);
+
+  // Tones
   const labelTone = "block text-sm font-medium text-[#6b4b2b]";
   const inputTone =
     "w-full rounded-md border border-[#f2d4b5] bg-white/95 p-2 outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]";
   const sectionHeader =
     "p-5 sm:p-6 border-b bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]";
-  const primaryBtn =
-    "px-4 py-2 rounded-md text-white bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] shadow";
-  const outlineBtn =
-    "px-4 py-2 rounded-md border border-[#f2d4b5] text-[#6b4b2b] bg-white hover:bg-white/80";
+
+  // Buttons (match Cancel/Save/Add style)
+  const bounce = "transition-transform duration-150 hover:-translate-y-0.5 active:scale-95";
+  const pillSolid =
+    `rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 ${bounce}`;
+  const pillOutline =
+    `rounded-full border border-[#f2d4b5] text-[#6b4b2b] bg-white px-5 py-2 shadow-sm hover:bg-white/90 ${bounce}`;
 
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
@@ -137,16 +140,70 @@ export default function BakeryInventory() {
     fetchEmployees();
   }, []);
 
-  // Status counts (for chips)
+  /* =========================
+     FOCUS FROM NOTIFICATIONS
+     ========================= */
+  useEffect(() => {
+    let retryTimer = null;
+
+    const focusItem = (detail) => {
+      const wantedId = Number(detail?.id);
+      const wantedName = (detail?.name || "").toLowerCase();
+
+      let attempts = 0;
+      const MAX_ATTEMPTS = 30;      // ~4.5s total
+      const INTERVAL_MS = 150;
+
+      const tryFind = () => {
+        attempts += 1;
+
+        // find in the current inventory list
+        let item = null;
+        if (wantedId) item = inventory.find((it) => Number(it.id) === wantedId);
+        if (!item && wantedName)
+          item = inventory.find((it) => (it.name || "").toLowerCase() === wantedName);
+
+        if (item) {
+          // open your existing details UI
+          setSelectedItem(item);
+          setIsEditing(false);
+
+          // scroll + highlight the row
+          requestAnimationFrame(() => {
+            const row = document.querySelector(`tr[data-item-id="${item.id}"]`);
+            if (row) {
+              row.scrollIntoView({ behavior: "smooth", block: "center" });
+              row.classList.add("ring-2", "ring-[#E49A52]");
+              setTimeout(() => row.classList.remove("ring-2", "ring-[#E49A52]"), 1600);
+            }
+          });
+          return; // done
+        }
+
+        if (attempts < MAX_ATTEMPTS) {
+          retryTimer = setTimeout(tryFind, INTERVAL_MS);
+        }
+      };
+
+      tryFind();
+    };
+
+    const handler = (e) => focusItem(e.detail || {});
+    window.addEventListener("inventory:focus", handler);
+    return () => {
+      window.removeEventListener("inventory:focus", handler);
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [inventory]);
+
+  // Status counts
   const statusCounts = useMemo(() => {
     const counts = { all: inventory.length, fresh: 0, soon: 0, expired: 0 };
-    for (const it of inventory) {
-      counts[statusOf(it)]++;
-    }
+    for (const it of inventory) counts[statusOf(it)]++;
     return counts;
   }, [inventory]);
 
-  // Combined filter (name + status)
+  // Filtered list
   const filteredInventory = useMemo(() => {
     const q = query.trim().toLowerCase();
     return inventory.filter((it) => {
@@ -157,7 +214,18 @@ export default function BakeryInventory() {
     });
   }, [inventory, query, statusFilter]);
 
-  // crud
+  // Master checkbox state
+  useEffect(() => {
+    if (!masterRef.current) return;
+    const idsOnPage = filteredInventory.map((it) => it.id);
+    const selectedOnPage = idsOnPage.filter((id) => selectedIds.has(id));
+    masterRef.current.indeterminate =
+      selectedOnPage.length > 0 && selectedOnPage.length < idsOnPage.length;
+    masterRef.current.checked =
+      idsOnPage.length > 0 && selectedOnPage.length === idsOnPage.length;
+  }, [filteredInventory, selectedIds]);
+
+  // CRUD
   const handleSubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData();
@@ -195,9 +263,9 @@ export default function BakeryInventory() {
       text: "This can't be undone.",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-      confirmButtonText: "Yes, delete it!",
+      confirmButtonColor: "#A97142",
+      cancelButtonColor: "#C1A78C",
+      confirmButtonText: "Delete",
     });
     if (!ok.isConfirmed) return;
 
@@ -205,7 +273,7 @@ export default function BakeryInventory() {
     setSelectedItem(null);
     await fetchInventory();
     window.dispatchEvent(new CustomEvent("inventory:changed"));
-    Swal.fire({ title: "Deleted!", icon: "success" });
+    Swal.fire({ title: "Deleted!", icon: "success", confirmButtonColor: "#A97142" });
   };
 
   const handleUpdate = async (e) => {
@@ -217,6 +285,7 @@ export default function BakeryInventory() {
       icon: "question",
       showCancelButton: true,
       confirmButtonText: "Save",
+      confirmButtonColor: "#A97142",
     });
     if (!ok.isConfirmed) return;
 
@@ -234,21 +303,68 @@ export default function BakeryInventory() {
       headers: { ...headers, "Content-Type": "multipart/form-data" },
     });
 
-    Swal.fire({ title: "Updated!", icon: "success" });
+    Swal.fire({ title: "Updated!", icon: "success", confirmButtonColor: "#A97142" });
     setIsEditing(false);
     setSelectedItem(null);
     await fetchInventory();
     window.dispatchEvent(new CustomEvent("inventory:changed"));
   };
 
+  // Selection helpers
+  const toggleSelectOne = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAllOnPage = (checked) => {
+    const idsOnPage = filteredInventory.map((it) => it.id);
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) idsOnPage.forEach((id) => next.add(id));
+      else idsOnPage.forEach((id) => next.delete(id));
+      return next;
+    });
+  };
+  const selectExpiredAll = () => {
+    const ids = inventory.filter((it) => statusOf(it) === "expired").map((it) => it.id);
+    setSelectedIds(new Set(ids));
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const deleteSelected = async () => {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    const ok = await Swal.fire({
+      title: `Delete ${ids.length} selected item${ids.length > 1 ? "s" : ""}?`,
+      text: "This can't be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+      confirmButtonColor: "#A97142",
+      cancelButtonColor: "#C1A78C",
+    });
+    if (!ok.isConfirmed) return;
+
+    await Promise.all(ids.map((id) => axios.delete(`${API}/inventory/${id}`, { headers })));
+    clearSelection();
+    await fetchInventory();
+    window.dispatchEvent(new CustomEvent("inventory:changed"));
+    Swal.fire({ title: "Deleted!", text: `${ids.length} item(s) removed.`, icon: "success", confirmButtonColor: "#A97142" });
+  };
+
+  const selectedCount = selectedIds.size;
+
   return (
     <div className="p-6 relative">
       {/* Header row */}
       <div className="flex items-center justify-between gap-4 mb-4">
-        <h1 className="text-2xl font-bold">Bakery Inventory</h1>
+        <h1 className="text-2xl font-bold text-[#6b4b2b]">Bakery Inventory</h1>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-          {/* Status filter chips */}
+          {/* Status filter chips (UNCHANGED COLORS) */}
           <div className="flex items-center gap-2 bg-white/80 rounded-full px-2 py-1 ring-1 ring-black/5 shadow-sm">
             {[
               { key: "all", label: "All", tone: "bg-white" },
@@ -295,20 +411,49 @@ export default function BakeryInventory() {
             )}
           </div>
 
-          <button
-            onClick={() => setShowForm(true)}
-            className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-4 py-2 shadow-md ring-1 ring-white/60"
-          >
+          <button onClick={() => setShowForm(true)} className={pillSolid}>
             + Add Product
           </button>
         </div>
+      </div>
+
+      {/* Bulk actions */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <span className="text-sm text-[#6b4b2b]">
+          Selected: <strong>{selectedCount}</strong>
+        </span>
+        <button onClick={selectExpiredAll} className={pillOutline} title="Select all expired items">
+          Select Expired
+        </button>
+        <button
+          onClick={deleteSelected}
+          disabled={!selectedCount}
+          className={`${pillSolid} disabled:opacity-50 disabled:cursor-not-allowed`}
+        >
+          Delete Selected
+        </button>
+        {selectedCount > 0 && (
+          <button onClick={clearSelection} className={pillOutline}>
+            Clear Selection
+          </button>
+        )}
       </div>
 
       {/* Table */}
       <div className="overflow-x-auto rounded-xl shadow ring-1 ring-black/5 bg-white/80 backdrop-blur-sm">
         <table className="min-w-full text-sm">
           <thead>
-            <tr className="bg-[#FFD8B6] text-left font-semibold text-gray-700">
+            <tr className="bg-[#EADBC8] text-left font-semibold text-[#4A2F17]">
+              <th className="p-3 w-10">
+                {/* Master checkbox */}
+                <input
+                  ref={masterRef}
+                  type="checkbox"
+                  onChange={(e) => toggleSelectAllOnPage(e.target.checked)}
+                  className="h-4 w-4 accent-[#A97142]"
+                  aria-label="Select all on page"
+                />
+              </th>
               <th className="p-3">Product ID</th>
               <th className="p-3">Product</th>
               <th className="p-3">Image</th>
@@ -318,23 +463,37 @@ export default function BakeryInventory() {
               <th className="p-3">Threshold</th>
               <th className="p-3">Uploaded By</th>
               <th className="p-3">Description</th>
+  
             </tr>
           </thead>
           <tbody>
             {filteredInventory.length ? (
               filteredInventory.map((item) => {
                 const st = statusOf(item);
+                const checked = selectedIds.has(item.id);
                 return (
                   <tr
                     key={item.id}
+                    data-item-id={item.id}
                     className={`border-t cursor-pointer transition-colors ${rowTone(st)}`}
                     onClick={() => {
                       setSelectedItem(item);
                       setIsEditing(false);
                     }}
                   >
+                    {/* Row checkbox */}
+                    <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-[#A97142]"
+                        checked={checked}
+                        onChange={() => toggleSelectOne(item.id)}
+                        aria-label={`Select ${item.name}`}
+                      />
+                    </td>
+
                     <td className="p-3">
-                      <span title="Same name = same ID">{productCode(item.name)}</span>
+                        {(item.product_id)}
                     </td>
                     <td className="p-3">{item.name}</td>
                     <td className="p-3">
@@ -343,6 +502,7 @@ export default function BakeryInventory() {
                           src={`${API}/${item.image}`}
                           alt={item.name}
                           className="h-10 w-10 object-cover rounded"
+                          onClick={(e) => e.stopPropagation()}
                         />
                       ) : (
                         "—"
@@ -359,8 +519,8 @@ export default function BakeryInventory() {
               })
             ) : (
               <tr>
-                <td className="py-10 text-gray-500 text-center" colSpan={9}>
-                  {(query || statusFilter !== "all")
+                <td className="py-10 text-gray-500 text-center" colSpan={11}>
+                  {query || statusFilter !== "all"
                     ? "No products match your filters."
                     : "No items found."}
                 </td>
@@ -391,7 +551,7 @@ export default function BakeryInventory() {
                     required
                   />
                   <p className="mt-1 text-xs text-gray-500">
-                    Product ID: <code>{productCode(form.item_name)}</code>
+                    Product ID: <code>{(form.item_name)}</code>
                   </p>
                 </div>
 
@@ -425,7 +585,7 @@ export default function BakeryInventory() {
                       type="number"
                       className={inputTone}
                       value={form.threshold}
-                      onChange={(e) => setForm({ ...form, threshold: parseInt(e.target.value || 0) })}
+                      onChange={(e) => setForm({ ...form, threshold: parseInt(e.target.value || 0, 10) })}
                       required
                     />
                   </div>
@@ -447,7 +607,7 @@ export default function BakeryInventory() {
                       type="number"
                       className={inputTone}
                       value={form.quantity}
-                      onChange={(e) => setForm({ ...form, quantity: parseInt(e.target.value || 0) })}
+                      onChange={(e) => setForm({ ...form, quantity: parseInt(e.target.value || 0, 10) })}
                       required
                     />
                   </div>
@@ -481,10 +641,10 @@ export default function BakeryInventory() {
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" onClick={() => setShowForm(false)} className={outlineBtn}>
+                  <button type="button" onClick={() => setShowForm(false)} className={pillOutline}>
                     Cancel
                   </button>
-                  <button type="submit" className={primaryBtn}>
+                  <button type="submit" className={pillSolid}>
                     Add Product
                   </button>
                 </div>
@@ -498,42 +658,19 @@ export default function BakeryInventory() {
       <SlideOver open={!!selectedItem} onClose={() => setSelectedItem(null)} width={620}>
         {selectedItem && !isEditing && (
           <>
-            {/* Colored header like Add/Edit */}
             <div className={sectionHeader}>
               <h3 className="text-lg font-semibold text-[#6b4b2b]">Product Details</h3>
             </div>
 
             <div className="p-5 space-y-2 text-sm overflow-auto">
-              <p>
-                <strong className="text-[#6b4b2b]">Product ID:</strong>{" "}
-                {productCode(selectedItem.name)}
-              </p>
-              <p>
-                <strong className="text-[#6b4b2b]">Name:</strong> {selectedItem.name}
-              </p>
-              <p>
-                <strong className="text-[#6b4b2b]">Quantity:</strong> {selectedItem.quantity}
-              </p>
-              <p>
-                <strong className="text-[#6b4b2b]">Threshold:</strong>{" "}
-                {selectedItem.threshold} day(s)
-              </p>
-              <p>
-                <strong className="text-[#6b4b2b]">Creation Date:</strong>{" "}
-                {selectedItem.creation_date}
-              </p>
-              <p>
-                <strong className="text-[#6b4b2b]">Expiration Date:</strong>{" "}
-                {selectedItem.expiration_date}
-              </p>
-              <p>
-                <strong className="text-[#6b4b2b]">Uploaded By:</strong>{" "}
-                {selectedItem.uploaded || "System"}
-              </p>
-              <p>
-                <strong className="text-[#6b4b2b]">Description:</strong>{" "}
-                {selectedItem.description}
-              </p>
+              <p><strong className="text-[#6b4b2b]">Product ID:</strong> {(selectedItem.name)}</p>
+              <p><strong className="text-[#6b4b2b]">Name:</strong> {selectedItem.name}</p>
+              <p><strong className="text-[#6b4b2b]">Quantity:</strong> {selectedItem.quantity}</p>
+              <p><strong className="text-[#6b4b2b]">Threshold:</strong> {selectedItem.threshold} day(s)</p>
+              <p><strong className="text-[#6b4b2b]">Creation Date:</strong> {selectedItem.creation_date}</p>
+              <p><strong className="text-[#6b4b2b]">Expiration Date:</strong> {selectedItem.expiration_date}</p>
+              <p><strong className="text-[#6b4b2b]">Uploaded By:</strong> {selectedItem.uploaded || "System"}</p>
+              <p><strong className="text-[#6b4b2b]">Description:</strong> {selectedItem.description}</p>
 
               {selectedItem.image && (
                 <img
@@ -544,14 +681,15 @@ export default function BakeryInventory() {
               )}
             </div>
 
+            {/* Footer buttons EXACT style */}
             <div className="mt-auto p-5 flex justify-end gap-2 border-t bg-white">
-              <button onClick={() => handleDelete(selectedItem.id)} className="px-4 py-2 rounded-md bg-red-500 text-white">
+              <button onClick={() => handleDelete(selectedItem.id)} className={pillSolid}>
                 Delete
               </button>
-              <button onClick={() => setIsEditing(true)} className="px-4 py-2 rounded-md bg-green-600 text-white">
+              <button onClick={() => setIsEditing(true)} className={pillSolid}>
                 Edit
               </button>
-              <button onClick={() => setSelectedItem(null)} className="px-4 py-2 rounded-md border text-gray-700">
+              <button onClick={() => setSelectedItem(null)} className={pillOutline}>
                 Close
               </button>
             </div>
@@ -565,7 +703,7 @@ export default function BakeryInventory() {
             </div>
             <div className="p-5 space-y-3 overflow-auto">
               <div className="text-xs text-gray-500">
-                Product ID: <code>{productCode(selectedItem.name)}</code>
+                Product ID: <code>{(selectedItem.name)}</code>
               </div>
 
               <input
@@ -585,7 +723,7 @@ export default function BakeryInventory() {
                 className={inputTone}
                 value={selectedItem.quantity}
                 onChange={(e) =>
-                  setSelectedItem({ ...selectedItem, quantity: parseInt(e.target.value || 0) })
+                  setSelectedItem({ ...selectedItem, quantity: parseInt(e.target.value || 0, 10) })
                 }
                 required
               />
@@ -594,7 +732,7 @@ export default function BakeryInventory() {
                 className={inputTone}
                 value={selectedItem.threshold}
                 onChange={(e) =>
-                  setSelectedItem({ ...selectedItem, threshold: parseInt(e.target.value || 0) })
+                  setSelectedItem({ ...selectedItem, threshold: parseInt(e.target.value || 0, 10) })
                 }
                 required
               />
@@ -629,11 +767,13 @@ export default function BakeryInventory() {
                 onChange={(e) => setSelectedItem({ ...selectedItem, description: e.target.value })}
               />
             </div>
+
+            {/* Cancel / Save pair */}
             <div className="mt-auto p-5 flex justify-end gap-2 border-t bg-white">
-              <button type="button" onClick={() => setIsEditing(false)} className={outlineBtn}>
+              <button type="button" onClick={() => setIsEditing(false)} className={pillOutline}>
                 Cancel
               </button>
-              <button type="submit" className={primaryBtn}>
+              <button type="submit" className={pillSolid}>
                 Save Changes
               </button>
             </div>

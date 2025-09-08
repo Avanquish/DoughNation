@@ -47,6 +47,11 @@ class ChangePassword(BaseModel):
     current_password: str
     new_password: str
     confirm_password: str
+    
+class ResetPassword(BaseModel):
+    email: EmailStr
+    new_password: str
+    confirm_password: str
 
 
 # ------------------ BAKERY INVENTORY ------------------
@@ -65,10 +70,21 @@ class BakeryInventoryCreate(BakeryInventoryBase):
 class BakeryInventoryOut(BakeryInventoryBase):
     id: int
     bakery_id: int
+    product_id: str
     image: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+class BakeryInventoryUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    quantity: Optional[int] = None
+    creation_date: Optional[date] = None
+    expiration_date: Optional[date] = None
+    threshold: Optional[int] = None
+    uploaded: Optional[str] = None
+    image: Optional[str] = None
         
 # ------------------ BAKERY EMPLOYEE ------------------
 class EmployeeBase(BaseModel):
@@ -79,20 +95,31 @@ class EmployeeBase(BaseModel):
 class EmployeeCreate(EmployeeBase):
     pass
 
-class EmployeeOut(EmployeeBase):
+class EmployeeUpdate(BaseModel):
+    name: Optional[str] = None
+    role: Optional[str] = None
+    start_date: Optional[date] = None
+    profile_picture: Optional[str] = None
+
+class EmployeeOut(BaseModel):
     id: int
     bakery_id: int
+    name: str
+    role: str
+    start_date: date
+    profile_picture: Optional[str]
 
     class Config:
         from_attributes = True
 
+
 # ------------------ DONATION ------------------
 class DonationBase(BaseModel):
-    id: int
     name: str
     quantity: int
     creation_date: date
     expiration_date: Optional[date] = None
+    bakery_id: int
     bakery_inventory_id: int
     image: Optional[str] = None
     threshold: Optional[int] = None
@@ -101,6 +128,7 @@ class DonationBase(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 class DonationCreate(BaseModel):
     name: str
@@ -113,13 +141,33 @@ class DonationCreate(BaseModel):
     uploaded: Optional[str] = None
     description: Optional[str] = None
 
+
 class DonationRead(DonationBase):
-    bakery_id: int
-    bakery_name: str   # add this
+    id: int
+    bakery_name: str  
+    bakery_profile_picture: Optional[str] = None 
+    status: str
+    freshness: Optional[str] = None
 
     class Config:
         from_attributes = True
-        
+
+
+class DonationRequestCreate(BaseModel):
+    donation_id: int
+    bakery_id: int
+    charity_id: int
+    
+class DonationRequestRead(BaseModel):
+    id: int
+    donation_id: Optional[int]
+    charity_id: int
+    bakery_id: int
+    timestamp: datetime
+    status: str
+
+    class Config:
+        from_attributes = True
 
 #---------Messages-----------
 class MessageIn(BaseModel):
@@ -156,6 +204,10 @@ class BakeryOut(BaseModel):
 
     class Config:
         from_attributes = True   
+        
+class StatusUpdate(BaseModel):
+    status: str
+    charity_id: int | None = None
 
 #--------Complaint-----------
 class ComplaintStatus(str, Enum):

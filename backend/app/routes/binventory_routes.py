@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 import os, shutil
-from datetime import datetime, timedelta
+from datetime import date, timedelta
 
 from app import models, database, schemas, auth, crud
 
@@ -121,27 +121,20 @@ def delete_inventory(
 
 # ---Check threshold and create donation ---
 def check_threshold_and_create_donation(db: Session):
-    today = datetime.today().date()
-
-    # Fetch all bakery products that are not yet expired
-    products = db.query(models.BakeryInventory).filter(
-        models.BakeryInventory.expiration_date >= today
-    ).all()
-
-    print(f"Checking {len(products)} inventory items against threshold...")
+    today = date.today()
+    products = db.query(models.BakeryInventory).all()
 
     for p in products:
         exp_date = p.expiration_date
-        threshold_days = p.threshold
-        trigger_date = exp_date - timedelta(days=threshold_days)
+        trigger_date = exp_date - timedelta(days=p.threshold or 0)
 
-        if today >= trigger_date:
-            # Add/update donation
-            existing = db.query(models.Donation).filter(
-                models.Donation.bakery_inventory_id == p.id
-            ).first()
+        existing = db.query(models.Donation).filter(
+            models.Donation.bakery_inventory_id == p.id
+        ).first()
+
+        if today >= trigger_date and today <= exp_date:
+            # Product is within donation window
             if existing:
-                # Update existing donation
                 existing.name = p.name
                 existing.image = p.image
                 existing.quantity = p.quantity
@@ -150,9 +143,9 @@ def check_threshold_and_create_donation(db: Session):
                 existing.expiration_date = p.expiration_date
                 existing.uploaded = p.uploaded
                 existing.description = p.description
-                print(f"Updated donation for {p.name}")
+                if existing.status == "unavailable":
+                    existing.status = "available"  # 👈 available for donation
             else:
-                # Create new donation
                 donation = models.Donation(
                     bakery_inventory_id=p.id,
                     bakery_id=p.bakery_id,
@@ -163,18 +156,14 @@ def check_threshold_and_create_donation(db: Session):
                     creation_date=p.creation_date,
                     expiration_date=p.expiration_date,
                     uploaded=p.uploaded,
-                    description=p.description
+                    description=p.description,
+                    status="available"
                 )
                 db.add(donation)
-                print(f"Created donation for {p.name}")
-        else:
-            # Remove from donation if not yet reached threshold
-            existing = db.query(models.Donation).filter(
-                models.Donation.bakery_inventory_id == p.id
-            ).first()
+        elif exp_date < today:
+            # expired → mark as unavailable
             if existing:
-                db.delete(existing)
-                print(f"Removed donation for {p.name} (not yet reached threshold)")
+                existing.status = "unavailable"
 
     # Remove donations for expired inventory
     expired_donations = db.query(models.Donation).join(
@@ -190,3 +179,21 @@ def check_threshold_and_create_donation(db: Session):
 
     db.commit()
     print("Donation sync completed")
+    
+@router.put("/inventory/{inventory_id}/status")
+def update_inventory_status(
+    inventory_id: int,
+    data: schemas.StatusUpdate,
+    db: Session = Depends(database.get_db)
+):
+    inventory = db.query(models.BakeryInventory).filter(models.BakeryInventory.id == inventory_id).first()
+    if not inventory:
+        raise HTTPException(status_code=404, detail="Inventory not found")
+
+    inventory.status = data.status
+    if data.charity_id:
+        inventory.donated_to = data.charity_id
+
+    db.commit()
+    db.refresh(inventory)
+    return {"message": "Status updated", "inventory": inventory}

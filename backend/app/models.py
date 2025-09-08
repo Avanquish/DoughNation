@@ -37,6 +37,7 @@ class BakeryInventory(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    product_id = Column(String, unique=True, index=True)
     name = Column(String, nullable=False)
     image = Column(String, nullable=True)
     quantity = Column(Integer, nullable=False)
@@ -45,7 +46,6 @@ class BakeryInventory(Base):
     threshold = Column(Integer, nullable=False)
     uploaded = Column(String, nullable=False)
     description = Column(String, nullable=True)
-
 
     bakery = relationship("User", back_populates="inventory_items")
     donations = relationship("Donation", back_populates="inventory_item", cascade="all, delete-orphan") 
@@ -59,6 +59,7 @@ class Employee(Base):
     name = Column(String, nullable=False)
     role = Column(String, nullable=False)  # Manager, Staff, etc.
     start_date = Column(Date, nullable=False)
+    profile_picture = Column(String, nullable=True)
     
     bakery = relationship("User", backref="employees")
 
@@ -77,10 +78,23 @@ class Donation(Base):
     expiration_date = Column(Date, nullable=True)
     uploaded = Column(String, nullable=False)
     description = Column(String, nullable=True)
-
+    status = Column(String, default="unavailable")
 
     bakery = relationship("User", back_populates="donations")
     inventory_item = relationship("BakeryInventory", back_populates="donations")
+    
+class DonationRequest(Base):
+    __tablename__ = "donation_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    donation_id = Column(Integer, ForeignKey("donations.id", ondelete="CASCADE"))
+    charity_id = Column(Integer, ForeignKey("users.id"))
+    bakery_id = Column(Integer, ForeignKey("users.id"))
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    status = Column(String, default="pending") 
+
+    charity = relationship("User", foreign_keys=[charity_id])
+    donation = relationship("Donation", backref="requests", passive_deletes=True)
     
 class Message(Base):
     __tablename__ = "messages"
@@ -89,8 +103,15 @@ class Message(Base):
     sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     receiver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     content = Column(String, nullable=False)
+    image = Column(String, nullable=True)     # optional image URL
+    video = Column(String, nullable=True)     # optional video URL
     timestamp = Column(DateTime, default=func.now())
+    is_card = Column(Boolean, default=False)
     is_read = Column(Boolean, default=False)
+    deleted_for_sender = Column(Boolean, default=False)
+    deleted_for_receiver = Column(Boolean, default=False)
+    accepted_by_receiver = Column(Boolean, default=False)
+    rejected_by_receiver = Column(Boolean, default=False)
 
     sender = relationship("User", back_populates="sent_messages", foreign_keys=[sender_id])
     receiver = relationship("User", back_populates="received_messages", foreign_keys=[receiver_id])

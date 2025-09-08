@@ -18,6 +18,9 @@ class ConnectionManager:
     async def send_personal_message(self, message: dict, user_id: int):
         if user_id in self.active_connections:
             for connection in self.active_connections[user_id]:
-                await connection.send_json(message)
-
+                try:
+                    await connection.send_json(message)
+                except RuntimeError:
+                    print(f"[WS] Tried sending to closed WS for user {user_id}")
+                    
 manager = ConnectionManager()

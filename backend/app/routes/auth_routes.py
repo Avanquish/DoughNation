@@ -3,8 +3,11 @@ from fastapi import APIRouter, Depends, UploadFile, Form, File, HTTPException
 from sqlalchemy.orm import Session
 from app import crud, auth, database, schemas, models
 from app.auth import create_access_token, get_current_user, verify_password
+from passlib.context import CryptContext
 
 router = APIRouter()
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 #User Management
 @router.post("/register")
@@ -86,3 +89,21 @@ def change_password(
         payload.new_password,
         payload.confirm_password
     )
+
+# Forgot password
+@router.post("/forgot-password", response_model=dict)
+def forgot_password(payload: schemas.ResetPassword, db: Session = Depends(database.get_db)):
+    user = db.query(models.User).filter(models.User.email == payload.email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Email not registered")
+
+    if payload.new_password != payload.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+
+    # Hash the new password
+    hashed_pw = pwd_context.hash(payload.new_password)
+    user.hashed_password = hashed_pw
+    db.commit()
+    db.refresh(user)
+
+    return {"message": "Password reset successful"}

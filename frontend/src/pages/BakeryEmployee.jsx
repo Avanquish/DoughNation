@@ -23,15 +23,6 @@ const toUrl = (p) => {
   return `${API_BASE}/${String(p).replace(/^\/+/, "")}`;
 };
 
-// Pick the best available image field from employee object (kasi wala pa)
-const pickEmployeeImage = (emp) =>
-  emp?.profile_image ||
-  emp?.avatar ||
-  emp?.photo ||
-  emp?.image ||
-  emp?.profile_photo ||
-  null;
-
 const BakeryEmployee = () => {
   const [employees, setEmployees] = useState([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -41,9 +32,9 @@ const BakeryEmployee = () => {
     name: "",
     role: "Staff",
     start_date: "",
-    profile_image_file: null, // chosen file
+    profile_image_file: null,
   });
-  const [preview, setPreview] = useState(null); // preview URL
+  const [preview, setPreview] = useState(null);
 
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
@@ -51,7 +42,7 @@ const BakeryEmployee = () => {
   // data fetch
   const fetchEmployees = async () => {
     try {
-      const res = await axios.get("/employees", { headers });
+      const res = await axios.get("/employees/", { headers });
       setEmployees(res.data || []);
     } catch (e) {
       console.error("fetch employees", e);
@@ -88,12 +79,11 @@ const BakeryEmployee = () => {
       start_date: emp?.start_date || "",
       profile_image_file: null,
     });
-    const existing = pickEmployeeImage(emp);
-    setPreview(toUrl(existing));
+    setPreview(emp?.profile_picture ? toUrl(emp.profile_picture) : null);
     setIsDialogOpen(true);
   };
 
-  // save/delete
+  // save
   const handleSave = async () => {
     if (editingEmployee) {
       setIsDialogOpen(false);
@@ -118,13 +108,8 @@ const BakeryEmployee = () => {
       fd.append("role", formData.role);
       fd.append("start_date", formData.start_date);
 
-      // WALA PA BACKEND SUPPORT FOR IMAGES
       if (formData.profile_image_file) {
-        fd.append("profile_image", formData.profile_image_file);
-        fd.append("avatar", formData.profile_image_file);
-        fd.append("photo", formData.profile_image_file);
-        fd.append("image", formData.profile_image_file);
-        fd.append("profile_photo", formData.profile_image_file);
+        fd.append("profile_picture", formData.profile_image_file);
       }
 
       if (editingEmployee) {
@@ -132,7 +117,7 @@ const BakeryEmployee = () => {
           headers: { ...headers, "Content-Type": "multipart/form-data" },
         });
       } else {
-        await axios.post("/employees", fd, {
+        await axios.post("/employees/", fd, {
           headers: { ...headers, "Content-Type": "multipart/form-data" },
         });
       }
@@ -213,7 +198,7 @@ const BakeryEmployee = () => {
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {employees.length ? (
           employees.map((emp) => {
-            const img = toUrl(pickEmployeeImage(emp));
+            const img = emp.profile_picture ? toUrl(emp.profile_picture) : null;
             const initial = (emp?.name || "?").charAt(0).toUpperCase();
             return (
               <div key={emp.id} className="gwrap hover-lift reveal">

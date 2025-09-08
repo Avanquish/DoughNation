@@ -29,6 +29,7 @@ import BakeryEmployee from "./BakeryEmployee";
 import BakeryDonation from "./BakeryDonation";
 import Messages from "../pages/Messages";
 import Complaint from "../pages/Complaint";
+import BakeryReportGeneration from "../pages/BakeryReportGeneration";
 
 const API = "http://localhost:8000";
 
@@ -52,9 +53,11 @@ const statusOf = (item) => {
 const BakeryDashboard = () => {
   const { id } = useParams();
   const location = useLocation();
-
+  const [isVerified, setIsVerified] = useState(false);
   const [name, setName] = useState("Bakery");
   const [activeTab, setActiveTab] = useState("dashboard");
+
+  const [highlightedDonationId, setHighlightedDonationId] = useState(null);
 
   // Panels
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -63,6 +66,8 @@ const BakeryDashboard = () => {
   // Live data for cards
   const [inventory, setInventory] = useState([]);
   const [employeeCount, setEmployeeCount] = useState(0);
+  const [uploadedProducts, setUploadedProducts] = useState(0);
+  const [donatedProducts, setDonatedProducts] = useState(0);
 
   // Notification unread tracking
   const [readProductIds, setReadProductIds] = useState(new Set());
@@ -79,6 +84,7 @@ const BakeryDashboard = () => {
       if (token) {
         const decoded = JSON.parse(atob(token.split(".")[1]));
         setName(decoded.name || "Madam Bakery");
+        setIsVerified(decoded.is_verified);
       }
     } catch (err){
       console.error("Error fetching bakery dashboard stats:", err);
@@ -98,9 +104,29 @@ const BakeryDashboard = () => {
         .then((r) => setEmployeeCount((r.data || []).length))
         .catch(() => setEmployeeCount(0));
 
+    const loadUploadedProducts = () =>
+      axios
+        .get(`${API}/donations`, { headers })
+        .then((r) => {
+          const available = (r.data || []).filter((d) => d.status === "available").length;
+          setUploadedProducts(available);
+        })
+        .catch(() => setUploadedProducts(0));
+
+      const loadDonatedProducts = () =>
+      axios
+        .get(`${API}/donations`, { headers })
+        .then((r) => {
+          const donated = (r.data || []).filter((d) => d.status === "donated").length;
+          setDonatedProducts(donated);
+        })
+        .catch(() => setDonatedProducts(0));
+
     // initial
     loadInventory();
     loadEmployees();
+    loadUploadedProducts();
+    loadDonatedProducts();
 
     // listen for cross-page updates
     const onInventoryChange = () => loadInventory();
@@ -148,20 +174,27 @@ const BakeryDashboard = () => {
     }
   }, [location.search]);
 
+  useEffect(() => {
+  if (activeTab !== "donations") {
+    setHighlightedDonationId(null);
+  }
+}, [activeTab]);
+
   // Stats calculations
   const stats = useMemo(() => {
     const totalProducts = inventory.length;
     const expiredProducts = inventory.filter((i) => statusOf(i) === "expired").length;
     const nearingExpiration = inventory.filter((i) => statusOf(i) === "soon").length;
     return {
-      totalDonations: 0, // not wired yet
+      totalDonations: donatedProducts,
       totalInventory: totalProducts,
-      uploadedProducts: 0,
+      uploadedProducts,
+      donatedProducts,
       employeeCount,
       expiredProducts,
       nearingExpiration,
     };
-  }, [inventory, employeeCount]);
+  }, [inventory, employeeCount, uploadedProducts, donatedProducts]);
 
   // Notifs
   const productAlerts = useMemo(() => {
@@ -255,6 +288,28 @@ const BakeryDashboard = () => {
     setIsNotifOpen(false);
     setIsMsgOpen(true);
   };
+
+    // If user is not verified, show "verification pending" screen
+  if (!isVerified) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-surface to-primary/5 p-6">
+        <Card className="max-w-md shadow-elegant">
+          <CardHeader>
+            <CardTitle>Account Verification Required</CardTitle>
+            <CardDescription>
+              Hello {name}, your account is pending verification.  
+              Please wait until an admin verifies your account before using the dashboard features.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center gap-4">
+            <Button onClick={handleLogout} variant="destructive">
+              Log Out
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const Styles = () => (
     <style>{`
@@ -383,16 +438,6 @@ const BakeryDashboard = () => {
             <div className="pt-1 iconbar">
               {/* messages (design for now)*/}
               <div className="msg-wrap">
-                <button
-                  className="icon-btn"
-                  aria-label="Open messages"
-                  onClick={() => {
-                    setIsMsgOpen((v) => !v);
-                    setIsNotifOpen(false);
-                  }}
-                >
-                  <MessageSquareText className="h-[18px] w-[18px]" />
-                </button>
                 {isMsgOpen && (
                   <div className="msg-panel">
                     <div className="p-3 flex items-center justify-between border-b border-[rgba(0,0,0,.06)] bg-[#fff9f0]">
@@ -585,6 +630,8 @@ const BakeryDashboard = () => {
         </div>
       )}
 
+      <Messages currentUser={currentUser} />
+
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="seg-wrap">
@@ -595,7 +642,7 @@ const BakeryDashboard = () => {
               <TabsTrigger value="donations">Donations</TabsTrigger>
               <TabsTrigger value="employee">Employee</TabsTrigger>
               <TabsTrigger value="complaints">Complaints</TabsTrigger>
-              <Messages currentUser={currentUser} />
+              <TabsTrigger value="reports">Report Generation</TabsTrigger>
             </TabsList>
           </div>
         </div>
@@ -733,7 +780,7 @@ const BakeryDashboard = () => {
               <Card className="glass-card shadow-none">
                 <CardHeader>
                   <TabsContent value="donations" className="reveal">
-                    <BakeryDonation />
+                    <BakeryDonation highlightedDonationId={highlightedDonationId} />
                   </TabsContent>
                 </CardHeader>
                 <CardContent className="min-h-[120px]" />
@@ -744,8 +791,13 @@ const BakeryDashboard = () => {
           <TabsContent value="employee" className="reveal">
             <BakeryEmployee />
           </TabsContent>
+
           <TabsContent value="complaints" className="reveal">
             <Complaint />
+          </TabsContent>
+
+          <TabsContent value="reports" className="reveal">
+            <BakeryReportGeneration />
           </TabsContent>
         </div>
       </Tabs>

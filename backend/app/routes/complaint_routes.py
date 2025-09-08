@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app import crud, schemas, database, auth
+from app import crud, schemas, database, auth, models
 
 router = APIRouter(
     prefix="/complaints",
@@ -15,6 +15,16 @@ def create_complaint(
     current_user = Depends(auth.get_current_user)   # returns User object
 ):
     return crud.create_complaint(db, complaint, current_user.id)
+
+# Get complaints of the logged-in user
+@router.get("/me", response_model=list[schemas.ComplaintOut])
+def get_my_complaints(
+    db: Session = Depends(database.get_db),
+    current_user = Depends(auth.get_current_user)
+):
+    return db.query(models.Complaint).filter(
+        models.Complaint.user_id == current_user.id
+    ).all()
 
 # Get all complaints (admin only)
 @router.get("/", response_model=list[schemas.ComplaintOut])

@@ -67,7 +67,7 @@ async def create_direct_donation(
     if inventory_item.quantity == 0:
         inventory_item.status = "donated"  # mark as fully donated
     else:
-        inventory_item.status = "requested"
+        inventory_item.status = "available"
 
         # Remove from auto-donation if exists
         donation_record = db.query(models.Donation).filter(
@@ -105,6 +105,7 @@ def get_my_direct_donations(
 def get_charities(db: Session = Depends(database.get_db)):
     charities = db.query(models.User).filter(models.User.role.ilike("Charity")).all()
     return charities
+
 
 
 

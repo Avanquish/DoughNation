@@ -6,6 +6,8 @@ const DonationTracking = ({ currentStatus }) => {
     { id: 1, label: "Being Packed", statusKey: "being_packed" },
     { id: 2, label: "Ready for Pickup", statusKey: "ready_for_pickup" },
     { id: 3, label: "In Transit", statusKey: "in_transit" },
+    { id: 4, label: "Received", statusKey: "received" },
+    { id: 5, label: "Completed", statusKey: "completed" },
   ];
 
   const currentIndex = steps.findIndex(step => step.statusKey === currentStatus);

@@ -120,5 +120,34 @@ def requested_donations(
 
     return donation_list
 
-# ------------------ GET REQUESTED AVAILABLE DONATION ------------------
+# ------------------ GET ALL CHARITY REQUESTED DONATION ------------------
+@router.get("/requested_donation", response_model=List[schemas.DonationRead])
+def get_requested_inventory(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(ensure_verified_user)
+):
+    """
+    Returns all donations that the current charity has requested,
+    including status, bakery info, and freshness.
+    """
+    donations = (
+        db.query(models.Donation, models.User, models.DonationRequest)
+        .join(models.User, models.User.id == models.Donation.bakery_id)
+        .join(models.DonationRequest, models.DonationRequest.donation_id == models.Donation.id)
+        .filter(models.DonationRequest.charity_id == current_user.id)
+        .filter(models.DonationRequest.status.in_(["requested"]))
+        .all()
+    )
 
+    donation_list = []
+    for donation, bakery, request in donations:
+        donation_dict = donation.__dict__.copy()
+        donation_dict["bakery_name"] = bakery.name
+        donation_dict["bakery_profile_picture"] = bakery.profile_picture
+        donation_dict["freshness"] = crud.compute_freshness(donation)
+        donation_dict["request_status"] = request.status
+        donation_dict["status"] = request.status  # for frontend display like BakeryDonation
+
+        donation_list.append(schemas.DonationRead(**donation_dict))
+
+    return donation_list

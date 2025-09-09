@@ -10,6 +10,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import Profile from "./pages/BakeryProfile";
 import CharityProfile from "./pages/CharityProfile";
 import ForgotPassword from "./pages/ForgetPassword";
+import PrivacyTerms from "./pages/PrivacyTerms";
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/privacy-terms" element={<PrivacyTerms/>} />
 
           <Route element={<ProtectedRoute allowedRoles={["Bakery"]} />}>
             <Route path="/bakery-dashboard/:id" element={<BakeryDashboard />} />

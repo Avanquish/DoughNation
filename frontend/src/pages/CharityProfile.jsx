@@ -33,23 +33,6 @@ import {
 import Swal from "sweetalert2";
 
 const API = "http://localhost:8000";  
-const parseDate = (s) => (s ? new Date(s) : null);
-const daysUntil = (dateStr) => {
-  const d = parseDate(dateStr);
-  if (!d) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  d.setHours(0, 0, 0, 0);
-  return Math.ceil((d - today) / (1000 * 60 * 60 * 24));
-};
-
-const statusOf = (item) => {
-  const d = daysUntil(item.expiration_date);
-  if (d === null) return "fresh";
-  if (d < 0) return "expired";
-  if (d <= (Number(item.threshold) || 0)) return "soon";
-  return "fresh";
-};
 
 export default function CharityProfile() {
   const { id } = useParams();
@@ -57,88 +40,10 @@ export default function CharityProfile() {
   const [activeSubTab, setActiveSubTab] = useState("about");
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isMsgOpen, setIsMsgOpen] = useState(false);
-  const [inventory, setInventory] = useState([]);
-  const [employeeCount, setEmployeeCount] = useState(0);
-  const [readProductIds, setReadProductIds] = useState(new Set());
   const [readMessageIds, setReadMessageIds] = useState(new Set());
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isChangePassOpen, setIsChangePassOpen] = useState(false);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    try {
-      if (token) {
-        const decoded = JSON.parse(atob(token.split(".")[1]));
-        setName(decoded.name || "Bakery Name");
-      }
-    } catch (err){
-        console.error("Error fetching bakery profile stats:", err);
-    }
-    const headers = token ? { Authorization: `Bearer ${token}` } : {};
-    const loadInventory = () =>
-      axios
-        .get(`${API}/inventory`, { headers })
-        .then((r) => setInventory(r.data || []))
-        .catch(() => setInventory([]));
-    const loadEmployees = () =>
-      axios
-        .get(`${API}/employees`, { headers })
-        .then((r) => setEmployeeCount((r.data || []).length))
-        .catch(() => setEmployeeCount(0));
-    loadInventory();
-    loadEmployees();
-    const onInventoryChange = () => loadInventory();
-    const onEmployeesChange = () => loadEmployees();
-    window.addEventListener("inventory:changed", onInventoryChange);
-    window.addEventListener("employees:changed", onEmployeesChange);
-    const onFocus = () => {
-      loadInventory();
-      loadEmployees();
-    };
-    window.addEventListener("focus", onFocus);
-    const id = setInterval(() => {
-      loadInventory();
-      loadEmployees();
-    }, 10000);
-    return () => {
-      window.removeEventListener("inventory:changed", onInventoryChange);
-      window.removeEventListener("employees:changed", onEmployeesChange);
-      window.removeEventListener("focus", onFocus);
-      clearInterval(id);
-    };
-  }, []);
-
-  const statusCounts = useMemo(() => {
-    const expired = inventory.filter((i) => statusOf(i) === "expired").length;
-    const soon = inventory.filter((i) => statusOf(i) === "soon").length;
-    const fresh = inventory.filter((i) => statusOf(i) === "fresh").length;
-    return { expired, soon, fresh, total: inventory.length };
-  }, [inventory]);
-
-  const productAlerts = useMemo(() => {
-    const arr = [];
-    for (const item of inventory) {
-      const st = statusOf(item);
-      if (st === "fresh") continue;
-      const d = daysUntil(item.expiration_date);
-      arr.push({
-        id: `inv-${item.id}`,
-        name: item.name,
-        quantity: item.quantity,
-        status: st,
-        days: d,
-        dateText: item.expiration_date,
-      });
-    }
-    return arr.sort((a, b) =>
-      a.status !== b.status
-        ? a.status === "expired"
-          ? -1
-          : 1
-        : (a.days ?? 0) - (b.days ?? 0)
-    );
-  }, [inventory]);
 
   const messageNotifs = useMemo(
     () => [
@@ -155,15 +60,6 @@ export default function CharityProfile() {
     ],
     []
   );
-  const unreadProductCount = useMemo(
-    () => productAlerts.filter((n) => !readProductIds.has(n.id)).length,
-    [productAlerts, readProductIds]
-  );
-  const unreadMessageCount = useMemo(
-    () => messageNotifs.filter((m) => !readMessageIds.has(m.id)).length,
-    [messageNotifs, readMessageIds]
-  );
-  const totalUnread = unreadProductCount + unreadMessageCount;
 
   useEffect(() => {
     document.documentElement.style.overflow = isNotifOpen ? "hidden" : "";
@@ -174,14 +70,6 @@ export default function CharityProfile() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     navigate("/");
-  };
-  const handleClickProductNotification = (n) => {
-    setReadProductIds((p) => {
-      const next = new Set(p);
-      next.add(n.id);
-      return next;
-    });
-    navigate(`/charity-dashboard/${id}?tab=donation`);
   };
 
   const handleClickMessageNotification = (m) => {
@@ -527,9 +415,6 @@ export default function CharityProfile() {
             }}
           >
             <Bell className="h-[18px] w-[18px]" />
-            {totalUnread > 0 && (
-              <span className="badge">{totalUnread}</span>
-            )}
           </button>
 
           <Button
@@ -578,65 +463,6 @@ export default function CharityProfile() {
                   <li className="p-3 text-xs font-semibold text-[var(--ink)] bg-[#fff9f0]">
                     Inventory
                   </li>
-                  {productAlerts.length === 0 && (
-                    <li className="p-6 text-sm text-muted-foreground">
-                      No inventory alerts.
-                    </li>
-                  )}
-                  {productAlerts
-                    .filter((n) => !readProductIds.has(n.id))
-                    .map((n) => (
-                      <li
-                        key={n.id}
-                        className="p-4 hover:bg-black/5 cursor-pointer"
-                        onClick={() => handleClickProductNotification(n)}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="chip mt-0.5">
-                            {n.status === "expired" ? (
-                              <AlertTriangle className="h-4 w-4" />
-                            ) : (
-                              <Clock className="h-4 w-4" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="font-semibold truncate">{n.name}</p>
-                              <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                {n.dateText}
-                              </span>
-                            </div>
-                            <p className="text-sm text-muted-foreground">
-                              {n.status === "expired"
-                                ? `${n.quantity} item(s) expired`
-                                : `${n.quantity} item(s) expiring in ${n.days} day(s)`}
-                            </p>
-                            <div
-                              className="mt-1 inline-flex items-center gap-2 text-xs font-medium px-2 py-1 rounded-full border"
-                              style={{
-                                background:
-                                  n.status === "expired"
-                                    ? "#fff1f0"
-                                    : "#fff8e6",
-                                borderColor:
-                                  n.status === "expired"
-                                    ? "#ffd6d6"
-                                    : "#ffe7bf",
-                                color:
-                                  n.status === "expired"
-                                    ? "#c92a2a"
-                                    : "#8a5a25",
-                              }}
-                            >
-                              {n.status === "expired"
-                                ? "Expired"
-                                : "Expires Soon"}
-                            </div>
-                          </div>
-                          <ChevronRight className="h-4 w-4 ml-auto text-muted-foreground" />
-                        </div>
-                      </li>
-                    ))}
 
                   <li className="p-3 text-xs font-semibold text-[var(--ink)] bg-[#fff9f0]">
                     Messages
@@ -675,13 +501,7 @@ export default function CharityProfile() {
                       <div className="chip">
                         <Package className="h-4 w-4" />
                       </div>
-                      <div>
-                        <p className="font-semibold">Inventory Alerts</p>
-                        <p className="text-sm text-muted-foreground">
-                          Expired: {statusCounts.expired} • Nearing Expiration:{" "}
-                          {statusCounts.soon}
-                        </p>
-                      </div>
+
                     </div>
                   </li>
                 </ul>

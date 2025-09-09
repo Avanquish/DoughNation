@@ -173,14 +173,26 @@ class DonationRequestRead(BaseModel):
 class MessageIn(BaseModel):
     receiver_id: int
     content: str
+    image: Optional[str] = None   # URL or base64 string
+    video: Optional[str] = None   # URL or base64 string
 
 class MessageOut(BaseModel):
     id: int
     sender_id: int
+    sender_name: Optional[str] = None
+    sender_profile_picture: Optional[str] = None
     receiver_id: int
+    receiver_name: Optional[str] = None
+    receiver_profile_picture: Optional[str] = None
     content: str
+    image: Optional[str]
+    video: Optional[str]
     timestamp: datetime
     is_read: bool
+    is_card: bool 
+    deleted_for_sender: bool
+    deleted_for_receiver: bool
+    accepted_by_receiver: bool
 
     class Config:
         from_attributes = True
@@ -233,6 +245,49 @@ class ComplaintOut(ComplaintBase):
     user_id: int
     user_name: Optional[str] = None  
     user_email: Optional[str] = None  
+
+    class Config:
+        from_attributes = True
+        
+class CharityOut(BaseModel):
+    id: int
+    name: str
+    email: str
+    profile_picture: Optional[str]
+
+    class Config:
+        from_attributes = True   
+
+
+class BakeryOut(BaseModel):
+    id: int
+    name: str
+    email: str
+    profile_picture: Optional[str]
+
+    class Config:
+        from_attributes = True   
+        
+#------------- DIRECT DONATION ---------------
+class DirectDonationBase(BaseModel):
+    name: str
+    quantity: int
+    threshold: int
+    creation_date: date
+    expiration_date: Optional[date] = None
+    description: Optional[str] = None
+    bakery_inventory_id: int
+    charity_id: int
+    image: Optional[str] = None
+
+class DirectDonationCreate(DirectDonationBase):
+    pass
+
+class DirectDonationResponse(DirectDonationBase):
+    id: int
+    bakery_inventory_name: Optional[str] = None  # name of the product
+    charity_name: Optional[str] = None          # name of the receiving charity
+    charity_profile_picture: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -46,11 +46,12 @@ class BakeryInventory(Base):
     threshold = Column(Integer, nullable=False)
     uploaded = Column(String, nullable=False)
     description = Column(String, nullable=True)
+    status = Column(String, nullable=False, default="available")
 
     bakery = relationship("User", back_populates="inventory_items")
     donations = relationship("Donation", back_populates="inventory_item", cascade="all, delete-orphan") 
+    direct_donations = relationship("DirectDonation", back_populates="bakery_inventory", cascade="all, delete-orphan")
 
-    
 class Employee(Base):
     __tablename__ = "employees"
 
@@ -96,6 +97,28 @@ class DonationRequest(Base):
     charity = relationship("User", foreign_keys=[charity_id])
     donation = relationship("Donation", backref="requests", passive_deletes=True)
     
+    
+class DirectDonation(Base):
+    __tablename__ = "direct_donations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    bakery_inventory_id = Column(Integer, ForeignKey("bakery_inventory.id"))
+    charity_id = Column(Integer, ForeignKey("users.id"))  # 👈 points to User (charity)
+    
+    name = Column(String, nullable=False)
+    quantity = Column(Integer, nullable=False)
+    threshold = Column(Integer, nullable=False)
+    creation_date = Column(Date, nullable=False)
+    expiration_date = Column(Date, nullable=True)
+    description = Column(String, nullable=True)
+    image = Column(String, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    bakery_inventory = relationship("BakeryInventory")
+    charity = relationship("User") 
+    
 class Message(Base):
     __tablename__ = "messages"
 
@@ -133,3 +156,11 @@ class Complaint(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User", back_populates="complaints")
+    
+class NotificationRead(Base):
+    __tablename__ = "notification_reads"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    notif_id = Column(String, index=True)
+    read_at = Column(DateTime, default=datetime.utcnow)

@@ -18,7 +18,7 @@ const daysUntil = (dateStr) => {
 const statusOf = (item) => {
   const d = daysUntil(item.expiration_date);
   if (d === null) return "fresh";
-  if (d < 0) return "expired";
+  if (d <= 0) return "expired";
   if (d <= (Number(item.threshold) || 0)) return "soon";
   return "fresh";
 };
@@ -28,6 +28,23 @@ const rowTone = (s) =>
     : s === "soon"
     ? "bg-amber-200 hover:bg-amber-100/70"
     : "bg-green-200 hover:bg-green-100/70";
+
+// Product ID Generator (BUT IFIFIX NI PAUL)
+const productCode = (name) => {
+  const base = (name || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9 ]+/g, "");
+  if (!base) return "PRD-00000";
+  const words = base.split(/\s+/).filter(Boolean);
+  const prefix =
+    (words[0]?.[0] || "P") + (words[1]?.[0] || words[0]?.[1] || "R");
+  let hash = 5381;
+  for (let i = 0; i < base.length; i++)
+    hash = ((hash << 5) + hash) ^ base.charCodeAt(i);
+  const num = Math.abs(hash) % 100000;
+  return `${prefix}-${num.toString().padStart(5, "0")}`;
+};
 
 // Overlays
 function Overlay({ onClose, children }) {
@@ -78,9 +95,32 @@ function SlideOver({ open, onClose, children, width = 620 }) {
   );
 }
 
+function DonationStatus({ status }) {
+  const key = String(status || "available").toLowerCase();
+  const styles =
+    key === "requested"
+      ? { label: "Requested", dot: "bg-blue-500", text: "text-blue-800" }
+      : key === "donated"
+      ? { label: "Donated", dot: "bg-orange-500", text: "text-orange-800" }
+      : { label: "Available", dot: "bg-green-600", text: "text-green-800" };
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 ${styles.text}`}>
+      <span
+        className={`h-2.5 w-2.5 rounded-full ${styles.dot}`}
+        aria-hidden="true"
+      />
+      <span className="leading-none">{styles.label}</span>
+    </span>
+  );
+}
+
 export default function BakeryInventory() {
   const [inventory, setInventory] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [verified, setVerified] = useState(false); // Access control (unchanged logic)
+  const [employeeName, setEmployeeName] = useState("");
+  const [employeeRole, setEmployeeRole] = useState("");
 
   const [showForm, setShowForm] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -95,6 +135,21 @@ export default function BakeryInventory() {
     image_file: null,
     threshold: 1,
     uploaded: "",
+  });
+
+  const [showDirectDonation, setShowDirectDonation] = useState(false);
+  const [charities, setCharities] = useState([]);
+
+  // Direct Donation form
+  const [directForm, setDirectForm] = useState({
+    name: "",
+    quantity: 1,
+    threshold: 1,
+    creation_date: "",
+    expiration_date: "",
+    description: "",
+    charity_id: "",
+    image_file: null,
   });
 
   // Filters
@@ -112,12 +167,11 @@ export default function BakeryInventory() {
   const sectionHeader =
     "p-5 sm:p-6 border-b bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]";
 
-  // Buttons (match Cancel/Save/Add style)
-  const bounce = "transition-transform duration-150 hover:-translate-y-0.5 active:scale-95";
-  const pillSolid =
-    `rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 ${bounce}`;
-  const pillOutline =
-    `rounded-full border border-[#f2d4b5] text-[#6b4b2b] bg-white px-5 py-2 shadow-sm hover:bg-white/90 ${bounce}`;
+  // Buttons
+  const bounce =
+    "transition-transform duration-150 hover:-translate-y-0.5 active:scale-95";
+  const pillSolid = `rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 ${bounce}`;
+  const pillOutline = `rounded-full border border-[#f2d4b5] text-[#6b4b2b] bg-white px-5 py-2 shadow-sm hover:bg-white/90 ${bounce}`;
 
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
@@ -135,14 +189,60 @@ export default function BakeryInventory() {
     }
   };
 
+  // Auto-refresh inventory every ~1s once verified
   useEffect(() => {
+    if (!verified) return;
     fetchInventory();
+    const interval = setInterval(() => {
+      fetchInventory();
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [verified]);
+
+  useEffect(() => {
     fetchEmployees();
   }, []);
 
-  /* =========================
-     FOCUS FROM NOTIFICATIONS
-     ========================= */
+  // Fetch inventory if verified
+  useEffect(() => {
+    if (verified) fetchInventory();
+  }, [verified]);
+
+  // Employee verification
+  const handleVerify = () => {
+    const found = employees.find(
+      (emp) => emp.name.toLowerCase() === employeeName.trim().toLowerCase()
+    );
+    if (found) {
+      Swal.fire({
+        title: "Access Granted",
+        text: `Welcome, ${found.name}!`,
+        icon: "success",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+      setVerified(true);
+      setEmployeeRole(found.role);
+    } else {
+      Swal.fire({
+        title: "Employee Not Found",
+        text: "Please enter a valid employee name.",
+        icon: "error",
+      });
+    }
+  };
+
+  // Role checks
+  const canAdd = () =>
+    employeeRole === "Manager" || employeeRole === "Full Time Staff";
+  const canEdit = () =>
+    employeeRole === "Manager" || employeeRole === "Full Time Staff";
+  const canDelete = () =>
+    employeeRole === "Manager" || employeeRole === "Full Time Staff";
+  const canDonate = () =>
+    employeeRole === "Manager" || employeeRole === "Full Time Staff";
+
+  // From Notifs
   useEffect(() => {
     let retryTimer = null;
 
@@ -151,7 +251,7 @@ export default function BakeryInventory() {
       const wantedName = (detail?.name || "").toLowerCase();
 
       let attempts = 0;
-      const MAX_ATTEMPTS = 30;      // ~4.5s total
+      const MAX_ATTEMPTS = 30; // ~4.5s total
       const INTERVAL_MS = 150;
 
       const tryFind = () => {
@@ -161,7 +261,9 @@ export default function BakeryInventory() {
         let item = null;
         if (wantedId) item = inventory.find((it) => Number(it.id) === wantedId);
         if (!item && wantedName)
-          item = inventory.find((it) => (it.name || "").toLowerCase() === wantedName);
+          item = inventory.find(
+            (it) => (it.name || "").toLowerCase() === wantedName
+          );
 
         if (item) {
           // open your existing details UI
@@ -174,10 +276,13 @@ export default function BakeryInventory() {
             if (row) {
               row.scrollIntoView({ behavior: "smooth", block: "center" });
               row.classList.add("ring-2", "ring-[#E49A52]");
-              setTimeout(() => row.classList.remove("ring-2", "ring-[#E49A52]"), 1600);
+              setTimeout(
+                () => row.classList.remove("ring-2", "ring-[#E49A52]"),
+                1600
+              );
             }
           });
-          return; // done
+          return;
         }
 
         if (attempts < MAX_ATTEMPTS) {
@@ -228,6 +333,16 @@ export default function BakeryInventory() {
   // CRUD
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!canAdd()) {
+      Swal.fire(
+        "Access Denide",
+        "You are not allowed to add products.",
+        "error"
+      );
+      return;
+    }
+
     const fd = new FormData();
     fd.append("name", form.item_name);
     fd.append("quantity", form.quantity);
@@ -258,6 +373,15 @@ export default function BakeryInventory() {
   };
 
   const handleDelete = async (id) => {
+    if (!canDelete()) {
+      Swal.fire(
+        "Access Denied",
+        "You are not allowed to delete products.",
+        "error"
+      );
+      return;
+    }
+
     const ok = await Swal.fire({
       title: "Are you sure?",
       text: "This can't be undone.",
@@ -273,11 +397,25 @@ export default function BakeryInventory() {
     setSelectedItem(null);
     await fetchInventory();
     window.dispatchEvent(new CustomEvent("inventory:changed"));
-    Swal.fire({ title: "Deleted!", icon: "success", confirmButtonColor: "#A97142" });
+    Swal.fire({
+      title: "Deleted!",
+      icon: "success",
+      confirmButtonColor: "#A97142",
+    });
   };
 
   const handleUpdate = async (e) => {
     e.preventDefault();
+
+    if (!canEdit()) {
+      Swal.fire(
+        "Access Denied",
+        "You are not allowed to edit products.",
+        "error"
+      );
+      return;
+    }
+
     if (!selectedItem) return;
 
     const ok = await Swal.fire({
@@ -303,7 +441,11 @@ export default function BakeryInventory() {
       headers: { ...headers, "Content-Type": "multipart/form-data" },
     });
 
-    Swal.fire({ title: "Updated!", icon: "success", confirmButtonColor: "#A97142" });
+    Swal.fire({
+      title: "Updated!",
+      icon: "success",
+      confirmButtonColor: "#A97142",
+    });
     setIsEditing(false);
     setSelectedItem(null);
     await fetchInventory();
@@ -329,13 +471,25 @@ export default function BakeryInventory() {
     });
   };
   const selectExpiredAll = () => {
-    const ids = inventory.filter((it) => statusOf(it) === "expired").map((it) => it.id);
+    const ids = inventory
+      .filter((it) => statusOf(it) === "expired")
+      .map((it) => it.id);
     setSelectedIds(new Set(ids));
   };
   const clearSelection = () => setSelectedIds(new Set());
 
   const deleteSelected = async () => {
     const ids = [...selectedIds];
+
+    if (!canDelete()) {
+      Swal.fire(
+        "Access Denied",
+        "You are not allowed to delete products.",
+        "error"
+      );
+      return;
+    }
+
     if (!ids.length) return;
     const ok = await Swal.fire({
       title: `Delete ${ids.length} selected item${ids.length > 1 ? "s" : ""}?`,
@@ -348,29 +502,79 @@ export default function BakeryInventory() {
     });
     if (!ok.isConfirmed) return;
 
-    await Promise.all(ids.map((id) => axios.delete(`${API}/inventory/${id}`, { headers })));
+    await Promise.all(
+      ids.map((id) => axios.delete(`${API}/inventory/${id}`, { headers }))
+    );
     clearSelection();
     await fetchInventory();
     window.dispatchEvent(new CustomEvent("inventory:changed"));
-    Swal.fire({ title: "Deleted!", text: `${ids.length} item(s) removed.`, icon: "success", confirmButtonColor: "#A97142" });
+    Swal.fire({
+      title: "Deleted!",
+      text: `${ids.length} item(s) removed.`,
+      icon: "success",
+      confirmButtonColor: "#A97142",
+    });
   };
 
   const selectedCount = selectedIds.size;
+
+  // Pre-fill donation form when opened
+  useEffect(() => {
+    if (selectedItem && showDirectDonation) {
+      setDirectForm({
+        name: selectedItem.name || "",
+        quantity: "",
+        threshold: selectedItem.threshold || "",
+        creation_date: selectedItem.creation_date
+          ? selectedItem.creation_date.split("T")[0]
+          : "",
+        expiration_date: selectedItem.expiration_date
+          ? selectedItem.expiration_date.split("T")[0]
+          : "",
+        description: selectedItem.description || "",
+        charity_id: "",
+        image_file: null,
+      });
+    }
+  }, [selectedItem, showDirectDonation]);
+
+  // Load charities
+  useEffect(() => {
+    async function fetchCharities() {
+      try {
+        const res = await axios.get(`${API}/charities`);
+        setCharities(res.data);
+      } catch (err) {
+        console.error("Failed to fetch charities:", err);
+      }
+    }
+    fetchCharities();
+  }, []);
 
   return (
     <div className="p-6 relative">
       {/* Header row */}
       <div className="flex items-center justify-between gap-4 mb-4">
         <h1 className="text-2xl font-bold text-[#6b4b2b]">Bakery Inventory</h1>
-
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-          {/* Status filter chips (UNCHANGED COLORS) */}
           <div className="flex items-center gap-2 bg-white/80 rounded-full px-2 py-1 ring-1 ring-black/5 shadow-sm">
             {[
               { key: "all", label: "All", tone: "bg-white" },
-              { key: "fresh", label: `Fresh (${statusCounts.fresh})`, tone: "bg-green-100" },
-              { key: "soon", label: `Soon (${statusCounts.soon})`, tone: "bg-amber-100" },
-              { key: "expired", label: `Expired (${statusCounts.expired})`, tone: "bg-red-100" },
+              {
+                key: "fresh",
+                label: `Fresh (${statusCounts.fresh})`,
+                tone: "bg-green-100",
+              },
+              {
+                key: "soon",
+                label: `Soon (${statusCounts.soon})`,
+                tone: "bg-amber-100",
+              },
+              {
+                key: "expired",
+                label: `Expired (${statusCounts.expired})`,
+                tone: "bg-red-100",
+              },
             ].map(({ key, label, tone }) => {
               const active = statusFilter === key;
               return (
@@ -411,9 +615,11 @@ export default function BakeryInventory() {
             )}
           </div>
 
-          <button onClick={() => setShowForm(true)} className={pillSolid}>
-            + Add Product
-          </button>
+          {canAdd() && (
+            <button onClick={() => setShowForm(true)} className={pillSolid}>
+              + Add Product
+            </button>
+          )}
         </div>
       </div>
 
@@ -422,7 +628,11 @@ export default function BakeryInventory() {
         <span className="text-sm text-[#6b4b2b]">
           Selected: <strong>{selectedCount}</strong>
         </span>
-        <button onClick={selectExpiredAll} className={pillOutline} title="Select all expired items">
+        <button
+          onClick={selectExpiredAll}
+          className={pillOutline}
+          title="Select all expired items"
+        >
           Select Expired
         </button>
         <button
@@ -463,7 +673,7 @@ export default function BakeryInventory() {
               <th className="p-3">Threshold</th>
               <th className="p-3">Uploaded By</th>
               <th className="p-3">Description</th>
-  
+              <th className="p-3">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -475,10 +685,13 @@ export default function BakeryInventory() {
                   <tr
                     key={item.id}
                     data-item-id={item.id}
-                    className={`border-t cursor-pointer transition-colors ${rowTone(st)}`}
+                    className={`border-t cursor-pointer transition-colors ${rowTone(
+                      st
+                    )}`}
                     onClick={() => {
                       setSelectedItem(item);
                       setIsEditing(false);
+                      setShowDirectDonation(false);
                     }}
                   >
                     {/* Row checkbox */}
@@ -493,7 +706,9 @@ export default function BakeryInventory() {
                     </td>
 
                     <td className="p-3">
-                        {(item.product_id)}
+                      <span title="Same name = same ID">
+                        {productCode(item.name)}
+                      </span>
                     </td>
                     <td className="p-3">{item.name}</td>
                     <td className="p-3">
@@ -514,6 +729,9 @@ export default function BakeryInventory() {
                     <td className="p-3">{item.threshold}</td>
                     <td className="p-3">{item.uploaded || "System"}</td>
                     <td className="p-3">{item.description}</td>
+                    <td className="p-3">
+                      <DonationStatus status={item.status} />
+                    </td>
                   </tr>
                 );
               })
@@ -530,118 +748,201 @@ export default function BakeryInventory() {
         </table>
       </div>
 
+      {/* Verification Modal */}
+      {!verified && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="bg-white rounded-2xl shadow-2xl ring-1 overflow-hidden max-w-md w-full">
+            <div className={sectionHeader}>
+              <h2 className="text-xl font-semibold text-[#6b4b2b] text-center">
+                Verify Access
+              </h2>
+            </div>
+            <div className="p-5 sm:p-6">
+              <div className="space-y-3">
+                <label className={labelTone} htmlFor="verify_name">
+                  Employee Name
+                </label>
+                <input
+                  id="verify_name"
+                  type="text"
+                  placeholder="Enter employee name"
+                  value={employeeName}
+                  onChange={(e) => setEmployeeName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleVerify()}
+                  className={inputTone}
+                />
+                <p className="text-xs text-gray-500">
+                  Type your name exactly as saved by HR to continue.
+                </p>
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <button onClick={handleVerify} className={pillSolid}>
+                  Enter Inventory
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add Product */}
       {showForm && (
         <Overlay onClose={() => setShowForm(false)}>
           <div className="mx-auto bg-white rounded-2xl shadow-2xl ring-1 ring-black/10 overflow-hidden">
             <div className={sectionHeader}>
-              <h2 className="text-xl font-semibold text-[#6b4b2b]">Add Product</h2>
+              <h2 className="text-xl font-semibold text-[#6b4b2b]">
+                Add Product
+              </h2>
             </div>
 
             <div className="p-5 sm:p-6">
               <form onSubmit={handleSubmit} className="grid gap-4">
                 <div>
-                  <label htmlFor="prod_name" className={labelTone}>Name</label>
+                  <label htmlFor="prod_name" className={labelTone}>
+                    Name
+                  </label>
                   <input
                     id="prod_name"
                     className={inputTone}
                     placeholder="e.g., Garlic Bread"
                     value={form.item_name}
-                    onChange={(e) => setForm({ ...form, item_name: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, item_name: e.target.value })
+                    }
                     required
                   />
                   <p className="mt-1 text-xs text-gray-500">
-                    Product ID: <code>{(form.item_name)}</code>
+                    Product ID: <code>{productCode(form.item_name)}</code>
                   </p>
                 </div>
 
                 <div>
-                  <label htmlFor="prod_image" className={labelTone}>Picture</label>
+                  <label htmlFor="prod_image" className={labelTone}>
+                    Picture
+                  </label>
                   <input
                     id="prod_image"
                     type="file"
                     accept="image/*"
                     className={inputTone}
-                    onChange={(e) => setForm({ ...form, image_file: e.target.files[0] })}
+                    onChange={(e) =>
+                      setForm({ ...form, image_file: e.target.files[0] })
+                    }
                   />
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="prod_created" className={labelTone}>Creation Date</label>
+                    <label htmlFor="prod_created" className={labelTone}>
+                      Creation Date
+                    </label>
                     <input
                       id="prod_created"
                       type="date"
                       className={inputTone}
                       value={form.creation_date}
-                      onChange={(e) => setForm({ ...form, creation_date: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, creation_date: e.target.value })
+                      }
                       required
                     />
                   </div>
                   <div>
-                    <label htmlFor="prod_threshold" className={labelTone}>Threshold (days)</label>
+                    <label htmlFor="prod_threshold" className={labelTone}>
+                      Threshold (days)
+                    </label>
                     <input
                       id="prod_threshold"
                       type="number"
                       className={inputTone}
                       value={form.threshold}
-                      onChange={(e) => setForm({ ...form, threshold: parseInt(e.target.value || 0, 10) })}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          threshold: parseInt(e.target.value || 0, 10),
+                        })
+                      }
                       required
                     />
                   </div>
                   <div>
-                    <label htmlFor="prod_exp" className={labelTone}>Expiration Date</label>
+                    <label htmlFor="prod_exp" className={labelTone}>
+                      Expiration Date
+                    </label>
                     <input
                       id="prod_exp"
                       type="date"
                       className={inputTone}
                       value={form.expiration_date}
-                      onChange={(e) => setForm({ ...form, expiration_date: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, expiration_date: e.target.value })
+                      }
                       required
                     />
                   </div>
                   <div>
-                    <label htmlFor="prod_qty" className={labelTone}>Quantity</label>
+                    <label htmlFor="prod_qty" className={labelTone}>
+                      Quantity
+                    </label>
                     <input
                       id="prod_qty"
                       type="number"
                       className={inputTone}
                       value={form.quantity}
-                      onChange={(e) => setForm({ ...form, quantity: parseInt(e.target.value || 0, 10) })}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          quantity: parseInt(e.target.value || 0, 10),
+                        })
+                      }
                       required
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="prod_desc" className={labelTone}>Description</label>
+                  <label htmlFor="prod_desc" className={labelTone}>
+                    Description
+                  </label>
                   <textarea
                     id="prod_desc"
                     className={`${inputTone} min-h-[90px]`}
                     placeholder="Add a short description"
                     value={form.description}
-                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, description: e.target.value })
+                    }
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="prod_uploader" className={labelTone}>Uploaded By</label>
+                  <label htmlFor="prod_uploader" className={labelTone}>
+                    Uploaded By
+                  </label>
                   <select
                     id="prod_uploader"
                     className={inputTone}
                     value={form.uploaded}
-                    onChange={(e) => setForm({ ...form, uploaded: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, uploaded: e.target.value })
+                    }
                     required
                   >
                     <option value="">Select Employee</option>
                     {employees.map((emp) => (
-                      <option key={emp.id} value={emp.name}>{emp.name}</option>
+                      <option key={emp.id} value={emp.name}>
+                        {emp.name}
+                      </option>
                     ))}
                   </select>
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" onClick={() => setShowForm(false)} className={pillOutline}>
+                  <button
+                    type="button"
+                    onClick={() => setShowForm(false)}
+                    className={pillOutline}
+                  >
                     Cancel
                   </button>
                   <button type="submit" className={pillSolid}>
@@ -654,42 +955,83 @@ export default function BakeryInventory() {
         </Overlay>
       )}
 
-      {/* Details / Edit */}
-      <SlideOver open={!!selectedItem} onClose={() => setSelectedItem(null)} width={620}>
-        {selectedItem && !isEditing && (
+      {/* Details / Edit / Donation */}
+      <SlideOver
+        open={!!selectedItem}
+        onClose={() => {
+          setSelectedItem(null);
+          setShowDirectDonation(false);
+        }}
+        width={620}
+      >
+        {selectedItem && !isEditing && !showDirectDonation && (
           <>
             <div className={sectionHeader}>
-              <h3 className="text-lg font-semibold text-[#6b4b2b]">Product Details</h3>
+              <h3 className="text-lg font-semibold text-[#6b4b2b]">
+                Product Details
+              </h3>
             </div>
 
             <div className="p-5 space-y-2 text-sm overflow-auto">
-              <p><strong className="text-[#6b4b2b]">Product ID:</strong> {(selectedItem.name)}</p>
-              <p><strong className="text-[#6b4b2b]">Name:</strong> {selectedItem.name}</p>
-              <p><strong className="text-[#6b4b2b]">Quantity:</strong> {selectedItem.quantity}</p>
-              <p><strong className="text-[#6b4b2b]">Threshold:</strong> {selectedItem.threshold} day(s)</p>
-              <p><strong className="text-[#6b4b2b]">Creation Date:</strong> {selectedItem.creation_date}</p>
-              <p><strong className="text-[#6b4b2b]">Expiration Date:</strong> {selectedItem.expiration_date}</p>
-              <p><strong className="text-[#6b4b2b]">Uploaded By:</strong> {selectedItem.uploaded || "System"}</p>
-              <p><strong className="text-[#6b4b2b]">Description:</strong> {selectedItem.description}</p>
+              <p>
+                <strong className="text-[#6b4b2b]">Product ID:</strong>{" "}
+                {productCode(selectedItem.name)}
+              </p>
+              <p>
+                <strong className="text-[#6b4b2b]">Name:</strong>{" "}
+                {selectedItem.name}
+              </p>
+              <p>
+                <strong className="text-[#6b4b2b]">Quantity:</strong>{" "}
+                {selectedItem.quantity}
+              </p>
+              <p>
+                <strong className="text-[#6b4b2b]">Threshold:</strong>{" "}
+                {selectedItem.threshold} day(s)
+              </p>
+              <p>
+                <strong className="text-[#6b4b2b]">Creation Date:</strong>{" "}
+                {selectedItem.creation_date}
+              </p>
+              <p>
+                <strong className="text-[#6b4b2b]">Expiration Date:</strong>{" "}
+                {selectedItem.expiration_date}
+              </p>
+              <p>
+                <strong className="text-[#6b4b2b]">Uploaded By:</strong>{" "}
+                {selectedItem.uploaded || "System"}
+              </p>
+              <p>
+                <strong className="text-[#6b4b2b]">Description:</strong>{" "}
+                {selectedItem.description}
+              </p>
 
               {selectedItem.image && (
                 <img
                   src={`${API}/${selectedItem.image}`}
                   alt="Product"
-                  className="w-full h-200 object-cover rounded-lg shadow-sm"
+                  className="w-full object-cover rounded-lg shadow-sm"
                 />
               )}
             </div>
 
-            {/* Footer buttons EXACT style */}
-            <div className="mt-auto p-5 flex justify-end gap-2 border-t bg-white">
-              <button onClick={() => handleDelete(selectedItem.id)} className={pillSolid}>
+            <div className="mt-auto p-5 flex flex-wrap gap-2 justify-end border-t bg-white">
+              <button
+                onClick={() => handleDelete(selectedItem.id)}
+                className={pillSolid}
+              >
                 Delete
               </button>
               <button onClick={() => setIsEditing(true)} className={pillSolid}>
                 Edit
               </button>
-              <button onClick={() => setSelectedItem(null)} className={pillOutline}>
+              <button
+                onClick={() => {
+                  setSelectedItem(null);
+                  setShowDirectDonation(false);
+                }}
+                className={pillOutline}
+              >
                 Close
               </button>
             </div>
@@ -699,31 +1041,43 @@ export default function BakeryInventory() {
         {selectedItem && isEditing && (
           <form onSubmit={handleUpdate} className="h-full flex flex-col">
             <div className={sectionHeader}>
-              <h3 className="text-lg font-semibold text-[#6b4b2b]">Edit Product</h3>
+              <h3 className="text-lg font-semibold text-[#6b4b2b]">
+                Edit Product
+              </h3>
             </div>
             <div className="p-5 space-y-3 overflow-auto">
               <div className="text-xs text-gray-500">
-                Product ID: <code>{(selectedItem.name)}</code>
+                Product ID: <code>{productCode(selectedItem.name)}</code>
               </div>
 
               <input
                 className={inputTone}
                 value={selectedItem.name}
-                onChange={(e) => setSelectedItem({ ...selectedItem, name: e.target.value })}
+                onChange={(e) =>
+                  setSelectedItem({ ...selectedItem, name: e.target.value })
+                }
                 required
               />
               <input
                 type="file"
                 accept="image/*"
                 className={inputTone}
-                onChange={(e) => setSelectedItem({ ...selectedItem, image_file: e.target.files[0] })}
+                onChange={(e) =>
+                  setSelectedItem({
+                    ...selectedItem,
+                    image_file: e.target.files[0],
+                  })
+                }
               />
               <input
                 type="number"
                 className={inputTone}
                 value={selectedItem.quantity}
                 onChange={(e) =>
-                  setSelectedItem({ ...selectedItem, quantity: parseInt(e.target.value || 0, 10) })
+                  setSelectedItem({
+                    ...selectedItem,
+                    quantity: parseInt(e.target.value || 0, 10),
+                  })
                 }
                 required
               />
@@ -732,49 +1086,258 @@ export default function BakeryInventory() {
                 className={inputTone}
                 value={selectedItem.threshold}
                 onChange={(e) =>
-                  setSelectedItem({ ...selectedItem, threshold: parseInt(e.target.value || 0, 10) })
+                  setSelectedItem({
+                    ...selectedItem,
+                    threshold: parseInt(e.target.value || 0, 10),
+                  })
                 }
                 required
               />
               <select
                 className={inputTone}
                 value={selectedItem.uploaded || ""}
-                onChange={(e) => setSelectedItem({ ...selectedItem, uploaded: e.target.value })}
+                onChange={(e) =>
+                  setSelectedItem({ ...selectedItem, uploaded: e.target.value })
+                }
                 required
               >
                 <option value="">Select Employee</option>
                 {employees.map((emp) => (
-                  <option key={emp.id} value={emp.name}>{emp.name}</option>
+                  <option key={emp.id} value={emp.name}>
+                    {emp.name}
+                  </option>
                 ))}
               </select>
               <input
                 type="date"
                 className={inputTone}
                 value={selectedItem.creation_date}
-                onChange={(e) => setSelectedItem({ ...selectedItem, creation_date: e.target.value })}
+                onChange={(e) =>
+                  setSelectedItem({
+                    ...selectedItem,
+                    creation_date: e.target.value,
+                  })
+                }
                 required
               />
               <input
                 type="date"
                 className={inputTone}
                 value={selectedItem.expiration_date}
-                onChange={(e) => setSelectedItem({ ...selectedItem, expiration_date: e.target.value })}
+                onChange={(e) =>
+                  setSelectedItem({
+                    ...selectedItem,
+                    expiration_date: e.target.value,
+                  })
+                }
                 required
               />
               <textarea
                 className={`${inputTone} min-h-[90px]`}
                 value={selectedItem.description || ""}
-                onChange={(e) => setSelectedItem({ ...selectedItem, description: e.target.value })}
+                onChange={(e) =>
+                  setSelectedItem({
+                    ...selectedItem,
+                    description: e.target.value,
+                  })
+                }
               />
             </div>
 
-            {/* Cancel / Save pair */}
             <div className="mt-auto p-5 flex justify-end gap-2 border-t bg-white">
-              <button type="button" onClick={() => setIsEditing(false)} className={pillOutline}>
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className={pillOutline}
+              >
                 Cancel
               </button>
               <button type="submit" className={pillSolid}>
                 Save Changes
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Direct Donation Form */}
+        {selectedItem && showDirectDonation && (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                if (!canDonate()) {
+                  Swal.fire(
+                    "Access Denide",
+                    "You are not allowed to donate products.",
+                    "error"
+                  );
+                  return;
+                }
+
+                const fd = new FormData();
+                fd.append("bakery_inventory_id", selectedItem.id);
+                fd.append("name", directForm.name);
+                fd.append("quantity", directForm.quantity);
+                fd.append("threshold", directForm.threshold);
+                fd.append("creation_date", directForm.creation_date);
+                fd.append("charity_id", parseInt(directForm.charity_id));
+                if (directForm.expiration_date)
+                  fd.append("expiration_date", directForm.expiration_date);
+                fd.append("description", directForm.description || "");
+                if (directForm.image_file)
+                  fd.append("image", directForm.image_file);
+
+                await axios.post(`${API}/direct`, fd, {
+                  headers: {
+                    ...headers,
+                    "Content-Type": "multipart/form-data",
+                  },
+                });
+
+                Swal.fire("Success", "donation recorded!", "success");
+                setShowDirectDonation(false);
+                setDirectForm({
+                  name: "",
+                  quantity: "",
+                  threshold: "",
+                  creation_date: "",
+                  expiration_date: "",
+                  description: "",
+                  charity_id: "",
+                  image_file: null,
+                });
+
+                await fetchInventory();
+              } catch (err) {
+                console.error(
+                  "Direct donation error:",
+                  err.response?.data || err
+                );
+                Swal.fire("Error", "Could not save donation.", "error");
+              }
+            }}
+            className="h-full flex flex-col"
+          >
+            <div className={sectionHeader}>
+              <h3 className="text-lg font-semibold text-[#6b4b2b]">
+                Donation for {selectedItem.name}
+              </h3>
+            </div>
+
+            <div className="p-5 space-y-3 overflow-auto">
+              <input
+                className={inputTone}
+                placeholder="Product Name"
+                value={directForm.name}
+                onChange={(e) =>
+                  setDirectForm({ ...directForm, name: e.target.value })
+                }
+                required
+              />
+
+              <select
+                className={inputTone}
+                value={directForm.charity_id || ""}
+                onChange={(e) =>
+                  setDirectForm({ ...directForm, charity_id: e.target.value })
+                }
+                required
+              >
+                <option value="">Select Charity</option>
+                {charities.map((charity) => (
+                  <option key={charity.id} value={charity.id}>
+                    {charity.name}
+                  </option>
+                ))}
+              </select>
+
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  className={`${inputTone} flex-1`}
+                  placeholder="Quantity"
+                  value={directForm.quantity}
+                  onChange={(e) =>
+                    setDirectForm({ ...directForm, quantity: e.target.value })
+                  }
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDirectForm({
+                      ...directForm,
+                      quantity: selectedItem.quantity,
+                    })
+                  }
+                  className={`${pillSolid} px-3`}
+                >
+                  Max
+                </button>
+              </div>
+
+              <input
+                type="number"
+                className={inputTone}
+                placeholder="Threshold"
+                value={directForm.threshold}
+                onChange={(e) =>
+                  setDirectForm({ ...directForm, threshold: e.target.value })
+                }
+                required
+              />
+              <input
+                type="date"
+                className={inputTone}
+                value={directForm.creation_date}
+                onChange={(e) =>
+                  setDirectForm({
+                    ...directForm,
+                    creation_date: e.target.value,
+                  })
+                }
+                required
+              />
+              <input
+                type="date"
+                className={inputTone}
+                value={directForm.expiration_date}
+                onChange={(e) =>
+                  setDirectForm({
+                    ...directForm,
+                    expiration_date: e.target.value,
+                  })
+                }
+              />
+              <textarea
+                className={`${inputTone} min-h-[90px]`}
+                placeholder="Description"
+                value={directForm.description}
+                onChange={(e) =>
+                  setDirectForm({ ...directForm, description: e.target.value })
+                }
+              />
+
+              {selectedItem.image && (
+                <img
+                  src={`${API}/${selectedItem.image}`}
+                  alt="Product"
+                  className="w-full object-cover rounded-lg shadow-sm mt-3"
+                />
+              )}
+              <input type="hidden" name="image" value={selectedItem.image} />
+            </div>
+
+            <div className="mt-auto p-5 flex justify-end gap-2 border-t bg-white">
+              <button
+                type="button"
+                onClick={() => setShowDirectDonation(false)}
+                className={pillOutline}
+              >
+                Cancel
+              </button>
+              <button type="submit" className={pillSolid}>
+                Save Donation
               </button>
             </div>
           </form>

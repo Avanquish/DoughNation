@@ -6,6 +6,7 @@ const CharityReceived = () => {
   const [receivedDonations, setReceivedDonations] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [selectedDonation, setSelectedDonation] = useState(null);
+  const [directDonations, setDirectDonations] = useState([]);
   const highlightedRef = useRef(null);
 
   // Load current user
@@ -45,6 +46,33 @@ const CharityReceived = () => {
     };
 
     fetchRequestedInventory();
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== "charity") return;
+
+    const fetchDirectDonations = async () => {
+      try {
+        const response = await fetch(`${API}/direct/mine`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        });
+        const data = await response.json();
+
+        // Only donations for this charity
+        const filtered = data.filter(
+          (donation) => donation.charity_id === currentUser.id
+        );
+
+        setDirectDonations(filtered);
+      } catch (error) {
+        console.error("Failed to fetch direct donations:", error);
+      }
+    };
+
+    fetchDirectDonations();
   }, [currentUser]);
 
   // Scroll to highlighted donation if needed

@@ -1,8 +1,45 @@
 import React, { useEffect, useState, useRef } from "react";
+import ReactDOM from "react-dom";
 import axios from "axios";
 import Swal from "sweetalert2";
 
 const API = "http://localhost:8000";
+
+// helper: treat items expiring today or earlier as expired (consistent with inventory logic)
+const isExpired = (dateStr) => {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  d.setHours(0, 0, 0, 0);
+  return d <= today;
+};
+
+// Reusable overlay (same behavior as Add Product overlay)
+function Overlay({ onClose, children }) {
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => (document.body.style.overflow = prev);
+  }, []);
+
+  const node = (
+    <div
+      className="fixed inset-0 z-[100] flex items-start justify-center p-3 sm:p-6 pt-16 pb-6"
+      onClick={onClose}
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/5 backdrop-blur-[1px]" />
+
+      {/* Container */}
+      <div className="relative w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
+        {children}
+      </div>
+    </div>
+  );
+
+  return ReactDOM.createPortal(node, document.body);
+}
 
 const BakeryDonation = ({ highlightedDonationId }) => {
   const [donations, setDonations] = useState([]);
@@ -57,9 +94,11 @@ const BakeryDonation = ({ highlightedDonationId }) => {
   const fetchInventory = async () => {
     try {
       const res = await axios.get(`${API}/inventory`, { headers });
+      // Exclude donated/requested AND any expired items from being selectable for donation
       const ok = (res.data || []).filter((it) => {
         const s = String(it.status || "").toLowerCase();
-        return s !== "donated" && s !== "requested";
+        const expired = isExpired(it.expiration_date);
+        return s !== "donated" && s !== "requested" && !expired;
       });
       setInventory(ok);
     } catch (e) {
@@ -188,19 +227,11 @@ const BakeryDonation = ({ highlightedDonationId }) => {
         <p className="text-gray-500">No donations found.</p>
       )}
 
-      {/* --- Create Donation Modal (compact, with bottom space) --- */}
+      {/* --- Create Donation Modal (now rendered via Overlay/Portal) --- */}
       {showDonate && (
-        <div
-          className="fixed inset-0 z-[100] flex items-start justify-center p-3 sm:p-6 pt-16 pb-6"
-          onClick={() => setShowDonate(false)}
-        >
-          {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/5 backdrop-blur-[1px]" />
-
-          {/* Dialog */}
+        <Overlay onClose={() => setShowDonate(false)}>
           <div
             className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl ring-1 ring-black/10 flex flex-col max-h-[calc(100vh-7rem)] overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
           >
             {/* Sticky header */}
             <div className="p-4 sm:p-5 border-b bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199] sticky top-0 z-10">
@@ -218,6 +249,14 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                     Swal.fire("Missing item", "Please choose an inventory item.", "error");
                     return;
                   }
+
+                  // extra safety: block donations for expired items even if somehow listed
+                  const chosen = inventory.find((x) => Number(x.id) === parseInt(form.bakery_inventory_id, 10));
+                  if (chosen && isExpired(chosen.expiration_date)) {
+                    Swal.fire("Not allowed", "Expired products cannot be donated.", "error");
+                    return;
+                  }
+
                   const fd = new FormData();
                   fd.append("bakery_inventory_id", parseInt(form.bakery_inventory_id, 10));
                   fd.append("name", form.name);
@@ -364,7 +403,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-[#6b4b2b]">Description</label>
                 <textarea
-                  className="w-full rounded-md border border-[#f2d4b5] bg-white p-2 outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] min-h-[80px]"
+                  className="w-full rounded-md border border-[#f2d4b5] bg-white p-2 outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] min-h[80px]"
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                 />
@@ -389,7 +428,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
               </button>
             </div>
           </div>
-        </div>
+        </Overlay>
       )}
     </div>
   );

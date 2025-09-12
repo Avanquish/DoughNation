@@ -285,7 +285,7 @@ const Login = () => {
 
           {/* Decorative illustration pinned bottom-right */}
           <img
-            src="/images/givingdonation.png"
+            src="/images/GivingDonation.png"
             alt="Giving donation"
             className="give-illu"
           />

@@ -156,7 +156,7 @@ class DonationRead(DonationBase):
 class DonationRequestCreate(BaseModel):
     donation_id: int
     bakery_id: int
-    charity_id: int
+    charity_id: Optional[int] = None
     
 class DonationRequestRead(BaseModel):
     id: int

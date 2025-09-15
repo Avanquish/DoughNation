@@ -235,12 +235,17 @@ def check_inventory_status(db: Session):
     print(f"Checking {len(products)} inventory items for expiration...")
 
     for p in products:
+        # Skip if no expiration date
         if not p.expiration_date:
-            continue  # skip if no expiration date
+            continue
+
+        # Skip if already donated
+        if p.status == "donated":
+            continue
 
         exp_date = p.expiration_date
 
-        # Make sure exp_date is a date object
+        # Ensure exp_date is a date object
         if isinstance(exp_date, datetime):
             exp_date = exp_date.date()
         elif isinstance(exp_date, str):
@@ -250,7 +255,7 @@ def check_inventory_status(db: Session):
                 print(f"Error parsing expiration_date for {p.name}: {e}")
                 continue
 
-        # Mark expired products as unavailable
+        # Mark expired products as unavailable if not donated
         if exp_date <= today:
             if p.status != "unavailable":
                 p.status = "unavailable"

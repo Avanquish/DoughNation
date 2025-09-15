@@ -167,6 +167,8 @@ class DirectDonationResponse(DirectDonationBase):
     charity_name: Optional[str] = None          # name of the receiving charity
     charity_profile_picture: Optional[str] = None
     btracking_status: Optional[str] = None 
+    bakery_name: Optional[str] = None              
+    bakery_profile_picture: Optional[str] = None
 
     class Config:
         orm_mode = True
@@ -254,9 +256,16 @@ class FeedbackRead(BaseModel):
     bakery_id: int
     message: str
     rating: Optional[int] = None
+    reply_message: Optional[str] 
     created_at: datetime
     bakery_name: Optional[str] = None
     bakery_profile_picture: Optional[str] = None
+    product_name: Optional[str] = None
+    product_quantity: Optional[int] = None
+    product_image: Optional[str] = None
+    media_file: Optional[str] = None
+    charity_name: Optional[str] = None
+    charity_profile_picture: Optional[str] = None
 
     class Config:
         orm_mode = True

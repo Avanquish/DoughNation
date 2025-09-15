@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-const CharityReceived = () => {
+const BDonationStatus = () => {
   const [receivedDonations, setReceivedDonations] = useState([]);
   const [pendingDonations, setPendingDonations] = useState([]);
   const [directDonations, setDirectDonations] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [highlightedId, setHighlightedId] = useState(null);
+  const [selectedDonation, setSelectedDonation] = useState(null);
 
   // Load current user
   useEffect(() => {
@@ -56,9 +57,9 @@ const handleUpdateTracking = async (donationId, currentStatus, isDirect = false)
       },
       body: JSON.stringify(body),
     });
-
-    if (res.ok) {
       // Update state for UI
+     if (res.ok) {
+    // Update state for UI
       if (isDirect) {
         setDirectDonations((prev) =>
           prev.map((d) =>
@@ -71,6 +72,11 @@ const handleUpdateTracking = async (donationId, currentStatus, isDirect = false)
             d.id === donationId ? { ...d, tracking_status: nextStatus } : d
           )
         );
+      }
+
+      // ALSO update the modal if it is open
+      if (selectedDonation && selectedDonation.id === donationId) {
+        setSelectedDonation({ ...selectedDonation, tracking_status: nextStatus });
       }
     }
   } catch (err) {
@@ -169,6 +175,8 @@ useEffect(() => {
       window.removeEventListener("highlight_received_donation", handler);
   }, []);
 
+  const statusOrder = ["preparing", "ready_for_pickup", "in_transit", "received", "completed"];
+
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-4">Donations</h2>
@@ -185,6 +193,7 @@ useEffect(() => {
                 ? "border-4 border-amber-500 bg-amber-100"
                 : ""
             }`}
+             onClick={() => setSelectedDonation(d)} 
           >
             {d.image ? (
               <img
@@ -210,26 +219,9 @@ useEffect(() => {
                   {d.description}
                 </p>
               )}
-
-                {/* Tracking Status */}
-                {d.status === "accepted" && (
-                    <div className="mt-4 flex items-center justify-between">
                     <span className="text-sm font-medium">
                         Status: {d.tracking_status.replaceAll("_", " ").toUpperCase()}
                     </span>
-                    {/* Show button only if preparing or ready_for_pickup */}
-                        {(d.tracking_status === "preparing" || d.tracking_status === "ready_for_pickup") && (
-                        <button
-                            onClick={() => handleUpdateTracking(d.id, d.tracking_status)}
-                            className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
-                        >
-                            {d.tracking_status === "preparing"
-                            ? "Ready for Pickup"
-                            : "In Transit"}
-                        </button>
-                        )}
-                    </div>
-                )}
             </div>
           </div>
         ))}
@@ -252,6 +244,7 @@ useEffect(() => {
                   ? "border-4 border-amber-500 bg-amber-100"
                   : ""
               }`}
+              onClick={() => setSelectedDonation(d)}
             >
               {d.image ? (
                 <img
@@ -277,23 +270,9 @@ useEffect(() => {
                     {d.description}
                   </p>
                 )}
-
-                
-                {/* Tracking Status */}
-                    <div className="mt-4 flex items-center justify-between">
                     <span className="text-sm font-medium">
                         Status: {d.tracking_status.replaceAll("_", " ").toUpperCase()}
                     </span>
-                    {/* Show button only if preparing or ready_for_pickup */}
-                        {(d.tracking_status === "preparing" || d.tracking_status === "ready_for_pickup") && (
-                          <button
-                            onClick={() => handleUpdateTracking(d.id, d.tracking_status, true)}
-                            className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
-                          >
-                            {d.tracking_status === "preparing" ? "Ready for Pickup" : "In Transit"}
-                          </button>
-                        )}
-                    </div>
               </div>
             </div>
           ))}
@@ -347,8 +326,120 @@ useEffect(() => {
     ) : (
     <p className="text-gray-500">No pending request.</p>
     )}
+
+     {/* --- MODAL --- */}
+      {selectedDonation && (
+        <div
+          className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-md z-50"
+          onClick={() => setSelectedDonation(null)}
+        >
+          <div
+            className="bg-white rounded-xl max-w-lg w-full p-6 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="absolute top-3 right-3 text-gray-500 hover:text-gray-800 font-bold text-2xl"
+              onClick={() => setSelectedDonation(null)}
+            >
+              ×
+            </button>
+
+            {selectedDonation.image && (
+              <img
+                src={`${API}/${selectedDonation.image}`}
+                alt={selectedDonation.name}
+                className="h-48 w-full object-cover rounded-md mb-4"
+              />
+            )}
+            <h3 className="text-xl font-semibold">{selectedDonation.name}</h3>
+            {selectedDonation.description && (
+              <p className="text-sm text-gray-600 mt-2">{selectedDonation.description}</p>
+            )}
+            <p className="mt-2 text-sm text-gray-600">Quantity: {selectedDonation.quantity}</p>
+            {selectedDonation.expiration_date && (
+              <p className="text-sm text-red-500 mt-2">
+                Expires: {new Date(selectedDonation.expiration_date).toLocaleDateString()}
+              </p>
+            )}
+
+            {/* Stepper */}
+            <div className="flex items-center justify-between w-full mt-6 relative">
+              {statusOrder.map((status, idx) => {
+                const currentIndex = statusOrder.indexOf(selectedDonation.tracking_status);
+                const isCompleted = selectedDonation.tracking_status === "complete";
+
+                return (
+                  <div key={status} className="flex-1 flex flex-col items-center relative">
+                    {/* Left connector */}
+                    {idx > 0 && (
+                      <div
+                        className={`absolute top-4 left-0 w-1/2 h-1 z-0 ${
+                          isCompleted || idx - 1 < currentIndex ? "bg-green-500" : "bg-gray-300"
+                        }`}
+                      ></div>
+                    )}
+
+                    {/* Right connector */}
+                    {idx < statusOrder.length - 1 && (
+                      <div
+                        className={`absolute top-4 right-0 w-1/2 h-1 z-0 ${
+                          isCompleted || idx < currentIndex ? "bg-green-500" : "bg-gray-300"
+                        }`}
+                      ></div>
+                    )}
+
+                    {/* Circle */}
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-white z-10 transition-all duration-300 ${
+                        isCompleted
+                          ? "bg-green-500"
+                          : idx < currentIndex
+                          ? "bg-green-500"
+                          : idx === currentIndex
+                          ? "bg-green-500 -translate-y-2 scale-110"
+                          : "bg-gray-300"
+                      }`}
+                    >
+                      {/* Show ✓ on last step if completed, else step number */}
+                      {isCompleted && idx === statusOrder.length - 1 ? "✓" : idx + 1}
+                    </div>
+
+                    {/* Label */}
+                    <span
+                      className={`mt-2 text-xs text-center transition-all duration-300 ${
+                        idx === currentIndex && !isCompleted ? "-translate-y-2 font-semibold" : ""
+                      }`}
+                    >
+                      {status.replaceAll("_", " ")}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+              {/* Show button only if preparing or ready_for_pickup */}
+                {(selectedDonation.tracking_status === "preparing" ||
+                  selectedDonation.tracking_status === "ready_for_pickup") && (
+                  <button
+                    onClick={() =>
+                      handleUpdateTracking(
+                        selectedDonation.id,
+                        selectedDonation.tracking_status,
+                        selectedDonation.btracking_status !== undefined
+                      )
+                    }
+                    className="mt-6 w-full px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                  >
+                    {selectedDonation.tracking_status === "preparing"
+                      ? "Ready for Pickup"
+                      : "In Transit"}
+                  </button>
+                )}    
+          </div>
+        </div>
+        )}
     </div>
   );
 };
 
-export default CharityReceived;
+export default BDonationStatus;

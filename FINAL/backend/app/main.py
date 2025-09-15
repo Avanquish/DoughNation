@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from app.routes import (auth_routes, admin_routes, binventory_routes, 
                         bemployee_routes, bakerydashboardstats, admindashboardstats, 
                         bdonation_routes, bnotification, cnotification, messages, charitydonation_routes,
-                        direct_donation, CFeedback, Compute_TOT_Donations
+                        direct_donation, CFeedback, BFeedback, Compute_TOT_Donations, complaint_routes, BReportGene
                         )
 from app.database import engine, SessionLocal
 from app import models, crud, database
@@ -44,8 +44,11 @@ app.include_router(cnotification.router)
 app.include_router(charitydonation_routes.router)
 app.include_router(direct_donation.router)
 app.include_router(messages.router)
-app.include_router(CFeedback.router)
+app.include_router(CFeedback.router),
+app.include_router(BFeedback.router),
 app.include_router(Compute_TOT_Donations.router)
+app.include_router(complaint_routes.router)
+app.include_router(BReportGene.router)
 
 
 @app.on_event("startup")

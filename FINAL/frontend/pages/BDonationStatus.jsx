@@ -219,6 +219,21 @@ useEffect(() => {
                   {d.description}
                 </p>
               )}
+              <h3 className="text-center"><br />DONATION FOR:</h3>
+                <div className="flex items-center  gap-2">
+                  {d.charity_profile_picture ? (
+                    <img
+                      src={`${API}/${d.charity_profile_picture}`}
+                      alt={d.charity_name}
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-gray-600">?</div>
+                  )}
+                  <span className="text-sm font-medium">
+                    {d.charity_name || "Unknown Charity"}
+                  </span>
+                </div>
                     <span className="text-sm font-medium">
                         Status: {d.tracking_status.replaceAll("_", " ").toUpperCase()}
                     </span>
@@ -265,11 +280,22 @@ useEffect(() => {
                     Expires: {new Date(d.expiration_date).toLocaleDateString()}
                   </p>
                 )}
-                {d.description && (
-                  <p className="mt-2 text-sm text-gray-600 line-clamp-2">
-                    {d.description}
-                  </p>
-                )}
+
+                <h3 className="text-center"><br />DONATION FOR:</h3>
+                <div className="flex items-center  gap-2">
+                  {d.charity_profile_picture ? (
+                    <img
+                      src={`${API}/${d.charity_profile_picture}`}
+                      alt={d.charity_name}
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-gray-600">?</div>
+                  )}
+                  <span className="text-sm font-medium">
+                    {d.charity_name || "Unknown Charity"}
+                  </span>
+                </div>
                     <span className="text-sm font-medium">
                         Status: {d.tracking_status.replaceAll("_", " ").toUpperCase()}
                     </span>
@@ -361,6 +387,24 @@ useEffect(() => {
                 Expires: {new Date(selectedDonation.expiration_date).toLocaleDateString()}
               </p>
             )}
+
+            <h3 className="text-center mt-4">DONATION FOR:</h3>
+            <div className="flex items-center justify-center gap-2 mt-2">
+              {selectedDonation.charity_profile_picture ? (
+                <img
+                  src={`${API}/${selectedDonation.charity_profile_picture}`}
+                  alt={selectedDonation.charity_name}
+                  className="w-8 h-8 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-gray-600">
+                  ?
+                </div>
+              )}
+              <span className="text-sm font-medium">
+                {selectedDonation.charity_name || "Unknown Charity"}
+              </span>
+            </div>
 
             {/* Stepper */}
             <div className="flex items-center justify-between w-full mt-6 relative">

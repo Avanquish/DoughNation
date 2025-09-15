@@ -108,13 +108,15 @@ class DonationRequest(Base):
     donation = relationship("Donation", backref="requests", passive_deletes=True)
     inventory_item = relationship("BakeryInventory")
 
+    charity = relationship("User", foreign_keys=[charity_id])
+    bakery = relationship("User", foreign_keys=[bakery_id])
+    
 class DirectDonation(Base):
     __tablename__ = "direct_donations"
 
     id = Column(Integer, primary_key=True, index=True)
     bakery_inventory_id = Column(Integer, ForeignKey("bakery_inventory.id"))
-    charity_id = Column(Integer, ForeignKey("users.id"))  # 👈 points to User (charity)
-    
+    charity_id = Column(Integer, ForeignKey("users.id"))  # points to User (charity)
     name = Column(String, nullable=False)
     quantity = Column(Integer, nullable=False)
     threshold = Column(Integer, nullable=False)

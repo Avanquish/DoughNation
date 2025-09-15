@@ -17,17 +17,25 @@ def get_charity_totals(
 
     charity_id = current_user.id
 
-    # Sum of donation_quantity for completed DonationRequests
-    normal_total = db.query(func.coalesce(func.sum(models.DonationRequest.donation_quantity), 0)) \
-        .filter(models.DonationRequest.charity_id == charity_id) \
-        .filter(models.DonationRequest.tracking_status == "complete") \
+    # Count completed DonationRequests received by this charity
+    normal_total = (
+        db.query(func.count(models.DonationRequest.id))
+        .filter(
+            models.DonationRequest.charity_id == charity_id,
+            models.DonationRequest.tracking_status == "complete"
+        )
         .scalar()
+    )
 
-    # Sum of quantity for completed DirectDonations
-    direct_total = db.query(func.coalesce(func.sum(models.DirectDonation.quantity), 0)) \
-        .filter(models.DirectDonation.charity_id == charity_id) \
-        .filter(models.DirectDonation.btracking_status == "complete") \
+    # Count completed DirectDonations received by this charity
+    direct_total = (
+        db.query(func.count(models.DirectDonation.id))
+        .filter(
+            models.DirectDonation.charity_id == charity_id,
+            models.DirectDonation.btracking_status == "complete"
+        )
         .scalar()
+    )
 
     grand_total = normal_total + direct_total
 
@@ -48,18 +56,27 @@ def get_bakery_totals(
 
     bakery_id = current_user.id
 
-    # Sum of donation_quantity for completed DonationRequests sent by this bakery
-    normal_total = db.query(func.coalesce(func.sum(models.DonationRequest.donation_quantity), 0)) \
-        .filter(models.DonationRequest.bakery_id == bakery_id) \
-        .filter(models.DonationRequest.tracking_status == "complete") \
+    # Count completed DonationRequests for this bakery via inventory
+    normal_total = (
+        db.query(func.count(models.DonationRequest.id))
+        .join(models.BakeryInventory, models.DonationRequest.bakery_inventory_id == models.BakeryInventory.id)
+        .filter(
+            models.BakeryInventory.bakery_id == bakery_id,
+            models.DonationRequest.tracking_status == "complete"
+        )
         .scalar()
+    )
 
-    # Sum of quantity for completed DirectDonations sent by this bakery
-    direct_total = db.query(func.coalesce(func.sum(models.DirectDonation.quantity), 0)) \
-        .join(models.BakeryInventory) \
-        .filter(models.BakeryInventory.bakery_id == bakery_id) \
-        .filter(models.DirectDonation.btracking_status == "complete") \
+    # Count completed DirectDonations for this bakery via inventory
+    direct_total = (
+        db.query(func.count(models.DirectDonation.id))
+        .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
+        .filter(
+            models.BakeryInventory.bakery_id == bakery_id,
+            models.DirectDonation.btracking_status == "complete"
+        )
         .scalar()
+    )
 
     grand_total = normal_total + direct_total
 

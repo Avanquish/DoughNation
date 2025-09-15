@@ -114,6 +114,22 @@ useEffect(() => {
               </div>
             )}
             <div className="p-4">
+              {d.bakery_name && (
+                <div className="flex items-center mb-2">
+                  {d.bakery_profile_picture ? (
+                    <img
+                      src={`${API}/${d.bakery_profile_picture}`}
+                      alt={d.bakery_name}
+                      className="w-8 h-8 rounded-full mr-2 object-cover"
+                    />
+                      ) : (
+                      <div className="w-8 h-8 rounded-full bg-gray-300 mr-2 flex items-center justify-center text-xs text-gray-600">
+                        N/A
+                      </div>
+                  )}
+                    <span className="text-sm font-medium">{d.bakery_name}</span>
+                  </div>
+                )}
               <h3 className="text-lg font-semibold">{d.name}</h3>
               <p className="text-sm text-gray-600">Quantity: {d.quantity}</p>
               {d.expiration_date && (
@@ -156,16 +172,27 @@ useEffect(() => {
                 </div>
               )}
               <div className="p-4">
+                {d.bakery_name && (
+                <div className="flex items-center mb-2">
+                  {d.bakery_profile_picture ? (
+                    <img
+                      src={`${API}/${d.bakery_profile_picture}`}
+                      alt={d.bakery_name}
+                      className="w-8 h-8 rounded-full mr-2 object-cover"
+                    />
+                      ) : (
+                      <div className="w-8 h-8 rounded-full bg-gray-300 mr-2 flex items-center justify-center text-xs text-gray-600">
+                        N/A
+                      </div>
+                  )}
+                    <span className="text-sm font-medium">{d.bakery_name}</span>
+                  </div>
+                )}
                 <h3 className="text-lg font-semibold">{d.name}</h3>
                 <p className="text-sm text-gray-600">Quantity: {d.quantity}</p>
                 {d.expiration_date && (
                   <p className="text-sm text-red-500">
                     Expires: {new Date(d.expiration_date).toLocaleDateString()}
-                  </p>
-                )}
-                {d.description && (
-                  <p className="mt-2 text-sm text-gray-600 line-clamp-2">
-                    {d.description}
                   </p>
                 )}
               </div>

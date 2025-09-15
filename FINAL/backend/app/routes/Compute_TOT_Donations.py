@@ -68,3 +68,23 @@ def get_bakery_totals(
         "normal_total": normal_total,
         "direct_total": direct_total,
     }
+
+# Count the total product uploaded in for donation (bakery ui)
+@router.get("/bakery/total_products_for_donation")
+def get_total_products_for_donation(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if current_user.role.lower() != "bakery":
+        return {"error": "Not authorized"}
+
+    bakery_id = current_user.id
+
+    # Count distinct products uploaded by this bakery
+    total_products = (
+        db.query(func.count(models.Donation.bakery_inventory_id.distinct()))
+        .filter(models.Donation.bakery_id == bakery_id)
+        .scalar()
+    )
+
+    return {"total_products": total_products}

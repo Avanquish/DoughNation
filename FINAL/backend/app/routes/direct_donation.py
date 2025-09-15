@@ -112,7 +112,8 @@ def get_direct_donations_for_bakery(
     for d in donations:
         inventory_item = d.bakery_inventory  # already available via relationship
         bakery_owner = d.bakery_inventory.bakery if inventory_item else None
-
+        charity_user = d.charity 
+        
         result.append({
             "id": d.id,
             "donation_id": d.id,
@@ -128,6 +129,8 @@ def get_direct_donations_for_bakery(
             "btracking_status": d.btracking_status or "preparing",
             "bakery_name": bakery_owner.name if bakery_owner else None,
             "bakery_profile_picture": bakery_owner.profile_picture if bakery_owner else None,
+            "charity_name": charity_user.name if charity_user else None,
+            "charity_profile_picture": charity_user.profile_picture if charity_user else None,
         })
 
     return result
@@ -194,6 +197,7 @@ def get_donation_requests(
     # Build result
     result = []
     for r in requests:
+        charity_user = r.charity 
         if r.status == "accepted":
             # Always show accepted
             result.append({
@@ -207,6 +211,8 @@ def get_donation_requests(
                 "image": r.donation_image,
                 "quantity": r.donation_quantity,
                 "expiration_date": r.donation_expiration,
+                "charity_name": charity_user.name if charity_user else None,
+                "charity_profile_picture": charity_user.profile_picture if charity_user else None,
             })
         elif r.status == "pending" and r.bakery_inventory_id not in accepted_inventory_ids:
             # Show pending if no one accepted yet

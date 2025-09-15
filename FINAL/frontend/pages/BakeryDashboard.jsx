@@ -28,6 +28,7 @@ import Complaint from "../pages/Complaint";
 import BakeryReportGeneration from "../pages/BakeryReports";
 import BakeryNotification from "./BakeryNotification";
 import BDonationStatus from "./BDonationStatus";
+import BFeedback from "./BFeedback";
 
 const API = "http://localhost:8000";
 
@@ -224,6 +225,27 @@ const BakeryDashboard = () => {
 
     fetchTotals();
   }, []);
+
+  // Fetch uploaded products
+useEffect(() => {
+  const fetchUploadedProducts = async () => {
+    try {
+      const res = await fetch(`${API}/bakery/total_products_for_donation`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+
+      if (!res.ok) throw new Error("Failed to fetch uploaded products");
+
+      const data = await res.json();
+      setUploadedProducts(data.total_products || 0);
+    } catch (err) {
+      console.error("❌ Error fetching uploaded products:", err);
+      setUploadedProducts(0);
+    }
+  };
+
+  fetchUploadedProducts();
+}, []);
 
     // If user is not verified, show "verification pending" screen
   if (!isVerified) {
@@ -446,6 +468,7 @@ const BakeryDashboard = () => {
               <TabsTrigger value="employee">Employee</TabsTrigger>
               <TabsTrigger value="complaints">Complaints</TabsTrigger>
               <TabsTrigger value="reports">Report Generation</TabsTrigger>
+              <TabsTrigger value="feedback">Feedback</TabsTrigger>
             </TabsList>
           </div>
         </div>
@@ -605,6 +628,18 @@ const BakeryDashboard = () => {
 
           <TabsContent value="reports" className="reveal">
             <BakeryReportGeneration />
+          </TabsContent>
+
+          {/* Feedback */}
+          <TabsContent value="feedback">
+            <div className="gwrap">
+              <Card className="glass-card shadow-none">
+                <CardHeader className="pb-2">
+                  <CardTitle>Feedback</CardTitle>
+                </CardHeader>
+                <BFeedback />
+              </Card>
+            </div>
           </TabsContent>
         </div>
       </Tabs>

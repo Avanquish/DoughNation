@@ -7,23 +7,41 @@ export default function Feedback({ donationId, isDirect, onSubmitted }) {
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [rating, setRating] = useState(5);
+  const [files, setFiles] = useState([]); // store images/videos
+
+  const handleFileChange = (e) => {
+    setFiles([...e.target.files]);
+  };
 
   const handleSave = async () => {
     try {
       const token = localStorage.getItem("token");
-      await fetch(`${API}/${isDirect ? "direct" : "donation"}/feedback/${donationId}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ message, rating }),
+      const formData = new FormData();
+
+      formData.append("message", message);
+      formData.append("rating", rating);
+
+      // append all selected files
+      files.forEach((file) => {
+        formData.append("files", file);
       });
 
-      onSubmitted?.(); // update parent state
+      await fetch(
+        `${API}/${isDirect ? "direct" : "donation"}/feedback/${donationId}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      );
+
+      onSubmitted?.(); // update parent
       setIsOpen(false);
       setMessage("");
       setRating(5);
+      setFiles([]);
     } catch (err) {
       console.error("Failed to submit feedback:", err);
     }
@@ -73,6 +91,26 @@ export default function Feedback({ donationId, isDirect, onSubmitted }) {
                 <option value={4}>⭐⭐⭐⭐</option>
                 <option value={5}>⭐⭐⭐⭐⭐</option>
               </select>
+
+              <label className="block mb-2 font-medium">Upload Images/Videos:</label>
+              <input
+                type="file"
+                multiple
+                accept="image/*,video/*"
+                onChange={handleFileChange}
+                className="mb-4"
+              />
+
+              {/* Preview selected files */}
+              {files.length > 0 && (
+                <div className="mb-4 space-y-2">
+                  {files.map((file, i) => (
+                    <p key={i} className="text-sm text-gray-600">
+                      {file.name}
+                    </p>
+                  ))}
+                </div>
+              )}
 
               <div className="flex justify-end gap-2">
                 <button

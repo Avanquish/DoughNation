@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, Date, DateTime, func
+from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, Date, DateTime, func, Enum, Text
 from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime
+import enum
 
 class User(Base):
     __tablename__ = "users"
@@ -28,7 +29,9 @@ class User(Base):
     sent_messages = relationship("Message", back_populates="sender", foreign_keys="Message.sender_id")
     received_messages = relationship("Message", back_populates="receiver", foreign_keys="Message.receiver_id")
 
-    
+    complaints = relationship("Complaint", back_populates="user")
+
+ 
 class BakeryInventory(Base):
     __tablename__ = "bakery_inventory"
 
@@ -168,7 +171,31 @@ class Feedback(Base):
     message = Column(String, nullable=False)
     rating = Column(Integer, nullable=True) 
     created_at = Column(DateTime, default=datetime.utcnow)
+    product_name = Column(String, nullable=True)
+    product_quantity = Column(Integer, nullable=True)
+    product_image = Column(String, nullable=True)
+    media_file = Column(String, nullable=True)
+    reply_message = Column(String, nullable=True) 
 
     # Add these relationships
     charity = relationship("User", foreign_keys=[charity_id])
     bakery = relationship("User", foreign_keys=[bakery_id])
+
+#--------Complaints------------
+class ComplaintStatus(str, enum.Enum):
+    pending = "Pending"
+    in_review = "In Review"
+    resolved = "Resolved"
+
+class Complaint(Base):
+    __tablename__ = "complaints"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    subject = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False)
+    status = Column(Enum(ComplaintStatus), default=ComplaintStatus.pending)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="complaints")

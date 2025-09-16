@@ -35,6 +35,22 @@ class UserLogin(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    contact_person: Optional[str] = None
+    contact_number: Optional[str] = None
+    address: Optional[str] = None
+    
+class ChangePassword(BaseModel):
+    current_password: str
+    new_password: str
+    confirm_password: str
+    
+class ResetPassword(BaseModel):
+    email: EmailStr
+    new_password: str
+    confirm_password: str
     
 # ------------------ BAKERY INVENTORY ------------------
 class BakeryInventoryBase(BaseModel):

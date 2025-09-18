@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 from datetime import date, datetime
 
 from enum import Enum
@@ -63,6 +63,7 @@ class BakeryInventoryBase(BaseModel):
     expiration_date: Optional[date] = None
     threshold: int
     uploaded: str 
+    status: Optional[str] = "available"
 
 class BakeryInventoryCreate(BakeryInventoryBase):
     image: Optional[str] = None  # Can be uploaded as file in FastAPI
@@ -115,6 +116,7 @@ class EmployeeOut(BaseModel):
 
 # ------------------ DONATION ------------------
 class DonationBase(BaseModel):
+    id: int
     name: str
     quantity: int
     creation_date: date
@@ -143,20 +145,16 @@ class DonationCreate(BaseModel):
 
 
 class DonationRead(DonationBase):
-    id: int
+    bakery_id: int
     bakery_name: str  
     bakery_profile_picture: Optional[str] = None 
-    status: str
-    freshness: Optional[str] = None
 
     class Config:
         from_attributes = True
 
-
 class DonationRequestCreate(BaseModel):
     donation_id: int
     bakery_id: int
-    charity_id: Optional[int] = None
     
 class DonationRequestRead(BaseModel):
     id: int
@@ -168,6 +166,40 @@ class DonationRequestRead(BaseModel):
 
     class Config:
         from_attributes = True
+        
+# ------------------ DIRECT DONATION ------------------
+class DirectDonationBase(BaseModel):
+    name: str
+    quantity: int
+    threshold: int
+    creation_date: date
+    expiration_date: Optional[date] = None
+    description: Optional[str] = None
+    bakery_inventory_id: int
+    charity_id: int
+    image: Optional[str] = None
+
+class DirectDonationCreate(DirectDonationBase):
+    pass
+
+class DirectDonationResponse(DirectDonationBase):
+    id: int
+    bakery_inventory_name: Optional[str] = None  # name of the product
+    charity_name: Optional[str] = None          # name of the receiving charity
+    charity_profile_picture: Optional[str] = None
+    btracking_status: Optional[str] = None 
+    bakery_name: Optional[str] = None              
+    bakery_profile_picture: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+        
+#---------Donation Tracking----------
+class TrackingUpdate(BaseModel):
+    tracking_status: str
+
+class bTrackingUpdate(BaseModel):
+    btracking_status: str
 
 #---------Messages-----------
 class MessageIn(BaseModel):
@@ -215,11 +247,51 @@ class BakeryOut(BaseModel):
     profile_picture: Optional[str]
 
     class Config:
-        from_attributes = True   
+        from_attributes = True 
         
-class StatusUpdate(BaseModel):
-    status: str
-    charity_id: int | None = None
+# ------------------ FEEDBACK ------------------
+class FeedbackCreate(BaseModel):
+    message: str
+    rating: Optional[int] = None  # make rating optional if not always required
+
+class FeedbackOut(BaseModel):
+    id: int
+    message: str
+    rating: Optional[int]
+    created_at: datetime
+    charity_id: int
+    donation_id: Optional[int] = None
+    direct_donation_id: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+#Fetch feedback on charity
+class FeedbackRead(BaseModel):
+    id: int
+    donation_request_id: Optional[int] = None
+    direct_donation_id: Optional[int] = None
+    charity_id: int
+    bakery_id: int
+    message: str
+    rating: Optional[int] = None
+    reply_message: Optional[str] 
+    created_at: datetime
+    bakery_name: Optional[str] = None
+    bakery_profile_picture: Optional[str] = None
+    product_name: Optional[str] = None
+    product_quantity: Optional[int] = None
+    product_image: Optional[str] = None
+    media_file: Optional[str] = None
+    charity_name: Optional[str] = None
+    charity_profile_picture: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class FeedbackUpdate(BaseModel):
+    message: Optional[str] = None
+    rating: Optional[int] = None
 
 #--------Complaint-----------
 class ComplaintStatus(str, Enum):
@@ -268,26 +340,87 @@ class BakeryOut(BaseModel):
     class Config:
         from_attributes = True   
         
-#------------- DIRECT DONATION ---------------
-class DirectDonationBase(BaseModel):
+# ---------- Badges ----------
+class BadgeBase(BaseModel):
     name: str
-    quantity: int
-    threshold: int
-    creation_date: date
-    expiration_date: Optional[date] = None
+    category: Optional[str] = None
     description: Optional[str] = None
-    bakery_inventory_id: int
-    charity_id: int
-    image: Optional[str] = None
+    icon_url: Optional[str] = None
 
-class DirectDonationCreate(DirectDonationBase):
+class BadgeCreate(BadgeBase):
     pass
 
-class DirectDonationResponse(DirectDonationBase):
+class BadgeResponse(BadgeBase):
     id: int
-    bakery_inventory_name: Optional[str] = None  # name of the product
-    charity_name: Optional[str] = None          # name of the receiving charity
-    charity_profile_picture: Optional[str] = None
+    is_special: bool
+    created_by: Optional[int]
 
     class Config:
         from_attributes = True
+
+class UserBadgeBase(BaseModel):
+    user_id: int
+    badge_id: int
+
+class UserBadgeResponse(BaseModel):
+    id: int
+    user_id: int
+    badge_id: int
+    unlocked_at: datetime
+    badge: BadgeResponse
+
+    class Config:
+        from_attributes = True
+
+class BadgeProgressBase(BaseModel):
+    user_id: int
+    badge_id: int
+    progress: int
+    target: int
+
+class BadgeProgressResponse(BadgeProgressBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+        
+# ------------- Analytics ---------------
+class InventoryItem(BaseModel):
+    id: int
+    product_name: str
+    quantity: int
+    expiration_date: Optional[date]
+
+    class Config:
+        from_attributes = True
+
+class DonationItem(BaseModel):
+    id: int
+    product_name: str
+    quantity: int
+    status: str
+
+    class Config:
+        from_attributes = True
+
+class EmployeeItem(BaseModel):
+    id: int
+    name: str
+    role: str
+
+    class Config:
+        from_attributes = True
+
+class BadgeItem(BaseModel):
+    id: int
+    name: str
+    image: str
+
+    class Config:
+        from_attributes = True
+
+class AnalyticsResponse(BaseModel):
+    inventory: List[InventoryItem]
+    donations: List[DonationItem]
+    employees: List[EmployeeItem]
+    badges: List[BadgeItem]

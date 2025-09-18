@@ -6,16 +6,9 @@ import Swal from "sweetalert2";
 
 const API = "http://localhost:8000";
 
-export default function CharityDonation() {
+export default function CharityDonationFeed() {
   const [donations, setDonations] = useState([]);
   const [requestedDonations, setRequestedDonations] = useState({}); // Map donation_id → request_id
-
-  function shuffleArray(array) {
-    return array
-      .map((value) => ({ value, sort: Math.random() }))
-      .sort((a, b) => a.sort - b.sort)
-      .map(({ value }) => value);
-  }
 
   // Fetch donations and user's pending requests
   useEffect(() => {
@@ -23,17 +16,14 @@ export default function CharityDonation() {
       try {
         const token = localStorage.getItem("token");
 
-        // ✅ Fetch all available donations
-        const res = await axios.get(`${API}/donations/available`, {
+        // Fetch all available donations
+        const res = await axios.get(`${API}/available`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        setDonations(res.data);
 
-        // Shuffle donations randomly
-        const shuffledDonations = shuffleArray(res.data);
-        setDonations(shuffledDonations);
-
-        // ✅ Fetch user's pending donation requests
-        const pendingRes = await axios.get(`${API}/donations/requests`, {
+        // Fetch user's pending donation requests
+        const pendingRes = await axios.get(`${API}/donation/my_requests`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const requestsMap = {};
@@ -59,7 +49,7 @@ export default function CharityDonation() {
       const token = localStorage.getItem("token");
 
       const res = await axios.post(
-        `${API}/donations/request`,
+        `${API}/donation/request`,
         { donation_id: donation.id, bakery_id: donation.bakery_id },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -102,7 +92,7 @@ export default function CharityDonation() {
     try {
       const token = localStorage.getItem("token");
       await axios.post(
-        `${API}/donations/cancel/${request_id}`,
+        `${API}/donation/cancel/${request_id}`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -127,76 +117,72 @@ export default function CharityDonation() {
   };
 
   return (
-    <div className="max-w-xl mx-auto p-6">
-      <div className="grid grid-cols-1 gap-4 p-6">
-        {donations.map((donation) => {
-          const requestId = requestedDonations[donation.id];
-          const isRequested = !!requestId;
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6">
+      {donations.map((donation) => {
+        const requestId = requestedDonations[donation.id];
+        const isRequested = !!requestId;
 
-          return (
-            <Card key={donation.id} className="shadow-lg rounded-2xl">
-              <CardContent className="p-4">
-                {donation.image ? (
-                  <img
-                    src={`${API}/${donation.image}`}
-                    alt={donation.name}
-                    className="h-40 w-full object-cover rounded-lg"
-                    onError={(e) => {
-                      e.currentTarget.src = `${API}/static/placeholder.png`;
-                    }}
-                  />
-                ) : (
-                  <div className="h-40 flex items-center justify-center bg-gray-100 text-gray-400 rounded-lg">
-                    No Image
-                  </div>
-                )}
-
-                <div className="flex items-center mt-2 space-x-2">
-                  {/* Bakery profile image */}
-                  <img
-                    src={
-                      donation.bakery_profile_picture
-                        ? `${API}/${donation.bakery_profile_picture}`
-                        : `${API}/uploads/placeholder.png`
-                    }
-                    alt={donation.bakery_name}
-                    className="h-10 w-10 rounded-full object-cover"
-                  />
+        return (
+          <Card key={donation.id} className="shadow-lg rounded-2xl">
+            <CardContent className="p-4">
+              {donation.image ? (
+                <img
+                  src={`${API}/${donation.image}`}
+                  alt={donation.name}
+                  className="h-40 w-full object-cover rounded-lg"
+                  onError={(e) => {
+                    e.currentTarget.src = `${API}/static/placeholder.png`;
+                  }}
+                />
+              ) : (
+                <div className="h-40 flex items-center justify-center bg-gray-100 text-gray-400 rounded-lg">
+                  No Image
                 </div>
+              )}
 
-                <h2 className="text-lg font-semibold mt-2">{donation.name}</h2>
-                <p className="text-sm text-gray-500">
-                  From {donation.bakery_name}
+              <div className="flex items-center mt-2 space-x-2">
+              {/* Bakery profile image */}
+               <img
+                  src={
+                  donation.bakery_profile_picture
+                  ? `${API}/${donation.bakery_profile_picture}`
+                  : `${API}/uploads/placeholder.png`
+                }
+                alt={donation.bakery_name}
+                className="h-10 w-10 rounded-full object-cover"
+                />
+              </div>
+
+              <h2 className="text-lg font-semibold mt-2">{donation.name}</h2>
+              <p className="text-sm text-gray-500">From {donation.bakery_name}</p>
+              <p className="text-sm">Quantity: {donation.quantity}</p>
+              {donation.expiration_date && (
+                <p className="text-sm text-red-500">
+                  Expires: {donation.expiration_date}
                 </p>
-                <p className="text-sm">Quantity: {donation.quantity}</p>
-                {donation.expiration_date && (
-                  <p className="text-sm text-red-500">
-                    Expires: {donation.expiration_date}
-                  </p>
-                )}
+              )}
 
+              <Button
+                className="mt-2 w-full text-black"
+                disabled={isRequested}
+                onClick={() => requestDonation(donation)}
+              >
+                {isRequested ? "Request Sent" : "Request Donation"}
+              </Button>
+
+              {isRequested && (
                 <Button
-                  className="mt-2 w-full text-black"
-                  disabled={isRequested}
-                  onClick={() => requestDonation(donation)}
+                  variant="destructive"
+                  className="mt-2 w-full"
+                  onClick={() => cancelRequest(donation.id)}
                 >
-                  {isRequested ? "Request Sent" : "Request Donation"}
+                  Cancel Request
                 </Button>
-
-                {isRequested && (
-                  <Button
-                    variant="destructive"
-                    className="mt-2 w-full"
-                    onClick={() => cancelRequest(donation.id)}
-                  >
-                    Cancel Request
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }

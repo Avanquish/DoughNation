@@ -22,6 +22,7 @@ const statusOf = (item) => {
   if (d <= (Number(item.threshold) || 0)) return "soon";
   return "fresh";
 };
+
 const rowTone = (s) =>
   s === "expired"
     ? "bg-red-300 hover:bg-red-100/70"
@@ -102,6 +103,8 @@ function DonationStatus({ status }) {
       ? { label: "Requested", dot: "bg-blue-500", text: "text-blue-800" }
       : key === "donated"
       ? { label: "Donated", dot: "bg-orange-500", text: "text-orange-800" }
+      : key === "unavailable"
+      ? { label: "Unavailable", dot: "bg-red-500", text: "text-red-800" }
       : { label: "Available", dot: "bg-green-600", text: "text-green-800" };
 
   return (
@@ -118,9 +121,6 @@ function DonationStatus({ status }) {
 export default function BakeryInventory() {
   const [inventory, setInventory] = useState([]);
   const [employees, setEmployees] = useState([]);
-  const [verified, setVerified] = useState(false); // Access control (unchanged logic)
-  const [employeeName, setEmployeeName] = useState("");
-  const [employeeRole, setEmployeeRole] = useState("");
 
   const [showForm, setShowForm] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -138,20 +138,7 @@ export default function BakeryInventory() {
   });
 
   const [showDirectDonation, setShowDirectDonation] = useState(false);
-  const [charities, setCharities] = useState([]);
-
-  // Direct Donation form
-  const [directForm, setDirectForm] = useState({
-    name: "",
-    quantity: 1,
-    threshold: 1,
-    creation_date: "",
-    expiration_date: "",
-    description: "",
-    charity_id: "",
-    image_file: null,
-  });
-
+ 
   // Filters
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all"); // 'all' | 'fresh' | 'soon' | 'expired'
@@ -189,58 +176,12 @@ export default function BakeryInventory() {
     }
   };
 
-  // Auto-refresh inventory every ~1s once verified
-  useEffect(() => {
-    if (!verified) return;
-    fetchInventory();
-    const interval = setInterval(() => {
-      fetchInventory();
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [verified]);
-
   useEffect(() => {
     fetchEmployees();
+    fetchInventory();
   }, []);
 
-  // Fetch inventory if verified
-  useEffect(() => {
-    if (verified) fetchInventory();
-  }, [verified]);
 
-  // Employee verification
-  const handleVerify = () => {
-    const found = employees.find(
-      (emp) => emp.name.toLowerCase() === employeeName.trim().toLowerCase()
-    );
-    if (found) {
-      Swal.fire({
-        title: "Access Granted",
-        text: `Welcome, ${found.name}!`,
-        icon: "success",
-        timer: 1500,
-        showConfirmButton: false,
-      });
-      setVerified(true);
-      setEmployeeRole(found.role);
-    } else {
-      Swal.fire({
-        title: "Employee Not Found",
-        text: "Please enter a valid employee name.",
-        icon: "error",
-      });
-    }
-  };
-
-  // Role checks
-  const canAdd = () =>
-    employeeRole === "Manager" || employeeRole === "Full Time Staff";
-  const canEdit = () =>
-    employeeRole === "Manager" || employeeRole === "Full Time Staff";
-  const canDelete = () =>
-    employeeRole === "Manager" || employeeRole === "Full Time Staff";
-  const canDonate = () =>
-    employeeRole === "Manager" || employeeRole === "Full Time Staff";
 
   // From Notifs
   useEffect(() => {
@@ -334,15 +275,6 @@ export default function BakeryInventory() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!canAdd()) {
-      Swal.fire(
-        "Access Denide",
-        "You are not allowed to add products.",
-        "error"
-      );
-      return;
-    }
-
     const fd = new FormData();
     fd.append("name", form.item_name);
     fd.append("quantity", form.quantity);
@@ -373,14 +305,6 @@ export default function BakeryInventory() {
   };
 
   const handleDelete = async (id) => {
-    if (!canDelete()) {
-      Swal.fire(
-        "Access Denied",
-        "You are not allowed to delete products.",
-        "error"
-      );
-      return;
-    }
 
     const ok = await Swal.fire({
       title: "Are you sure?",
@@ -406,15 +330,6 @@ export default function BakeryInventory() {
 
   const handleUpdate = async (e) => {
     e.preventDefault();
-
-    if (!canEdit()) {
-      Swal.fire(
-        "Access Denied",
-        "You are not allowed to edit products.",
-        "error"
-      );
-      return;
-    }
 
     if (!selectedItem) return;
 
@@ -480,15 +395,6 @@ export default function BakeryInventory() {
 
   const deleteSelected = async () => {
     const ids = [...selectedIds];
-
-    if (!canDelete()) {
-      Swal.fire(
-        "Access Denied",
-        "You are not allowed to delete products.",
-        "error"
-      );
-      return;
-    }
 
     if (!ids.length) return;
     const ok = await Swal.fire({
@@ -614,12 +520,9 @@ export default function BakeryInventory() {
               </button>
             )}
           </div>
-
-          {canAdd() && (
             <button onClick={() => setShowForm(true)} className={pillSolid}>
               + Add Product
             </button>
-          )}
         </div>
       </div>
 
@@ -673,7 +576,7 @@ export default function BakeryInventory() {
               <th className="p-3">Threshold</th>
               <th className="p-3">Uploaded By</th>
               <th className="p-3">Description</th>
-              <th className="p-3">Status</th>
+              <th className="p-3">Donation Status</th>
             </tr>
           </thead>
           <tbody>
@@ -747,43 +650,6 @@ export default function BakeryInventory() {
           </tbody>
         </table>
       </div>
-
-      {/* Verification Modal */}
-      {!verified && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="bg-white rounded-2xl shadow-2xl ring-1 overflow-hidden max-w-md w-full">
-            <div className={sectionHeader}>
-              <h2 className="text-xl font-semibold text-[#6b4b2b] text-center">
-                Verify Access
-              </h2>
-            </div>
-            <div className="p-5 sm:p-6">
-              <div className="space-y-3">
-                <label className={labelTone} htmlFor="verify_name">
-                  Employee Name
-                </label>
-                <input
-                  id="verify_name"
-                  type="text"
-                  placeholder="Enter employee name"
-                  value={employeeName}
-                  onChange={(e) => setEmployeeName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleVerify()}
-                  className={inputTone}
-                />
-                <p className="text-xs text-gray-500">
-                  Type your name exactly as saved by HR to continue.
-                </p>
-              </div>
-              <div className="mt-5 flex justify-end gap-2">
-                <button onClick={handleVerify} className={pillSolid}>
-                  Enter Inventory
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Add Product */}
       {showForm && (
@@ -955,12 +821,11 @@ export default function BakeryInventory() {
         </Overlay>
       )}
 
-      {/* Details / Edit / Donation */}
+      {/* Details / Edit */}
       <SlideOver
         open={!!selectedItem}
         onClose={() => {
           setSelectedItem(null);
-          setShowDirectDonation(false);
         }}
         width={620}
       >
@@ -1154,190 +1019,6 @@ export default function BakeryInventory() {
               </button>
               <button type="submit" className={pillSolid}>
                 Save Changes
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* Direct Donation Form */}
-        {selectedItem && showDirectDonation && (
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              try {
-                if (!canDonate()) {
-                  Swal.fire(
-                    "Access Denide",
-                    "You are not allowed to donate products.",
-                    "error"
-                  );
-                  return;
-                }
-
-                const fd = new FormData();
-                fd.append("bakery_inventory_id", selectedItem.id);
-                fd.append("name", directForm.name);
-                fd.append("quantity", directForm.quantity);
-                fd.append("threshold", directForm.threshold);
-                fd.append("creation_date", directForm.creation_date);
-                fd.append("charity_id", parseInt(directForm.charity_id));
-                if (directForm.expiration_date)
-                  fd.append("expiration_date", directForm.expiration_date);
-                fd.append("description", directForm.description || "");
-                if (directForm.image_file)
-                  fd.append("image", directForm.image_file);
-
-                await axios.post(`${API}/direct`, fd, {
-                  headers: {
-                    ...headers,
-                    "Content-Type": "multipart/form-data",
-                  },
-                });
-
-                Swal.fire("Success", "donation recorded!", "success");
-                setShowDirectDonation(false);
-                setDirectForm({
-                  name: "",
-                  quantity: "",
-                  threshold: "",
-                  creation_date: "",
-                  expiration_date: "",
-                  description: "",
-                  charity_id: "",
-                  image_file: null,
-                });
-
-                await fetchInventory();
-              } catch (err) {
-                console.error(
-                  "Direct donation error:",
-                  err.response?.data || err
-                );
-                Swal.fire("Error", "Could not save donation.", "error");
-              }
-            }}
-            className="h-full flex flex-col"
-          >
-            <div className={sectionHeader}>
-              <h3 className="text-lg font-semibold text-[#6b4b2b]">
-                Donation for {selectedItem.name}
-              </h3>
-            </div>
-
-            <div className="p-5 space-y-3 overflow-auto">
-              <input
-                className={inputTone}
-                placeholder="Product Name"
-                value={directForm.name}
-                onChange={(e) =>
-                  setDirectForm({ ...directForm, name: e.target.value })
-                }
-                required
-              />
-
-              <select
-                className={inputTone}
-                value={directForm.charity_id || ""}
-                onChange={(e) =>
-                  setDirectForm({ ...directForm, charity_id: e.target.value })
-                }
-                required
-              >
-                <option value="">Select Charity</option>
-                {charities.map((charity) => (
-                  <option key={charity.id} value={charity.id}>
-                    {charity.name}
-                  </option>
-                ))}
-              </select>
-
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  className={`${inputTone} flex-1`}
-                  placeholder="Quantity"
-                  value={directForm.quantity}
-                  onChange={(e) =>
-                    setDirectForm({ ...directForm, quantity: e.target.value })
-                  }
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setDirectForm({
-                      ...directForm,
-                      quantity: selectedItem.quantity,
-                    })
-                  }
-                  className={`${pillSolid} px-3`}
-                >
-                  Max
-                </button>
-              </div>
-
-              <input
-                type="number"
-                className={inputTone}
-                placeholder="Threshold"
-                value={directForm.threshold}
-                onChange={(e) =>
-                  setDirectForm({ ...directForm, threshold: e.target.value })
-                }
-                required
-              />
-              <input
-                type="date"
-                className={inputTone}
-                value={directForm.creation_date}
-                onChange={(e) =>
-                  setDirectForm({
-                    ...directForm,
-                    creation_date: e.target.value,
-                  })
-                }
-                required
-              />
-              <input
-                type="date"
-                className={inputTone}
-                value={directForm.expiration_date}
-                onChange={(e) =>
-                  setDirectForm({
-                    ...directForm,
-                    expiration_date: e.target.value,
-                  })
-                }
-              />
-              <textarea
-                className={`${inputTone} min-h-[90px]`}
-                placeholder="Description"
-                value={directForm.description}
-                onChange={(e) =>
-                  setDirectForm({ ...directForm, description: e.target.value })
-                }
-              />
-
-              {selectedItem.image && (
-                <img
-                  src={`${API}/${selectedItem.image}`}
-                  alt="Product"
-                  className="w-full object-cover rounded-lg shadow-sm mt-3"
-                />
-              )}
-              <input type="hidden" name="image" value={selectedItem.image} />
-            </div>
-
-            <div className="mt-auto p-5 flex justify-end gap-2 border-t bg-white">
-              <button
-                type="button"
-                onClick={() => setShowDirectDonation(false)}
-                className={pillOutline}
-              >
-                Cancel
-              </button>
-              <button type="submit" className={pillSolid}>
-                Save Donation
               </button>
             </div>
           </form>

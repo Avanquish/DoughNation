@@ -14,24 +14,12 @@ def get_admin_dashboard_stats(
     if current_user.role.lower() != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    total_bakeries = db.query(models.User).filter(
-        models.User.role == "Bakery",
-        models.User.verified == True
-    ).count()
+    total_bakeries = db.query(models.User).filter(models.User.role == "Bakery").count()
+    total_charities = db.query(models.User).filter(models.User.role == "Charity").count()
+    total_users = db.query(models.User).count()
+    pending_users = db.query(models.User).filter(models.User.verified == False).count()
 
-    total_charities = db.query(models.User).filter(
-        models.User.role == "Charity",
-        models.User.verified == True
-    ).count()
-
-    total_users = db.query(models.User).filter(
-        models.User.role.in_(["Bakery", "Charity"]),
-        models.User.verified == True
-    ).count()
-
-    pending_users = db.query(models.User).filter(
-        models.User.verified == False
-    ).count()
+    print("DEBUG:", total_bakeries, total_charities, total_users, pending_users)  # <--- Add this temporarily
 
     return {
         "totalBakeries": total_bakeries,

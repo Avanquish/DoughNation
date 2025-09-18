@@ -5,7 +5,9 @@ from fastapi import FastAPI
 from app.routes import (auth_routes, admin_routes, binventory_routes, 
                         bemployee_routes, bakerydashboardstats, admindashboardstats, 
                         bdonation_routes, charitydonation_routes, bnotification, messages,
-                        complaint_routes, reports_route, direct_donation
+                        complaint_routes, reports_route, direct_donation, user_stats, analytics,
+                        cnotification, CFeedback, BFeedback, Compute_TOT_Donations, BReportGene,
+                        badges
                         )
 from app.database import engine, SessionLocal
 from app import models, crud
@@ -43,12 +45,21 @@ app.include_router(complaint_routes.router)
 app.include_router(charitydonation_routes.router)
 app.include_router(reports_route.router)
 app.include_router(direct_donation.router)
+app.include_router(user_stats.router)
+app.include_router(analytics.router)
+app.include_router(cnotification.router)
+app.include_router(CFeedback.router)
+app.include_router(BFeedback.router)
+app.include_router(Compute_TOT_Donations.router)
+app.include_router(BReportGene.router)
+app.include_router(badges.router)
 
 @app.on_event("startup")
 def seed_admin():
     db = SessionLocal()
     try:
         crud.seed_admin_user(db)
+        crud.seed_badges(db)
     finally:
         db.close()
         

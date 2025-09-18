@@ -1,6 +1,8 @@
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { Bell, ChevronRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
 
 // Small unread/read circle indicator
 function UnreadCircle({ read }) {
@@ -25,9 +27,9 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef(null);
   const bellRef = useRef(null);
+  const navigate = useNavigate();
 
-  const prevRequestStatusRef = useRef({}); // { [id]: "pending" | "accepted" | ... }
-
+  const prevRequestStatusRef = useRef({}); 
   // helpers for localStorage
   const getReadFromStorage = () => {
     try {
@@ -67,38 +69,32 @@ export default function NotificationBell() {
       // Build "Received" rows based on real status 
       const nextStatusMap = {};
 
+      // Use backend "type" field to decide message
       const mapped = (rDons || []).map((d) => {
-        const rawStatus =
-          d.status ?? d.request_status ?? d.donation_status ?? d.state ?? "";
-        const status = String(rawStatus).toLowerCase();
-
         let message;
-        if (
-          ["sent", "donated", "completed", "fulfilled"].includes(status) ||
-          (d.quantity && !["pending", "requested", "waiting"].includes(status))
-        ) {
-          message = `${d.bakery_name} sent a donation`;
-        } else if (["accepted", "approved"].includes(status)) {
-          message = `${d.bakery_name} accepted your request`;
-        } else if (["declined", "rejected", "cancelled", "canceled"].includes(status)) {
-          message = `${d.bakery_name} declined your request`;
-        } else {
-          message = `Request pending at ${d.bakery_name}`;
+        switch (d.type) {
+          case "direct":
+            message = `${d.bakery_name} sent a donation`;
+            break;
+          case "request":
+            message = `${d.bakery_name} accepted your request`;
+            break;
+          case "request_declined":
+            message = `${d.bakery_name} declined your request`;
+            break;
+          default:
+            message = `Update from ${d.bakery_name}`;
         }
 
-        nextStatusMap[d.id] = status;
-        const prev = prevRequestStatusRef.current[d.id];
         const wasRead = storedRead.includes(d.id);
-        const read = wasRead && prev === status;
 
         return {
           ...d,
           message,
-          read,
+          read: wasRead,
         };
       });
 
-      prevRequestStatusRef.current = nextStatusMap;
       setReceivedDonations(mapped);
     } catch (err) {
       console.error("Failed to fetch notifications", err);
@@ -243,10 +239,10 @@ export default function NotificationBell() {
                             markNotificationAsRead(d.id);
                             setOpen(false);
                           }}
-                        >
+                          >
                           <UnreadCircle read={d.read} />
       
-      <img
+                          <img
                             src={avatar(d.bakery_profile_picture)}
                             alt={d.bakery_name}
                             className="w-8 h-8 rounded-full object-cover border"
@@ -282,12 +278,12 @@ export default function NotificationBell() {
                           }`}
                           onClick={() => {
                             localStorage.setItem(
-                              "highlight_received_donation",
+                              "highlight_donationStatus_donation",
                               d.donation_id || d.id
                             );
-                            window.dispatchEvent(new CustomEvent("switch_to_received_tab"));
+                            window.dispatchEvent(new CustomEvent("switch_to_donationStatus_tab"));
                             setTimeout(
-                              () => window.dispatchEvent(new Event("highlight_received_donation")),
+                              () => window.dispatchEvent(new Event("highlight_donationStatus_donation")),
                               100
                             );
                             markNotificationAsRead(d.id);
@@ -295,7 +291,7 @@ export default function NotificationBell() {
                           }}
                         >
                           <UnreadCircle read={d.read} />
-      <img
+                          <img
                             src={avatar(d.bakery_profile_picture)}
                             alt={d.bakery_name}
                             className="w-8 h-8 rounded-full object-cover border"
@@ -340,8 +336,8 @@ export default function NotificationBell() {
                             setMessages((prev) => prev.filter((x) => x.id !== m.id));
                           }}
                         >
-                                <UnreadCircle read={false} />
-      <img
+                          <UnreadCircle read={false} />
+                          <img
                             src={avatar(m.sender_profile_picture)}
                             alt={m.sender_name}
                             className="w-8 h-8 rounded-full object-cover border"

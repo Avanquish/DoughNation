@@ -1,7 +1,7 @@
 
 from datetime import datetime
 import enum
-from sqlalchemy import Column, Enum, Integer, String, Boolean, DateTime, ForeignKey, Date, Text, func
+from sqlalchemy import Column, Enum, Integer, String, Boolean, DateTime, ForeignKey, Date, Text, func, TIMESTAMP
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -31,6 +31,10 @@ class User(Base):
     received_messages = relationship("Message", back_populates="receiver", foreign_keys="Message.receiver_id")
     
     complaints = relationship("Complaint", back_populates="user")
+    
+    badges = relationship("UserBadge", back_populates="user", cascade="all, delete-orphan")
+    badge_progress = relationship("BadgeProgress", back_populates="user", cascade="all, delete-orphan")
+    created_badges = relationship("Badge", back_populates="creator")
     
 class BakeryInventory(Base):
     __tablename__ = "bakery_inventory"
@@ -64,7 +68,6 @@ class Employee(Base):
     
     bakery = relationship("User", backref="employees")
 
-
 class Donation(Base):
     __tablename__ = "donations"
 
@@ -79,32 +82,43 @@ class Donation(Base):
     expiration_date = Column(Date, nullable=True)
     uploaded = Column(String, nullable=False)
     description = Column(String, nullable=True)
-    status = Column(String, default="unavailable")
-
+    
     bakery = relationship("User", back_populates="donations")
     inventory_item = relationship("BakeryInventory", back_populates="donations")
-    
+
+#--------Donation Request------------
 class DonationRequest(Base):
     __tablename__ = "donation_requests"
 
     id = Column(Integer, primary_key=True, index=True)
     donation_id = Column(Integer, ForeignKey("donations.id", ondelete="CASCADE"))
+    bakery_inventory_id = Column(Integer, ForeignKey("bakery_inventory.id"))
     charity_id = Column(Integer, ForeignKey("users.id"))
     bakery_id = Column(Integer, ForeignKey("users.id"))
     timestamp = Column(DateTime, default=datetime.utcnow)
     status = Column(String, default="pending") 
+    tracking_status = Column(String, default="preparing")
+    feedback_submitted = Column(Boolean, default=False) 
+    bakery_name = Column(String, nullable=True)
+    bakery_profile_picture = Column(String, nullable=True)
+    donation_name = Column(String, nullable=True)
+    donation_image = Column(String, nullable=True)
+    donation_quantity = Column(Integer, nullable=True)
+    donation_expiration = Column(DateTime, nullable=True)
+
+    donation = relationship("Donation", backref="requests", passive_deletes=True)
+    inventory_item = relationship("BakeryInventory")
 
     charity = relationship("User", foreign_keys=[charity_id])
-    donation = relationship("Donation", backref="requests", passive_deletes=True)
+    bakery = relationship("User", foreign_keys=[bakery_id])
     
-    
+#--------Direct Donation------------
 class DirectDonation(Base):
     __tablename__ = "direct_donations"
 
     id = Column(Integer, primary_key=True, index=True)
     bakery_inventory_id = Column(Integer, ForeignKey("bakery_inventory.id"))
-    charity_id = Column(Integer, ForeignKey("users.id"))  # 👈 points to User (charity)
-    
+    charity_id = Column(Integer, ForeignKey("users.id"))  # points to User (charity)
     name = Column(String, nullable=False)
     quantity = Column(Integer, nullable=False)
     threshold = Column(Integer, nullable=False)
@@ -112,6 +126,8 @@ class DirectDonation(Base):
     expiration_date = Column(Date, nullable=True)
     description = Column(String, nullable=True)
     image = Column(String, nullable=True)
+    btracking_status = Column(String, default="preparing")
+    feedback_submitted = Column(Boolean, default=False)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -119,6 +135,7 @@ class DirectDonation(Base):
     bakery_inventory = relationship("BakeryInventory")
     charity = relationship("User") 
     
+#--------Message------------
 class Message(Base):
     __tablename__ = "messages"
 
@@ -134,11 +151,33 @@ class Message(Base):
     deleted_for_sender = Column(Boolean, default=False)
     deleted_for_receiver = Column(Boolean, default=False)
     accepted_by_receiver = Column(Boolean, default=False)
-    rejected_by_receiver = Column(Boolean, default=False)
 
     sender = relationship("User", back_populates="sent_messages", foreign_keys=[sender_id])
     receiver = relationship("User", back_populates="received_messages", foreign_keys=[receiver_id])
-    
+
+#---------Feedback------------
+class Feedback(Base):
+    __tablename__ = "feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+    donation_request_id = Column(Integer, ForeignKey("donation_requests.id", ondelete="CASCADE"), nullable=True)
+    direct_donation_id = Column(Integer, ForeignKey("direct_donations.id", ondelete="CASCADE"), nullable=True)
+    charity_id = Column(Integer, ForeignKey("users.id"))
+    bakery_id = Column(Integer, ForeignKey("users.id"))
+    message = Column(String, nullable=False)
+    rating = Column(Integer, nullable=True) 
+    created_at = Column(DateTime, default=datetime.utcnow)
+    product_name = Column(String, nullable=True)
+    product_quantity = Column(Integer, nullable=True)
+    product_image = Column(String, nullable=True)
+    media_file = Column(String, nullable=True)
+    reply_message = Column(String, nullable=True) 
+
+    # Add these relationships
+    charity = relationship("User", foreign_keys=[charity_id])
+    bakery = relationship("User", foreign_keys=[bakery_id])
+
+#--------Complaints------------
 class ComplaintStatus(str, enum.Enum):
     pending = "Pending"
     in_review = "In Review"
@@ -156,7 +195,8 @@ class Complaint(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User", back_populates="complaints")
-    
+
+#--------Notification------------
 class NotificationRead(Base):
     __tablename__ = "notification_reads"
 
@@ -164,3 +204,41 @@ class NotificationRead(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     notif_id = Column(String, index=True)
     read_at = Column(DateTime, default=datetime.utcnow)
+    
+#--------Badges------------    
+class Badge(Base):
+    __tablename__ = "badges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False, unique=True)
+    category = Column(String(50))
+    description = Column(Text)
+    icon_url = Column(String(255))
+    is_special = Column(Boolean, default=False)
+    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    creator = relationship("User", back_populates="created_badges", foreign_keys=[created_by])
+    user_badges = relationship("UserBadge", back_populates="badge")
+
+class UserBadge(Base):
+    __tablename__ = "user_badges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
+    badge_id = Column(Integer, ForeignKey("badges.id", ondelete="CASCADE"))
+    unlocked_at = Column(TIMESTAMP, server_default=func.now())
+
+    user = relationship("User", back_populates="badges")
+    badge = relationship("Badge", back_populates="user_badges")
+
+class BadgeProgress(Base):
+    __tablename__ = "badge_progress"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
+    badge_id = Column(Integer, ForeignKey("badges.id", ondelete="CASCADE"))
+    progress = Column(Integer, default=0)
+    target = Column(Integer, default=1)
+
+    user = relationship("User", back_populates="badge_progress")
+    badge = relationship("Badge")

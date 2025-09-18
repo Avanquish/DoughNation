@@ -2,12 +2,13 @@ from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 import os, shutil
-from datetime import date, timedelta
+from datetime import datetime, timedelta
+from sqlalchemy import func
 
 from app import models, database, schemas, auth, crud
 
 router = APIRouter()
-UPLOAD_DIR = "uploads"
+UPLOAD_DIR = "uploads/inventory_images/"
 
 # --- INVENTORY ---
 @router.post("/inventory", response_model=schemas.BakeryInventoryOut)
@@ -47,6 +48,8 @@ def add_inventory(
 
 # To add product to donation table if reach threshold
     check_threshold_and_create_donation(db)
+# To apply the edit on bakery inventory table
+    check_inventory_status(db)
 
     return new_item
 
@@ -58,7 +61,28 @@ def list_inventory(
 ):
     if current_user.role.lower() != "bakery":
         raise HTTPException(status_code=403, detail="Only bakeries can view inventory")
-    return crud.list_inventory(db, bakery_id=current_user.id)
+    
+    # To apply the edit on bakery inventory table
+    check_inventory_status(db)
+
+    inventory_items = crud.list_inventory(db, bakery_id=current_user.id)
+    updated_items = []
+
+    for item in inventory_items:
+        # Check pending donation requests via Donation → DonationRequest
+        pending_request = db.query(models.DonationRequest).join(models.Donation).filter(
+            models.Donation.bakery_inventory_id == item.id,
+            models.DonationRequest.status == "pending"
+        ).first()
+
+        item_dict = item.__dict__.copy()
+        item_dict["is_requested"] = item.status.lower() == "requested"
+        item_dict["is_donated"] = item.status.lower() == "donated"
+
+        updated_items.append(item_dict)
+
+    return updated_items
+
 
 @router.put("/inventory/{inventory_id}", response_model=schemas.BakeryInventoryOut)
 def update_inventory(
@@ -100,6 +124,8 @@ def update_inventory(
 
 # To apply the edit on donation table
     check_threshold_and_create_donation(db)
+# To apply the edit on bakery inventory table
+    check_inventory_status(db)
 
     return updated_item
 
@@ -116,61 +142,81 @@ def delete_inventory(
         raise HTTPException(status_code=403, detail="Only bakeries can delete inventory")
 
     crud.delete_inventory(db=db, inventory_id=inventory_id, bakery_id=current_user.id)
+
+# To apply the edit on bakery inventory table
+    check_inventory_status(db)
+
     return {"message": "Inventory item deleted successfully"}
 
 
 # ---Check threshold and create donation ---
 def check_threshold_and_create_donation(db: Session):
-    today = date.today()
-    products = db.query(models.BakeryInventory).all()
+    today = datetime.today().date()
 
+    # Fetch all bakery products that are not yet expired
+    products = db.query(models.BakeryInventory).all()
+    print(f"Checking {len(products)} inventory items against threshold...")
     for p in products:
         exp_date = p.expiration_date
-        trigger_date = exp_date - timedelta(days=p.threshold or 0)
+        threshold_days = p.threshold
+        trigger_date = exp_date - timedelta(days=threshold_days)
 
+        # Remove donations if inventory is fully donated or quantity <= 0
+        if p.quantity <= 0 or p.status == "donated":
+            # Remove existing donation if quantity zero
+            existing = db.query(models.Donation).filter(
+                models.Donation.bakery_inventory_id == p.id
+            ).first()
+            if existing:
+                db.delete(existing)
+            continue
+    
+        # Check if a donation already exists
         existing = db.query(models.Donation).filter(
             models.Donation.bakery_inventory_id == p.id
         ).first()
 
-        if today >= trigger_date and today <= exp_date:
-            # Product is within donation window
+        # Update existing donation quantity regardless of threshold
+        if existing:
+            existing.quantity = p.quantity
+            existing.name = p.name
+            existing.image = p.image
+            existing.threshold = p.threshold
+            existing.creation_date = p.creation_date
+            existing.expiration_date = p.expiration_date
+            existing.uploaded = p.uploaded
+            existing.description = p.description
+            print(f"Updated donation for {p.name} (quantity: {p.quantity})")
+
+        # Create donation if it doesn't exist and threshold is reached
+        elif today >= trigger_date:
+            donation = models.Donation(
+                bakery_inventory_id=p.id,
+                bakery_id=p.bakery_id,
+                name=p.name,
+                image=p.image,
+                quantity=p.quantity,
+                threshold=p.threshold,
+                creation_date=p.creation_date,
+                expiration_date=p.expiration_date,
+                uploaded=p.uploaded,
+                description=p.description
+            )
+            db.add(donation)
+            print(f"Created donation for {p.name} (quantity: {p.quantity})")
+
+        # Remove donations if threshold not reached (and donation exists)
+        else:
             if existing:
-                existing.name = p.name
-                existing.image = p.image
-                existing.quantity = p.quantity
-                existing.threshold = p.threshold
-                existing.creation_date = p.creation_date
-                existing.expiration_date = p.expiration_date
-                existing.uploaded = p.uploaded
-                existing.description = p.description
-                if existing.status == "unavailable":
-                    existing.status = "available"  # 👈 available for donation
-            else:
-                donation = models.Donation(
-                    bakery_inventory_id=p.id,
-                    bakery_id=p.bakery_id,
-                    name=p.name,
-                    image=p.image,
-                    quantity=p.quantity,
-                    threshold=p.threshold,
-                    creation_date=p.creation_date,
-                    expiration_date=p.expiration_date,
-                    uploaded=p.uploaded,
-                    description=p.description,
-                    status="available"
-                )
-                db.add(donation)
-        elif exp_date < today:
-            # expired → mark as unavailable
-            if existing:
-                existing.status = "unavailable"
+                db.delete(existing)
+                print(f"Removed donation for {p.name} (threshold not reached)")
 
     # Remove donations for expired inventory
     expired_donations = db.query(models.Donation).join(
         models.BakeryInventory,
         models.Donation.bakery_inventory_id == models.BakeryInventory.id
     ).filter(
-        models.BakeryInventory.expiration_date < today
+        models.Donation.expiration_date <= today
     ).all()
 
     for d in expired_donations:
@@ -179,21 +225,46 @@ def check_threshold_and_create_donation(db: Session):
 
     db.commit()
     print("Donation sync completed")
-    
-@router.put("/inventory/{inventory_id}/status")
-def update_inventory_status(
-    inventory_id: int,
-    data: schemas.StatusUpdate,
-    db: Session = Depends(database.get_db)
-):
-    inventory = db.query(models.BakeryInventory).filter(models.BakeryInventory.id == inventory_id).first()
-    if not inventory:
-        raise HTTPException(status_code=404, detail="Inventory not found")
 
-    inventory.status = data.status
-    if data.charity_id:
-        inventory.donated_to = data.charity_id
+
+def check_inventory_status(db: Session):
+    today = datetime.today().date()
+
+    # Fetch all bakery products
+    products = db.query(models.BakeryInventory).all()
+    print(f"Checking {len(products)} inventory items for expiration...")
+
+    for p in products:
+        # Skip if no expiration date
+        if not p.expiration_date:
+            continue
+
+        # Skip if already donated
+        if p.status == "donated":
+            continue
+
+        exp_date = p.expiration_date
+
+        # Ensure exp_date is a date object
+        if isinstance(exp_date, datetime):
+            exp_date = exp_date.date()
+        elif isinstance(exp_date, str):
+            try:
+                exp_date = datetime.strptime(exp_date, "%Y-%m-%d").date()
+            except Exception as e:
+                print(f"Error parsing expiration_date for {p.name}: {e}")
+                continue
+
+        # Mark expired products as unavailable if not donated
+        if exp_date <= today:
+            if p.status != "unavailable":
+                p.status = "unavailable"
+                print(f"Marked {p.name} as unavailable (expired)")
+        else:
+            # Optional: mark as available if not expired and quantity > 0
+            if p.quantity > 0 and p.status == "unavailable":
+                p.status = "available"
+                print(f"Marked {p.name} as available (not expired)")
 
     db.commit()
-    db.refresh(inventory)
-    return {"message": "Status updated", "inventory": inventory}
+    print("Bakery inventory status sync completed")

@@ -14,7 +14,6 @@ import {
   MessageCircleHeart,
   LogOut,
   Smile,
-  CheckCircle,
   Users,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -22,14 +21,17 @@ import CharityDonation from "./CharityDonation.jsx";
 import Messages from "./Messages.jsx";
 import CharityReceived from "./CharityReceived.jsx";
 import CharityNotification from "./CharityNotification.jsx";
-import Complaint from "./Complaint.jsx";
+import CDonationStatus from "./CDonationStatus.jsx";
+import CFeedback from "./CFeedback.jsx";
+
+const API = "http://localhost:8000";
 
 const CharityDashboard = () => {
   const [name, setName] = useState("");
   const [isVerified, setIsVerified] = useState(false);
-  const [userId, setUserId] = useState(null);
   const [activeTab, setActiveTab] = useState("donation");
   const [currentUser, setCurrentUser] = useState(null);
+  const [totals, setTotals] = useState({ grand_total: 0, normal_total: 0, direct_total: 0 });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -39,12 +41,12 @@ const CharityDashboard = () => {
         const decoded = JSON.parse(atob(token.split(".")[1]));
         setName(decoded.name || "FoodCharity");
         setIsVerified(decoded.is_verified);
-        setUserId(decoded.id);
       } catch (error) {
         console.error("Failed to decode token:", error);
       }
     }
   }, []);
+  
 
   useEffect(() => {
     const handleSwitch = () => setActiveTab("donation");
@@ -54,17 +56,13 @@ const CharityDashboard = () => {
   }, []);
 
   useEffect(() => {
-    const handleSwitch = () => setActiveTab("received");
-    window.addEventListener("switch_to_received_tab", handleSwitch);
+    const handleSwitch = () => setActiveTab("donationStatus");
+    window.addEventListener("switch_to_donationStatus_tab", handleSwitch);
     return () =>
-      window.removeEventListener("switch_to_received_tab", handleSwitch);
+      window.removeEventListener("switch_to_donationStatus_tab", handleSwitch);
   }, []);
 
-  useEffect(() => {
-    const user = JSON.parse(localStorage.getItem("user"));
-    setCurrentUser(user);
-  }, []);
-
+ 
   const handleLogout = () => {
     localStorage.removeItem("token");
     navigate("/");
@@ -72,38 +70,42 @@ const CharityDashboard = () => {
 
   const statusText = useMemo(() => {
     switch (activeTab) {
+      case "donation":
+        return "Donation";
+      case "received":
+        return "Received";
+      case "feedback":
+        return "Feedback";
       default:
-        return (
-          <span className="flex items-center gap-1 text-green-600">
-            <CheckCircle className="w-4 h-4" />
-            Verified
-          </span>
-        );
+        return "Dashboard";
     }
   }, [activeTab]);
 
-  // If user is not verified, show "verification pending" screen
-    if (!isVerified) {
-      return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-surface to-primary/5 p-6">
-          <Card className="max-w-md shadow-elegant">
-            <CardHeader>
-              <CardTitle>Account Verification Required</CardTitle>
-              <CardDescription>
-                Hello {name}, your account is pending verification.  
-                Please wait until an admin verifies your account before using the dashboard features.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center gap-4">
-              <Button onClick={handleLogout} variant="destructive">
-                Log Out
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      );
-    }
-  
+  // Fetch the computed Donation Received
+  useEffect(() => {
+    const fetchTotals = async () => {
+      try {
+        const res = await fetch(`${API}/charity/total_donations`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        });
+
+        if (!res.ok) {
+          console.error("Failed to fetch totals, status:", res.status);
+          return;
+        }
+
+        const data = await res.json();
+        console.log("✅ Totals response from backend:", data); // debug log
+        setTotals(data);
+      } catch (err) {
+        console.error("❌ Error fetching totals:", err);
+      }
+    };
+
+    fetchTotals();
+  }, []);
+
+
 
   const Styles = () => (
     <style>{`
@@ -238,7 +240,7 @@ const CharityDashboard = () => {
               </div>
 
               {/* Simple profile initial (backend not wired yet) */}
-              <span className="icon-btn" title="CharityProfile" onClick={()=> navigate(`/charity-dashboard/${userId}/profile`)}>
+              <span className="icon-btn" title="Profile">
                 <span
                   className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold"
                   style={{
@@ -265,11 +267,11 @@ const CharityDashboard = () => {
         <div className="tabwrap">
           <div className="tabbar">
             <TabsList className="bg-transparent p-0 border-0">
-              <TabsTrigger value="donation">Donation</TabsTrigger>
+              <TabsTrigger value="donation">Available Donation</TabsTrigger>
               <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-              <TabsTrigger value="received">Received</TabsTrigger>
+              <TabsTrigger value="donationStatus">Donation Status</TabsTrigger>
+              <TabsTrigger value="received">Donation Received</TabsTrigger>
               <TabsTrigger value="feedback">Feedback</TabsTrigger>
-              <TabsTrigger value="complaint">Complaint</TabsTrigger>
             </TabsList>
           </div>
         </div>
@@ -287,7 +289,7 @@ const CharityDashboard = () => {
                         <p className="text-sm font-medium text-muted-foreground">
                           Total Donations Received
                         </p>
-                        <div className="metric">0</div>
+                        <div className="metric">{totals.grand_total}</div>
                       </div>
                       <div className="chip">
                         <PackageCheck className="h-5 w-5" />
@@ -295,7 +297,43 @@ const CharityDashboard = () => {
                     </div>
                   </CardContent>
                 </Card>
-              </div>       
+              </div>
+
+              <div className="gwrap">
+                <Card className="glass-card shadow-none">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">
+                          Partnered Bakeries
+                        </p>
+                        <div className="metric">0</div>
+                      </div>
+                      <div className="chip">
+                        <Users className="h-5 w-5" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="gwrap">
+                <Card className="glass-card shadow-none">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">
+                          Badges Earned
+                        </p>
+                        <div className="metric">0</div>
+                      </div>
+                      <div className="chip">
+                        <Smile className="h-5 w-5" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -310,7 +348,16 @@ const CharityDashboard = () => {
                 </Card>
               </div>
 
-              
+              <div className="gwrap">
+                <Card className="glass-card shadow-none">
+                  <CardHeader className="pb-2">
+                    <CardTitle>Feedback &amp; Ratings</CardTitle>
+                    <CardDescription>
+                      Feedback from your partnered bakeries
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              </div>
             </div>
           </TabsContent>
 
@@ -331,14 +378,8 @@ const CharityDashboard = () => {
               <Card className="glass-card shadow-none">
                 <CardHeader className="pb-2">
                   <CardTitle>Feedback</CardTitle>
-                  <CardDescription>Charity feedback system</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <MessageCircleHeart className="h-8 w-8 text-amber-700" />
-                  <p className="mt-4 text-sm text-muted-foreground">
-                    You have no feedback yet.
-                  </p>
-                </CardContent>
+                <CFeedback />
               </Card>
             </div>
           </TabsContent>
@@ -353,11 +394,12 @@ const CharityDashboard = () => {
             </div>
           </TabsContent>
 
-          <TabsContent value="complaint">
+           {/* Donation Status*/}
+          <TabsContent value="donationStatus">
             <div className="gwrap">
               <Card className="glass-card shadow-none">
-                <Complaint />
                 <CardContent className="min-h-[40px]" />
+                <CDonationStatus />
               </Card>
             </div>
           </TabsContent>

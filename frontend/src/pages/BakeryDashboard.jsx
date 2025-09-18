@@ -27,6 +27,10 @@ import Messages from "../pages/Messages";
 import Complaint from "../pages/Complaint";
 import BakeryReportGeneration from "../pages/BakeryReportGeneration";
 import BakeryNotification from "./BakeryNotification";
+import BDonationStatus from "./BDonationStatus";
+import BFeedback from "./BFeedback";
+import BakeryAnalytics from "./BakeryAnalytics";
+import AchievementBadges from "./AchievementBadges";
 
 const API = "http://localhost:8000";
 
@@ -55,6 +59,9 @@ const BakeryDashboard = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
 
   const [highlightedDonationId, setHighlightedDonationId] = useState(null);
+  const [totals, setTotals] = useState({ grand_total: 0, normal_total: 0, direct_total: 0 });
+  const [badges, setBadges] = useState([]);
+  const [loadingBadges, setLoadingBadges] = useState(true);
 
   // Live data for cards
   const [inventory, setInventory] = useState([]);
@@ -65,6 +72,32 @@ const BakeryDashboard = () => {
   const [currentUser, setCurrentUser] = useState(null);
 
   const navigate = useNavigate();
+
+  // Fetch badges whenever currentUser is available
+  useEffect(() => {
+    if (!currentUser?.id) {
+      setBadges([]);
+      setLoadingBadges(false);
+      return;
+    }
+
+    const fetchBadges = async () => {
+      try {
+        setLoadingBadges(true);
+        const token = localStorage.getItem("token");
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const res = await axios.get(`${API}/users/${currentUser.id}/badges`, { headers });
+        setBadges(res.data || []);
+      } catch (err) {
+        console.error("Error fetching badges:", err);
+        setBadges([]);
+      } finally {
+        setLoadingBadges(false);
+      }
+    };
+
+    fetchBadges();
+  }, [currentUser?.id]);
 
   // Fetch info
   useEffect(() => {
@@ -203,6 +236,51 @@ const BakeryDashboard = () => {
         );
     }
   }, [activeTab]);
+
+  // Fetch the computed Donation Send
+  useEffect(() => {
+    const fetchTotals = async () => {
+      try {
+        const res = await fetch(`${API}/bakery/total_donations_sent`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        });
+
+        if (!res.ok) {
+          console.error("Failed to fetch totals, status:", res.status);
+          return;
+        }
+
+        const data = await res.json();
+        console.log("✅ Totals response from backend:", data); // debug log
+        setTotals(data);
+      } catch (err) {
+        console.error("❌ Error fetching totals:", err);
+      }
+    };
+
+    fetchTotals();
+  }, []);
+
+  // Fetch uploaded products
+useEffect(() => {
+  const fetchUploadedProducts = async () => {
+    try {
+      const res = await fetch(`${API}/bakery/total_products_for_donation`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+
+      if (!res.ok) throw new Error("Failed to fetch uploaded products");
+
+      const data = await res.json();
+      setUploadedProducts(data.total_products || 0);
+    } catch (err) {
+      console.error("❌ Error fetching uploaded products:", err);
+      setUploadedProducts(0);
+    }
+  };
+
+  fetchUploadedProducts();
+}, []);
 
     // If user is not verified, show "verification pending" screen
   if (!isVerified) {
@@ -420,10 +498,13 @@ const BakeryDashboard = () => {
             <TabsList className="bg-transparent p-0 border-0">
               <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
               <TabsTrigger value="inventory">Inventory</TabsTrigger>
-              <TabsTrigger value="donations">Donations</TabsTrigger>
+              <TabsTrigger value="donations">For Donations</TabsTrigger>
+              <TabsTrigger value="DONATIONstatus">Donation Status</TabsTrigger>
               <TabsTrigger value="employee">Employee</TabsTrigger>
               <TabsTrigger value="complaints">Complaints</TabsTrigger>
               <TabsTrigger value="reports">Report Generation</TabsTrigger>
+              <TabsTrigger value="feedback">Feedback</TabsTrigger>
+              <TabsTrigger value="badges">Achievement Badges</TabsTrigger>
             </TabsList>
           </div>
         </div>
@@ -539,6 +620,7 @@ const BakeryDashboard = () => {
                   <CardContent className="min-h-[120px]" />
                 </Card>
               </div>
+              
 
               <div className="gwrap hover-lift reveal">
                 <Card className="glass-card shadow-none">
@@ -546,10 +628,40 @@ const BakeryDashboard = () => {
                     <CardTitle>Achievements &amp; Badges</CardTitle>
                     <CardDescription>Your donation milestones</CardDescription>
                   </CardHeader>
-                  <CardContent className="min-h-[120px]" />
+                  <CardContent className="min-h-[120px] flex flex-wrap gap-3">
+                    {loadingBadges ? (
+                      <p className="text-sm text-gray-400">Loading badges...</p>
+                    ) : badges.length > 0 ? (
+                      badges.map((badge) => (
+                        <div
+                          key={badge.id}
+                          className="flex flex-col items-center p-2 rounded-lg shadow-sm w-20 hover:scale-105 transition-transform bg-green-100"
+                        >
+                          <img
+                            src={`http://localhost:8000/${badge.image}`}
+                            alt={badge.name}
+                            className="w-10 h-10 object-contain mb-1"
+                          />
+                          <span className="text-xs text-center">{badge.name}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-400">No badges unlocked yet.</p>
+                    )}
+                  </CardContent>
                 </Card>
               </div>
             </div>
+
+            <div className="gwrap hover-lift reveal">
+                <Card className="glass-card shadow-none">
+                  <CardHeader className="pb-2">
+                    <CardTitle>Analytics</CardTitle>
+                    <BakeryAnalytics />
+                  </CardHeader>
+                  <CardContent className="min-h-[120px]" />
+                </Card>
+              </div>
           </TabsContent>
 
           <TabsContent value="inventory" className="reveal">
@@ -569,6 +681,10 @@ const BakeryDashboard = () => {
             </div>
           </TabsContent>
 
+           <TabsContent value="DONATIONstatus" className="reveal">
+            <BDonationStatus />
+          </TabsContent>
+
           <TabsContent value="employee" className="reveal">
             <BakeryEmployee />
           </TabsContent>
@@ -579,6 +695,21 @@ const BakeryDashboard = () => {
 
           <TabsContent value="reports" className="reveal">
             <BakeryReportGeneration />
+          </TabsContent>
+
+          <TabsContent value="feedback">
+            <div className="gwrap">
+              <Card className="glass-card shadow-none">
+                <CardHeader className="pb-2">
+                  <CardTitle>Feedback</CardTitle>
+                </CardHeader>
+                <BFeedback />
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="badges" className="reveal">
+            <AchievementBadges />
           </TabsContent>
         </div>
       </Tabs>

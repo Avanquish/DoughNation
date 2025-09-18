@@ -222,6 +222,7 @@ export default function Messages({ currentUser: currentUserProp }) {
   const [pendingOpen, setPendingOpen] = useState(false);
   const [pendingCards, setPendingCards] = useState([]);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [processingCards, setProcessingCards] = useState({}); // key: card.id, value: true/false
 
   const [messages, setMessages] = useState(() => {
     try {
@@ -264,19 +265,39 @@ export default function Messages({ currentUser: currentUserProp }) {
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
+  // To click accept and cancel only once
+   const handleAccept = () => {
+        if (isProcessing) return; // prevent multiple clicks
+        setProcessingCards((prev) => ({ ...prev, [card.id]: true }));
+        acceptDonation(card).finally(() => {
+          setProcessingCards((prev) => ({ ...prev, [card.id]: false }));
+        });
+      };
+
+      const handleCancel = () => {
+        if (isProcessing) return; // prevent multiple clicks
+        setProcessingCards((prev) => ({ ...prev, [card.id]: true }));
+        cancelDonation(card).finally(() => {
+          setProcessingCards((prev) => ({ ...prev, [card.id]: false }));
+        });
+      };
+
+
   /* Close dropdown when clicking outside */
-  useEffect(() => {
-    const handler = (e) => {
-      const wrap = launcherWrapRef.current;
-      const drop = dropdownRef.current;
-      if (!wrap) return;
-      const insideWrap = wrap.contains(e.target);
-      const insideDropdown = drop && drop.contains(e.target);
-      if (!insideWrap && !insideDropdown) setOpenList(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+ useEffect(() => {
+  const handler = (e) => {
+    const wrap = launcherWrapRef.current;
+    const drop = dropdownRef.current;
+    if (!wrap) return;
+
+    const path = e.composedPath?.() || (e.path || []);
+    const clickedInside = path.includes(wrap) || (drop && path.includes(drop));
+
+    if (!clickedInside) setOpenList(false);
+  };
+  document.addEventListener("mousedown", handler);
+  return () => document.removeEventListener("mousedown", handler);
+}, []);
 
   /* Media preview */
   useEffect(() => {
@@ -311,14 +332,18 @@ export default function Messages({ currentUser: currentUserProp }) {
   useEffect(() => {
     try {
       localStorage.setItem("chat_messages", JSON.stringify(messages));
-    } catch {}
+    } catch (err){
+      console.error("Failed to persist messages:", err);
+    }
   }, [messages]);
   useEffect(() => {
     try {
       const obj = {};
       for (const [k, v] of activeChats.entries()) obj[k] = v;
       localStorage.setItem("active_chats", JSON.stringify(obj));
-    } catch {}
+    } catch (err){
+      console.error("Failed to persist active chats:", err);
+    }
   }, [activeChats]);
 
   /* Summaries */
@@ -349,11 +374,40 @@ export default function Messages({ currentUser: currentUserProp }) {
   useEffect(() => {
     try {
       localStorage.setItem("messages_unread_total", String(totalUnread));
-    } catch {}
+    } catch (err){
+      console.error("Failed to persist unread count:", err);
+    }
   }, [totalUnread]);
+
+  // To cancel send request donation cards if click cancel request
+  useEffect(() => {
+  const handleCancel = (e) => {
+    const donation_id = e.detail?.donation_id;
+    if (!donation_id) return;
+
+    // Find all messages with this donation card
+    const cardsToDelete = messages.filter(m => {
+      try {
+        const parsed = JSON.parse(m.content);
+        return parsed?.donation?.id === donation_id && parsed.type === "donation_card";
+      } catch {
+        return false;
+      }
+    });
+
+    // Delete each card
+    cardsToDelete.forEach(m => deleteMessage(m.id));
+  };
+
+  window.addEventListener("donation_cancelled", handleCancel);
+  return () => window.removeEventListener("donation_cancelled", handleCancel);
+}, [messages]);
 
   /* WebSocket */
   useEffect(() => {
+    console.log("currentUser:", currentUser);
+    console.log("currentUser.id:", currentUser?.id);
+
     if (!currentUser || (wsRef.current && wsRef.current.readyState === WebSocket.OPEN)) return;
     let reconnectTimerId;
 
@@ -402,7 +456,9 @@ export default function Messages({ currentUser: currentUserProp }) {
                     window.dispatchEvent(new Event("received_donations_updated"));
                   }
                 }
-              } catch {}
+              } catch (err){
+                console.error("Failed to parse message content:", err);
+              }
               break;
             }
             case "delete_message":
@@ -740,43 +796,42 @@ export default function Messages({ currentUser: currentUserProp }) {
     }
   };
 
-  const acceptDonation = (donationCardMessage) => {
-    if (!donationCardMessage || !currentUser) return;
-    let donation; let originalCharityId;
-    try {
-      const p = JSON.parse(donationCardMessage.content);
-      donation = p.donation;
-      originalCharityId = Number(p.originalCharityId);
-    } catch { return; }
+ // Accept donation requested by charity 
+  const acceptDonation = async (donationCardMessage) => {
+  if (!donationCardMessage || !currentUser) return;
 
-    const msg = {
-      type: "message",
-      sender_id: Number(currentUser.id),
-      receiver_id: Number(originalCharityId),
-      content: JSON.stringify({ type: "confirmed_donation", donation }),
-    };
-    wsRef.current?.send(JSON.stringify(msg));
-    wsRef.current?.send(JSON.stringify({ type: "accept_donation", id: donationCardMessage.id }));
+  let donation;
+  let originalCharityId;
 
-    setMessages((prev) =>
-      prev.map((m) => {
-        try {
-          const p = JSON.parse(m.content);
-          if (p.donation?.id === donation.id && p.type === "donation_card")
-            return { ...m, accepted: true };
-        } catch {}
-        return m;
-      })
-    );
+  try {
+    const parsed = JSON.parse(donationCardMessage.content);
+    donation = parsed.donation;
+    originalCharityId = parsed.originalCharityId;
+  } catch {
+    console.error("Invalid donation card");
+    return;
+  }
 
-    const key = `accepted_donations_${currentUser.id}`;
-    const raw = localStorage.getItem(key);
-    const accepted = raw ? JSON.parse(raw) : [];
-    if (!accepted.includes(donation.id)) {
-      accepted.push(donation.id);
-      localStorage.setItem(key, JSON.stringify(accepted));
-    }
+  // Call backend to mark request as accepted
+  try {
+    const token = localStorage.getItem("token");
+    const opts = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+
+    const res = await axios.post(`${API_URL}/donation/accept/${donation.id}`, {}, opts);
+  } catch (err) {
+    console.error("Failed to mark donation as accepted:", err);
+  }
+
+  //  Send confirmation message to charity
+  const msg = {
+    type: "message",
+    sender_id: Number(currentUser.id),
+    receiver_id: Number(originalCharityId),
+    content: JSON.stringify({ type: "confirmed_donation", donation }),
   };
+  wsRef.current?.send(JSON.stringify(msg));
+};
+
 
   const cancelDonation = (donationCardMessage) => {
     if (!donationCardMessage) return;
@@ -839,7 +894,9 @@ export default function Messages({ currentUser: currentUserProp }) {
           ),
         };
       }
-    } catch {}
+    } catch (err) {
+      console.error("Failed to parse message content:", err);
+    }
 
     const text = (m.content || "").trim();
     const hasImg = Boolean(m.image) || (m.media && m.media_type?.startsWith("image/"));
@@ -1038,8 +1095,12 @@ export default function Messages({ currentUser: currentUserProp }) {
               <div className="pending-list">
                 {pendingCards.map((card) => {
                   let d = {};
-                  try { d = JSON.parse(card.content).donation || {}; } catch {}
+                  try { d = JSON.parse(card.content).donation || {}; } catch (err) { console.error("Failed to parse card content:", err); }
                   const iAmReceiver = Number(card.receiver_id) === Number(currentUser?.id);
+
+                  // Track if this card is already being processed
+                  const isProcessing = processingCards[card.id] || false;
+
                   return (
                     <div key={`pend-${card.id}`} className="pend-row">
                       <div className="pend-meta">
@@ -1050,10 +1111,17 @@ export default function Messages({ currentUser: currentUserProp }) {
                         <button className="btn-mini" onClick={() => jumpTo(card.id)}>Open</button>
                         {iAmReceiver && (
                           <>
-                            <button className="btn-mini accept" onClick={() => acceptDonation(card)}>
+                            <button className="btn-mini accept"
+                            disabled={isProcessing} // disable after click
+                             onClick={() => {
+                              acceptDonation(card)}}
+                            >
                               <Check className="w-4 h-4" /> Accept
                             </button>
-                            <button className="btn-mini" onClick={() => cancelDonation(card)}>
+                            <button className="btn-mini" 
+                             disabled={isProcessing} // disable after click
+                             onClick={() => {
+                              cancelDonation(card)}}>
                               <XCircle className="w-4 h-4" /> Cancel
                             </button>
                           </>

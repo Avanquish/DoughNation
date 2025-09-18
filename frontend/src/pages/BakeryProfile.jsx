@@ -315,6 +315,15 @@ export default function BakeryProfile() {
     }
   };
 
+  const [badges, setBadges] = useState([]);
+  const userId = id; // or get from decoded token
+  
+  useEffect(() => {
+    axios
+      .get(`${API}/badges/user/${userId}`)
+      .then(res => setBadges(res.data))
+      .catch(err => console.error(err));
+  }, [userId]);
 
   const Styles = () => (
     <style>{`
@@ -956,7 +965,18 @@ export default function BakeryProfile() {
                         <CardTitle>Badges</CardTitle>
                         <CardDescription />
                       </CardHeader>
-                      <CardContent className="min-h-[80px]" />
+                      <CardContent className="min-h-[80px] flex flex-wrap gap-4">
+                        {badges && badges.length > 0 ? (
+                          badges.map((badge) => (
+                            <div key={badge.id} className="flex flex-col items-center">
+                              <img src={badge.icon} alt={badge.name} className="w-12 h-12" />
+                              <span className="text-xs mt-1">{badge.name}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-gray-400">No badges unlocked yet.</p>
+                        )}
+                      </CardContent>
                     </Card>
                   </div>
 

@@ -6,10 +6,6 @@ import { useNavigate, Link } from "react-router-dom";
 // Map & geocoding bits
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import L from "leaflet";
-import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
 // UI kit pieces
 import {
@@ -24,12 +20,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Heart, Store, MapPin } from "lucide-react";
-
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-});
 
 // Default map center (Manila as a friendly starting point)
 const defaultCenter = { lat: 14.5995, lng: 120.9842 };
@@ -479,7 +469,7 @@ export default function Register() {
               {/* Address */}
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-2 text-[#8f642a]">
-                  <MapPin className="h-4 w-4" /> Address
+                  <MapPin wclassName="h-4 w-4" /> Address
                 </Label>
                 <Input
                   value={formData.address}

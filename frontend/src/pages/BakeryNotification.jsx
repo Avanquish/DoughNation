@@ -51,7 +51,7 @@ export default function BakeryNotification() {
         ? { headers: { Authorization: `Bearer ${token}` } }
         : { withCredentials: true };
 
-      const res = await axios.get(`${API}/notifications`, opts);
+      const res = await axios.get(`${API}/notifications/all`, opts);
       let { products = [], messages = [] } = res.data || {};
 
       const read = getReadFromStorage();

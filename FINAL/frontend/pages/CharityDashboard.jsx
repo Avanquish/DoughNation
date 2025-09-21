@@ -239,19 +239,25 @@ const CharityDashboard = () => {
                 <CharityNotification />
               </div>
 
-              {/* Simple profile initial (backend not wired yet) */}
+              {/* Simple profile */}
               <span className="icon-btn" title="Profile">
                 <span
-                  className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold"
-                  style={{
-                    background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
-                    color: "#7a4f1c",
-                    border: "1px solid #fff3e0",
-                  }}
+                  className="icon-btn cursor-pointer"
+                  title="Profile"
+                  onClick={() => navigate(`/charity-dashboard/${currentUser?.id || 0}/profile`)}
                 >
-                  {name?.trim()?.charAt(0).toUpperCase() || " "}
+                  <span
+                    className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold"
+                    style={{
+                      background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
+                      color: "#7a4f1c",
+                      border: "1px solid #fff3e0",
+                    }}
+                  >
+                    {name?.trim()?.charAt(0).toUpperCase() || " "}
+                  </span>
                 </span>
-              </span>
+                </span>
 
               <Button onClick={handleLogout} className="btn-logout flex items-center">
                 <LogOut className="h-4 w-4" />

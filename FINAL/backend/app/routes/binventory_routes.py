@@ -7,6 +7,8 @@ from sqlalchemy import func
 
 from app import models, database, schemas, auth, crud
 
+from app.routes.cnotification import process_geofence_notifications
+
 router = APIRouter()
 UPLOAD_DIR = "uploads"
 
@@ -152,10 +154,12 @@ def delete_inventory(
 # ---Check threshold and create donation ---
 def check_threshold_and_create_donation(db: Session):
     today = datetime.today().date()
+    bakery_ids_triggered = set()
 
     # Fetch all bakery products that are not yet expired
     products = db.query(models.BakeryInventory).all()
-    print(f"Checking {len(products)} inventory items against threshold...")
+    print(f"[Scheduler] Checking {len(products)} inventory items against threshold...")
+
     for p in products:
         exp_date = p.expiration_date
         threshold_days = p.threshold
@@ -163,12 +167,12 @@ def check_threshold_and_create_donation(db: Session):
 
         # Remove donations if inventory is fully donated or quantity <= 0
         if p.quantity <= 0 or p.status == "donated":
-            # Remove existing donation if quantity zero
             existing = db.query(models.Donation).filter(
                 models.Donation.bakery_inventory_id == p.id
             ).first()
             if existing:
                 db.delete(existing)
+                print(f"Removed donation for {p.name} (quantity zero/donated)")
             continue
     
         # Check if a donation already exists
@@ -176,7 +180,6 @@ def check_threshold_and_create_donation(db: Session):
             models.Donation.bakery_inventory_id == p.id
         ).first()
 
-        # Update existing donation quantity regardless of threshold
         if existing:
             existing.quantity = p.quantity
             existing.name = p.name
@@ -187,8 +190,8 @@ def check_threshold_and_create_donation(db: Session):
             existing.uploaded = p.uploaded
             existing.description = p.description
             print(f"Updated donation for {p.name} (quantity: {p.quantity})")
+            bakery_ids_triggered.add(p.bakery_id)
 
-        # Create donation if it doesn't exist and threshold is reached
         elif today >= trigger_date:
             donation = models.Donation(
                 bakery_inventory_id=p.id,
@@ -204,27 +207,31 @@ def check_threshold_and_create_donation(db: Session):
             )
             db.add(donation)
             print(f"Created donation for {p.name} (quantity: {p.quantity})")
+            bakery_ids_triggered.add(p.bakery_id)
 
-        # Remove donations if threshold not reached (and donation exists)
         else:
             if existing:
                 db.delete(existing)
                 print(f"Removed donation for {p.name} (threshold not reached)")
 
     # Remove donations for expired inventory
-    expired_donations = db.query(models.Donation).join(
-        models.BakeryInventory,
-        models.Donation.bakery_inventory_id == models.BakeryInventory.id
-    ).filter(
-        models.Donation.expiration_date <= today
-    ).all()
-
+    expired_donations = (
+        db.query(models.Donation)
+        .join(models.BakeryInventory, models.Donation.bakery_inventory_id == models.BakeryInventory.id)
+        .filter(models.Donation.expiration_date <= today)
+        .all()
+    )
     for d in expired_donations:
         db.delete(d)
         print(f"Removed expired donation for {d.name}")
 
     db.commit()
-    print("Donation sync completed")
+    print("[Scheduler] Donation sync completed")
+
+    #  Run geofence only for bakeries that had updates
+    for b_id in bakery_ids_triggered:
+        print(f"[Scheduler] Running geofence for bakery {b_id}")
+        process_geofence_notifications(db, b_id)
 
 
 def check_inventory_status(db: Session):

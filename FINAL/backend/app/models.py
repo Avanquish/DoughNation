@@ -17,6 +17,11 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     profile_picture = Column(String, nullable=True)  # path to uploaded image
     proof_of_validity = Column(String, nullable=True)  # path to uploaded document
+
+    # Geofencing
+    latitude = Column(Float, nullable=True)   # Charity location
+    longitude = Column(Float, nullable=True)
+    notification_radius_km = Column(Float, default=10)  # optional max radius
     
     verified = Column(Boolean, default=False)
 

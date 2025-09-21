@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from app.routes import (auth_routes, admin_routes, binventory_routes, 
                         bemployee_routes, bakerydashboardstats, admindashboardstats, 
                         bdonation_routes, bnotification, cnotification, messages, charitydonation_routes,
-                        direct_donation, CFeedback, BFeedback, Compute_TOT_Donations, complaint_routes, BReportGene
+                        direct_donation, CFeedback, BFeedback, Compute_TOT_Donations, complaint_routes, BReportGene, geofence
                         )
 from app.database import engine, SessionLocal
 from app import models, crud, database
@@ -13,13 +13,20 @@ from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from fastapi.staticfiles import StaticFiles
+from app.models import User
 from app.routes.binventory_routes import check_threshold_and_create_donation
+from app.routes.cnotification import process_geofence_notifications
 from fastapi_utils.tasks import repeat_every
 
+from apscheduler.schedulers.background import BackgroundScheduler
 
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI()
+
+# Create scheduler
+scheduler = BackgroundScheduler()
+
 
 origins = ["http://localhost:5173",
            "http://127.0.0.1:5173",]
@@ -49,6 +56,7 @@ app.include_router(BFeedback.router),
 app.include_router(Compute_TOT_Donations.router)
 app.include_router(complaint_routes.router)
 app.include_router(BReportGene.router)
+app.include_router(geofence.router)
 
 
 @app.on_event("startup")
@@ -73,6 +81,24 @@ def auto_check_threshold_task() -> None:
         check_threshold_and_create_donation(db)
     finally:
         db.close()
+
+def geofence_job():
+    db = SessionLocal()
+    try:
+        # Run for each bakery
+        bakeries = db.query(User).filter(User.role == "Bakery").all()
+        for bakery in bakeries:
+            process_geofence_notifications(db, bakery.id)
+    finally:
+        db.close()
+
+# Schedule it (every 5 minutes)
+scheduler.add_job(geofence_job, "interval", minutes=5)
+scheduler.start()
+
+@app.on_event("shutdown")
+def shutdown_event():
+    scheduler.shutdown()
 
 
 

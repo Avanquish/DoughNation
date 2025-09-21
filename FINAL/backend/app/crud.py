@@ -10,6 +10,8 @@ from app import schemas
 from . import models, auth
 from datetime import date, datetime
 
+from app.routes.geofence import geocode_address, get_coordinates_osm
+
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -71,8 +73,18 @@ def create_user(
     with open(proof_path, "wb") as buffer:
         shutil.copyfileobj(proof_of_validity.file, buffer)
 
+    # Geocode the address
+    latitude, longitude = get_coordinates_osm(address)
+
+    if not latitude or not longitude:
+        raise HTTPException(
+            status_code=400,
+            detail="Could not fetch latitude/longitude for the provided address"
+        )
+
     # Hash password and create user
     hashed_password = pwd_context.hash(password)
+
     db_user = models.User(
         role=role.strip().capitalize(),
         name=name,
@@ -80,6 +92,8 @@ def create_user(
         contact_person=contact_person,
         contact_number=contact_number,
         address=address,
+        latitude=latitude,
+        longitude=longitude,
         hashed_password=hashed_password,
         profile_picture=profile_pic_path,
         proof_of_validity=proof_path,
@@ -115,7 +129,10 @@ def update_user_info(
         user.contact_number = contact_number
     if address is not None and address != "":
         user.address = address
-
+    latitude, longitude = get_coordinates_osm(address)
+    if latitude and longitude:
+        user.latitude = latitude
+        user.longitude = longitude
     if profile_picture:
         os.makedirs("uploads/profile_pictures", exist_ok=True)
         profile_pic_path = f"uploads/profile_pictures/{profile_picture.filename}"
@@ -438,3 +455,5 @@ def update_complaint_status(db: Session, complaint_id: int, status: str):
 
 def list_donations(db: Session, bakery_id: int):
     return db.query(models.Donation).filter(models.Donation.bakery_id == bakery_id).all()
+
+    

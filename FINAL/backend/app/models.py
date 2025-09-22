@@ -17,6 +17,7 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     profile_picture = Column(String, nullable=True)  # path to uploaded image
     proof_of_validity = Column(String, nullable=True)  # path to uploaded document
+    created_at = Column(Date, default=date.today)
 
     # Geofencing
     latitude = Column(Float, nullable=True)   # Charity location
@@ -206,3 +207,4 @@ class Complaint(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User", back_populates="complaints")
+

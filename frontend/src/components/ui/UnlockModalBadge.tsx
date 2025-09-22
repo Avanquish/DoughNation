@@ -2,22 +2,40 @@ import React from "react";
 import { Dialog } from "@headlessui/react";
 import { CheckCircle } from "lucide-react";
 
-const UnlockModalBadge = ({ badge, onClose }) => {
+interface Badge {
+  id?: number;
+  name: string;
+  description?: string;
+  icon_url?: string;
+}
+
+interface UnlockModalBadgeProps {
+  badge: Badge | null;
+  onClose: () => void;
+}
+
+const UnlockModalBadge: React.FC<UnlockModalBadgeProps> = ({ badge, onClose }) => {
   if (!badge) return null;
 
   return (
-    <Dialog open={true} onClose={onClose} className="fixed inset-0 z-50">
-      <div className="flex items-center justify-center min-h-screen px-4">
-        <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
-
-        <div className="relative bg-white rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
+    <Dialog open={true} onClose={onClose} className="relative z-50">
+      {/* Backdrop */}
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" aria-hidden="true" />
+      
+      {/* Modal content */}
+      <div className="fixed inset-0 flex items-center justify-center p-4">
+        <Dialog.Panel className="relative bg-white rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
           <CheckCircle className="text-green-500 mx-auto mb-4" size={64} />
           <Dialog.Title className="text-2xl font-bold text-green-600">
             🎉 Badge Unlocked!
           </Dialog.Title>
           <div className="mt-4">
             <img
-              src={badge.icon_url || "/placeholder-badge.png"}
+              src={
+                    badge.icon_url
+                      ? `http://localhost:8000/${badge.icon_url}`
+                      : "/placeholder-badge.png"
+                  }
               alt={badge.name}
               className="w-24 h-24 mx-auto"
             />
@@ -30,7 +48,7 @@ const UnlockModalBadge = ({ badge, onClose }) => {
           >
             Close
           </button>
-        </div>
+        </Dialog.Panel>
       </div>
     </Dialog>
   );

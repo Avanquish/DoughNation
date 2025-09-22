@@ -8,11 +8,11 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.auth import get_current_user
 from app.models import User 
+from app.crud import update_user_badges
 
 
 from app import models, schemas, database, auth
 from app.routes.binventory_routes import check_threshold_and_create_donation
-from app.crud import update_badges_after_donation
 
 # Define your upload directory
 UPLOAD_DIR = "static/uploads/direct_donations"
@@ -163,6 +163,9 @@ def update_direct_tracking(
         models.DonationRequest.donation_id == direct_donation_id
     ).update({"tracking_status": data.btracking_status}) 
     db.commit()
+    
+    if data.btracking_status.lower() == "complete":
+        update_user_badges(db, current_user.id)
 
     return donation
 
@@ -232,62 +235,32 @@ def get_donation_requests(
 
     return result
 
-# ---------------------- UPDATE TRACKING STATUS ----------------------
-@router.post("/tracking/{donation_type}/{donation_id}")
+@router.post("/donation/tracking/{request_id}")
 def update_tracking_status(
-    donation_type: str,  # "direct" or "request"
-    donation_id: int,
-    data: schemas.TrackingUpdate,
+    request_id: int,
+    data: schemas.TrackingUpdate,  # use Pydantic schema here
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """
-    Update tracking status of a donation (direct or request) and update badges if completed.
-    """
-    if donation_type.lower() == "direct":
-        donation = (
-            db.query(models.DirectDonation)
-            .join(models.BakeryInventory)
-            .filter(
-                models.DirectDonation.id == donation_id,
-                models.BakeryInventory.bakery_id == current_user.id
-            )
-            .first()
-        )
-        if not donation:
-            raise HTTPException(status_code=404, detail="Direct donation not found")
+    donation_request = db.query(models.DonationRequest).filter(
+        models.DonationRequest.id == request_id,
+        models.DonationRequest.bakery_id == current_user.id
+    ).first()
+    if not donation_request:
+        raise HTTPException(status_code=404, detail="Donation request not found")
 
-        donation.btracking_status = data.btracking_status
-        quantity = donation.quantity
-
-        # Update related donation requests
-        db.query(models.DonationRequest).filter(
-            models.DonationRequest.donation_id == donation_id
-        ).update({"tracking_status": data.btracking_status})
-
-    elif donation_type.lower() == "request":
-        donation = db.query(models.DonationRequest).filter(
-            models.DonationRequest.id == donation_id,
-            models.DonationRequest.bakery_id == current_user.id
-        ).first()
-        if not donation:
-            raise HTTPException(status_code=404, detail="Donation request not found")
-
-        donation.tracking_status = data.tracking_status
-        quantity = donation.donation_quantity or 1
-    else:
-        raise HTTPException(status_code=400, detail="Invalid donation type")
-
+    donation_request.tracking_status = data.tracking_status
     db.commit()
-    db.refresh(donation)
+    db.refresh(donation_request)
+    
+    if data.tracking_status.lower() == "complete":
+        update_user_badges(db, current_user.id)
+    
+    return donation_request
 
-    # ------------------ UNLOCK BADGES IF COMPLETED ------------------
-    if data.tracking_status.lower() == "completed":
-        update_badges_after_donation(
-            db=db,
-            user_id=current_user.id,
-            donation_type=donation_type.lower(),
-            quantity=quantity
-        )
 
-    return donation
+
+
+
+
+

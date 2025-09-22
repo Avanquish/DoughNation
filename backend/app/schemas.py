@@ -379,7 +379,7 @@ class BadgeProgressBase(BaseModel):
     target: int
 
 class BadgeProgressResponse(BadgeProgressBase):
-    id: int
+    id: Optional [int]
 
     class Config:
         from_attributes = True

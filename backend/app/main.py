@@ -16,6 +16,7 @@ import os
 from fastapi.staticfiles import StaticFiles
 from app.routes.binventory_routes import check_threshold_and_create_donation
 from fastapi_utils.tasks import repeat_every
+from app.crud import update_user_badges
 
 
 models.Base.metadata.create_all(bind=engine)
@@ -57,6 +58,7 @@ app.include_router(badges.router)
 @app.on_event("startup")
 def seed_admin():
     db = SessionLocal()
+    update_user_badges(db, 2)
     try:
         crud.seed_admin_user(db)
         crud.seed_badges(db)
@@ -72,6 +74,7 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 @repeat_every(seconds=3600) 
 def auto_check_threshold_task() -> None:
     db = SessionLocal()
+    update_user_badges(db, 2)
     try:
         check_threshold_and_create_donation(db)
     finally:

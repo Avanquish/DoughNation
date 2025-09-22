@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import UnlockModalBadge from "@/components/ui/UnlockModalBadge";
 import {
   Package,
   Heart,
@@ -62,6 +63,7 @@ const BakeryDashboard = () => {
   const [totals, setTotals] = useState({ grand_total: 0, normal_total: 0, direct_total: 0 });
   const [badges, setBadges] = useState([]);
   const [loadingBadges, setLoadingBadges] = useState(true);
+  const [unlockedBadge, setUnlockedBadge] = useState(null);
 
   // Live data for cards
   const [inventory, setInventory] = useState([]);
@@ -86,7 +88,7 @@ const BakeryDashboard = () => {
         setLoadingBadges(true);
         const token = localStorage.getItem("token");
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const res = await axios.get(`${API}/users/${currentUser.id}/badges`, { headers });
+        const res = await axios.get(`${API}/badges/user/${currentUser.id}/`, { headers });
         setBadges(res.data || []);
       } catch (err) {
         console.error("Error fetching badges:", err);
@@ -482,6 +484,13 @@ useEffect(() => {
         </div>
       </header>
 
+      {unlockedBadge && (
+          <UnlockModalBadge
+              badge={unlockedBadge}
+              onClose={() => setUnlockedBadge(null)}
+          />
+      )}
+
       {/* Tabs */}
       <Tabs
         value={activeTab}
@@ -638,8 +647,9 @@ useEffect(() => {
                           className="flex flex-col items-center p-2 rounded-lg shadow-sm w-20 hover:scale-105 transition-transform bg-green-100"
                         >
                           <img
-                            src={`http://localhost:8000/${badge.image}`}
+                            src={`${API}/${badge.icon || badge.icon_url}`}
                             alt={badge.name}
+                            title={badge.name} // Tooltip
                             className="w-10 h-10 object-contain mb-1"
                           />
                           <span className="text-xs text-center">{badge.name}</span>

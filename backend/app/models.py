@@ -216,6 +216,8 @@ class Badge(Base):
     icon_url = Column(String(255))
     is_special = Column(Boolean, default=False)
     created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    
+    target = Column(Integer, default=1)  # default target = 1 if not set
 
     creator = relationship("User", back_populates="created_badges", foreign_keys=[created_by])
     user_badges = relationship("UserBadge", back_populates="badge")

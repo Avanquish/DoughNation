@@ -4,11 +4,12 @@ from fastapi import HTTPException, status, UploadFile, File, Form
 import os
 import shutil
 from passlib.context import CryptContext
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app import schemas
 from . import models, auth
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -541,37 +542,142 @@ def seed_badges(db: Session):
     db.commit()
     
 # ------------------ Updates Badge Progress Every Donation Completion ------------------
+    
+def get_completed_donation_count(db: Session, user_id: int) -> int:
+    """Count all completed donations (direct + request) for a given user."""
+    # Direct donations where btracking_status == 'complete'
+    direct_count = (
+        db.query(models.DirectDonation)
+        .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
+        .filter(
+            models.BakeryInventory.bakery_id == user_id,
+            models.DirectDonation.btracking_status.ilike("complete")
+        )
+        .count()
+    )
 
-def update_badges_after_donation(db: Session, user_id: int, donation_type: str = "donation", quantity: int = 1):
-    """
-    Dynamically update badge progress for a user after a donation.
-    badge.category should match the donation_type ("donation", "direct_donation", etc.)
-    """
-    # Fetch all badges relevant to this donation type
-    badges = db.query(models.Badge).filter(models.Badge.category == donation_type).all()
+    # Request donations where tracking_status == 'complete'
+    request_count = (
+        db.query(models.DonationRequest)
+        .filter(
+            models.DonationRequest.bakery_id == user_id,
+            models.DonationRequest.tracking_status.ilike("complete")
+        )
+        .count()
+    )
 
-    for badge in badges:
-        # Fetch existing progress
-        progress = db.query(models.BadgeProgress).filter_by(user_id=user_id, badge_id=badge.id).first()
-        
-        # Determine how much to increment (default 1, or can be quantity-based)
-        increment = quantity
+    return direct_count + request_count
 
-        if progress:
-            progress.progress += increment
+def update_user_badges(db: Session, user_id: int):
+    """Update all badges for a user based on multiple criteria."""
+    user = db.query(models.User).get(user_id)
+    if not user:
+        return
+
+    # ---------------- 0. Fetch all donations from multiple sources ----------------
+    donation_requests = db.query(models.DonationRequest).filter_by(charity_id=user_id).all()
+    direct_donations = db.query(models.DirectDonation).filter_by(charity_id=user_id).all()
+    all_quantity_donations = db.query(models.Donation).filter_by(bakery_id=user_id).all()
+
+    donations = donation_requests + direct_donations
+
+    def has_badge(badge_id):
+        return db.query(models.UserBadge).filter_by(user_id=user_id, badge_id=badge_id).first()
+
+    # ---------------- 1. Donation Frequency Badges ----------------
+    if donations and not has_badge(1):  # First Loaf
+        db.add(models.UserBadge(user_id=user_id, badge_id=1))
+
+    # Weekly Giver (donated at least once per week for last 4 weeks)
+    one_month_ago = datetime.now() - timedelta(days=30)
+    weekly_donations = [d for d in donations if d.date >= one_month_ago]
+    weeks_donated = len(set(d.date.isocalendar()[1] for d in weekly_donations))
+    if weeks_donated >= 4 and not has_badge(2):
+        db.add(models.UserBadge(user_id=user_id, badge_id=2))
+
+    # Monthly Habit - donated every month for last 3 months
+    recent_months = set((d.date.year, d.date.month) for d in donations if d.date >= datetime.now() - timedelta(days=90))
+    if len(recent_months) >= 3 and not has_badge(3):
+        db.add(models.UserBadge(user_id=user_id, badge_id=3))
+
+    # Donation Streaker - 7 days in a row
+    donation_dates = sorted(set(d.date.date() for d in donations))
+    streak = 1
+    for i in range(1, len(donation_dates)):
+        if (donation_dates[i] - donation_dates[i-1]).days == 1:
+            streak += 1
+            if streak >= 7 and not has_badge(4):
+                db.add(models.UserBadge(user_id=user_id, badge_id=4))
+                break
         else:
-            progress = models.BadgeProgress(
-                user_id=user_id,
-                badge_id=badge.id,
-                progress=increment,
-                target=badge.target if hasattr(badge, "target") else 1
-            )
-            db.add(progress)
+            streak = 1
 
-        # Check if badge should now be unlocked
-        if progress.progress >= (progress.target or 1):
-            existing_unlock = db.query(models.UserBadge).filter_by(user_id=user_id, badge_id=badge.id).first()
-            if not existing_unlock:
-                db.add(models.UserBadge(user_id=user_id, badge_id=badge.id, unlocked_at=datetime.utcnow()))
+    # ---------------- 2. Quantity-Based Badges ----------------
+    total_items = sum(d.quantity for d in all_quantity_donations)
+    quantity_badges = [
+        (5, 10),    # Bread Saver
+        (6, 50),    # Basket Filler
+        (7, 100),   # Loaf Legend
+        (8, 500),   # Ton of Goodness
+    ]
+    for badge_id, threshold in quantity_badges:
+        if total_items >= threshold and not has_badge(badge_id):
+            db.add(models.UserBadge(user_id=user_id, badge_id=badge_id))
+
+    # ---------------- 3. Impact Badges ----------------
+    charities = set(d.charity_id for d in donations)
+    total_people_served = sum(getattr(d, "people_served", 0) for d in donations)
+
+    impact_badges = [
+        (9, len(charities) >= 3),       # Community Helper
+        (10, total_people_served >= 100),  # Neighborhood Hero
+        (11, total_people_served >= 500),  # Hunger Fighter
+        (12, total_people_served >= 1000), # Hope Giver
+    ]
+    for badge_id, condition in impact_badges:
+        if condition and not has_badge(badge_id):
+            db.add(models.UserBadge(user_id=user_id, badge_id=badge_id))
+
+    # ---------------- 4. Timeliness & Freshness Badges ----------------
+    early_donations = [d for d in donations if d.date.hour < 9]
+    if early_donations and not has_badge(13):
+        db.add(models.UserBadge(user_id=user_id, badge_id=13))  # Early Riser
+
+    on_time_donations = [d for d in donations if getattr(d, "expiration_date", datetime.now()) - d.date >= timedelta(hours=24)]
+    if on_time_donations and not has_badge(14):
+        db.add(models.UserBadge(user_id=user_id, badge_id=14))  # Right on Time
+
+    freshness_rate = len(on_time_donations) / len(donations) if donations else 0
+    if freshness_rate >= 0.9 and not has_badge(15):
+        db.add(models.UserBadge(user_id=user_id, badge_id=15))  # Freshness Keeper
+
+    # ---------------- 5. Milestone/Anniversary Badges ----------------
+    first_donation_date = min((d.date for d in donations), default=None)
+    if first_donation_date:
+        days_active = (datetime.now() - first_donation_date).days
+        milestones = [
+            (16, 30),   # One Month Donator
+            (17, 180),  # Six-Month Supporter
+            (18, 365),  # Year of Goodness
+        ]
+        for badge_id, day_threshold in milestones:
+            if days_active >= day_threshold and not has_badge(badge_id):
+                db.add(models.UserBadge(user_id=user_id, badge_id=badge_id))
+
+    # ---------------- 6. Special Event / Seasonal Badges ----------------
+    for d in donations:
+        # Holiday Spirit – Christmas/New Year (Dec 24–31)
+        if d.date.month == 12 and 24 <= d.date.day <= 31 and not has_badge(19):
+            db.add(models.UserBadge(user_id=user_id, badge_id=19))
+        # Share the Love – Valentine’s Day (Feb 14)
+        if d.date.month == 2 and d.date.day == 14 and not has_badge(20):
+            db.add(models.UserBadge(user_id=user_id, badge_id=20))
+        # Ramadan Generosity – Feb 15 to Mar 20
+        if (d.date.month == 2 and d.date.day >= 15) or (d.date.month == 3 and d.date.day <= 20):
+            if not has_badge(21):
+                db.add(models.UserBadge(user_id=user_id, badge_id=21))
+        # World Hunger Day Hero – May 28
+        if d.date.month == 5 and d.date.day == 28 and not has_badge(22):
+            db.add(models.UserBadge(user_id=user_id, badge_id=22))
 
     db.commit()

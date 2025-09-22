@@ -316,13 +316,17 @@ export default function BakeryProfile() {
   };
 
   const [badges, setBadges] = useState([]);
-  const userId = id; // or get from decoded token
-  
+  const userId = id; // or decode from token
+
   useEffect(() => {
     axios
       .get(`${API}/badges/user/${userId}`)
-      .then(res => setBadges(res.data))
-      .catch(err => console.error(err));
+      .then((res) => {
+        // your backend returns a list of user badges directly
+        console.log("User badges response:", res.data);
+        setBadges(res.data);
+      })
+      .catch((err) => console.error(err));
   }, [userId]);
 
   const Styles = () => (
@@ -969,7 +973,16 @@ export default function BakeryProfile() {
                         {badges && badges.length > 0 ? (
                           badges.map((badge) => (
                             <div key={badge.id} className="flex flex-col items-center">
-                              <img src={badge.icon} alt={badge.name} className="w-12 h-12" />
+                              <img
+                                src={
+                                  badge.icon_url
+                                    ? `${API}/${badge.icon_url}`
+                                    : "/placeholder-badge.png"
+                                }
+                                alt={badge.name}
+                                title={badge.name} // Tooltip on hover
+                                className="w-12 h-12 hover:scale-110 transition-transform"
+                              />
                               <span className="text-xs mt-1">{badge.name}</span>
                             </div>
                           ))

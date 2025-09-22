@@ -337,3 +337,10 @@ class BakeryOut(BaseModel):
 
     class Config:
         from_attributes = True   
+
+#--------Forgot Pass----------
+class ResetPassword(BaseModel):
+    email: str
+    registration_date: date
+    new_password: str
+    confirm_password: str

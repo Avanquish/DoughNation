@@ -29,6 +29,9 @@ import BakeryReportGeneration from "../pages/BakeryReports";
 import BakeryNotification from "./BakeryNotification";
 import BDonationStatus from "./BDonationStatus";
 import BFeedback from "./BFeedback";
+import BakeryAnalytics from "./BakeryAnalytics";
+import AchievementBadges from "./AchievementBadges";
+import RecentDonations from "./RecentDonations";
 
 const API = "http://localhost:8000";
 
@@ -58,6 +61,10 @@ const BakeryDashboard = () => {
 
   const [highlightedDonationId, setHighlightedDonationId] = useState(null);
   const [totals, setTotals] = useState({ grand_total: 0, normal_total: 0, direct_total: 0 });
+  const [badges, setBadges] = useState([]);
+  const [loadingBadges, setLoadingBadges] = useState(true);
+  const [unlockedBadge, setUnlockedBadge] = useState(null);
+
 
   // Live data for cards
   const [inventory, setInventory] = useState([]);
@@ -68,6 +75,32 @@ const BakeryDashboard = () => {
   const [currentUser, setCurrentUser] = useState(null);
 
   const navigate = useNavigate();
+
+  // Fetch badges whenever currentUser is available
+  useEffect(() => {
+    if (!currentUser?.id) {
+      setBadges([]);
+      setLoadingBadges(false);
+      return;
+    }
+
+    const fetchBadges = async () => {
+      try {
+        setLoadingBadges(true);
+        const token = localStorage.getItem("token");
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const res = await axios.get(`${API}/badges/user/${currentUser.id}/`, { headers });
+        setBadges(res.data || []);
+      } catch (err) {
+        console.error("Error fetching badges:", err);
+        setBadges([]);
+      } finally {
+        setLoadingBadges(false);
+      }
+    };
+
+    fetchBadges();
+  }, [currentUser?.id]);
 
   // Fetch info
   useEffect(() => {
@@ -446,6 +479,14 @@ useEffect(() => {
           </div>
         </div>
       </header>
+      
+
+       {unlockedBadge && (
+          <UnlockModalBadge
+              badge={unlockedBadge}
+              onClose={() => setUnlockedBadge(null)}
+          />
+      )}
 
       {/* Tabs */}
       <Tabs
@@ -469,6 +510,7 @@ useEffect(() => {
               <TabsTrigger value="complaints">Complaints</TabsTrigger>
               <TabsTrigger value="reports">Report Generation</TabsTrigger>
               <TabsTrigger value="feedback">Feedback</TabsTrigger>
+               <TabsTrigger value="badges">Achievement Badges</TabsTrigger>
             </TabsList>
           </div>
         </div>
@@ -579,22 +621,55 @@ useEffect(() => {
                 <Card className="glass-card shadow-none">
                   <CardHeader className="pb-2">
                     <CardTitle>Recent Donations</CardTitle>
-                    <CardDescription>Not connected yet</CardDescription>
+                    <CardDescription>
+                      <RecentDonations />
+                      </CardDescription>
                   </CardHeader>
-                  <CardContent className="min-h-[120px]" />
+                  <CardContent className="min-h-[10px]" />
                 </Card>
               </div>
 
-              <div className="gwrap hover-lift reveal">
+                 <div className="gwrap hover-lift reveal">
                 <Card className="glass-card shadow-none">
                   <CardHeader className="pb-2">
                     <CardTitle>Achievements &amp; Badges</CardTitle>
                     <CardDescription>Your donation milestones</CardDescription>
                   </CardHeader>
-                  <CardContent className="min-h-[120px]" />
+                  <CardContent className="min-h-[404px] flex flex-wrap gap-3">
+                    {loadingBadges ? (
+                      <p className="text-sm text-gray-400">Loading badges...</p>
+                    ) : badges.length > 0 ? (
+                      badges.map((badge) => (
+                        <div
+                          key={badge.id}
+                          className="flex flex-col items-center p-2 rounded-lg shadow-sm w-20 hover:scale-105 transition-transform bg-green-100"
+                        >
+                          <img
+                            src={`${API}/${badge.icon || badge.icon_url}`}
+                            alt={badge.name}
+                            title={badge.name}
+                            className="w-10 h-10 object-contain mb-1"
+                          />
+                          <span className="text-xs text-center">{badge.name}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-400">No badges unlocked yet.</p>
+                    )}
+                  </CardContent>
                 </Card>
               </div>
             </div>
+
+            <div className="gwrap hover-lift reveal">
+                <Card className="glass-card shadow-none">
+                  <CardHeader className="pb-2">
+                    <CardTitle>Analytics</CardTitle>
+                    <BakeryAnalytics />
+                  </CardHeader>
+                  <CardContent className="min-h-[120px]" />
+                </Card>
+              </div>
           </TabsContent>
 
           <TabsContent value="inventory" className="reveal">
@@ -640,6 +715,10 @@ useEffect(() => {
                 <BFeedback />
               </Card>
             </div>
+          </TabsContent>
+
+            <TabsContent value="badges" className="reveal">
+            <AchievementBadges />
           </TabsContent>
         </div>
       </Tabs>

@@ -137,9 +137,9 @@ useEffect(() => {
                   Expires: {new Date(d.expiration_date).toLocaleDateString()}
                 </p>
               )}
-              {d.description && (
-                <p className="mt-2 text-sm text-gray-600 line-clamp-2">
-                  {d.description}
+              {d.tracking_completed_at && (
+                <p className="text-sm text-black-500">
+                  Donation Complete: {new Date(d.tracking_completed_at).toLocaleDateString()}
                 </p>
               )}
             </div>
@@ -195,6 +195,11 @@ useEffect(() => {
                     Expires: {new Date(d.expiration_date).toLocaleDateString()}
                   </p>
                 )}
+                {d.btracking_completed_at && (
+                <p className="text-sm text-black-500">
+                  Donation Complete: {new Date(d.btracking_completed_at).toLocaleDateString()}
+                </p>
+              )}
               </div>
             </div>
           ))}

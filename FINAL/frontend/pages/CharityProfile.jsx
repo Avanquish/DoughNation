@@ -11,6 +11,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Messages from "./Messages";
 import CharityNotification from "./CharityNotification";
+import RecentDonations from "./RecentDonations";
 import {
   Package,
   Heart,
@@ -666,7 +667,7 @@ export default function CharityProfile() {
                       <CardHeader className="pb-2">
                         <CardTitle>Donation History</CardTitle>
                         <CardDescription>
-                          Recent donations will appear here
+                          <RecentDonations />
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="min-h-[140px]" />

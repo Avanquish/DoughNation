@@ -23,6 +23,7 @@ import CharityReceived from "./CharityReceived.jsx";
 import CharityNotification from "./CharityNotification.jsx";
 import CDonationStatus from "./CDonationStatus.jsx";
 import CFeedback from "./CFeedback.jsx";
+import RecentDonations from "./RecentDonations.jsx";
 
 const API = "http://localhost:8000";
 
@@ -348,7 +349,7 @@ const CharityDashboard = () => {
                   <CardHeader className="pb-2">
                     <CardTitle>Recent Donations</CardTitle>
                     <CardDescription>
-                      Donations you've recently accepted
+                     <RecentDonations />
                     </CardDescription>
                   </CardHeader>
                 </Card>
@@ -361,6 +362,7 @@ const CharityDashboard = () => {
                     <CardDescription>
                       Feedback from your partnered bakeries
                     </CardDescription>
+                     <CardContent className="min-h-[374px] flex flex-wrap gap-3"></CardContent>
                   </CardHeader>
                 </Card>
               </div>

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, Date, DateTime, func, Enum, Text
+from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, Date, DateTime, func, Enum, Text, TIMESTAMP
 from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime, date
@@ -36,6 +36,10 @@ class User(Base):
     received_messages = relationship("Message", back_populates="receiver", foreign_keys="Message.receiver_id")
 
     complaints = relationship("Complaint", back_populates="user")
+
+    badges = relationship("UserBadge", back_populates="user", cascade="all, delete-orphan")
+    badge_progress = relationship("BadgeProgress", back_populates="user", cascade="all, delete-orphan")
+    created_badges = relationship("Badge", back_populates="creator")
 
  
 class BakeryInventory(Base):
@@ -103,6 +107,7 @@ class DonationRequest(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
     status = Column(String, default="pending") 
     tracking_status = Column(String, default="preparing")
+    tracking_completed_at = Column(Date, nullable=True) 
     feedback_submitted = Column(Boolean, default=False) 
     bakery_name = Column(String, nullable=True)
     bakery_profile_picture = Column(String, nullable=True)
@@ -131,6 +136,7 @@ class DirectDonation(Base):
     description = Column(String, nullable=True)
     image = Column(String, nullable=True)
     btracking_status = Column(String, default="preparing")
+    btracking_completed_at = Column(Date, nullable=True)
     feedback_submitted = Column(Boolean, default=False)
 
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -208,4 +214,43 @@ class Complaint(Base):
 
     user = relationship("User", back_populates="complaints")
 
+#--------Badges------------    
+class Badge(Base):
+    __tablename__ = "badges"
 
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False, unique=True)
+    category = Column(String(50))
+    description = Column(Text)
+    icon_url = Column(String(255))
+    is_special = Column(Boolean, default=False)
+    created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    
+    target = Column(Integer, default=1)  # default target = 1 if not set
+
+    creator = relationship("User", back_populates="created_badges", foreign_keys=[created_by])
+    user_badges = relationship("UserBadge", back_populates="badge")
+
+class UserBadge(Base):
+    __tablename__ = "user_badges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
+    badge_id = Column(Integer, ForeignKey("badges.id", ondelete="CASCADE"))
+    unlocked_at = Column(TIMESTAMP, server_default=func.now())
+
+    user = relationship("User", back_populates="badges")
+    badge = relationship("Badge", back_populates="user_badges")
+
+class BadgeProgress(Base):
+    __tablename__ = "badge_progress"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
+    badge_id = Column(Integer, ForeignKey("badges.id", ondelete="CASCADE"))
+    progress = Column(Integer, default=0)
+    target = Column(Integer, default=1)
+
+    user = relationship("User", back_populates="badge_progress")
+    badge = relationship("Badge")
+    

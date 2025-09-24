@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 from datetime import date, datetime
 from enum import Enum
 
@@ -143,6 +143,7 @@ class DonationRead(DonationBase):
     bakery_id: int
     bakery_name: str  
     bakery_profile_picture: Optional[str] = None 
+    tracking_completed_at: Optional[date] = None 
 
     class Config:
         from_attributes = True
@@ -158,6 +159,8 @@ class DonationRequestRead(BaseModel):
     bakery_id: int
     timestamp: datetime
     status: str
+    tracking_status: Optional[str] = None
+    tracking_completed_at: Optional[date] = None
 
     class Config:
         orm_mode = True
@@ -183,6 +186,7 @@ class DirectDonationResponse(DirectDonationBase):
     charity_name: Optional[str] = None          # name of the receiving charity
     charity_profile_picture: Optional[str] = None
     btracking_status: Optional[str] = None 
+    btracking_completed_at: Optional[date] = None 
     bakery_name: Optional[str] = None              
     bakery_profile_picture: Optional[str] = None
 
@@ -337,6 +341,91 @@ class BakeryOut(BaseModel):
 
     class Config:
         from_attributes = True   
+
+# ---------- Badges ----------
+class BadgeBase(BaseModel):
+    name: str
+    category: Optional[str] = None
+    description: Optional[str] = None
+    icon_url: Optional[str] = None
+
+class BadgeCreate(BadgeBase):
+    pass
+
+class BadgeResponse(BadgeBase):
+    id: int
+    is_special: bool
+    created_by: Optional[int]
+
+    class Config:
+        from_attributes = True
+
+class UserBadgeBase(BaseModel):
+    user_id: int
+    badge_id: int
+
+class UserBadgeResponse(BaseModel):
+    id: int
+    user_id: int
+    badge_id: int
+    unlocked_at: datetime
+    badge: BadgeResponse
+
+    class Config:
+        from_attributes = True
+
+class BadgeProgressBase(BaseModel):
+    user_id: int
+    badge_id: int
+    progress: int
+    target: int
+
+class BadgeProgressResponse(BadgeProgressBase):
+    id: Optional [int]
+
+    class Config:
+        from_attributes = True
+        
+# ------------- Analytics ---------------
+class InventoryItem(BaseModel):
+    id: int
+    product_name: str
+    quantity: int
+    expiration_date: Optional[date]
+
+    class Config:
+        from_attributes = True
+
+class DonationItem(BaseModel):
+    id: int
+    product_name: str
+    quantity: int
+    status: str
+
+    class Config:
+        from_attributes = True
+
+class EmployeeItem(BaseModel):
+    id: int
+    name: str
+    role: str
+
+    class Config:
+        from_attributes = True
+
+class BadgeItem(BaseModel):
+    id: int
+    name: str
+    image: str
+
+    class Config:
+        from_attributes = True
+
+class AnalyticsResponse(BaseModel):
+    inventory: List[InventoryItem]
+    donations: List[DonationItem]
+    employees: List[EmployeeItem]
+    badges: List[BadgeItem]
 
 #--------Forgot Pass----------
 class ResetPassword(BaseModel):

@@ -167,24 +167,26 @@ def weekly_summary(
     # include full end date by adding 1 day
     week_end_inclusive = week_end + timedelta(days=1)
 
-    # --- Direct Donations ---
+    # --- Direct Donations (completed this week) ---
     direct_donations = (
         db.query(func.coalesce(func.sum(models.DirectDonation.quantity), 0))
         .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
         .filter(models.BakeryInventory.bakery_id == current_user.id)
         .filter(models.DirectDonation.btracking_status == "complete")
-        .filter(models.DirectDonation.created_at >= week_start,
-                models.DirectDonation.created_at < week_end_inclusive)
+        .filter(models.DirectDonation.btracking_completed_at != None)
+        .filter(models.DirectDonation.btracking_completed_at >= week_start,
+                models.DirectDonation.btracking_completed_at < week_end_inclusive)
         .scalar()
     )
 
-    # --- Donation Requests ---
+    # --- Donation Requests (completed this week) ---
     request_donations = (
         db.query(func.coalesce(func.sum(models.DonationRequest.donation_quantity), 0))
         .filter(models.DonationRequest.bakery_id == current_user.id)
         .filter(models.DonationRequest.tracking_status == "complete")
-        .filter(models.DonationRequest.timestamp >= week_start,
-                models.DonationRequest.timestamp < week_end_inclusive)
+        .filter(models.DonationRequest.tracking_completed_at != None)
+        .filter(models.DonationRequest.tracking_completed_at >= week_start,
+                models.DonationRequest.tracking_completed_at < week_end_inclusive)
         .scalar()
     )
 
@@ -207,6 +209,7 @@ def weekly_summary(
                 models.BakeryInventory.expiration_date < week_end_inclusive)
         .scalar() or 0
     )
+
     # --- Top donated items ---
     top_items = (
         db.query(
@@ -215,8 +218,9 @@ def weekly_summary(
         )
         .filter(models.DonationRequest.bakery_id == current_user.id)
         .filter(models.DonationRequest.tracking_status == "complete")
-        .filter(models.DonationRequest.timestamp >= week_start,
-                models.DonationRequest.timestamp < week_end_inclusive)
+        .filter(models.DonationRequest.tracking_completed_at != None)
+        .filter(models.DonationRequest.tracking_completed_at >= week_start,
+                models.DonationRequest.tracking_completed_at < week_end_inclusive)
         .group_by(models.DonationRequest.donation_name)
         .union_all(
             db.query(
@@ -226,8 +230,9 @@ def weekly_summary(
             .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
             .filter(models.BakeryInventory.bakery_id == current_user.id)
             .filter(models.DirectDonation.btracking_status == "complete")
-            .filter(models.DirectDonation.created_at >= week_start,
-                    models.DirectDonation.created_at < week_end_inclusive)
+            .filter(models.DirectDonation.btracking_completed_at != None)
+            .filter(models.DirectDonation.btracking_completed_at >= week_start,
+                    models.DirectDonation.btracking_completed_at < week_end_inclusive)
             .group_by(models.DirectDonation.name)
         )
         .all()
@@ -281,28 +286,30 @@ def monthly_summary(
 
     end_date_inclusive = end_date + timedelta(days=1)
 
-    # --- Direct Donations ---
+    # --- Direct Donations (completed this month) ---
     direct_donations = (
         db.query(func.coalesce(func.sum(models.DirectDonation.quantity), 0))
         .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
         .filter(models.BakeryInventory.bakery_id == current_user.id)
         .filter(models.DirectDonation.btracking_status == "complete")
-        .filter(models.DirectDonation.created_at >= start_date,
-                models.DirectDonation.created_at < end_date_inclusive)
+        .filter(models.DirectDonation.btracking_completed_at != None)
+        .filter(models.DirectDonation.btracking_completed_at >= start_date,
+                models.DirectDonation.btracking_completed_at < end_date_inclusive)
         .scalar()
     )
 
-    # --- Donation Requests ---
+    # --- Donation Requests (completed this month) ---
     request_donations = (
         db.query(func.coalesce(func.sum(models.DonationRequest.donation_quantity), 0))
         .filter(models.DonationRequest.bakery_id == current_user.id)
         .filter(models.DonationRequest.tracking_status == "complete")
-        .filter(models.DonationRequest.timestamp >= start_date,
-                models.DonationRequest.timestamp < end_date_inclusive)
+        .filter(models.DonationRequest.tracking_completed_at != None)
+        .filter(models.DonationRequest.tracking_completed_at >= start_date,
+                models.DonationRequest.tracking_completed_at < end_date_inclusive)
         .scalar()
     )
 
-    # --- Top donated items for monthly ---
+    # --- Top donated items (completed this month) ---
     top_items = (
         db.query(
             models.DonationRequest.donation_name.label("product_name"),
@@ -310,8 +317,9 @@ def monthly_summary(
         )
         .filter(models.DonationRequest.bakery_id == current_user.id)
         .filter(models.DonationRequest.tracking_status == "complete")
-        .filter(models.DonationRequest.timestamp >= start_date,
-                models.DonationRequest.timestamp < end_date_inclusive)
+        .filter(models.DonationRequest.tracking_completed_at != None)
+        .filter(models.DonationRequest.tracking_completed_at >= start_date,
+                models.DonationRequest.tracking_completed_at < end_date_inclusive)
         .group_by(models.DonationRequest.donation_name)
         .union_all(
             db.query(
@@ -321,8 +329,9 @@ def monthly_summary(
             .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
             .filter(models.BakeryInventory.bakery_id == current_user.id)
             .filter(models.DirectDonation.btracking_status == "complete")
-            .filter(models.DirectDonation.created_at >= start_date,
-                    models.DirectDonation.created_at < end_date_inclusive)
+            .filter(models.DirectDonation.btracking_completed_at != None)
+            .filter(models.DirectDonation.btracking_completed_at >= start_date,
+                    models.DirectDonation.btracking_completed_at < end_date_inclusive)
             .group_by(models.DirectDonation.name)
         )
         .all()

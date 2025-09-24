@@ -5,7 +5,8 @@ from fastapi import FastAPI
 from app.routes import (auth_routes, admin_routes, binventory_routes, 
                         bemployee_routes, bakerydashboardstats, admindashboardstats, 
                         bdonation_routes, bnotification, cnotification, messages, charitydonation_routes,
-                        direct_donation, CFeedback, BFeedback, Compute_TOT_Donations, complaint_routes, BReportGene, geofence
+                        direct_donation, CFeedback, BFeedback, Compute_TOT_Donations, complaint_routes, BReportGene, 
+                        geofence, badges, RecentDonations
                         )
 from app.database import engine, SessionLocal
 from app import models, crud, database
@@ -17,6 +18,7 @@ from app.models import User
 from app.routes.binventory_routes import check_threshold_and_create_donation
 from app.routes.cnotification import process_geofence_notifications
 from fastapi_utils.tasks import repeat_every
+from app.crud import update_user_badges
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -57,13 +59,17 @@ app.include_router(Compute_TOT_Donations.router)
 app.include_router(complaint_routes.router)
 app.include_router(BReportGene.router)
 app.include_router(geofence.router)
+app.include_router(badges.router)
+app.include_router(RecentDonations.router)
 
 
 @app.on_event("startup")
 def seed_admin():
     db = SessionLocal()
+    update_user_badges(db, 2)
     try:
         crud.seed_admin_user(db)
+        crud.seed_badges(db)
     finally:
         db.close()
         
@@ -77,6 +83,7 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 @repeat_every(seconds=3600) 
 def auto_check_threshold_task() -> None:
     db = SessionLocal()
+    update_user_badges(db, 2)
     try:
         check_threshold_and_create_donation(db)
     finally:

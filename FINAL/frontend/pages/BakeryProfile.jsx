@@ -22,6 +22,9 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
+import Messages from "./Messages";
+import BakeryNotification from "./BakeryNotification";
+import RecentDonations from "./RecentDonations";
 import {
   PieChart,
   Pie,
@@ -31,9 +34,6 @@ import {
   Legend,
 } from "recharts";
 import Swal from "sweetalert2";
-
-import BakeryNotification from "./BakeryNotification"
-import Messages from "./Messages";
 
 const API = "http://localhost:8000";  
 const parseDate = (s) => (s ? new Date(s) : null);
@@ -66,9 +66,8 @@ export default function BakeryProfile() {
   const [readMessageIds, setReadMessageIds] = useState(new Set());
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isChangePassOpen, setIsChangePassOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null)
   const navigate = useNavigate();
-  const [currentUser, setCurrentUser] = useState(null);
-
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -320,6 +319,20 @@ export default function BakeryProfile() {
     }
   };
 
+  const [badges, setBadges] = useState([]);
+  const userId = id; // or decode from token
+
+  useEffect(() => {
+    axios
+      .get(`${API}/badges/user/${userId}`)
+      .then((res) => {
+        // your backend returns a list of user badges directly
+        console.log("User badges response:", res.data);
+        setBadges(res.data);
+      })
+      .catch((err) => console.error(err));
+  }, [userId]);
+
   const Styles = () => (
     <style>{`
       .gwrap{
@@ -467,10 +480,13 @@ export default function BakeryProfile() {
         </button>
 
         <div className="pt-1 iconbar">
-          
-          <div><Messages currentUser={currentUser} /></div>
-          
-          <div><BakeryNotification /> </div>
+          <div>
+            < Messages currentUser={currentUser}/>
+          </div>
+
+          <div>
+            < BakeryNotification/>
+          </div>
 
           <Button
             onClick={handleLogout}
@@ -875,7 +891,7 @@ export default function BakeryProfile() {
                       <CardHeader className="pb-2">
                         <CardTitle>Donation History</CardTitle>
                         <CardDescription>
-                          Recent donations will appear here
+                         < RecentDonations />
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="min-h-[140px]" />
@@ -891,7 +907,27 @@ export default function BakeryProfile() {
                         <CardTitle>Badges</CardTitle>
                         <CardDescription />
                       </CardHeader>
-                      <CardContent className="min-h-[80px]" />
+                      <CardContent className="min-h-[80px] flex flex-wrap gap-4">
+                        {badges && badges.length > 0 ? (
+                          badges.map((badge) => (
+                            <div key={badge.id} className="flex flex-col items-center">
+                              <img
+                                src={
+                                  badge.icon_url
+                                    ? `${API}/${badge.icon_url}`
+                                    : "/placeholder-badge.png"
+                                }
+                                alt={badge.name}
+                                title={badge.name} // Tooltip on hover
+                                className="w-12 h-12 hover:scale-110 transition-transform"
+                              />
+                              <span className="text-xs mt-1">{badge.name}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-gray-400">No badges unlocked yet.</p>
+                        )}
+                      </CardContent>
                     </Card>
                   </div>
 

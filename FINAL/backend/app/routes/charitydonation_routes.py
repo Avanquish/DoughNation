@@ -243,6 +243,7 @@ def received_donations(
                 "donation_id": r.donation_id,
                 "status": r.status,
                 "tracking_status": r.tracking_status,
+                "tracking_completed_at": r. tracking_completed_at,
                 "feedback_submitted": r.feedback_submitted,
                 "name": r.donation_name,
                 "image": r.donation_image,
@@ -328,6 +329,8 @@ async def submit_feedback(
     # Update donation request
     request_obj.feedback_submitted = True
     request_obj.tracking_status = "complete"
+    if not request_obj.tracking_completed_at: 
+        request_obj.tracking_completed_at = date.today()
     db.commit()
     db.refresh(request_obj)
 
@@ -369,6 +372,7 @@ def get_my_direct_donations(
             "charity_id": d.charity_id,
             "image": d.image,
             "btracking_status": d.btracking_status,
+            "btracking_completed_at": d.btracking_completed_at.isoformat() if d.btracking_completed_at else None,
             "feedback_submitted": d.feedback_submitted or False,
             "bakery_name": bakery.name if bakery else "Unknown bakery",
             "bakery_profile_picture": bakery.profile_picture if bakery else None
@@ -456,6 +460,8 @@ async def submit_direct_feedback(
     # Update donation status
     donation.feedback_submitted = True
     donation.btracking_status = "complete"
+    if not donation.btracking_completed_at: 
+        donation.btracking_completed_at = date.today()
     db.commit()
     db.refresh(donation)
 

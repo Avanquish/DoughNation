@@ -5,7 +5,7 @@ import { CheckCircle } from "lucide-react";
 
 const API = "http://localhost:8000";
 
-const RecentDonations = () => {
+const RecentDonations = ({ userId }) => { // <-- accept optional userId
   const [donations, setDonations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(""); // role from backend
@@ -16,15 +16,18 @@ const RecentDonations = () => {
       const token = localStorage.getItem("token");
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-      const res = await axios.get(`${API}/recent_donations`, { headers });
+      let url = `${API}/recent_donations`;
+      if (userId) {
+        url += `?user_id=${userId}`; // fetch specific user if id provided
+      }
+
+      const res = await axios.get(url, { headers });
       const allDonations = res.data || [];
 
       if (allDonations.length > 0) {
-        // Detect role automatically
         setRole(allDonations[0].charity_name ? "bakery" : "charity");
       }
 
-      // Sort by completed_at descending
       allDonations.sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
       setDonations(allDonations);
     } catch (err) {
@@ -37,10 +40,10 @@ const RecentDonations = () => {
 
   useEffect(() => {
     fetchDonations();
-  }, []);
+  }, [userId]); // refetch if userId changes
 
   return (
-    <Card className="glass-card shadow-none h-[400px]">  {/* fixed height */}
+    <Card className="glass-card shadow-none h-[400px]">
       <CardContent className="h-full flex flex-col">
         {loading ? (
           <p className="text-gray-500">Loading...</p>

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from app.database import get_db
@@ -9,24 +9,31 @@ router = APIRouter()
 
 @router.get("/recent_donations")
 def recent_donations(
+    user_id: int = None,  # optional user_id
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    target_user_id = user_id or current_user.id
     today = datetime.utcnow()
     seven_days_ago = today - timedelta(days=7)
     results = []
 
-    if current_user.role == "Bakery":
+    # Fetch user role for the target user
+    target_user = db.query(User).filter(User.id == target_user_id).first()
+    if not target_user:
+        return results
+
+    if target_user.role == "Bakery":
         # Donations sent by bakery
         donation_requests = db.query(DonationRequest).filter(
-            DonationRequest.bakery_id == current_user.id,
+            DonationRequest.bakery_id == target_user_id,
             DonationRequest.tracking_status == "complete",
             DonationRequest.tracking_completed_at != None,
             DonationRequest.tracking_completed_at >= seven_days_ago,
         ).all()
 
         direct_donations = db.query(DirectDonation).filter(
-            DirectDonation.bakery_inventory.has(bakery_id=current_user.id),
+            DirectDonation.bakery_inventory.has(bakery_id=target_user_id),
             DirectDonation.btracking_status == "complete",
             DirectDonation.btracking_completed_at != None,
             DirectDonation.btracking_completed_at >= seven_days_ago,
@@ -52,17 +59,17 @@ def recent_donations(
                 "charity_name": d.charity.name if d.charity else "Unknown",
             })
 
-    elif current_user.role == "Charity":
+    elif target_user.role == "Charity":
         # Donations received by charity
         donation_requests = db.query(DonationRequest).filter(
-            DonationRequest.charity_id == current_user.id,
+            DonationRequest.charity_id == target_user_id,
             DonationRequest.tracking_status == "complete",
             DonationRequest.tracking_completed_at != None,
             DonationRequest.tracking_completed_at >= seven_days_ago,
         ).all()
 
         direct_donations = db.query(DirectDonation).filter(
-            DirectDonation.charity_id == current_user.id,
+            DirectDonation.charity_id == target_user_id,
             DirectDonation.btracking_status == "complete",
             DirectDonation.btracking_completed_at != None,
             DirectDonation.btracking_completed_at >= seven_days_ago,
@@ -89,6 +96,5 @@ def recent_donations(
                 "bakery_name": bakery_name,
             })
 
-    # Sort descending by completed_at
     results.sort(key=lambda x: x["completed_at"], reverse=True)
     return results

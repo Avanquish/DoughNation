@@ -205,14 +205,35 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
             elif msg_type == "search":
                 query = (data.get("query") or "").strip().lower()
                 target = data.get("target")
-                role = "Charity" if target == "charities" else "Bakery"
-                results = db.query(models.User).filter(
-                    models.User.role == role,
+
+                q = db.query(models.User).filter(
                     models.User.verified == True,
+                    models.User.role != "Admin",   # exclude admin
+                    models.User.id != user_id,  # exclude self
                     func.lower(models.User.name).like(f"%{query}%")
-                ).all()
-                payload = [{"id": u.id, "name": u.name, "email": u.email, "profile_picture": u.profile_picture} for u in results]
+                )
+
+                if target == "charities":
+                    q = q.filter(models.User.role == "Charity")
+                elif target == "bakeries":
+                    q = q.filter(models.User.role == "Bakery")
+                elif target in ["users", "all"]:
+                    pass  # keep both charities + bakeries
+
+                results = q.all()
+
+                payload = [
+                    {
+                        "id": u.id,
+                        "name": f"{u.name} ({u.role})" if u.role in ["Bakery", "Charity"] else u.name, #if dont include the role just "name": u.name,
+                        "email": u.email,
+                        "profile_picture": u.profile_picture,
+                        "role": u.role
+                    }
+                    for u in results
+                ]
                 await websocket.send_json({"type": "search_results", "results": payload})
+
 
     except WebSocketDisconnect:
         manager.disconnect(int(user_id), websocket)
@@ -226,7 +247,12 @@ def get_user_dict(db: Session, user_id: int):
     u = db.query(models.User).filter(models.User.id == int(user_id)).first()
     if not u:
         return None
-    return {"id": u.id, "name": u.name, "email": u.email, "profile_picture": u.profile_picture, "role": u.role}
+    return {
+        "id": u.id, 
+        "name": f"{u.name} ({u.role})" if u.role in ["Bakery", "Charity"] else u.name, #if dont include the role just "name": u.name,
+        "email": u.email, 
+        "profile_picture": u.profile_picture, 
+        "role": u.role}
 
 
 def build_chat_summary(db: Session, message_obj, client_user_id: int):

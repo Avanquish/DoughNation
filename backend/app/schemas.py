@@ -50,6 +50,7 @@ class ChangePassword(BaseModel):
     
 class ResetPassword(BaseModel):
     email: EmailStr
+    registration_date: date
     new_password: str
     confirm_password: str
 
@@ -361,6 +362,7 @@ class BadgeResponse(BadgeBase):
 class UserBadgeBase(BaseModel):
     user_id: int
     badge_id: int
+    description: Optional[str] = None
 
 class UserBadgeResponse(BaseModel):
     id: int

@@ -1,8 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-from datetime import datetime
+from datetime import datetime, timedelta, time
 from app import models, database, auth
+
+# For geofence
+from math import radians, cos, sin, asin, sqrt # For geofence calculation helper
+from fastapi import BackgroundTasks
+import math, json
+from app.database import get_db
+
+from app.models import User, Donation, DonationRequest, NotificationRead
 
 router = APIRouter()
 
@@ -78,14 +86,31 @@ def get_message_notifications(
         receiver = db.query(models.User).filter(models.User.id == m.receiver_id).first()
 
         is_card = getattr(m, "is_card", False)
-        preview = m.content[:30] + ("..." if len(m.content) > 30 else "")
-        if is_card:
-            try:
-                parsed = m.content if isinstance(m.content, dict) else eval(m.content)
+
+        preview = None
+
+        try:
+            # If flagged as card OR content looks like JSON
+            if is_card or (isinstance(m.content, str) and m.content.strip().startswith("{")):
+                parsed = m.content if isinstance(m.content, dict) else json.loads(m.content)
+
+                type_labels = {
+                    "confirmed_donation": "Confirmed Donation",
+                    "pending_donation": "Pending Donation",
+                    "rejected_donation": "Rejected Donation",
+                }
+
+                donation_type = parsed.get("type")
+                label = type_labels.get(donation_type, "Donation Update")
+
                 bakery_name = parsed.get("bakery_name") or sender.name or "A bakery"
-                preview = f"{bakery_name} Accept donation request"
-            except Exception:
-                preview = "Accept request"
+                preview = f" {label}"
+            else:
+                # Fallback for plain text
+                preview = m.content[:30] + ("..." if len(m.content) > 30 else "")
+        except Exception as e:
+            print("[WARN] failed to parse message content:", e)
+            preview = "Donation update"
 
         latest_by_sender[notif_id] = {
             "id": notif_id,
@@ -198,8 +223,214 @@ def get_message_notifications(
     donations.sort(key=lambda d: (d["read"], -datetime.fromisoformat(d["timestamp"]).timestamp()))
     received_donations.sort(key=lambda d: (d["read"], -datetime.fromisoformat(d["timestamp"]).timestamp()))
 
+    # --- Geofence Notifications ---
+    geofence_notifs = []
+    geofence_entries = db.query(models.NotificationRead).filter(
+        models.NotificationRead.user_id == user_id,
+        models.NotificationRead.notif_id.like("geofence-%")
+    ).all()
+
+    for entry in geofence_entries:
+        try:
+            _, donation_id, _, charity_id = entry.notif_id.split("-")
+            donation = db.query(models.Donation).filter_by(id=int(donation_id)).first()
+            if not donation:
+                continue
+
+            bakery = db.query(models.User).filter_by(id=donation.bakery_id).first()
+
+            geofence_notifs.append({
+                "id": entry.notif_id,
+                "type": "geofence",
+                "name": donation.name,
+                "quantity": donation.quantity,
+                "expiration_date": donation.expiration_date.isoformat(),
+                "bakery_name": bakery.name if bakery else "Unknown bakery",
+                "bakery_profile_picture": bakery.profile_picture if bakery else None,
+                "read": entry.read_at is not None,
+            })
+        except Exception as e:
+            print("[Geofence] Parse error:", e)
+            continue
+        
     return {
         "messages": latest_messages,
         "donations" : donations,
-        "received_donations": received_donations}
+        "received_donations": received_donations,
+        "geofence_notifications": geofence_notifs}
 
+# Geofence Helper
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371  # km
+    d_lat = math.radians(lat2 - lat1)
+    d_lon = math.radians(lon2 - lon1)
+    a = (
+        math.sin(d_lat/2)**2
+        + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(d_lon/2)**2
+    )
+    distance = 2 * R * math.asin(math.sqrt(a))
+    
+    # Debug print
+    print(f"[Distance] Bakery ({lat1},{lon1}) → Charity ({lat2},{lon2}) = {distance:.2f} km")
+    
+    return distance
+
+@router.post("/notifications/geofence/run")
+def run_geofence_notifications(db: Session = Depends(get_db)):
+    today = datetime.utcnow().date()
+    target_date = today + timedelta(days=2)
+
+    # Donations expiring in exactly 2 days
+    expiring = (
+        db.query(Donation)
+        .filter(Donation.expiration_date == target_date)
+        .all()
+    )
+
+    for donation in expiring:
+        # Skip if already linked to a pending/accepted request
+        active_req = (
+            db.query(DonationRequest)
+            .filter(
+                DonationRequest.donation_id == donation.id,
+                DonationRequest.status.in_(["pending", "accepted"])
+            )
+            .first()
+        )
+        if active_req:
+            continue
+
+        # Get bakery info
+        bakery = db.query(User).filter(User.id == donation.bakery_id).first()
+        if not bakery or not (bakery.latitude and bakery.longitude):
+            continue
+
+        # Iterate all charities
+        charities = db.query(User).filter(User.role == "Charity").all()
+        for charity in charities:
+            if not (charity.latitude and charity.longitude):
+                continue
+
+            distance = haversine(
+                bakery.latitude, bakery.longitude,
+                charity.latitude, charity.longitude
+            )
+
+            if distance <= (charity.notification_radius_km or 10):
+                notif_id = f"geofence-{donation.id}-to-{charity.id}"
+
+                # Avoid duplicates
+                exists = (
+                    db.query(models.NotificationRead)
+                    .filter_by(user_id=charity.id, notif_id=notif_id)
+                    .first()
+                )
+                if exists:
+                    continue
+
+                # Save persistent notification
+                db.add(models.NotificationRead(
+                    user_id=charity.id,
+                    notif_id=notif_id,
+                    read_at=None
+                ))
+
+    db.commit()
+    return {"status": "geofence notifications scheduled"}
+    
+def process_geofence_notifications(db: Session, bakery_id: int):
+    now = datetime.utcnow()
+    today = now.date()
+    one_day_from_now = today + timedelta(days=1)
+    two_days_from_now = today + timedelta(days=2)
+
+    notif_times = [time(9, 0), time(12, 0), time(15, 0)]
+
+    print(f"[Geofence] Running for bakery {bakery_id} at {now}")
+
+    # Donations expiring in 1 or 2 days
+    expiring = (
+        db.query(Donation)
+        .filter(
+            Donation.bakery_id == bakery_id,
+            Donation.expiration_date.in_([one_day_from_now, two_days_from_now]),
+            Donation.quantity > 0
+        )
+        .all()
+    )
+    print(f"[Geofence] Found {len(expiring)} expiring donations")
+
+    bakery = db.query(User).filter(User.id == bakery_id).first()
+    if not bakery or not (bakery.latitude and bakery.longitude):
+        print(f"[Geofence] ❌ Bakery {bakery_id} missing coords")
+        return
+
+    charities = db.query(User).filter(User.role == "Charity").all()
+    print(f"[Geofence] Checking {len(charities)} charities for notifications")
+
+    for donation in expiring:
+        print(f"\n[Geofence] Donation {donation.id} - {donation.name} exp {donation.expiration_date}")
+
+        # Skip if accepted/pending
+        active_req = (
+            db.query(DonationRequest)
+            .filter(
+                DonationRequest.donation_id == donation.id,
+                DonationRequest.status.in_(["accepted"])
+            )
+            .first()
+        )
+        if active_req:
+            print(f"  ⚠️ Donation {donation.id} is {active_req.status}, deleting notifications")
+            db.query(NotificationRead).filter(
+                NotificationRead.notif_id.like(f"geofence-{donation.id}-%")
+            ).delete(synchronize_session=False)
+            db.commit()
+            continue
+
+        for charity in charities:
+            if not (charity.latitude and charity.longitude):
+                print(f"  ⚠️ Charity {charity.id} missing coords → skipped")
+                continue
+
+            distance = haversine(bakery.latitude, bakery.longitude, charity.latitude, charity.longitude)
+
+            # --- Wave logic ---
+            if donation.expiration_date == two_days_from_now:
+                # First wave → 10 km
+                if distance > 10:
+                    print(f"   ❌ Charity {charity.id} outside 10km (first wave)")
+                    continue
+
+            elif donation.expiration_date == one_day_from_now:
+                # Second wave → 5 km, remove old 10km notifications first
+                db.query(NotificationRead).filter(
+                    NotificationRead.notif_id == f"geofence-{donation.id}-to-{charity.id}"
+                ).delete()
+                if distance > 5:
+                    print(f"   ❌ Charity {charity.id} outside 5km (second wave)")
+                    continue
+                else:
+                    print(f"   🗑 Removed old 2-day notif for donation {donation.id} → Charity {charity.id}")
+
+            notif_id = f"geofence-{donation.id}-to-{charity.id}"
+            notif = db.query(NotificationRead).filter_by(user_id=charity.id, notif_id=notif_id).first()
+
+            if not notif:
+                db.add(NotificationRead(user_id=charity.id, notif_id=notif_id, read_at=None))
+                print(f"   💾 Created notification {notif_id}")
+            else:
+                # Scheduled re-notif logic
+                for t in notif_times:
+                    notif_time_today = datetime.combine(today, t)
+                    if now >= notif_time_today:
+                        if notif.read_at:
+                            notif.read_at = None
+                            db.add(notif)
+                            print(f"   🔄 Reset read status for {notif_id} at {now.time()} (after {t})")
+                        else:
+                            print(f"   ⏸ Already unread {notif_id}, no duplicate")
+                        break
+
+    db.commit()
+    print("[Geofence] ✅ Finished geofence notifications")

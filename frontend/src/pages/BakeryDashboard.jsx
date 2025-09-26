@@ -9,7 +9,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import UnlockModalBadge from "@/components/ui/UnlockModalBadge";
 import {
   Package,
   Heart,
@@ -26,12 +25,14 @@ import BakeryEmployee from "./BakeryEmployee";
 import BakeryDonation from "./BakeryDonation";
 import Messages from "../pages/Messages";
 import Complaint from "../pages/Complaint";
-import BakeryReportGeneration from "../pages/BakeryReportGeneration";
+import BakeryReportGeneration from "../pages/BakeryReports";
 import BakeryNotification from "./BakeryNotification";
 import BDonationStatus from "./BDonationStatus";
 import BFeedback from "./BFeedback";
 import BakeryAnalytics from "./BakeryAnalytics";
 import AchievementBadges from "./AchievementBadges";
+import RecentDonations from "./RecentDonations";
+import DashboardSearch from "./DashboardSearch";
 
 const API = "http://localhost:8000";
 
@@ -64,6 +65,7 @@ const BakeryDashboard = () => {
   const [badges, setBadges] = useState([]);
   const [loadingBadges, setLoadingBadges] = useState(true);
   const [unlockedBadge, setUnlockedBadge] = useState(null);
+
 
   // Live data for cards
   const [inventory, setInventory] = useState([]);
@@ -179,11 +181,6 @@ const BakeryDashboard = () => {
     };
   }, []);
 
-  useEffect(() => {
-    // Example: fetch from localStorage or API
-    const user = JSON.parse(localStorage.getItem("user"));
-    setCurrentUser(user);
-  }, []);
 
   // read ?tab= from URL (e.g. /bakery-dashboard/:id?tab=inventory)
   useEffect(() => {
@@ -446,6 +443,10 @@ useEffect(() => {
               </div>
             </div>
 
+            <div>
+              <DashboardSearch/>
+            </div>
+
             <div className="pt-1 iconbar">
               {/* Messages Button */}
               <Messages currentUser={currentUser} />
@@ -483,8 +484,9 @@ useEffect(() => {
           </div>
         </div>
       </header>
+      
 
-      {unlockedBadge && (
+       {unlockedBadge && (
           <UnlockModalBadge
               badge={unlockedBadge}
               onClose={() => setUnlockedBadge(null)}
@@ -513,7 +515,7 @@ useEffect(() => {
               <TabsTrigger value="complaints">Complaints</TabsTrigger>
               <TabsTrigger value="reports">Report Generation</TabsTrigger>
               <TabsTrigger value="feedback">Feedback</TabsTrigger>
-              <TabsTrigger value="badges">Achievement Badges</TabsTrigger>
+               <TabsTrigger value="badges">Achievement Badges</TabsTrigger>
             </TabsList>
           </div>
         </div>
@@ -528,7 +530,7 @@ useEffect(() => {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-muted-foreground">Total Donations</p>
-                        <p className="text-3xl font-extrabold">{stats.totalDonations}</p>
+                        <p className="text-3xl font-extrabold">{totals.grand_total.toLocaleString()}</p>
                       </div>
                       <div className="chip">
                         <Heart className="h-5 w-5" />
@@ -624,20 +626,21 @@ useEffect(() => {
                 <Card className="glass-card shadow-none">
                   <CardHeader className="pb-2">
                     <CardTitle>Recent Donations</CardTitle>
-                    <CardDescription>Not connected yet</CardDescription>
+                    <CardDescription>
+                      <RecentDonations />
+                      </CardDescription>
                   </CardHeader>
-                  <CardContent className="min-h-[120px]" />
+                  <CardContent className="min-h-[10px]" />
                 </Card>
               </div>
-              
 
-              <div className="gwrap hover-lift reveal">
+                 <div className="gwrap hover-lift reveal">
                 <Card className="glass-card shadow-none">
                   <CardHeader className="pb-2">
                     <CardTitle>Achievements &amp; Badges</CardTitle>
                     <CardDescription>Your donation milestones</CardDescription>
                   </CardHeader>
-                  <CardContent className="min-h-[120px] flex flex-wrap gap-3">
+                  <CardContent className="min-h-[404px] flex flex-wrap gap-3">
                     {loadingBadges ? (
                       <p className="text-sm text-gray-400">Loading badges...</p>
                     ) : badges.length > 0 ? (
@@ -649,7 +652,7 @@ useEffect(() => {
                           <img
                             src={`${API}/${badge.icon || badge.icon_url}`}
                             alt={badge.name}
-                            title={badge.name} // Tooltip
+                            title={badge.name}
                             className="w-10 h-10 object-contain mb-1"
                           />
                           <span className="text-xs text-center">{badge.name}</span>
@@ -707,6 +710,7 @@ useEffect(() => {
             <BakeryReportGeneration />
           </TabsContent>
 
+          {/* Feedback */}
           <TabsContent value="feedback">
             <div className="gwrap">
               <Card className="glass-card shadow-none">
@@ -718,7 +722,7 @@ useEffect(() => {
             </div>
           </TabsContent>
 
-          <TabsContent value="badges" className="reveal">
+            <TabsContent value="badges" className="reveal">
             <AchievementBadges />
           </TabsContent>
         </div>

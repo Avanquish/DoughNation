@@ -265,7 +265,7 @@ export default function Messages({ currentUser: currentUserProp }) {
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
-  // To click accept and cancel only once
+  // To click accept and calcel only once
    const handleAccept = () => {
         if (isProcessing) return; // prevent multiple clicks
         setProcessingCards((prev) => ({ ...prev, [card.id]: true }));
@@ -332,18 +332,14 @@ export default function Messages({ currentUser: currentUserProp }) {
   useEffect(() => {
     try {
       localStorage.setItem("chat_messages", JSON.stringify(messages));
-    } catch (err){
-      console.error("Failed to persist messages:", err);
-    }
+    } catch {}
   }, [messages]);
   useEffect(() => {
     try {
       const obj = {};
       for (const [k, v] of activeChats.entries()) obj[k] = v;
       localStorage.setItem("active_chats", JSON.stringify(obj));
-    } catch (err){
-      console.error("Failed to persist active chats:", err);
-    }
+    } catch {}
   }, [activeChats]);
 
   /* Summaries */
@@ -374,9 +370,7 @@ export default function Messages({ currentUser: currentUserProp }) {
   useEffect(() => {
     try {
       localStorage.setItem("messages_unread_total", String(totalUnread));
-    } catch (err){
-      console.error("Failed to persist unread count:", err);
-    }
+    } catch {}
   }, [totalUnread]);
 
   // To cancel send request donation cards if click cancel request
@@ -405,8 +399,9 @@ export default function Messages({ currentUser: currentUserProp }) {
 
   /* WebSocket */
   useEffect(() => {
-    console.log("currentUser:", currentUser);
-    console.log("currentUser.id:", currentUser?.id);
+     console.log("[WS-DEBUG] useEffect triggered");
+     console.log("[WS-DEBUG] currentUser:", currentUser);
+     console.log("[WS-DEBUG] currentUser.id:", currentUser?.id);
 
     if (!currentUser || (wsRef.current && wsRef.current.readyState === WebSocket.OPEN)) return;
     let reconnectTimerId;
@@ -456,9 +451,7 @@ export default function Messages({ currentUser: currentUserProp }) {
                     window.dispatchEvent(new Event("received_donations_updated"));
                   }
                 }
-              } catch (err){
-                console.error("Failed to parse message content:", err);
-              }
+              } catch {}
               break;
             }
             case "delete_message":
@@ -724,7 +717,7 @@ export default function Messages({ currentUser: currentUserProp }) {
     if (wsRef.current?.readyState === WebSocket.OPEN && currentUser) {
       wsRef.current.send(JSON.stringify({
         type: "search",
-        target: currentUser.role === "charity" ? "bakeries" : "charities",
+        target: "users",
         query: q,
       }));
     }
@@ -894,9 +887,7 @@ export default function Messages({ currentUser: currentUserProp }) {
           ),
         };
       }
-    } catch (err) {
-      console.error("Failed to parse message content:", err);
-    }
+    } catch {}
 
     const text = (m.content || "").trim();
     const hasImg = Boolean(m.image) || (m.media && m.media_type?.startsWith("image/"));
@@ -978,7 +969,7 @@ export default function Messages({ currentUser: currentUserProp }) {
                 <input
                   value={search}
                   onChange={handleSearch}
-                  placeholder={`Search ${currentUser?.role === "charity" ? "bakeries" : "charities"}`}
+                  placeholder={`Search...`}
                 />
               </div>
 
@@ -1003,7 +994,7 @@ export default function Messages({ currentUser: currentUserProp }) {
                       </div>
                     );
 
-                    let snippet = "—";
+                    let snippet = "No Conversation yet. Chat Now!";
                     if (last) {
                       try {
                         const p = JSON.parse(last.content);
@@ -1095,7 +1086,7 @@ export default function Messages({ currentUser: currentUserProp }) {
               <div className="pending-list">
                 {pendingCards.map((card) => {
                   let d = {};
-                  try { d = JSON.parse(card.content).donation || {}; } catch (err) { console.error("Failed to parse card content:", err); }
+                  try { d = JSON.parse(card.content).donation || {}; } catch {}
                   const iAmReceiver = Number(card.receiver_id) === Number(currentUser?.id);
 
                   // Track if this card is already being processed

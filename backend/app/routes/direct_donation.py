@@ -1,6 +1,6 @@
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, date
 
 from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
 from sqlalchemy.orm import Session
@@ -128,6 +128,7 @@ def get_direct_donations_for_bakery(
             "charity_id": d.charity_id,
             "image": d.image,
             "btracking_status": d.btracking_status or "preparing",
+            "btracking_completed_at":  d.btracking_completed_at.isoformat() if d. btracking_completed_at else None,
             "bakery_name": bakery_owner.name if bakery_owner else None,
             "bakery_profile_picture": bakery_owner.profile_picture if bakery_owner else None,
             "charity_name": charity_user.name if charity_user else None,
@@ -155,19 +156,36 @@ def update_direct_tracking(
 
     # Update direct donation status
     donation.btracking_status = data.btracking_status
+
+    # Auto set timestamp if complete
+    if data.btracking_status.lower() == "complete" and not donation.btracking_completed_at:
+        donation.btracking_completed_at = date.today()
+
     db.commit()
     db.refresh(donation)
 
     # Update all related donation_requests
-    db.query(models.DonationRequest).filter(
-        models.DonationRequest.donation_id == direct_donation_id
-    ).update({"tracking_status": data.btracking_status}) 
+    if data.btracking_status.lower() == "complete":
+        db.query(models.DonationRequest).filter(
+            models.DonationRequest.donation_id == direct_donation_id
+        ).update({
+            "tracking_status": data.btracking_status,
+            "tracking_completed_at": datetime.utcnow()  # <-- FIX: also stamp request side
+        })
+    else:
+        db.query(models.DonationRequest).filter(
+            models.DonationRequest.donation_id == direct_donation_id
+        ).update({
+            "tracking_status": data.btracking_status
+        })
+
     db.commit()
     
     if data.btracking_status.lower() == "complete":
         update_user_badges(db, current_user.id)
 
     return donation
+
 
 
 #  GET ALL CHARITIES (FOR DROPDOWN) 
@@ -209,6 +227,7 @@ def get_donation_requests(
                 "donation_id": r.donation_id,
                 "status": r.status,
                 "tracking_status": r.tracking_status,
+                "tracking_completed_at":  r.tracking_completed_at,
                 "charity_id": r.charity_id,
                 "charity_name": getattr(r, "charity_name", None),   # if you store it
                 "name": r.donation_name,
@@ -250,6 +269,10 @@ def update_tracking_status(
         raise HTTPException(status_code=404, detail="Donation request not found")
 
     donation_request.tracking_status = data.tracking_status
+
+    if data.tracking_status.lower() == "complete" and not donation_request.tracking_completed_at:
+        donation_request.tracking_completed_at = date.today()
+
     db.commit()
     db.refresh(donation_request)
     
@@ -257,10 +280,3 @@ def update_tracking_status(
         update_user_badges(db, current_user.id)
     
     return donation_request
-
-
-
-
-
-
-

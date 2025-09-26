@@ -90,17 +90,20 @@ def change_password(
         payload.confirm_password
     )
 
-# Forgot password
+# Forgot password with registration date verification
 @router.post("/forgot-password", response_model=dict)
 def forgot_password(payload: schemas.ResetPassword, db: Session = Depends(database.get_db)):
     user = db.query(models.User).filter(models.User.email == payload.email).first()
     if not user:
         raise HTTPException(status_code=404, detail="Email not registered")
 
+    # Compare registration date directly (both are date objects)
+    if user.created_at != payload.registration_date:
+        raise HTTPException(status_code=400, detail="Registration date does not match")
+
     if payload.new_password != payload.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
 
-    # Hash the new password
     hashed_pw = pwd_context.hash(payload.new_password)
     user.hashed_password = hashed_pw
     db.commit()

@@ -1,9 +1,8 @@
-
-from datetime import datetime
-import enum
-from sqlalchemy import Column, Enum, Integer, String, Boolean, DateTime, ForeignKey, Date, Text, func, TIMESTAMP
+from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, Date, DateTime, func, Enum, Text, TIMESTAMP
 from sqlalchemy.orm import relationship
 from app.database import Base
+from datetime import datetime, date
+import enum
 
 class User(Base):
     __tablename__ = "users"
@@ -18,6 +17,12 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     profile_picture = Column(String, nullable=True)  # path to uploaded image
     proof_of_validity = Column(String, nullable=True)  # path to uploaded document
+    created_at = Column(Date, default=date.today)
+
+    # Geofencing
+    latitude = Column(Float, nullable=True)   # Charity location
+    longitude = Column(Float, nullable=True)
+    notification_radius_km = Column(Float, default=10)  # optional max radius
     
     verified = Column(Boolean, default=False)
 
@@ -26,16 +31,17 @@ class User(Base):
 
     # Parent side of donations
     donations = relationship("Donation", back_populates="bakery")
-    
+
     sent_messages = relationship("Message", back_populates="sender", foreign_keys="Message.sender_id")
     received_messages = relationship("Message", back_populates="receiver", foreign_keys="Message.receiver_id")
-    
+
     complaints = relationship("Complaint", back_populates="user")
-    
+
     badges = relationship("UserBadge", back_populates="user", cascade="all, delete-orphan")
     badge_progress = relationship("BadgeProgress", back_populates="user", cascade="all, delete-orphan")
     created_badges = relationship("Badge", back_populates="creator")
-    
+
+ 
 class BakeryInventory(Base):
     __tablename__ = "bakery_inventory"
 
@@ -52,10 +58,12 @@ class BakeryInventory(Base):
     description = Column(String, nullable=True)
     status = Column(String, nullable=False, default="available")
 
+
     bakery = relationship("User", back_populates="inventory_items")
     donations = relationship("Donation", back_populates="inventory_item", cascade="all, delete-orphan") 
     direct_donations = relationship("DirectDonation", back_populates="bakery_inventory", cascade="all, delete-orphan")
 
+    
 class Employee(Base):
     __tablename__ = "employees"
 
@@ -67,6 +75,7 @@ class Employee(Base):
     profile_picture = Column(String, nullable=True)
     
     bakery = relationship("User", backref="employees")
+
 
 class Donation(Base):
     __tablename__ = "donations"
@@ -82,11 +91,11 @@ class Donation(Base):
     expiration_date = Column(Date, nullable=True)
     uploaded = Column(String, nullable=False)
     description = Column(String, nullable=True)
-    
+
+
     bakery = relationship("User", back_populates="donations")
     inventory_item = relationship("BakeryInventory", back_populates="donations")
 
-#--------Donation Request------------
 class DonationRequest(Base):
     __tablename__ = "donation_requests"
 
@@ -98,6 +107,7 @@ class DonationRequest(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
     status = Column(String, default="pending") 
     tracking_status = Column(String, default="preparing")
+    tracking_completed_at = Column(Date, nullable=True) 
     feedback_submitted = Column(Boolean, default=False) 
     bakery_name = Column(String, nullable=True)
     bakery_profile_picture = Column(String, nullable=True)
@@ -112,7 +122,6 @@ class DonationRequest(Base):
     charity = relationship("User", foreign_keys=[charity_id])
     bakery = relationship("User", foreign_keys=[bakery_id])
     
-#--------Direct Donation------------
 class DirectDonation(Base):
     __tablename__ = "direct_donations"
 
@@ -127,6 +136,7 @@ class DirectDonation(Base):
     description = Column(String, nullable=True)
     image = Column(String, nullable=True)
     btracking_status = Column(String, default="preparing")
+    btracking_completed_at = Column(Date, nullable=True)
     feedback_submitted = Column(Boolean, default=False)
 
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -134,8 +144,7 @@ class DirectDonation(Base):
     # Relationships
     bakery_inventory = relationship("BakeryInventory")
     charity = relationship("User") 
-    
-#--------Message------------
+
 class Message(Base):
     __tablename__ = "messages"
 
@@ -154,6 +163,15 @@ class Message(Base):
 
     sender = relationship("User", back_populates="sent_messages", foreign_keys=[sender_id])
     receiver = relationship("User", back_populates="received_messages", foreign_keys=[receiver_id])
+
+class NotificationRead(Base):
+    __tablename__ = "notification_reads"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    notif_id = Column(String, index=True)
+    read_at = Column(DateTime, default=datetime.utcnow)
+
 
 #---------Feedback------------
 class Feedback(Base):
@@ -182,7 +200,7 @@ class ComplaintStatus(str, enum.Enum):
     pending = "Pending"
     in_review = "In Review"
     resolved = "Resolved"
-    
+
 class Complaint(Base):
     __tablename__ = "complaints"
 
@@ -196,15 +214,6 @@ class Complaint(Base):
 
     user = relationship("User", back_populates="complaints")
 
-#--------Notification------------
-class NotificationRead(Base):
-    __tablename__ = "notification_reads"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    notif_id = Column(String, index=True)
-    read_at = Column(DateTime, default=datetime.utcnow)
-    
 #--------Badges------------    
 class Badge(Base):
     __tablename__ = "badges"
@@ -229,6 +238,7 @@ class UserBadge(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
     badge_id = Column(Integer, ForeignKey("badges.id", ondelete="CASCADE"))
     unlocked_at = Column(TIMESTAMP, server_default=func.now())
+    description = Column(Text, nullable=True)
 
     user = relationship("User", back_populates="badges")
     badge = relationship("Badge", back_populates="user_badges")
@@ -244,3 +254,4 @@ class BadgeProgress(Base):
 
     user = relationship("User", back_populates="badge_progress")
     badge = relationship("Badge")
+    

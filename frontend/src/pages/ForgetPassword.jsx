@@ -16,6 +16,7 @@ import Swal from "sweetalert2";
 const ForgotPassword = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
+  const [registrationDate, setRegistrationDate] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -24,6 +25,7 @@ const ForgotPassword = () => {
     try {
       const res = await axios.post("http://localhost:8000/forgot-password", {
         email,
+        registration_date: registrationDate,
         new_password: newPassword,
         confirm_password: confirmPassword,
       });
@@ -32,16 +34,16 @@ const ForgotPassword = () => {
         icon: "success",
         title: "Password Reset Successful",
         text: res.data.message || "You can now log in with your new password.",
-        confirmButtonColor: "#16a34a", // green
+        confirmButtonColor: "#16a34a",
       }).then(() => {
-        navigate("/login"); // redirect after confirmation
+        navigate("/login");
       });
     } catch (err) {
       Swal.fire({
         icon: "error",
         title: "Password Reset Failed",
         text: err.response?.data?.detail || "Something went wrong.",
-        confirmButtonColor: "#dc2626", // red
+        confirmButtonColor: "#dc2626",
       });
       console.error("Reset error:", err);
     }
@@ -54,11 +56,13 @@ const ForgotPassword = () => {
           <CardHeader className="text-center">
             <CardTitle>Reset Password</CardTitle>
             <CardDescription>
-              Enter your registered email and set a new password
+              Enter your registered email, registration date, and set a new
+              password
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleReset} className="space-y-4">
+              {/* Email */}
               <div className="space-y-2">
                 <Label htmlFor="email">Registered Email</Label>
                 <Input
@@ -71,6 +75,19 @@ const ForgotPassword = () => {
                 />
               </div>
 
+              {/* Date of Registration */}
+              <div className="space-y-2">
+                <Label htmlFor="registrationDate">Date of Registration</Label>
+                <Input
+                  id="registrationDate"
+                  type="date"
+                  value={registrationDate}
+                  onChange={(e) => setRegistrationDate(e.target.value)}
+                  required
+                />
+              </div>
+
+              {/* New Password */}
               <div className="space-y-2">
                 <Label htmlFor="newPassword">New Password</Label>
                 <Input
@@ -83,6 +100,7 @@ const ForgotPassword = () => {
                 />
               </div>
 
+              {/* Confirm Password */}
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword">Confirm Password</Label>
                 <Input

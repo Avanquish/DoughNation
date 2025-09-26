@@ -8,7 +8,9 @@ const BDonationStatus = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [highlightedId, setHighlightedId] = useState(null);
   const [selectedDonation, setSelectedDonation] = useState(null);
+  const statusOrder = ["preparing", "ready_for_pickup", "in_transit", "received", "complete"];
 
+  
   // Load current user
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -26,6 +28,15 @@ const BDonationStatus = () => {
       console.error("Failed to decode token:", err);
     }
   }, []);
+
+  const sortByStatus = (donations) => {
+  return donations
+    .slice()
+    .sort((a, b) => {
+      const statusIndex = (d) => statusOrder.indexOf(d.tracking_status || "preparing");
+      return statusIndex(a) - statusIndex(b);
+    });
+};
 
 const handleUpdateTracking = async (donationId, currentStatus, isDirect = false) => {
   const token = localStorage.getItem("token");
@@ -175,16 +186,14 @@ useEffect(() => {
       window.removeEventListener("highlight_received_donation", handler);
   }, []);
 
-  const statusOrder = ["preparing", "ready_for_pickup", "in_transit", "received", "completed"];
-
   return (
     <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4">Donations</h2>
+      <h2 className="text-2xl font-bold mb-4">Donations from Request</h2>
 
-      {/* Normal Donations Cards */}
+      {/* Donations from Request Cards */}
       {receivedDonations.length > 0 ? (
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {receivedDonations.map((d) => (
+        {sortByStatus(receivedDonations).map((d) => (
           <div
             key={d.id}
             id={`received-${d.donation_id || d.id}`}
@@ -234,9 +243,16 @@ useEffect(() => {
                     {d.charity_name || "Unknown Charity"}
                   </span>
                 </div>
+                 <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">
-                        Status: {d.tracking_status.replaceAll("_", " ").toUpperCase()}
+                        Status: {d.tracking_status.replaceAll("_", " ").toUpperCase()} 
                     </span>
+                    {d.tracking_completed_at && (
+                      <span className="text-sm font-medium">
+                        {new Date(d.tracking_completed_at).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
             </div>
           </div>
         ))}
@@ -250,7 +266,7 @@ useEffect(() => {
 
       {directDonations.length > 0 ? (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {directDonations.map((d) => (
+          {sortByStatus(directDonations).map((d) => (
             <div
               key={d.id}
               id={`received-${d.donation_id || d.id}`}
@@ -296,9 +312,16 @@ useEffect(() => {
                     {d.charity_name || "Unknown Charity"}
                   </span>
                 </div>
+                <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">
                         Status: {d.tracking_status.replaceAll("_", " ").toUpperCase()}
                     </span>
+                    {d.btracking_completed_at && (
+                      <span className="text-sm font-medium">
+                        {new Date(d.btracking_completed_at).toLocaleDateString()}
+                      </span>
+                    )}
+                </div>
               </div>
             </div>
           ))}

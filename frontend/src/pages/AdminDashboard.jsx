@@ -12,6 +12,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "../api/axios";
 
 import AdminComplaint from "./AdminComplaint";
+import AdminBadge from "./AdminBadge";
 
 const AdminDashboard = () => {
   const [name, setName] = useState("Admin");
@@ -559,41 +560,8 @@ const AdminDashboard = () => {
               <Card className="glass-card shadow-none">
                 <CardHeader>
                   <CardTitle>Assign Badges</CardTitle>
-                  <CardDescription>Give recognition to bakeries/charities</CardDescription>
                 </CardHeader>
-                <CardContent className="text-sm text-muted-foreground">
-                  (Placeholder — badge assignment UI.)
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Manage Feedback */}
-          <TabsContent value="feedback" className="reveal">
-            <div className="gwrap hover-lift">
-              <Card className="glass-card shadow-none">
-                <CardHeader>
-                  <CardTitle>Manage Feedback</CardTitle>
-                  <CardDescription>Read and respond to charity reports</CardDescription>
-                </CardHeader>
-                <CardContent className="text-sm text-muted-foreground">
-                  (Placeholder — feedback list/details. Bell alerts include these.)
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Manage Complaints */}
-          <TabsContent value="complaints" className="reveal">
-            <div className="gwrap hover-lift">
-              <Card className="glass-card shadow-none">
-                <CardHeader>
-                  <CardTitle>Manage Complaints</CardTitle>
-                  <CardDescription>Review and respond to user complaints</CardDescription>
-                </CardHeader>
-                <CardContent className="text-sm text-muted-foreground">
-                  <AdminComplaint />
-                </CardContent>
+                  <AdminBadge />
               </Card>
             </div>
           </TabsContent>

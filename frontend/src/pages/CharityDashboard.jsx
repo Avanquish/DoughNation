@@ -23,6 +23,8 @@ import CharityReceived from "./CharityReceived.jsx";
 import CharityNotification from "./CharityNotification.jsx";
 import CDonationStatus from "./CDonationStatus.jsx";
 import CFeedback from "./CFeedback.jsx";
+import RecentDonations from "./RecentDonations.jsx";
+import DashboardSearch from "./DashboardSearch.jsx";
 
 const API = "http://localhost:8000";
 
@@ -231,6 +233,10 @@ const CharityDashboard = () => {
               </div>
             </div>
             <div className="iconbar">
+              <div className="mb-12">
+                <DashboardSearch />
+              </div>
+
               <div className="icon-btn">
                 <Messages currentUser={currentUser} compact />
               </div>
@@ -239,19 +245,25 @@ const CharityDashboard = () => {
                 <CharityNotification />
               </div>
 
-              {/* Simple profile initial (backend not wired yet) */}
+              {/* Simple profile */}
               <span className="icon-btn" title="Profile">
                 <span
-                  className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold"
-                  style={{
-                    background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
-                    color: "#7a4f1c",
-                    border: "1px solid #fff3e0",
-                  }}
+                  className="icon-btn cursor-pointer"
+                  title="Profile"
+                  onClick={() => navigate(`/charity-dashboard/${currentUser?.id || 0}/profile`)}
                 >
-                  {name?.trim()?.charAt(0).toUpperCase() || " "}
+                  <span
+                    className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold"
+                    style={{
+                      background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
+                      color: "#7a4f1c",
+                      border: "1px solid #fff3e0",
+                    }}
+                  >
+                    {name?.trim()?.charAt(0).toUpperCase() || " "}
+                  </span>
                 </span>
-              </span>
+                </span>
 
               <Button onClick={handleLogout} className="btn-logout flex items-center">
                 <LogOut className="h-4 w-4" />
@@ -342,7 +354,7 @@ const CharityDashboard = () => {
                   <CardHeader className="pb-2">
                     <CardTitle>Recent Donations</CardTitle>
                     <CardDescription>
-                      Donations you've recently accepted
+                     <RecentDonations />
                     </CardDescription>
                   </CardHeader>
                 </Card>
@@ -355,6 +367,7 @@ const CharityDashboard = () => {
                     <CardDescription>
                       Feedback from your partnered bakeries
                     </CardDescription>
+                     <CardContent className="min-h-[374px] flex flex-wrap gap-3"></CardContent>
                   </CardHeader>
                 </Card>
               </div>

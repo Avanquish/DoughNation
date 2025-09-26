@@ -12,6 +12,16 @@ router = APIRouter(prefix="/badges", tags=["Badges"])
 def get_badges(db: Session = Depends(get_db)):
     return crud.get_all_badges(db)
 
+# ---------------- Get All Bakery Users ----------------
+@router.get("/bakery-users")
+def get_bakery_users(db: Session = Depends(get_db)):
+    return db.query(models.User).filter(models.User.role == "Bakery").all()
+
+# ---------------- Get Admin Badges ----------------
+@router.get("/admin-badge", response_model=List[schemas.BadgeResponse])
+def get_admin_badges(db: Session = Depends(get_db)):
+    return crud.get_admin_badges(db)
+
 # ---------------- Get User Badges ----------------
 @router.get("/user/{user_id}", response_model=List[schemas.UserBadgeResponse])
 def get_user_badges(user_id: int, db: Session = Depends(get_db)):
@@ -55,7 +65,12 @@ def assign_badge(
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Only admins can assign badges")
     
-    badge = crud.assign_badge_to_user(db, payload.user_id, payload.badge_id)
+    badge = crud.assign_badge_to_user(
+        db, 
+        payload.user_id, 
+        payload.badge_id, 
+        payload.description  # ✅ forward description
+    )
     return badge
 
 # ---------------- Update Badge Progress ----------------

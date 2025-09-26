@@ -4,12 +4,14 @@ from fastapi import HTTPException, status, UploadFile, File, Form
 import os
 import shutil
 from passlib.context import CryptContext
-from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app import schemas
 from . import models, auth
 from datetime import date, datetime, timedelta
+
+from app.routes.geofence import geocode_address, get_coordinates_osm
+
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -71,8 +73,18 @@ def create_user(
     with open(proof_path, "wb") as buffer:
         shutil.copyfileobj(proof_of_validity.file, buffer)
 
+    # Geocode the address
+    latitude, longitude = get_coordinates_osm(address)
+
+    if not latitude or not longitude:
+        raise HTTPException(
+            status_code=400,
+            detail="Could not fetch latitude/longitude for the provided address"
+        )
+
     # Hash password and create user
     hashed_password = pwd_context.hash(password)
+
     db_user = models.User(
         role=role.strip().capitalize(),
         name=name,
@@ -80,6 +92,8 @@ def create_user(
         contact_person=contact_person,
         contact_number=contact_number,
         address=address,
+        latitude=latitude,
+        longitude=longitude,
         hashed_password=hashed_password,
         profile_picture=profile_pic_path,
         proof_of_validity=proof_path,
@@ -115,7 +129,10 @@ def update_user_info(
         user.contact_number = contact_number
     if address is not None and address != "":
         user.address = address
-
+    latitude, longitude = get_coordinates_osm(address)
+    if latitude and longitude:
+        user.latitude = latitude
+        user.longitude = longitude
     if profile_picture:
         os.makedirs("uploads/profile_pictures", exist_ok=True)
         profile_pic_path = f"uploads/profile_pictures/{profile_picture.filename}"
@@ -310,34 +327,35 @@ def create_employee(
     name: str,
     role: str,
     start_date: date,
-    profile_picture: Optional[UploadFile] = None
+    profile_picture: Optional[UploadFile] = None  # 👈 put it here
 ):
     picture_path = None
 
+    # Handle upload if picture is provided
     if profile_picture:
         filename = f"{bakery_id}_{int(datetime.utcnow().timestamp())}_{profile_picture.filename}"
         file_path = os.path.join(EMPLOYEE_UPLOAD_DIR, filename)
+
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(profile_picture.file, buffer)
+
         picture_path = f"{EMPLOYEE_UPLOAD_DIR}/{filename}"
 
+    # Create employee record
     employee = models.Employee(
         bakery_id=bakery_id,
         name=name,
         role=role,
         start_date=start_date,
-        profile_picture=picture_path
+        profile_picture=picture_path  # 👈 save path or None
     )
-
     db.add(employee)
     db.commit()
     db.refresh(employee)
     return employee
 
-
 def list_employees(db: Session, bakery_id: int):
     return db.query(models.Employee).filter(models.Employee.bakery_id == bakery_id).all()
-
 
 def update_employee(
     db: Session,
@@ -433,9 +451,11 @@ def update_complaint_status(db: Session, complaint_id: int, status: str):
     db.refresh(complaint)
     return complaint
 
-# ------------------ Donations ------------------
+#-----------Donation-------------------
+
 def list_donations(db: Session, bakery_id: int):
     return db.query(models.Donation).filter(models.Donation.bakery_id == bakery_id).all()
+
 
 # ------------------ Badges ------------------
 def create_badge(db: Session, badge: schemas.BadgeCreate, admin_id: int):
@@ -453,13 +473,16 @@ def create_badge(db: Session, badge: schemas.BadgeCreate, admin_id: int):
     return new_badge
 
 def get_all_badges(db: Session):
-    return db.query(models.Badge).all()
+    return db.query(models.Badge).filter(models.Badge.id.in_([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24]))
+
+def get_admin_badges(db: Session):
+    return db.query(models.Badge).filter(models.Badge.name.in_(["Default Badge", "Bakery Star", "Community Champion", "Legendary Donor"])).all()
 
 def get_badge_by_name(db: Session, name: str):
     return db.query(models.Badge).filter(models.Badge.name == name).first()
 
 # -------- User Badge CRUD --------
-def assign_badge_to_user(db: Session, user_id: int, badge_id: int):
+def assign_badge_to_user(db: Session, user_id: int, badge_id: int, description: str = None):
     exists = db.query(models.UserBadge).filter_by(user_id=user_id, badge_id=badge_id).first()
     if exists:
         return exists
@@ -532,6 +555,9 @@ def seed_badges(db: Session):
         {"name": "Bakery Star", "category": "Recognition", "description": "Top donator of the month.", "icon_url": "uploads/badge_images/Bakery Star.png"},
         {"name": "Community Champion", "category": "Recognition", "description": "Top donator of the quarter.", "icon_url": "uploads/badge_images/Community Champion.png"},
         {"name": "Legendary Donor", "category": "Recognition", "description": "Long-term high-impact donator.", "icon_url": "uploads/badge_images/Legendary Donor.png"},
+        
+        #Default Logo
+        {"name": "Default Badge", "category": "Recognition", "description": "Default badge for testing.", "icon_url": "uploads/badge_images/default_badge.png"}
     ]
 
     for data in badges_data:

@@ -29,6 +29,9 @@ export default function NotificationBell() {
   const bellRef = useRef(null);
   const navigate = useNavigate();
 
+  const [priorityDonations, setPriorityDonations] = useState([]);
+
+
   const prevRequestStatusRef = useRef({}); 
   // helpers for localStorage
   const getReadFromStorage = () => {
@@ -55,11 +58,19 @@ export default function NotificationBell() {
         messages: msgs = [],
         donations: dons = [],
         received_donations: rDons = [],
+        geofence_notifications: geofences = [],
       } = res.data || {};
 
       const storedRead = getReadFromStorage();
 
       setMessages((msgs || []).map((m) => ({ ...m })));
+
+       setPriorityDonations(
+      (geofences || []).map((g) => ({
+        ...g,
+        read: storedRead.includes(g.id),
+      }))
+      );
 
       setDonations((dons || []).map((d) => ({
         ...d,
@@ -150,6 +161,34 @@ export default function NotificationBell() {
   const avatar = (path, fallback = `${API}/uploads/placeholder.png`) =>
     path ? `${API}/${path}` : fallback;
 
+
+  // --- Click Handlers ---
+const handleNormalDonationClick = (d) => {
+  // remove it from the state
+  setDonations((prev) => prev.filter((don) => don.id !== d.id));
+
+  // still navigate + mark read
+  localStorage.setItem("highlight_donation", d.donation_id || d.id);
+  window.dispatchEvent(new CustomEvent("switch_to_donation_tab"));
+  setTimeout(() => window.dispatchEvent(new Event("highlight_donation")), 100);
+  markNotificationAsRead(d.id);
+  setOpen(false);
+};
+
+const handlePriorityDonationClick = (d) => {
+  if (d.status === "pending") {
+    // remove if pending
+    setPriorityDonations((prev) => prev.filter((don) => don.id !== d.id));
+  }
+
+  // navigate + mark read
+  localStorage.setItem("highlight_donation", d.id);
+  window.dispatchEvent(new CustomEvent("switch_to_donation_tab"));
+  setTimeout(() => window.dispatchEvent(new Event("highlight_donation")), 100);
+  markNotificationAsRead(d.id);
+  setOpen(false);
+};
+
   return (
     <div className="relative inline-block">
       {/* Bell */}
@@ -216,53 +255,101 @@ export default function NotificationBell() {
               </div>
 
               {/* Lists */}
-              <div className="max-h-80 overflow-y-auto divide-y">
-                {/* Donations */}
-                {tab === "donations" && (
+              <div className="max-h-80 overflow-y-auto">
+              {/* Donations */}
+              {tab === "donations" && (
+                <div>
+                  {/* Priority Donations */}
+                  {priorityDonations.length > 0 && (
+                    <div className="mb-2">
+                      <div className="px-3 py-2 text-xs font-bold text-red-600 bg-red-50">
+                        Priority: Expiring Donations
+                      </div>
+                      <div className="divide-y">
+                        {priorityDonations.map((d) => (
+                          <button
+                            key={d.id}
+                            className={`w-full p-3 flex items-center gap-2 text-left transition-colors ${
+                              d.read ? "bg-white hover:bg-[#fff6ec]" : "bg-[rgba(255,230,230,1)]"
+                            }`}
+                            onClick={() => handlePriorityDonationClick(d)}
+                          >
+                            <UnreadCircle read={d.read} />
+                            <img
+                              src={avatar(d.bakery_profile_picture)}
+                              alt={d.bakery_name}
+                              className="w-8 h-8 rounded-full object-cover border"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className={`text-[13px] leading-tight ${
+                                  d.read ? "text-[#6b4b2b]" : "text-red-700 font-semibold"
+                                }`}
+                              >
+                                <strong>{d.bakery_name}</strong>: {d.name} ({d.quantity}){" "}
+                                <span className="ml-1 text-xs text-gray-500">
+                                  Exp: {new Date(d.expiration_date).toLocaleDateString()}
+                                </span>
+                              </p>
+                            </div>
+                            <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "#8b6b48" }} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Normal Donations */}
                   <div>
+                    <div className="px-3 py-2 text-xs font-bold text-gray-700 bg-gray-50">
+                      New Uploaded Donations
+                    </div>
                     {donations.length === 0 ? (
                       <div className="p-4 text-sm text-gray-500">No donation alerts</div>
                     ) : (
-                      donations.map((d) => (
-                        <button
-                          key={d.id}
-                          className={`w-full p-3 flex items-center gap-2 text-left transition-colors ${
-                            d.read ? "bg-white hover:bg-[#fff6ec]" : "bg-[rgba(255,246,236,1)]"
-                          }`}
-                          onClick={() => {
-                            localStorage.setItem("highlight_donation", d.donation_id || d.id);
-                            window.dispatchEvent(new CustomEvent("switch_to_donation_tab"));
-                            setTimeout(
-                              () => window.dispatchEvent(new Event("highlight_donation")),
-                              100
-                            );
-                            markNotificationAsRead(d.id);
-                            setOpen(false);
-                          }}
+                      <div className="divide-y">
+                        {donations.map((d) => (
+                          <button
+                            key={d.id}
+                            className={`w-full p-3 flex items-center gap-2 text-left transition-colors ${
+                              d.read ? "bg-white hover:bg-[#fff6ec]" : "bg-[rgba(255,246,236,1)]"
+                            }`}
+                            onClick={() => {
+                              localStorage.setItem("highlight_donation", d.donation_id || d.id);
+                              window.dispatchEvent(new CustomEvent("switch_to_donation_tab"));
+                              setTimeout(
+                                () => window.dispatchEvent(new Event("highlight_donation")),
+                                100
+                              );
+                              markNotificationAsRead(d.id);
+                              setOpen(false);
+                            }}
                           >
-                          <UnreadCircle read={d.read} />
-      
-                          <img
-                            src={avatar(d.bakery_profile_picture)}
-                            alt={d.bakery_name}
-                            className="w-8 h-8 rounded-full object-cover border"
-                          />
-      
-                          <div className="min-w-0 flex-1">
-                            <p
-                              className={`text-[13px] leading-tight ${
-                                d.read ? "text-[#6b4b2b]" : "text-[#4f371f] font-semibold"
-                              }`}
-                            >
-                              <strong>{d.bakery_name}</strong>: {d.name} ({d.quantity})
-                            </p>
-                          </div>
-                          <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "#8b6b48" }} />
-                        </button>
-                      ))
+                            <UnreadCircle read={d.read} />
+                            <img
+                              src={avatar(d.bakery_profile_picture)}
+                              alt={d.bakery_name}
+                              className="w-8 h-8 rounded-full object-cover border"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className={`text-[13px] leading-tight ${
+                                  d.read ? "text-[#6b4b2b]" : "text-[#4f371f] font-semibold"
+                                }`}
+                              >
+                                <strong>{d.bakery_name}</strong>: {d.name} ({d.quantity})
+                              </p>
+                            </div>
+                            <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "#8b6b48" }} />
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
-                )}
+                </div>
+              )}
+
+
 
                 {/* Received Donations */}
                 {tab === "receivedDonations" && (

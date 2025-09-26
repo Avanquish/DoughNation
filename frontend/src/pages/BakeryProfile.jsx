@@ -22,6 +22,9 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
+import Messages from "./Messages";
+import BakeryNotification from "./BakeryNotification";
+import RecentDonations from "./RecentDonations";
 import {
   PieChart,
   Pie,
@@ -63,6 +66,7 @@ export default function BakeryProfile() {
   const [readMessageIds, setReadMessageIds] = useState(new Set());
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isChangePassOpen, setIsChangePassOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null)
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -476,79 +480,13 @@ export default function BakeryProfile() {
         </button>
 
         <div className="pt-1 iconbar">
-          <div className="msg-wrap">
-            <button
-              className="icon-btn"
-              aria-label="Open messages"
-              onClick={() => {
-                setIsMsgOpen((v) => !v);
-                setIsNotifOpen(false);
-              }}
-            >
-              <MessageSquareText className="h-[18px] w-[18px]" />
-            </button>
-            {isMsgOpen && (
-              <div className="msg-panel">
-                <div className="p-3 flex items-center justify-between border-b border-[rgba(0,0,0,.06)] bg-[#fff9f0]">
-                  <div className="font-semibold text-sm text-[var(--ink)]">
-                    Messages
-                  </div>
-                  <button
-                    className="rounded-md p-1 hover:bg-black/5"
-                    aria-label="Close messages"
-                    onClick={() => setIsMsgOpen(false)}
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-                <ul className="max-h-[360px] overflow-auto">
-                  {Array.from({ length: 4 }).map((_, idx) => (
-                    <li
-                      key={idx}
-                      className="p-3 flex items-start gap-3 cursor-default"
-                    >
-                      <div
-                        className="chip shrink-0 skeleton"
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 9999,
-                        }}
-                      />
-                      <div className="min-w-0 flex-1 space-y-2">
-                        <div className="h-3 rounded skeleton w-2/3" />
-                        <div className="h-3 rounded skeleton w-5/6" />
-                      </div>
-                      <ChevronRight className="h-4 w-4 ml-auto text-muted-foreground opacity-30" />
-                    </li>
-                  ))}
-                </ul>
-                <div className="p-2 text-right">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setIsMsgOpen(false)}
-                  >
-                    Close
-                  </Button>
-                </div>
-              </div>
-            )}
+          <div>
+            < Messages currentUser={currentUser}/>
           </div>
 
-          <button
-            className="icon-btn"
-            aria-label="Open notifications"
-            onClick={() => {
-              setIsNotifOpen(true);
-              setIsMsgOpen(false);
-            }}
-          >
-            <Bell className="h-[18px] w-[18px]" />
-            {totalUnread > 0 && (
-              <span className="badge">{totalUnread}</span>
-            )}
-          </button>
+          <div>
+            < BakeryNotification/>
+          </div>
 
           <Button
             onClick={handleLogout}
@@ -953,7 +891,7 @@ export default function BakeryProfile() {
                       <CardHeader className="pb-2">
                         <CardTitle>Donation History</CardTitle>
                         <CardDescription>
-                          Recent donations will appear here
+                         < RecentDonations />
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="min-h-[140px]" />

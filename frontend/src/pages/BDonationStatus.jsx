@@ -187,7 +187,7 @@ useEffect(() => {
   }, []);
 
   return (
-    <div className="p-6">
+    <div className="p-6 ">
       <h2 className="text-2xl font-bold mb-4">Donations from Request</h2>
 
       {/* Donations from Request Cards */}
@@ -197,7 +197,7 @@ useEffect(() => {
           <div
             key={d.id}
             id={`received-${d.donation_id || d.id}`}
-            className={`bg-white rounded-xl shadow-md overflow-hidden transition-all duration-300 ${
+            className={`bg-white rounded-xl shadow-md overflow-hidden transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:brightness-95 ${
               highlightedId === (d.donation_id || d.id)
                 ? "border-4 border-amber-500 bg-amber-100"
                 : ""
@@ -270,7 +270,7 @@ useEffect(() => {
             <div
               key={d.id}
               id={`received-${d.donation_id || d.id}`}
-              className={`bg-white rounded-xl shadow-md overflow-hidden transition-all duration-300 ${
+              className={`bg-white rounded-xl shadow-md overflow-hidden transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:brightness-95 ${
                 highlightedId === (d.donation_id || d.id)
                   ? "border-4 border-amber-500 bg-amber-100"
                   : ""
@@ -338,7 +338,7 @@ useEffect(() => {
         <div
             key={d.id}
             id={`pending-${d.donation_id || d.id}`}
-            className={`bg-white rounded-xl shadow-md overflow-hidden transition-all duration-300 ${
+            className={`bg-white rounded-xl shadow-md overflow-hidden transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:brightness-95 ${
             highlightedId === (d.donation_id || d.id)
                 ? "border-4 border-amber-500 bg-amber-100"
                 : ""

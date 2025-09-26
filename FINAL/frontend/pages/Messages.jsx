@@ -399,8 +399,9 @@ export default function Messages({ currentUser: currentUserProp }) {
 
   /* WebSocket */
   useEffect(() => {
-    console.log("currentUser:", currentUser);
-    console.log("currentUser.id:", currentUser?.id);
+     console.log("[WS-DEBUG] useEffect triggered");
+     console.log("[WS-DEBUG] currentUser:", currentUser);
+     console.log("[WS-DEBUG] currentUser.id:", currentUser?.id);
 
     if (!currentUser || (wsRef.current && wsRef.current.readyState === WebSocket.OPEN)) return;
     let reconnectTimerId;
@@ -716,7 +717,7 @@ export default function Messages({ currentUser: currentUserProp }) {
     if (wsRef.current?.readyState === WebSocket.OPEN && currentUser) {
       wsRef.current.send(JSON.stringify({
         type: "search",
-        target: currentUser.role === "charity" ? "bakeries" : "charities",
+        target: "users",
         query: q,
       }));
     }
@@ -968,7 +969,7 @@ export default function Messages({ currentUser: currentUserProp }) {
                 <input
                   value={search}
                   onChange={handleSearch}
-                  placeholder={`Search ${currentUser?.role === "charity" ? "bakeries" : "charities"}`}
+                  placeholder={`Search...`}
                 />
               </div>
 
@@ -993,7 +994,7 @@ export default function Messages({ currentUser: currentUserProp }) {
                       </div>
                     );
 
-                    let snippet = "—";
+                    let snippet = "No Conversation yet. Chat Now!";
                     if (last) {
                       try {
                         const p = JSON.parse(last.content);

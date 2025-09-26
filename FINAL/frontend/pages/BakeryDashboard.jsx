@@ -32,6 +32,7 @@ import BFeedback from "./BFeedback";
 import BakeryAnalytics from "./BakeryAnalytics";
 import AchievementBadges from "./AchievementBadges";
 import RecentDonations from "./RecentDonations";
+import DashboardSearch from "./DashboardSearch";
 
 const API = "http://localhost:8000";
 
@@ -440,6 +441,10 @@ useEffect(() => {
                   <span className="status-chip">{statusText}</span>
                 </div>
               </div>
+            </div>
+
+            <div>
+              <DashboardSearch/>
             </div>
 
             <div className="pt-1 iconbar">

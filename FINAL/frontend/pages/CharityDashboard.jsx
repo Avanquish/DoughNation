@@ -24,6 +24,7 @@ import CharityNotification from "./CharityNotification.jsx";
 import CDonationStatus from "./CDonationStatus.jsx";
 import CFeedback from "./CFeedback.jsx";
 import RecentDonations from "./RecentDonations.jsx";
+import DashboardSearch from "./DashboardSearch.jsx";
 
 const API = "http://localhost:8000";
 
@@ -232,6 +233,10 @@ const CharityDashboard = () => {
               </div>
             </div>
             <div className="iconbar">
+              <div className="mb-12">
+                <DashboardSearch />
+              </div>
+
               <div className="icon-btn">
                 <Messages currentUser={currentUser} compact />
               </div>

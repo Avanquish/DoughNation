@@ -6,6 +6,8 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 
+import Swal from "sweetalert2";
+
 // UI components
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -141,33 +143,43 @@ const Login = () => {
      - Redirects to the correct dashboard
   */
   const handleLogin = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await axios.post("http://localhost:8000/login", {
-        email,
-        password,
-        role,
+  e.preventDefault();
+  try {
+    const res = await axios.post("http://localhost:8000/login", {
+      email,
+      password,
+      role,
+    });
+
+    const token = res.data.access_token;
+    login(token);
+
+    // Decode JWT payload to verify the role matches the chosen tab
+    const { sub, role: actualRole } = JSON.parse(atob(token.split(".")[1]));
+    if (actualRole !== role) {
+      Swal.fire({
+        icon: "error",
+        title: "Unauthorized",
+        text: `You are not authorized to log in as ${role}.`,
+        confirmButtonColor: "#d33",
       });
-
-      const token = res.data.access_token;
-      login(token);
-
-      // Decode JWT payload to verify the role matches the chosen tab
-      const { sub, role: actualRole } = JSON.parse(atob(token.split(".")[1]));
-      if (actualRole !== role) {
-        alert(`You are not authorized to log in as ${role}.`);
-        return;
-      }
-
-      // Route by role
-      if (actualRole === "Bakery") navigate(`/bakery-dashboard/${sub}`);
-      else if (actualRole === "Charity") navigate(`/charity-dashboard/${sub}`);
-      else if (actualRole === "Admin") navigate(`/admin-dashboard/${sub}`);
-    } catch (error) {
-      console.error("Login error:", error);
-      alert("Login failed. Please check your credentials.");
+      return;
     }
-  };
+
+    // Route by role
+    if (actualRole === "Bakery") navigate(`/bakery-dashboard/${sub}`);
+    else if (actualRole === "Charity") navigate(`/charity-dashboard/${sub}`);
+    else if (actualRole === "Admin") navigate(`/admin-dashboard/${sub}`);
+  } catch (error) {
+    console.error("Login error:", error);
+    Swal.fire({
+      icon: "error",
+      title: "Login Failed",
+      text: "Please check your email, password, and role.",
+      confirmButtonColor: "#d33",
+    });
+  }
+};
 
   return (
     <div

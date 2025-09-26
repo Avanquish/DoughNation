@@ -23,6 +23,7 @@ export default function ComplaintModule() {
   const [formData, setFormData] = useState({ subject: "", description: "" });
   const [loading, setLoading] = useState(false);
   const [complaints, setComplaints] = useState([]);
+  const [open, setOpen] = useState(false); // control modal
 
   // Fetch user complaints
   const fetchComplaints = async () => {
@@ -55,6 +56,9 @@ export default function ComplaintModule() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
+      // ✅ Close modal first
+      setOpen(false);
+
       Swal.fire({
         icon: "success",
         title: "Complaint Submitted",
@@ -79,7 +83,7 @@ export default function ComplaintModule() {
   return (
     <div className="flex flex-col items-center py-10 space-y-6">
       {/* Submit Complaint Button & Dialog */}
-      <Dialog>
+      <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <Button className="bg-[var(--brand2)] hover:bg-[var(--brand3)] text-white">
             Submit Complaint
@@ -132,9 +136,7 @@ export default function ComplaintModule() {
       {/* Complaints List */}
       <Card className="w-full max-w-2xl shadow-lg rounded-2xl">
         <CardHeader>
-          <CardTitle className="text-xl font-semibold">
-            My Complaints
-          </CardTitle>
+          <CardTitle className="text-xl font-semibold">My Complaints</CardTitle>
         </CardHeader>
         <CardContent>
           {complaints.length === 0 ? (

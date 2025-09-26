@@ -13,6 +13,7 @@ import axios from "../api/axios";
 
 import AdminComplaint from "./AdminComplaint";
 import AdminBadge from "./AdminBadge";
+import AdminUser from "./AdminUser";
 
 const AdminDashboard = () => {
   const [name, setName] = useState("Admin");
@@ -56,7 +57,7 @@ const AdminDashboard = () => {
         setStats({
           totalBakeries: res.data.totalBakeries,
           totalCharities: res.data.totalCharities,
-          totalUsers: res.data.totalUsers,
+          totalUsers: res.data.totalUsers - 1,
           pendingUsersCount: res.data.pendingUsers,
         });
       } catch (e) {
@@ -385,7 +386,7 @@ const AdminDashboard = () => {
           <div className="seg">
             <TabsList className="bg-transparent p-0 border-0">
               <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-              <TabsTrigger value="users">Users</TabsTrigger>
+              <TabsTrigger value="users">Manage Users</TabsTrigger>
               <TabsTrigger value="reports">Report Generation</TabsTrigger>
               <TabsTrigger value="validation">Validate Donations</TabsTrigger>
               <TabsTrigger value="badges">Assign Badges</TabsTrigger>
@@ -519,6 +520,7 @@ const AdminDashboard = () => {
                   ) : (
                     <p className="text-sm text-muted-foreground">No pending users.</p>
                   )}
+                  <AdminUser />
                 </CardContent>
               </Card>
             </div>
@@ -562,6 +564,33 @@ const AdminDashboard = () => {
                   <CardTitle>Assign Badges</CardTitle>
                 </CardHeader>
                   <AdminBadge />
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Manage Feedback */}
+          <TabsContent value="feedback" className="reveal">
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardHeader>
+                  <CardTitle>Manage Feedback</CardTitle>
+                  <CardDescription>Review and respond to charity feedback</CardDescription>
+                </CardHeader>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Manage Complaints */}
+          <TabsContent value="complaints" className="reveal">
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardHeader>
+                  <CardTitle>Manage Complaints</CardTitle>
+                  <CardDescription>Review and respond to user complaints</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <AdminComplaint />
+                </CardContent>
               </Card>
             </div>
           </TabsContent>

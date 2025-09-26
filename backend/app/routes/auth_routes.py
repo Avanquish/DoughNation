@@ -91,20 +91,46 @@ def change_password(
     )
 
 # Forgot password with registration date verification
-@router.post("/forgot-password", response_model=dict)
-def forgot_password(payload: schemas.ResetPassword, db: Session = Depends(database.get_db)):
-    user = db.query(models.User).filter(models.User.email == payload.email).first()
+# Step 1: Check if email exists
+@router.post("/forgot-password/check-email")
+def check_email(data: dict, db: Session = Depends(database.get_db)):
+    email = data.get("email")
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Email not registered")
+    return {"valid": True}
+
+# Step 2: Verify registration date
+@router.post("/forgot-password/check-date")
+def check_date(data: dict, db: Session = Depends(database.get_db)):
+    email = data.get("email")
+    registration_date = data.get("registration_date")
+
+    user = db.query(models.User).filter(models.User.email == email).first()
     if not user:
         raise HTTPException(status_code=404, detail="Email not registered")
 
-    # Compare registration date directly (both are date objects)
-    if user.created_at != payload.registration_date:
+    # Compare only the date part to avoid datetime mismatch
+    if str(user.created_at.date()) != str(registration_date):
         raise HTTPException(status_code=400, detail="Registration date does not match")
 
-    if payload.new_password != payload.confirm_password:
+    return {"valid": True}
+
+# Step 3: Reset password
+@router.post("/forgot-password/reset")
+def reset_password(data: dict, db: Session = Depends(database.get_db)):
+    email = data.get("email")
+    new_password = data.get("new_password")
+    confirm_password = data.get("confirm_password")
+
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Email not registered")
+
+    if new_password != confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
 
-    hashed_pw = pwd_context.hash(payload.new_password)
+    hashed_pw = pwd_context.hash(new_password)
     user.hashed_password = hashed_pw
     db.commit()
     db.refresh(user)

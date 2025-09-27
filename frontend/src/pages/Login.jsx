@@ -6,6 +6,9 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 
+// Swal Alerts
+import Swal from "sweetalert2";
+
 // UI components
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -133,7 +136,12 @@ const Login = () => {
 
       const { sub, role: actualRole } = JSON.parse(atob(token.split(".")[1]));
       if (actualRole !== role) {
-        alert(`You are not authorized to log in as ${role}.`);
+        // ✅ SweetAlert2 for unauthorized role
+        Swal.fire({
+          icon: "error",
+          title: "Unauthorized",
+          text: `You are not authorized to log in as ${role}.`,
+        });
         return;
       }
 
@@ -142,7 +150,16 @@ const Login = () => {
       else if (actualRole === "Admin") navigate(`/admin-dashboard/${sub}`);
     } catch (error) {
       console.error("Login error:", error);
-      alert("Login failed. Please check your credentials.");
+      const detail =
+        error.response?.data?.detail ||
+        "Login failed. Please check your credentials.";
+
+      // ✅ SweetAlert2 for login failure
+      Swal.fire({
+        icon: "error",
+        title: "Login Failed",
+        text: detail,
+      });
     }
   };
 

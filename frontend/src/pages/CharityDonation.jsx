@@ -118,71 +118,77 @@ export default function CharityDonationFeed() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6">
-      {donations.map((donation) => {
-        const requestId = requestedDonations[donation.id];
-        const isRequested = !!requestId;
+      {donations.length === 0 ? (
+        <div className="col-span-full text-center text-gray-500 text-lg">
+          No Available Donation
+        </div>
+      ) : (
+        donations.map((donation) => {
+          const requestId = requestedDonations[donation.id];
+          const isRequested = !!requestId;
 
-        return (
-          <Card key={donation.id} className="shadow-lg rounded-2xl">
-            <CardContent className="p-4">
-              {donation.image ? (
-                <img
-                  src={`${API}/${donation.image}`}
-                  alt={donation.name}
-                  className="h-40 w-full object-cover rounded-lg"
-                  onError={(e) => {
-                    e.currentTarget.src = `${API}/static/placeholder.png`;
-                  }}
-                />
-              ) : (
-                <div className="h-40 flex items-center justify-center bg-gray-100 text-gray-400 rounded-lg">
-                  No Image
+          return (
+            <Card key={donation.id} className="shadow-lg rounded-2xl">
+              <CardContent className="p-4">
+                {donation.image ? (
+                  <img
+                    src={`${API}/${donation.image}`}
+                    alt={donation.name}
+                    className="h-40 w-full object-cover rounded-lg"
+                    onError={(e) => {
+                      e.currentTarget.src = `${API}/static/placeholder.png`;
+                    }}
+                  />
+                ) : (
+                  <div className="h-40 flex items-center justify-center bg-gray-100 text-gray-400 rounded-lg">
+                    No Image
+                  </div>
+                )}
+
+                <div className="flex items-center mt-2 space-x-2">
+                  {/* Bakery profile image */}
+                  <img
+                    src={
+                      donation.bakery_profile_picture
+                        ? `${API}/${donation.bakery_profile_picture}`
+                        : `${API}/uploads/placeholder.png`
+                    }
+                    alt={donation.bakery_name}
+                    className="h-10 w-10 rounded-full object-cover"
+                  />
                 </div>
-              )}
 
-              <div className="flex items-center mt-2 space-x-2">
-              {/* Bakery profile image */}
-               <img
-                  src={
-                  donation.bakery_profile_picture
-                  ? `${API}/${donation.bakery_profile_picture}`
-                  : `${API}/uploads/placeholder.png`
-                }
-                alt={donation.bakery_name}
-                className="h-10 w-10 rounded-full object-cover"
-                />
-              </div>
+                <h2 className="text-lg font-semibold mt-2">{donation.name}</h2>
+                <p className="text-sm text-gray-500">From {donation.bakery_name}</p>
+                <p className="text-sm">Quantity: {donation.quantity}</p>
+                {donation.expiration_date && (
+                  <p className="text-sm text-red-500">
+                    Expires: {donation.expiration_date}
+                  </p>
+                )}
 
-              <h2 className="text-lg font-semibold mt-2">{donation.name}</h2>
-              <p className="text-sm text-gray-500">From {donation.bakery_name}</p>
-              <p className="text-sm">Quantity: {donation.quantity}</p>
-              {donation.expiration_date && (
-                <p className="text-sm text-red-500">
-                  Expires: {donation.expiration_date}
-                </p>
-              )}
-
-              <Button
-                className="mt-2 w-full text-black"
-                disabled={isRequested}
-                onClick={() => requestDonation(donation)}
-              >
-                {isRequested ? "Request Sent" : "Request Donation"}
-              </Button>
-
-              {isRequested && (
                 <Button
-                  variant="destructive"
-                  className="mt-2 w-full"
-                  onClick={() => cancelRequest(donation.id)}
+                  className="mt-2 w-full text-black"
+                  disabled={isRequested}
+                  onClick={() => requestDonation(donation)}
                 >
-                  Cancel Request
+                  {isRequested ? "Request Sent" : "Request Donation"}
                 </Button>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
+
+                {isRequested && (
+                  <Button
+                    variant="destructive"
+                    className="mt-2 w-full"
+                    onClick={() => cancelRequest(donation.id)}
+                  >
+                    Cancel Request
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })
+      )}
     </div>
   );
 }

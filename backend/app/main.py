@@ -6,7 +6,7 @@ from app.routes import (auth_routes, admin_routes, binventory_routes,
                         bemployee_routes, bakerydashboardstats, admindashboardstats, 
                         bdonation_routes, bnotification, cnotification, messages, charitydonation_routes,
                         direct_donation, CFeedback, BFeedback, Compute_TOT_Donations, complaint_routes, BReportGene, 
-                        geofence, badges, RecentDonations, DashboardSearch
+                        geofence, badges, RecentDonations, DashboardSearch, leaderboards
                         )
 from app.database import engine, SessionLocal
 from app import models, crud, database
@@ -62,7 +62,7 @@ app.include_router(geofence.router)
 app.include_router(badges.router)
 app.include_router(RecentDonations.router)
 app.include_router(DashboardSearch.router)
-
+app.include_router(leaderboards.router)
 
 @app.on_event("startup")
 def seed_admin():

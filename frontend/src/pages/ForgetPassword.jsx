@@ -1,6 +1,8 @@
-import { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { useNavigate, Link } from "react-router-dom";
+import Swal from "sweetalert2";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +13,6 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import Swal from "sweetalert2";
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
@@ -21,7 +22,54 @@ const ForgotPassword = () => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Step 1: validate email
+  // ---------- Background Parallax ----------
+  const bgRef = useRef(null);
+  const rafRef = useRef(0);
+  const targetRef = useRef({ x: 0, y: 0 });
+  const currentRef = useRef({ x: 0, y: 0 });
+
+  const enableParallax =
+    typeof window !== "undefined" &&
+    window.matchMedia &&
+    !window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
+    !window.matchMedia("(pointer: coarse)").matches;
+
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const loop = () => {
+    const max = 22;
+    currentRef.current.x = lerp(
+      currentRef.current.x,
+      targetRef.current.x * max,
+      0.075
+    );
+    currentRef.current.y = lerp(
+      currentRef.current.y,
+      targetRef.current.y * max,
+      0.075
+    );
+    if (bgRef.current) {
+      bgRef.current.style.transform = `translate3d(${currentRef.current.x}px, ${currentRef.current.y}px, 0) scale(1.06)`;
+    }
+    rafRef.current = requestAnimationFrame(loop);
+  };
+
+  useEffect(() => {
+    if (!enableParallax) return;
+    rafRef.current = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enableParallax]);
+
+  const onMouseMove = (e) => {
+    if (!enableParallax) return;
+    const { innerWidth: w, innerHeight: h } = window;
+    const nx = (e.clientX / w - 0.5) * -1;
+    const ny = (e.clientY / h - 0.5) * -1;
+    targetRef.current = { x: nx, y: ny };
+  };
+  const onMouseLeave = () => (targetRef.current = { x: 0, y: 0 });
+
+  // ---------- Step Handlers ----------
   const handleValidateEmail = async (e) => {
     e.preventDefault();
     try {
@@ -47,7 +95,6 @@ const ForgotPassword = () => {
     }
   };
 
-  // Step 2: validate registration date
   const handleValidateDate = async (e) => {
     e.preventDefault();
     try {
@@ -74,9 +121,16 @@ const ForgotPassword = () => {
     }
   };
 
-  // Step 3: reset password
   const handleResetPassword = async (e) => {
     e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      return Swal.fire({
+        icon: "error",
+        title: "Passwords do not match",
+        text: "Please make sure both passwords are the same.",
+        confirmButtonColor: "#dc2626",
+      });
+    }
     try {
       const res = await axios.post("http://localhost:8000/forgot-password/reset", {
         email,
@@ -89,9 +143,7 @@ const ForgotPassword = () => {
         title: "Password Reset Successful",
         text: res.data.message || "You can now log in with your new password.",
         confirmButtonColor: "#16a34a",
-      }).then(() => {
-        navigate("/login");
-      });
+      }).then(() => navigate("/login"));
     } catch (err) {
       Swal.fire({
         icon: "error",
@@ -103,18 +155,41 @@ const ForgotPassword = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-surface to-primary/5 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <Card className="shadow-elegant">
-          <CardHeader className="text-center">
-            <CardTitle>Reset Password</CardTitle>
+    <div
+      className="relative min-h-screen overflow-hidden flex items-center justify-center p-6"
+      onMouseMove={onMouseMove}
+      onMouseLeave={onMouseLeave}
+    >
+      {/* Background */}
+      <div
+        ref={bgRef}
+        aria-hidden="true"
+        className="absolute inset-0 z-0 bg-center bg-cover bg-no-repeat will-change-transform pointer-events-none filter blur-[2px] brightness-95 saturate-98"
+        style={{
+          backgroundImage: "url('/images/bakeryregistration.jpg')",
+          transform: "scale(1.06)",
+        }}
+      />
+      <div className="absolute inset-0 z-10 bg-[#FFF8F0]/20" />
+      <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(120%_120%_at_50%_10%,rgba(0,0,0,0)_65%,rgba(0,0,0,0.10)_100%)]" />
+
+      {/* Main card */}
+      <div className="relative z-20 w-full max-w-[650px]">
+        <Card className="relative rounded-[22px] backdrop-blur-2xl bg-white/45 border-white/50 shadow-[0_16px_56px_rgba(0,0,0,0.16)]">
+          <div className="absolute inset-0 pointer-events-none rounded-[22px] bg-gradient-to-b from-[#FFF8F0]/45 via-transparent to-[#FFF8F0]/35" />
+
+          <CardHeader className="text-center relative pt-5 pb-3">
+            <CardTitle className="text-[28px] sm:text-[34px] bg-gradient-to-r from-[#f8b86a] via-[#dd9f53] to-[#ce893b] bg-clip-text text-transparent">
+              Reset Password
+            </CardTitle>
             <CardDescription>
               {step === 1 && "Enter your registered email."}
               {step === 2 && "Confirm your registration date."}
               {step === 3 && "Set a new password."}
             </CardDescription>
           </CardHeader>
-          <CardContent>
+
+          <CardContent className="relative pt-2 pb-6 px-6">
             {step === 1 && (
               <form onSubmit={handleValidateEmail} className="space-y-4">
                 <div className="space-y-2">
@@ -185,6 +260,11 @@ const ForgotPassword = () => {
             <div className="text-center text-sm mt-4">
               <Link to="/login" className="text-primary hover:underline">
                 Back to Login
+              </Link>
+            </div>
+            <div className="text-center text-sm mt-2">
+              <Link to="/" className="text-primary hover:underline">
+                Back to Home
               </Link>
             </div>
           </CardContent>

@@ -6,6 +6,10 @@ import { useNavigate, Link } from "react-router-dom";
 // Map & geocoding bits
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import L from "leaflet";
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
 // UI kit pieces
 import {
@@ -21,9 +25,23 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Heart, Store, MapPin } from "lucide-react";
 
+// --- Configure Leaflet to use bundled marker images (otherwise pins won't show in many setups)
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
+
 // Default map center (Manila as a friendly starting point)
 const defaultCenter = { lat: 14.5995, lng: 120.9842 };
 
+/**
+ * LocationSelector
+ * Small helper component that:
+ *  - Listens for clicks on the map
+ *  - Updates "location" state with lat/lng
+ *  - Reverse-geocodes the clicked point and writes the human address into the form
+ */
 const LocationSelector = ({ setLocation, setFormData }) => {
   useMapEvents({
     click: async (e) => {
@@ -47,16 +65,16 @@ const LocationSelector = ({ setLocation, setFormData }) => {
     },
   });
 
-  return null;
+  return null; // This component only attaches events; nothing visual to render
 };
 
 export default function Register() {
   const navigate = useNavigate();
 
- // Form fields
+  // ------------- Core form state -------------
   const [formData, setFormData] = useState({
     name: "",
-    role: "bakery", // "bakery" or "charity" (admin pre-defined in the backend)
+    role: "bakery", // "bakery" or "charity" (admin not self-registering)
     email: "",
     contact_person: "",
     contact_number: "",
@@ -65,11 +83,11 @@ export default function Register() {
     confirm_password: "",
   });
 
-  // File uploads
+  // File uploads (stored as File objects)
   const [profilePicture, setProfilePicture] = useState(null);
   const [proofOfValidity, setProofOfValidity] = useState(null);
 
-  // Map-selected location
+  // Map-selected location (lat/lng)
   const [location, setLocation] = useState(null);
 
   // Email availability feedback
@@ -81,7 +99,11 @@ export default function Register() {
     setFormData({ ...formData, [field]: value });
   };
 
-
+  /**
+   * checkEmailAvailability
+   * On blur, pings backend to tell the user early if the email is already taken.
+   * Very lightweight UX improvement—doesn't block typing.
+   */
   const checkEmailAvailability = async (email) => {
     if (!email || !email.includes("@")) return; // skip clearly invalid input
     setEmailChecking(true);
@@ -92,19 +114,24 @@ export default function Register() {
       setEmailAvailable(res.data.available);
     } catch (error) {
       console.error("Email check failed:", error);
+      // If the check fails, don't block the user—assume available and let submit handle errors.
       setEmailAvailable(true);
     } finally {
       setEmailChecking(false);
     }
   };
 
-  // Form submission
+  /**
+   * handleSubmit
+   * Validates the form, builds a multipart/form-data payload (to include files),
+   * posts to /register, and routes back home on success.
+   */
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     const { role, email, password, confirm_password } = formData;
 
-    // Simple email validation by role
+    // Simple "company email" demo validation by role; adjust/remove per real requirements
     const domain = email.split("@")[1];
     const allowedDomains = {
       bakery: "bakery.com",
@@ -136,6 +163,7 @@ export default function Register() {
       });
     }
 
+    // Build multipart body (supports files + text fields)
     const submitData = new FormData();
     Object.entries(formData).forEach(([key, value]) => {
       submitData.append(key, value);
@@ -167,10 +195,15 @@ export default function Register() {
     }
   };
 
+  /* ===========================
+     Parallax background (cosmetic)
+     - Mirrors the look/feel of Login
+     - Disabled for reduced-motion or touch
+     =========================== */
   const bgRef = useRef(null);
   const rafRef = useRef(0);
-  const targetRef = useRef({ x: 0, y: 0 });
-  const currentRef = useRef({ x: 0, y: 0 });
+  const targetRef = useRef({ x: 0, y: 0 }); // desired offset
+  const currentRef = useRef({ x: 0, y: 0 }); // current offset
 
   const enableParallax =
     typeof window !== "undefined" &&
@@ -178,10 +211,10 @@ export default function Register() {
     !window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
     !window.matchMedia("(pointer: coarse)").matches;
 
-  const lerp = (a, b, t) => a + (b - a) * t;
+  const lerp = (a, b, t) => a + (b - a) * t; // tiny smoothing helper
 
   const loop = () => {
-    const max = 22;
+    const max = 22; // max pixel shift at the screen edge
     currentRef.current.x = lerp(
       currentRef.current.x,
       targetRef.current.x * max,
@@ -198,12 +231,15 @@ export default function Register() {
     rafRef.current = requestAnimationFrame(loop);
   };
 
+  // Start/stop the animation loop depending on user settings
   useEffect(() => {
     if (!enableParallax) return;
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enableParallax]);
 
+  // Mouse → target mapping
   const onMouseMove = (e) => {
     if (!enableParallax) return;
     const { innerWidth: w, innerHeight: h } = window;
@@ -215,6 +251,10 @@ export default function Register() {
     targetRef.current = { x: 0, y: 0 };
   };
 
+  /* ======================================================
+     Segmented control (tabs) — same moving "pill" as Login
+     - We measure the active tab and move a highlight behind it
+     ====================================================== */
   const tabsListRef = useRef(null);
   const triggerRefs = useRef([]);
   const [indicator, setIndicator] = useState({ left: 0, width: 0 });
@@ -247,13 +287,16 @@ export default function Register() {
     return () => cancelAnimationFrame(id);
   }, [formData.role]);
 
+  // ==========================
+  // Render: page + registration
+  // ==========================
   return (
     <div
       className="relative min-h-screen overflow-hidden flex items-center justify-center p-6"
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
     >
-      {/* Background image */}
+      {/* Background image with soft overlays */}
       <div
         ref={bgRef}
         aria-hidden="true"
@@ -263,10 +306,14 @@ export default function Register() {
           transform: "scale(1.06)",
         }}
       />
+      {/* Veil & subtle vignette to keep content readable */}
       <div className="absolute inset-0 z-10 bg-[#FFF8F0]/20" />
       <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(120%_120%_at_50%_10%,rgba(0,0,0,0)_65%,rgba(0,0,0,0.10)_100%)]" />
 
+      {/* Tiny animation keyframes + MEDIA QUERIES (scoped to this page) */}
       <style>{`
+        :root{ --reg-mapH: 260px; }
+
         @keyframes fadeUp { 0% { opacity: 0; transform: translateY(12px);} 100% { opacity:1; transform:translateY(0);} }
         @keyframes brandPop { 0% { opacity:0; transform:translateY(8px) scale(.98); letter-spacing:.2px;}
                               60% { opacity:1; transform:translateY(-4px) scale(1.02); letter-spacing:.5px;}
@@ -275,19 +322,77 @@ export default function Register() {
                                 55% { opacity:1; transform:translateY(-6px) scale(1.04);}
                                100% { opacity:1; transform:translateY(0) scale(1);} }
         @keyframes subFade { 0% { opacity:0; transform:translateY(8px);} 100% { opacity:1; transform:translateY(0);} }
+
+        /* ========== Phones: up to 574px ========== */
+        @media screen and (min-width:300px) and (max-width:574px){
+          .reg-card{ border-radius: 20px !important; }
+          .reg-head .brand-head{ font-size: 22px !important; }
+          .reg-head .title-head{ font-size: 26px !important; }
+          .reg-head .sub-head{ font-size: 14px !important; }
+          .reg-tabs{ height: 44px !important; }
+          .reg-tabs button{ font-size: 13px !important; }
+          .reg-card input[type="text"],
+          .reg-card input[type="email"],
+          .reg-card input[type="password"]{ height: 44px !important; }
+          .reg-card .submit-btn{ height: 44px !important; }
+          :root{ --reg-mapH: 200px; }
+        }
+
+        /* ========== Small tablets: 575–767px ========== */
+        @media screen and (min-width:575px) and (max-width:767px){
+          .reg-tabs{ height: 48px !important; }
+          .reg-head .brand-head{ font-size: 24px !important; }
+          .reg-head .title-head{ font-size: 30px !important; }
+          .reg-card input[type="text"],
+          .reg-card input[type="email"],
+          .reg-card input[type="password"]{ height: 48px !important; }
+          .reg-card .submit-btn{ height: 48px !important; }
+          :root{ --reg-mapH: 220px; }
+        }
+
+        /* ========== Large tablets: 768–1023px ========== */
+        @media screen and (min-width:768px) and (max-width:959px){
+          .reg-tabs{ height: 50px !important; }
+          .reg-card input[type="text"],
+          .reg-card input[type="email"],
+          .reg-card input[type="password"]{ height: 50px !important; }
+          .reg-card .submit-btn{ height: 50px !important; }
+          :root{ --reg-mapH: 240px; }
+        }
+
+        /* ========== Small desktops: 1024–1279px ========== */
+        @media screen and (min-width:1368px) and (max-width:1920px){
+          .reg-head .brand-head{ font-size: 26px !important; }
+          .reg-head .title-head{ font-size: 34px !important; }
+          .reg-tabs{ height: 50px !important; }
+          .reg-card input[type="text"],
+          .reg-card input[type="email"],
+          .reg-card input[type="password"]{ height: 50px !important; }
+          .reg-card .submit-btn{ height: 50px !important; }
+          :root{ --reg-mapH: 260px; }
+        }
+
+        /* ========== Large desktops: 1280–1535px ========== */
+        @media screen and (min-width:1921px) and (max-width:4096px){
+          .reg-head .brand-head{ font-size: 28px !important; }
+          .reg-head .title-head{ font-size: 36px !important; }
+          .reg-tabs{ height: 50px !important; }
+          .reg-card .submit-btn{ height: 50px !important; }
+          :root{ --reg-mapH: 280px; }
+        }
       `}</style>
 
-      {/* Main card */}
+      {/* Main card: compact, centered */}
       <div className="relative z-20 w-full max-w-[650px]">
         <Card
-          className="relative rounded-[22px] backdrop-blur-2xl bg-white/45 border-white/50 shadow-[0_16px_56px_rgba(0,0,0,0.16)]"
+          className="reg-card relative rounded-[22px] backdrop-blur-2xl bg-white/45 border-white/50 shadow-[0_16px_56px_rgba(0,0,0,0.16)]"
           style={{ animation: "fadeUp 480ms ease-out both" }}
         >
-
+          {/* Soft gradient wash on top of the glassy card */}
           <div className="absolute inset-0 pointer-events-none rounded-[22px] bg-gradient-to-b from-[#FFF8F0]/45 via-transparent to-[#FFF8F0]/35" />
 
-          {/* Header */}
-          <CardHeader className="text-center relative pt-5 pb-3">
+          {/* Header (brand + title + subtitle) */}
+          <CardHeader className="reg-head text-center relative pt-5 pb-3">
             <div
               className="flex items-center justify-center gap-2 mb-1 will-change-transform"
               style={{
@@ -295,13 +400,13 @@ export default function Register() {
                 animationDelay: "40ms",
               }}
             >
-              <span className="text-[22px] sm:text-[24px] font-extrabold tracking-wide bg-gradient-to-r from-[#fed09b] via-[#e0a864] to-[#c38437] bg-clip-text text-transparent">
+              <span className="brand-head text-[22px] sm:text-[24px] font-extrabold tracking-wide bg-gradient-to-r from-[#fed09b] via-[#e0a864] to-[#c38437] bg-clip-text text-transparent">
                 DoughNation
               </span>
             </div>
 
             <CardTitle
-              className="mt-0 text-[28px] sm:text-[34px] bg-gradient-to-r from-[#f8b86a] via-[#dd9f53] to-[#ce893b] bg-clip-text text-transparent will-change-transform"
+              className="title-head mt-0 text-[28px] sm:text-[34px] bg-gradient-to-r from-[#f8b86a] via-[#dd9f53] to-[#ce893b] bg-clip-text text-transparent will-change-transform"
               style={{
                 animation:
                   "titleBounce 800ms cubic-bezier(0.34,1.56,0.64,1) both",
@@ -311,7 +416,7 @@ export default function Register() {
               Create Account
             </CardTitle>
             <CardDescription
-              className="text-[14px] sm:text-[16px] bg-gradient-to-r from-[#E3B57E] via-[#C39053] to-[#A66B2E] bg-clip-text text-transparent will-change-transform"
+              className="sub-head text-[14px] sm:text-[16px] bg-gradient-to-r from-[#E3B57E] via-[#C39053] to-[#A66B2E] bg-clip-text text-transparent will-change-transform"
               style={{
                 animation: "subFade 520ms ease-out both",
                 animationDelay: "320ms",
@@ -322,14 +427,14 @@ export default function Register() {
             </CardDescription>
           </CardHeader>
 
-          {/* Body */}
+          {/* Body: the actual registration form */}
           <CardContent className="relative pt-2 pb-6">
             <form
               onSubmit={handleSubmit}
               className="space-y-5"
               encType="multipart/form-data"
             >
-              {/* Role selector */}
+              {/* Role selector with a glossy moving highlight */}
               <Tabs
                 value={formData.role}
                 onValueChange={(val) => {
@@ -340,10 +445,11 @@ export default function Register() {
               >
                 <TabsList
                   ref={tabsListRef}
-                  className="relative grid w-full grid-cols-2
+                  className="reg-tabs relative grid w-full grid-cols-2
                              h-12 p-1 rounded-full overflow-hidden
                              bg-white/75 backdrop-blur border border-white/70"
                 >
+                  {/* The animated "pill" that slides under the active tab */}
                   <span
                     aria-hidden
                     className="absolute top-1 bottom-1 left-0 z-0 rounded-full
@@ -380,7 +486,7 @@ export default function Register() {
                   })}
                 </TabsList>
 
-                {/* Bakery-only */}
+                {/* Bakery-only top field (label text differs by role) */}
                 <TabsContent value="bakery" className="space-y-4 mt-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="name" className="text-[#8f642a]">
@@ -398,7 +504,7 @@ export default function Register() {
                   </div>
                 </TabsContent>
 
-                {/* Charity-only */}
+                {/* Charity-only top field */}
                 <TabsContent value="charity" className="space-y-4 mt-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="name" className="text-[#8f642a]">
@@ -417,7 +523,7 @@ export default function Register() {
                 </TabsContent>
               </Tabs>
 
-              {/* Email */}
+              {/* Email with immediate availability hint */}
               <div className="space-y-1.5">
                 <Label className="text-[#8f642a]">Email</Label>
                 <Input
@@ -466,10 +572,10 @@ export default function Register() {
                 </div>
               </div>
 
-              {/* Address */}
+              {/* Free-typed address line; map click will also fill this for convenience */}
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-2 text-[#8f642a]">
-                  <MapPin wclassName="h-4 w-4" /> Address
+                  <MapPin className="h-4 w-4" /> Address
                 </Label>
                 <Input
                   value={formData.address}
@@ -489,7 +595,7 @@ export default function Register() {
                       ? window.innerWidth > 768
                       : false
                   }
-                  style={{ height: 260, width: "100%" }}
+                  style={{ height: "var(--reg-mapH)", width: "100%" }}
                 >
                   <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                   <LocationSelector
@@ -559,7 +665,7 @@ export default function Register() {
               {/* Submit button */}
               <Button
                 type="submit"
-                className="h-11 md:h-12 w-full text-[15px] sm:text-[16px] text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E] hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl transition-transform duration-150 active:scale-[0.99]"
+                className="submit-btn h-11 md:h-12 w-full text-[15px] sm:text-[16px] text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E] hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl transition-transform duration-150 active:scale-[0.99]"
                 disabled={!emailAvailable}
               >
                 Create Account

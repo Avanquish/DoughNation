@@ -6,8 +6,6 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 
-import Swal from "sweetalert2";
-
 // UI components
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +20,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Heart, Store, Building2 } from "lucide-react";
 
-// Role tabs config — one place to change labels/icons/values
+// Role tabs config
 const ROLES = [
   { value: "Bakery", label: "Bakery", icon: Store },
   { value: "Charity", label: "Charity", icon: Heart },
@@ -33,35 +31,26 @@ const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  // Form state (controlled inputs)
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("Bakery");
 
-  /* =========================
-     Subtle parallax background
-     =========================
-     - Desktop-only (no motion-pref or coarse pointer)
-     - Follows the mouse just a little (calm, not dizzy)
-  */
+  // Parallax
   const bgRef = useRef(null);
   const rafRef = useRef(0);
-  const targetRef = useRef({ x: 0, y: 0 }); // where we want to go
-  const currentRef = useRef({ x: 0, y: 0 }); // where we are now
+  const targetRef = useRef({ x: 0, y: 0 });
+  const currentRef = useRef({ x: 0, y: 0 });
 
-  // Respect user settings & input type
   const enableParallax =
     typeof window !== "undefined" &&
     window.matchMedia &&
     !window.matchMedia("(prefers-reduced-motion: reduce)").matches &&
     !window.matchMedia("(pointer: coarse)").matches;
 
-  // Tiny smoothing helper (linear interpolation)
   const lerp = (a, b, t) => a + (b - a) * t;
 
-  // Animation loop — gently moves current toward target
   const loop = () => {
-    const max = 22; // how far (px) the background can shift at the edges
+    const max = 22;
     currentRef.current.x = lerp(
       currentRef.current.x,
       targetRef.current.x * max,
@@ -78,7 +67,6 @@ const Login = () => {
     rafRef.current = requestAnimationFrame(loop);
   };
 
-  // Start/stop the parallax loop if allowed
   useEffect(() => {
     if (!enableParallax) return;
     rafRef.current = requestAnimationFrame(loop);
@@ -86,7 +74,6 @@ const Login = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enableParallax]);
 
-  // Map mouse position → target (-0.5..0.5 range)
   const onMouseMove = (e) => {
     if (!enableParallax) return;
     const { innerWidth: w, innerHeight: h } = window;
@@ -97,16 +84,11 @@ const Login = () => {
   };
   const onMouseLeave = () => (targetRef.current = { x: 0, y: 0 });
 
-  /* ======================
-     Fancy segmented control
-     ======================
-     - Indicator bar matches the active tab's position & width
-  */
+  // Tabs indicator
   const tabsListRef = useRef(null);
   const triggerRefs = useRef([]);
   const [indicator, setIndicator] = useState({ left: 0, width: 0 });
 
-  // Re-calc indicator when layout or selection changes
   const measureIndicator = () => {
     const list = tabsListRef.current;
     const i = ROLES.findIndex((r) => r.value === role);
@@ -136,50 +118,33 @@ const Login = () => {
     return () => cancelAnimationFrame(raf);
   }, [role]);
 
-  /* =============
-     Submit handler
-     =============
-     - Calls API, saves token, checks the role inside the token
-     - Redirects to the correct dashboard
-  */
+  // Submit
   const handleLogin = async (e) => {
-  e.preventDefault();
-  try {
-    const res = await axios.post("http://localhost:8000/login", {
-      email,
-      password,
-      role,
-    });
-
-    const token = res.data.access_token;
-    login(token);
-
-    // Decode JWT payload to verify the role matches the chosen tab
-    const { sub, role: actualRole } = JSON.parse(atob(token.split(".")[1]));
-    if (actualRole !== role) {
-      Swal.fire({
-        icon: "error",
-        title: "Unauthorized",
-        text: `You are not authorized to log in as ${role}.`,
-        confirmButtonColor: "#d33",
+    e.preventDefault();
+    try {
+      const res = await axios.post("http://localhost:8000/login", {
+        email,
+        password,
+        role,
       });
-      return;
-    }
 
-    // Route by role
-    if (actualRole === "Bakery") navigate(`/bakery-dashboard/${sub}`);
-    else if (actualRole === "Charity") navigate(`/charity-dashboard/${sub}`);
-    else if (actualRole === "Admin") navigate(`/admin-dashboard/${sub}`);
-  } catch (error) {
-    console.error("Login error:", error);
-    Swal.fire({
-      icon: "error",
-      title: "Login Failed",
-      text: "Please check your email, password, and role.",
-      confirmButtonColor: "#d33",
-    });
-  }
-};
+      const token = res.data.access_token;
+      login(token);
+
+      const { sub, role: actualRole } = JSON.parse(atob(token.split(".")[1]));
+      if (actualRole !== role) {
+        alert(`You are not authorized to log in as ${role}.`);
+        return;
+      }
+
+      if (actualRole === "Bakery") navigate(`/bakery-dashboard/${sub}`);
+      else if (actualRole === "Charity") navigate(`/charity-dashboard/${sub}`);
+      else if (actualRole === "Admin") navigate(`/admin-dashboard/${sub}`);
+    } catch (error) {
+      console.error("Login error:", error);
+      alert("Login failed. Please check your credentials.");
+    }
+  };
 
   return (
     <div
@@ -187,11 +152,7 @@ const Login = () => {
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
     >
-      {/* ===========================
-          Background & soft overlays
-          - Blurred cover photo
-          - Warm tints for readability
-         =========================== */}
+      {/* Background */}
       <div
         ref={bgRef}
         aria-hidden="true"
@@ -204,36 +165,30 @@ const Login = () => {
       <div className="absolute inset-0 z-10 bg-[#FFF8F0]/20" />
       <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(120%_120%_at_50%_10%,rgba(0,0,0,0)_65%,rgba(0,0,0,0.10)_100%)]" />
 
-      {/* ======================
-          Local animation styles
-          ====================== */}
+      {/* Local styles + MEDIA QUERIES */}
       <style>{`
-        /* Card pop-in */
         @keyframes cardIn {
-          0%   { opacity: 0; transform: translateY(18px) scale(.96); }
-          60%  { opacity: 1; transform: translateY(-6px) scale(1.01); }
-          100% { opacity: 1; transform: translateY(0)    scale(1); }
+          0% { opacity: 0; transform: translateY(18px) scale(.96); }
+          60%{ opacity: 1; transform: translateY(-6px) scale(1.01); }
+          100%{ opacity: 1; transform: translateY(0) scale(1); }
         }
-        /* Header/lil logo pop */
         @keyframes headPop {
-          0%   { opacity:0; transform: translateY(12px) scale(.98); letter-spacing:.2px; }
-          55%  { opacity:1; transform: translateY(-6px) scale(1.02); letter-spacing:.4px; }
-          100% { opacity:1; transform: translateY(0)    scale(1); letter-spacing:0; }
+          0% { opacity:0; transform: translateY(12px) scale(.98); letter-spacing:.2px; }
+          55%{ opacity:1; transform: translateY(-6px) scale(1.02); letter-spacing:.4px; }
+          100%{ opacity:1; transform: translateY(0) scale(1); letter-spacing:0; }
         }
-        /* Welcome text bounce */
         @keyframes headBounce {
-          0%   { opacity:0; transform: translateY(16px) scale(.96); }
-          55%  { opacity:1; transform: translateY(-4px) scale(1.03); }
-          100% { opacity:1; transform: translateY(0)    scale(1); }
+          0% { opacity:0; transform: translateY(16px) scale(.96); }
+          55%{ opacity:1; transform: translateY(-4px) scale(1.03); }
+          100%{ opacity:1; transform: translateY(0) scale(1); }
         }
 
-        /* Left-side hero panel: soft gradient and divider */
         .left-hero-surface{
           background: linear-gradient(180deg,#fff9f2 0%,#fff4e8 40%,#ffe7cd 100%);
           border-right: 1px solid rgba(255,255,255,0.65);
+          z-index: 0;
         }
-
-        /* Bottom-right illustration sizing & polish */
+        .left-content { position: relative; z-index: 2; }
         .give-illu{
           position:absolute;
           right: clamp(18px, 3vw, 40px);
@@ -243,82 +198,74 @@ const Login = () => {
           object-fit: contain;
           filter: drop-shadow(0 10px 24px rgba(0,0,0,.12));
           pointer-events: none;
+          z-index: 1;
+        }
+
+        /* ========== Phones ========== */
+        @media screen and (min-width:300px) and (max-width:574px){
+          .left-hero-surface{ border-right: none; }
+          .brand-head{ font-size: 32px !important; line-height: 1.08 !important; }
+          .left-copy-padding{ padding-bottom: clamp(120px, 30vw, 200px) !important; }
+          .give-illu{ right: max(10px, 3vw); bottom: max(10px, 3vh); width: clamp(88px, 36vw, 140px); }
+          .login-card{ max-width: 520px; border-radius: 22px; }
+          .login-card .shrink-pad{ padding-left: 14px; padding-right: 14px; }
+          .login-tabs{ height: 44px !important; }
+          .login-tabs button{ font-size: 13px !important; }
+          .login-card input[type="email"],
+          .login-card input[type="password"]{ height: 44px !important; }
+          .login-card .login-btn{ height: 44px !important; }
+        }
+
+        /* ========== Small tablets ========== */
+        @media screen and (min-width:575px) and (max-width:767px){
+          .brand-head{ font-size: 44px !important; }
+          .login-card{ max-width: 580px; border-radius: 24px; }
+          .login-tabs{ height: 48px !important; }
+          .login-tabs button{ font-size: 14px !important; }
+          .login-card input[type="email"],
+          .login-card input[type="password"]{ height: 48px !important; }
+          .login-card .login-btn{ height: 48px !important; }
+          .give-illu{ width: clamp(130px, 32vw, 180px); }
+        }
+
+        /* ========== Large tablets ========== */
+        @media screen and (min-width:768px) and (max-width:959px){
+          .brand-head{ font-size: 52px !important; }
+          .login-card{ max-width: 640px; }
+          .login-tabs{ height: 50px !important; }
+          .login-card input[type="email"],
+          .login-card input[type="password"]{ height: 50px !important; }
+          .login-card .login-btn{ height: 50px !important; }
+          .give-illu{ width: clamp(150px, 28vw, 210px); }
+        }
+
+        /* ========== Small desktops ========== */
+        @media screen and (min-width:1368px) and (max-width:1920px){
+          .brand-head{ font-size: 58px !important; }
+          .login-card{ max-width: 660px; }
+          .give-illu{ width: clamp(170px, 24vw, 240px); }
+        }
+
+        /* ========== Large desktops========== */
+        @media screen and (min-width:1921px) and (max-width:4096px){
+          .brand-head{ font-size: 60px !important; }
+          .login-card{ max-width: 680px; }
+          .give-illu{ width: clamp(190px, 22vw, 260px); }
         }
       `}</style>
 
-      {/* ===========================
-          Two-column layout (md+)
-          Left: info/illustration
-          Right: login card
-         =========================== */}
+      {/* Layout */}
       <div className="relative z-20 flex flex-col md:flex-row min-h-screen">
-        {/* -------------------------
-            LEFT 45% — informational
-            ------------------------- */}
-        <section className="relative md:basis-[45%] min-h-[52vh] md:min-h-screen flex">
-          <div className="left-hero-surface absolute inset-0" />
-          <div className="relative z-10 w-full h-full flex items-center">
-            <div className="w-full px-6 md:px-8 lg:px-12 py-10">
-              {/* Keep the text brand here (only the card on the right uses the image logo) */}
-              <h1 className="text-[38px] sm:text-[52px] lg:text-[60px] leading-[1.04] font-extrabold bg-gradient-to-r from-[#FFC062] via-[#E88A1A] to-[#B86A1E] bg-clip-text text-transparent">
-                DOUGHNATION
-              </h1>
-
-              <p className="mt-5 text-[16px] sm:text-[17px] text-[#8f642a] max-w-[52ch]">
-                Sign in to manage inventory and move surplus bread to nearby
-                charities.{" "}
-              </p>
-
-              {/* Three quick bullets describing each role */}
-              <ul className="mt-6 space-y-4 text-[#8f642a]">
-                <li className="flex items-start gap-3">
-                  <Store className="h-5 w-5 mt-0.5 text-[#ce893b]" />
-                  <span>
-                    Bakery — Track inventory, and schedule donation pickups.
-                  </span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Heart className="h-5 w-5 mt-0.5 text-[#ce893b]" />
-                  <span>
-                    Charity — See nearby bread offers, claim what you can use,
-                    coordinate fast.
-                  </span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Building2 className="h-5 w-5 mt-0.5 text-[#ce893b]" />
-                  <span>
-                    Admin — Manage roles, partners, analytics, and full donation
-                    logs.
-                  </span>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          {/* Decorative illustration pinned bottom-right */}
-          <img
-            src="/images/GivingDonation.png"
-            alt="Giving donation"
-            className="give-illu"
-          />
-        </section>
-
-        {/* -------------------------
-            RIGHT 55% — the login card
-            ------------------------- */}
-        <section className="md:basis-[55%] flex items-center justify-center px-6 py-10">
+        {/* RIGHT (Login card) — first on mobile */}
+        <section className="order-1 md:order-2 md:basis-[55%] flex items-center justify-center px-6 pt-6 md:pt-0 py-10">
           <Card
-            className="relative w-full max-w-[640px] rounded-[26px] backdrop-blur-2xl bg-white/50 border-white/60 shadow-[0_16px_56px_rgba(0,0,0,0.16)]"
+            className="login-card relative w-full max-w-[640px] rounded-[26px] backdrop-blur-2xl bg-white/50 border-white/60 shadow-[0_16px_56px_rgba(0,0,0,0.16)]"
             style={{ animation: "cardIn 720ms cubic-bezier(.2,.7,.2,1) both" }}
           >
-            {/* Soft glassy wash on the card for depth */}
             <div className="absolute inset-0 pointer-events-none rounded-[26px] bg-gradient-to-b from-[#FFF8F0]/50 via-transparent to-[#FFF0E0]/45" />
 
-            <CardHeader className="text-center relative pt-6 pb-2">
-              {/* Slightly taller glow to comfortably fit the larger logo */}
+            <CardHeader className="text-center relative pt-6 pb-2 shrink-pad">
               <div className="absolute inset-x-6 -top-2 h-28 rounded-2xl bg-white/55 blur-xl -z-0" />
-
-              {/* Brand mark — larger, crisp, and accessible via alt text */}
               <div className="relative z-10 flex justify-center pt-1">
                 <img
                   src="/images/DoughNationLogo.png"
@@ -332,9 +279,8 @@ const Login = () => {
                 />
               </div>
 
-              {/* Friendly heading & subheading */}
               <CardTitle
-                className="relative z-10 mt-2 text-[30px] sm:text-[40px]
+                className="relative z-10 mt-2 text-[30px] sm:text[36px] md:text-[40px]
                            bg-gradient-to-r from-[#FFC66E] via-[#E88A1A] to-[#B86A1E]
                            bg-clip-text text-transparent"
                 style={{
@@ -358,29 +304,23 @@ const Login = () => {
               </CardDescription>
             </CardHeader>
 
-            <CardContent className="relative pt-2 pb-6">
-              {/* The actual login form */}
+            <CardContent className="relative pt-2 pb-6 shrink-pad">
               <form onSubmit={handleLogin} className="space-y-4">
-                {/* Role tabs — choose how you're signing in */}
                 <Tabs value={role} onValueChange={setRole} className="w-full">
                   <TabsList
                     ref={tabsListRef}
-                    className="relative grid w-full grid-cols-3 h-12 p-1 rounded-full overflow-hidden bg-white/75 backdrop-blur border border-white/70"
+                    className="login-tabs relative grid w-full grid-cols-3 h-12 p-1 rounded-full overflow-hidden bg-white/75 backdrop-blur border border-white/70"
                   >
-                    {/* Animated highlight under the active tab */}
                     <span
                       aria-hidden
                       className="absolute top-1 bottom-1 left-0 z-0 rounded-full
-                                 bg-[linear-gradient(180deg,#FFE3B8_0%,#F6BE83_100%)]
-                                 transition-[transform,width] duration-300 ease-[cubic-bezier(.2,.7,.2,1)]
-                                 pointer-events-none"
+                                 bg-[linear-gradient(180deg,#FFE3B8_0%,#F6BE83_100%)] transition-[transform,width] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] pointer-events-none"
                       style={{
                         transform: `translateX(${indicator.left}px)`,
                         width: indicator.width,
                         willChange: "transform,width",
                       }}
                     />
-                    {/* Render the three role buttons */}
                     {ROLES.map((r, i) => {
                       const Icon = r.icon;
                       return (
@@ -400,7 +340,7 @@ const Login = () => {
                   </TabsList>
                 </Tabs>
 
-                {/* Email field (controlled) */}
+                {/* Email */}
                 <div className="space-y-1.5">
                   <Label htmlFor="email" className="text-[#8f642a] font-medium">
                     Email
@@ -416,7 +356,7 @@ const Login = () => {
                   />
                 </div>
 
-                {/* Password field (controlled) */}
+                {/* Password */}
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="password"
@@ -452,7 +392,7 @@ const Login = () => {
                 {/* Submit */}
                 <Button
                   type="submit"
-                  className="h-11 md:h-12 w-full text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E]
+                  className="login-btn h-11 md:h-12 w-full text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E]
                              hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl"
                 >
                   Sign In as {role}
@@ -481,6 +421,53 @@ const Login = () => {
               </form>
             </CardContent>
           </Card>
+        </section>
+
+        {/* LEFT (DoughNation info) — second on mobile */}
+        <section className="order-2 md:order-1 left-hero relative md:basis-[45%] min-h-[52vh] md:min-h-screen flex mt-4 md:mt-0">
+          <div className="left-hero-surface absolute inset-0" />
+          <div className="relative w-full h-full flex items-center">
+            <div className="left-content w-full px-6 md:px-8 lg:px-12 py-10 left-copy-padding">
+              <h1 className="brand-head text-[38px] sm:text-[52px] lg:text-[60px] leading-[1.04] font-extrabold bg-gradient-to-r from-[#FFC062] via-[#E88A1A] to-[#B86A1E] bg-clip-text text-transparent">
+                DOUGHNATION
+              </h1>
+
+              <p className="mt-5 text-[16px] sm:text-[17px] text-[#8f642a] max-w-[52ch]">
+                Sign in to manage inventory and move surplus bread to nearby
+                charities.
+              </p>
+
+              <ul className="mt-6 space-y-4 text-[#8f642a]">
+                <li className="flex items-start gap-3">
+                  <Store className="h-5 w-5 mt-0.5 text-[#ce893b]" />
+                  <span>
+                    Bakery — Track inventory, and schedule donation pickups.
+                  </span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Heart className="h-5 w-5 mt-0.5 text-[#ce893b]" />
+                  <span>
+                    Charity — See nearby bread offers, claim what you can use,
+                    coordinate fast.
+                  </span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Building2 className="h-5 w-5 mt-0.5 text-[#ce893b]" />
+                  <span>
+                    Admin — Manage roles, partners, analytics, and full donation
+                    logs.
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Illustration (under text) */}
+          <img
+            src="/images/GivingDonation.png"
+            alt="Giving donation"
+            className="give-illu"
+          />
         </section>
       </div>
     </div>

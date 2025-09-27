@@ -91,6 +91,40 @@ const PrivacyTerms = () => {
 
   /* Title gradient */
   .title-grad{background:linear-gradient(90deg,#f1b66f,#c97c2c); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; color:transparent}
+
+  /* ======= MEDIA QUERIES ======= */
+
+  /* Phones */
+  @media screen and (min-width:300px) and (max-width:574px){
+    .hdr-pad{ padding-top:.5rem; padding-bottom:.5rem; }
+    .title-grad{ font-size: 26px !important; }
+    .glass{ border-radius: 18px !important; }
+    .pg-pad{ padding-top: 1.25rem !important; padding-bottom: 1.25rem !important; }
+    .card-pad{ padding: 1rem !important; }
+  }
+
+  /* Small tablets */
+  @media screen and (min-width:575px) and (max-width:767px){
+    .title-grad{ font-size: 30px !important; }
+    .card-pad{ padding: 1.25rem !important; }
+  }
+
+  /* Large tablets */
+  @media screen and (min-width:768px) and (max-width:959px){
+    .title-grad{ font-size: 34px !important; }
+  }
+
+  /* Small desktops */
+  @media screen and (min-width:1368px) and (max-width:1920px){
+    .title-grad{ font-size: 36px !important; }
+    .card-pad{ padding: 1.35rem !important; }
+  }
+
+  /* Large desktops */
+  @media screen and (min-width:1921px) and (max-width:4096px){
+    .title-grad{ font-size: 40px !important; }
+    .card-pad{ padding: 1.5rem !important; }
+  }
 `}</style>
 
       {/* Background layers to match the home vibe */}
@@ -102,7 +136,7 @@ const PrivacyTerms = () => {
       {/* Header: brand on left, only Back to Home on right */}
       <header className="fixed top-0 left-0 right-0 z-[80]">
         <div className="glass-soft header-skin sticky-boost header-gradient-line">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between hdr-pad">
             <div className="flex items-center gap-3 select-none">
               <img
                 src="/images/DoughNationLogo.png"
@@ -126,7 +160,7 @@ const PrivacyTerms = () => {
       <div aria-hidden="true" className="h-[64px] md:h-[68px]" />
 
       {/* Page body */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10 pg-pad">
         <header className="text-center">
           <h1 className="text-3xl sm:text-4xl font-extrabold title-grad">
             Privacy &amp; Terms
@@ -137,7 +171,7 @@ const PrivacyTerms = () => {
         </header>
 
         {/* Privacy */}
-        <section className="mt-8 glass rounded-2xl p-6">
+        <section className="mt-8 glass rounded-2xl p-6 card-pad">
           <h2 className="text-xl font-semibold text-[var(--coffee)]">
             Privacy Policy
           </h2>
@@ -170,8 +204,8 @@ const PrivacyTerms = () => {
               <span className="font-medium text-[var(--coffee)]">
                 Your choices:
               </span>{" "}
-              request access, correction, or deletion of your data at{" "}
-              <span className="font-mono">doughnationsupport@gmail.com</span>.
+              request access, correction, or deletion of your data,{" "}
+              <span className="font-mono">submit complaints to our Admin</span>.
             </li>
             <li>
               <span className="font-medium text-[var(--coffee)]">
@@ -185,7 +219,7 @@ const PrivacyTerms = () => {
         </section>
 
         {/* Terms */}
-        <section className="mt-6 glass rounded-2xl p-6">
+        <section className="mt-6 glass rounded-2xl p-6 card-pad">
           <h2 className="text-xl font-semibold text-[var(--coffee)]">
             Terms of Service
           </h2>

@@ -31,7 +31,7 @@ const API = "http://localhost:8000";
 const CharityDashboard = () => {
   const [name, setName] = useState("");
   const [isVerified, setIsVerified] = useState(false);
-  const [activeTab, setActiveTab] = useState("donation");
+  const [activeTab, setActiveTab] = useState("dashboard");
   const [currentUser, setCurrentUser] = useState(null);
   const [totals, setTotals] = useState({ grand_total: 0, normal_total: 0, direct_total: 0 });
   const navigate = useNavigate();
@@ -279,8 +279,8 @@ const CharityDashboard = () => {
         <div className="tabwrap">
           <div className="tabbar">
             <TabsList className="bg-transparent p-0 border-0">
-              <TabsTrigger value="donation">Available Donation</TabsTrigger>
               <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+              <TabsTrigger value="donation">Available Donation</TabsTrigger>
               <TabsTrigger value="donationStatus">Donation Status</TabsTrigger>
               <TabsTrigger value="received">Donation Received</TabsTrigger>
               <TabsTrigger value="feedback">Feedback</TabsTrigger>
@@ -292,7 +292,7 @@ const CharityDashboard = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7">
           {/* Dashboard */}
           <TabsContent value="dashboard" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6">
               <div className="gwrap">
                 <Card className="glass-card shadow-none">
                   <CardContent className="p-6">
@@ -305,42 +305,6 @@ const CharityDashboard = () => {
                       </div>
                       <div className="chip">
                         <PackageCheck className="h-5 w-5" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="gwrap">
-                <Card className="glass-card shadow-none">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">
-                          Partnered Bakeries
-                        </p>
-                        <div className="metric">0</div>
-                      </div>
-                      <div className="chip">
-                        <Users className="h-5 w-5" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="gwrap">
-                <Card className="glass-card shadow-none">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">
-                          Badges Earned
-                        </p>
-                        <div className="metric">0</div>
-                      </div>
-                      <div className="chip">
-                        <Smile className="h-5 w-5" />
                       </div>
                     </div>
                   </CardContent>

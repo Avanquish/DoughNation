@@ -1,12 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
-import PrivacyTerms from "./PrivacyTerms.jsx";
-
 const Home = () => {
-  // UI state toggles
   const [showTop, setShowTop] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => {
@@ -25,9 +23,9 @@ const Home = () => {
   useEffect(() => {
     const calc = () => {
       const doc = document.documentElement;
-      const scrolled = doc.scrollTop || document.body.scrollTop;
+      const scrolledAmt = doc.scrollTop || document.body.scrollTop;
       const max = Math.max(1, doc.scrollHeight - doc.clientHeight);
-      setProgress(scrolled / max);
+      setProgress(scrolledAmt / max);
     };
     calc();
     window.addEventListener("scroll", calc, { passive: true });
@@ -142,8 +140,6 @@ const Home = () => {
   const tagline = [
     "Helping Bakeries manage their inventory and donate surplus food to Charities in need.",
   ];
-  const titleWords = ["WELCOME", " ", "TO", " ", "DOUGHNATION"];
-
   const gallery = [
     { src: "/images/bakeryS1.jpg", alt: "Donated breads being packed" },
     { src: "/images/bakeryS2.jpg", alt: "Fresh loaves ready for pickup" },
@@ -168,6 +164,8 @@ const Home = () => {
     --hdrSoft:#FFEBD5; --hdrMed:#FFE1BE; --hdrDeep:#E3B57E;
   }
   html,body,#root{width:100%; overflow-x:hidden}
+  img,video{max-width:100%; height:auto}
+
   .page-surface::before{
     content:""; position:fixed; inset:0; z-index:-15; pointer-events:none;
     background:
@@ -189,13 +187,53 @@ const Home = () => {
   }
   @keyframes gradientShift{from{transform:translate3d(0,0,0)}to{transform:translate3d(0,-20px,0)}}
   @keyframes bgPan{from{transform:translate3d(0,0,0)}to{transform:translate3d(-6%,-6%,0)}}
+
   .orb{position:fixed; border-radius:50%; filter:blur(36px); mix-blend-mode:multiply; opacity:.28; z-index:-10; animation:orbFloat 18s ease-in-out infinite;}
   .orb.one{width:360px;height:360px;background:radial-gradient(circle at 30% 30%,#ffd9aa,transparent 60%);left:-8%;top:18%}
   .orb.two{width:420px;height:420px;background:radial-gradient(circle at 70% 40%,#ffc985,transparent 55%);right:-10%;top:8%;animation-delay:2s}
   .orb.three{width:320px;height:320px;background:radial-gradient(circle at 50% 60%,#ffdfb8,transparent 58%);left:6%;bottom:12%;animation-delay:4s}
   @keyframes orbFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-28px)}}
+
   .glass{backdrop-filter: blur(12px); background: linear-gradient(180deg, rgba(255,255,255,.72), rgba(255,255,255,.52)); border:1px solid rgba(255,255,255,.7)}
   .glass-soft{backdrop-filter: blur(10px); background: linear-gradient(180deg, rgba(255,255,255,.66), rgba(255,255,255,.46)); border:1px solid rgba(255,255,255,.65)}
+
+  /* === Mobile menu panel === */
+  .mobile-menu-panel{
+    backdrop-filter: blur(8px);
+    background:
+      linear-gradient(180deg,
+        rgba(255,233,203,0.95) 0%,
+        rgba(252,220,186,0.95) 55%,
+        rgba(243,197,143,0.95) 100%);
+    box-shadow:
+      0 16px 34px rgba(201,124,44,.18),
+      inset 0 1px 0 rgba(255,255,255,.55),
+      inset 0 -10px 24px rgba(201,124,44,.08);
+    border: 1px solid rgba(201,124,44,.18);
+  }
+  .mobile-menu-item{
+    color:#5b4631;
+    border-radius:.75rem;
+    transition: background .18s ease, box-shadow .18s ease;
+  }
+  .mobile-menu-item:hover{
+    background: rgba(255,255,255,.42);
+    box-shadow: inset 0 0 0 1px rgba(201,124,44,.12);
+  }
+  .mobile-menu-item:active{
+    background: rgba(255,255,255,.55);
+  }
+  .mobile-menu-item:focus-visible{
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(201,124,44,.28);
+  }
+
+  .mobile-scrim{
+    position:fixed; inset:0; z-index:70;
+    background: rgba(0,0,0,.06);
+    backdrop-filter: blur(1px);
+  }
+
   .header-skin{position:relative}
   .header-skin.glass-soft{background:none !important; border-color: rgba(201,124,44,.18)}
   .header-skin::before{
@@ -215,14 +253,15 @@ const Home = () => {
     opacity:.33; mix-blend-mode:multiply;
     mask-image: linear-gradient(to bottom, #000 80%, transparent 100%);
   }
-  @keyframes dotsDrift{from{background-position:0 0}to{background-position:240px 0}}
   .sticky-boost{transition: box-shadow .25s ease, backdrop-filter .25s ease; border-bottom:1px solid rgba(201,124,44,.14)}
   .sticky-boost.is-scrolled{box-shadow: 0 10px 28px rgba(201,124,44,.18)}
+
   .nav-link{position:relative}
   .nav-link:after{content:""; position:absolute; left:0; right:0; bottom:-6px; height:2px; background:linear-gradient(90deg,var(--amber4),var(--amber6)); transform:scaleX(0); transform-origin:0 50%; transition:transform .35s}
   .nav-link:hover:after{transform:scaleX(1)}
   .header-gradient-line{position:relative}
   .header-gradient-line:after{content:""; position:absolute; left:0; right:0; bottom:-1px; height:2px; background:linear-gradient(90deg,transparent, var(--amber5), var(--amber6), transparent); opacity:.5}
+
   .brand-pop{
     background: linear-gradient(90deg, #E3B57E 0%, #F3C27E 25%, #E59B50 50%, #C97C2C 75%, #E3B57E 100%);
     background-size: 300% 100%;
@@ -231,14 +270,17 @@ const Home = () => {
     letter-spacing:.2px;
   }
   @keyframes brandShimmer{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+
   .logo-bread{transform-origin:50% 60%; filter: drop-shadow(0 2px 4px rgba(201,124,44,.25)); animation: logoFloat 5.5s ease-in-out infinite}
   @keyframes logoFloat{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-4px) rotate(-2deg)}}
+
   .hero-surface{
     background:
       linear-gradient(180deg, rgba(255,225,190,.72) 0%, rgba(255,236,210,.58) 38%, rgba(255,250,243,.45) 100%),
       radial-gradient(900px 380px at 20% 15%, rgba(243,194,126,.16), transparent 60%),
       radial-gradient(900px 380px at 80% 12%, rgba(243,194,126,.14), transparent 60%);
   }
+
   .hero-fig{
     position:absolute; top:60%; transform:translateY(-50%);
     width: clamp(80px, 10vw, 100px);
@@ -250,22 +292,92 @@ const Home = () => {
   .hero-fig.left{left: max(10px, 13vw)}
   .hero-fig.right{right: max(10px, 13vw); animation-delay:1.1s}
   @keyframes sideFloat{0%,100%{transform:translateY(-50%)}50%{transform:translateY(calc(-50% - 10px))}}
+
   .home-reveal-ready [data-reveal]{opacity:0; transform:translateY(18px) scale(.98); transition:opacity .6s ease, transform .6s ease}
   .home-reveal-ready .reveal-in{opacity:1; transform:translateY(0) scale(1)}
-  .heroTitle{display:inline-block; background: linear-gradient(90deg,#f6c17c,#e49a52,#bf7327); background-size:200% auto; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color: transparent; color:transparent; animation: gradientX 9s ease infinite}
-  .heroTitle .w{display:inline-block; background:inherit; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color: transparent; color:transparent; opacity:0; transform:translateY(22px) scale(.96); animation: titleWord .72s cubic-bezier(.34,1.56,.64,1) forwards}
-  @keyframes titleWord{to{opacity:1; transform:translateY(0) scale(1)}}
-  @keyframes gradientX{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+
+  .heroTitle{
+    display:block; margin:0 auto; max-width:1100px; text-align:center; font-weight:800; line-height:1.05; letter-spacing:.01em;
+    font-size: clamp(30px, 5.2vw, 80px); color:#8a5a25; text-shadow: 0 2px 0 rgba(255,255,255,.55);
+  }
+  .heroTitle .line{display:block}
+  .heroTitle .w{display:inline-block}
+
+  @supports ((-webkit-background-clip: text) or (background-clip: text)) {
+    .heroTitle.hasGradient{
+      background: linear-gradient(90deg,#f6c17c,#e49a52,#bf7327);
+      background-size:200% auto;
+      -webkit-background-clip:text; background-clip:text;
+      -webkit-text-fill-color: transparent; color: transparent;
+      animation: gradientX 9s ease infinite; text-shadow:none;
+    }
+    .heroTitle.hasGradient .w{ background:inherit; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color: transparent; color: transparent; }
+  }
+  @keyframes gradientX{ 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+
   .ctaFloat{animation: breadFloat 5.5s ease-in-out infinite}
   @keyframes breadFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+
   .reveal-words span{opacity:0; transform:translateY(8px); display:inline-block; animation:wordUp .66s ease forwards}
   @keyframes wordUp{to{opacity:1; transform:translateY(0)}}
+
   .swap{animation:swapFade 680ms ease both}
   @keyframes swapFade{from{opacity:.0; transform:scale(.98)} to{opacity:1; transform:scale(1)}}
+
   @keyframes shimmer { to { background-position: 200% 0 } }
   .btn-shimmer{background: linear-gradient(90deg,#C97C2C 0%,#E5A65A 35%,#F3C27E 50%,#E5A65A 65%,#C97C2C 100%); background-size: 200% 100%; animation: shimmer 2.5s linear infinite}
+
   .partner-pill{display:inline-flex; align-items:center; gap:.6rem; padding:.65rem 1rem; border-radius:9999px; background:linear-gradient(180deg,#fff,#fffaf5); border:1px solid rgba(0,0,0,.06); box-shadow:0 8px 22px rgba(201,124,44,.10); text-decoration:none}
   .partner-logo{width:34px;height:34px;border-radius:9999px;display:flex;align-items:center;justify-content:center; background:linear-gradient(180deg,#FFE7C5,#F7C489); color:#7a4f1c; font-size:18px; flex-shrink:0; border:1px solid #fff3e0}
+
+  /* ====== MEDIA QUERIES  ====== */
+  /* ===== Phones ===== */
+  @media screen and (min-width:300px) and (max-width:574px){
+    .hdr-pad{padding-top:.5rem; padding-bottom:.5rem}
+    .mobile-menu{position:absolute; left:0; right:0; top:100%; margin-top:6px}
+    .hero-fig{ width: clamp(56px, 22vw, 84px); top: 54%; opacity:.98; }
+    .hero-fig.left{ left: max(6px, 3vw); }
+    .hero-fig.right{ right: max(6px, 3vw); }
+    .hero-cta{ flex-direction:column; gap:.6rem !important; }
+    .section-pad{ padding-top: 2.25rem !important; padding-bottom: 2.25rem !important; }
+    .gallery-card{ height: clamp(180px, 48vw, 240px) !important; }
+  }
+
+  /* ===== Small tablets ===== */
+  @media screen and (min-width:575px) and (max-width:767px){
+    .hero-fig{ width: clamp(64px, 18vw, 96px); top: 52%; }
+    .hero-fig.left{ left: max(10px, 5vw); }
+    .hero-fig.right{ right: max(10px, 5vw); }
+    .hero-cta{ flex-wrap:wrap; gap:.8rem; }
+    .gallery-card{ height: clamp(220px, 42vw, 280px) !important; }
+  }
+
+  /* ===== Large tablets ===== */
+  @media screen and (min-width:768px) and (max-width:959px){
+    .gallery-card{ height: clamp(240px, 36vw, 300px) !important; }
+  }
+
+  /* ===== Small desktops ===== */
+  @media screen and (min-width:1368px) and (max-width:1920px){
+    .hero-fig{ width: clamp(90px, 9vw, 120px); }
+    .heroTitle{ font-size: clamp(44px, 4.6vw, 84px); }
+  }
+
+  /* ===== Large Desktops ===== */
+  @media screen and (min-width:1921px) and (max-width:4096px){
+    .hero-fig{ width: clamp(110px, 8vw, 160px); }
+    .heroTitle{ font-size: clamp(56px, 4.2vw, 96px); }
+  }
+
+  /* ====== ADDED EMPTY LOGIN BREAKPOINTS ====== */
+  /* 768–1023 to mirror login md */
+  @media screen and (min-width:768px) and (max-width:1023px){}
+  /* 1024–1279 to mirror lg */
+  @media screen and (min-width:1024px) and (max-width:1279px){}
+  /* 1280–1535 to mirror xl */
+  @media screen and (min-width:1280px) and (max-width:1535px){}
+  /* 1536–1920 to mirror 2xl range */
+  @media screen and (min-width:1536px) and (max-width:1920px){}
 `}</style>
 
       <div className="bg-orbit" />
@@ -280,6 +392,14 @@ const Home = () => {
         />
       </div>
 
+      {mobileOpen && (
+        <button
+          aria-label="Close menu"
+          className="mobile-scrim"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
       {/* ===== Header ===== */}
       <header className="fixed top-0 left-0 right-0 z-[80]">
         <div
@@ -287,7 +407,7 @@ const Home = () => {
             scrolled ? "is-scrolled" : ""
           }`}
         >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 hdr-pad flex items-center justify-between relative">
             <Link to="/" className="flex items-center gap-3">
               <img
                 src="/images/DoughNationLogo.png"
@@ -299,7 +419,6 @@ const Home = () => {
               </span>
             </Link>
 
-            {/* Desktop nav */}
             <nav className="hidden md:flex items-center gap-7 text-[15px]">
               <a
                 href="/"
@@ -326,6 +445,48 @@ const Home = () => {
                 Register
               </Link>
             </nav>
+
+            <button
+              aria-label="Open menu"
+              className="md:hidden rounded-full p-2 hover:bg-white/60 glass-soft"
+              onClick={() => setMobileOpen((o) => !o)}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M4 6h16M4 12h16M4 18h16"
+                  stroke="#7a4f1c"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+
+            <div
+              className={`md:hidden ${
+                mobileOpen ? "block" : "hidden"
+              } mobile-menu`}
+            >
+              <div className="mobile-menu-panel rounded-2xl mx-4 p-3 shadow-xl">
+                <a href="/" className="mobile-menu-item block px-3 py-2">
+                  Home
+                </a>
+                <a
+                  href="#features"
+                  className="mobile-menu-item block px-3 py-2"
+                >
+                  About
+                </a>
+                <Link to="/login" className="mobile-menu-item block px-3 py-2">
+                  Login
+                </Link>
+                <Link
+                  to="/register"
+                  className="mt-2 block text-center rounded-full px-4 py-2 text-white font-semibold btn-shimmer"
+                >
+                  Register
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </header>
@@ -333,38 +494,35 @@ const Home = () => {
       <div aria-hidden="true" className="h-[64px] md:h-[68px]" />
 
       {/* ===== Hero ===== */}
-      <section className="relative overflow-hidden hero-surface">
+      <section className="relative overflow-hidden hero-surface section-pad">
         <img
           src="/images/BakeryGirl.png"
           alt=""
           aria-hidden="true"
-          className="hero-fig left hidden md:block"
+          className="hero-fig left"
         />
         <img
           src="/images/BakeryBoy.png"
           alt=""
           aria-hidden="true"
-          className="hero-fig right hidden md:block"
+          className="hero-fig right"
         />
 
         <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-16 text-center">
           <h1
-            className="heroTitle text-[36px] sm:text-5xl lg:text-6xl font-extrabold tracking-tight"
+            className="heroTitle hasGradient tracking-tight"
             aria-label="Welcome to DoughNation"
           >
-            {titleWords.map((w, i) => (
-              <span
-                key={i}
-                className="w"
-                style={{ animationDelay: `${i * 110}ms` }}
-              >
-                {w}&nbsp;
-              </span>
-            ))}
+            <span className="line">
+              <span className="w">WELCOME&nbsp;</span>
+              <span className="w">TO</span>
+            </span>
+            <span className="line">
+              <span className="w">DOUGHNATION</span>
+            </span>
           </h1>
 
-          {/* CHANGE: Learn More jumps to 'How DoughNation Works' */}
-          <div className="mt-8 flex items中心 justify-center gap-4 sub-fade ctaFloat">
+          <div className="hero-cta mt-8 flex items-center justify-center gap-4 ctaFloat">
             <Link
               to="/login"
               className="rounded-full px-6 sm:px-7 py-3 text-white font-semibold btn-shimmer hover:shadow-lg hover:shadow-amber-300/30 transition-transform active:scale-[.98]"
@@ -390,7 +548,10 @@ const Home = () => {
       </section>
 
       {/* ===== How it works ===== */}
-      <section id="how-it-works" className="py-12 sm:py-16 bg-white wave-top">
+      <section
+        id="how-it-works"
+        className="py-12 sm:py-16 bg-white wave-top section-pad"
+      >
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <h2
             className="text-3xl sm:text-4xl font-extrabold text-center bg-gradient-to-r from-[#f1b66f] to-[#c97c2c] bg-clip-text text-transparent"
@@ -437,7 +598,7 @@ const Home = () => {
       </section>
 
       {/* ===== Gallery ===== */}
-      <section className="py-16 bg-[#fff7ec] wave-bottom">
+      <section className="py-16 bg-[#fff7ec] wave-bottom section-pad">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between gap-4">
             <h2
@@ -455,7 +616,8 @@ const Home = () => {
             {pair.map((img, i) => (
               <div
                 key={img.src + i}
-                className="swap glass rounded-2xl overflow-hidden h-[220px] sm:h-[260px] lg:h-[300px] hover:-translate-y-1 hover:shadow-xl transition-all"
+                className="gallery-card swap glass rounded-2xl overflow-hidden hover:-translate-y-1 hover:shadow-xl transition-all"
+                style={{ height: "clamp(220px, 30vw, 300px)" }}
               >
                 <img
                   src={img.src}
@@ -470,7 +632,7 @@ const Home = () => {
       </section>
 
       {/* ===== Core Features ===== */}
-      <section id="features" className="py-16 bg-white">
+      <section id="features" className="py-16 bg-white section-pad">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <h2
             className="text-2xl sm:text-3xl font-extrabold text-center bg-gradient-to-r from-[#f1b66f] to-[#c97c2c] bg-clip-text text-transparent"
@@ -505,7 +667,7 @@ const Home = () => {
       </section>
 
       {/* ===== Partners ===== */}
-      <section className="py-14 bg-[#fff7ec]">
+      <section className="py-14 bg-[#fff7ec] section-pad">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <h2
             className="text-xl font-semibold text-center text-[#8a5a25]"
@@ -539,7 +701,7 @@ const Home = () => {
       </section>
 
       {/* ===== CTA ===== */}
-      <section className="relative py-16 sm:py-20 overflow-hidden">
+      <section className="relative py-16 sm:py-20 overflow-hidden section-pad">
         <div
           className="absolute inset-0"
           style={{
@@ -549,11 +711,11 @@ const Home = () => {
         />
         <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 text-center glass rounded-3xl py-10 shadow-[0_20px_60px_rgba(201,124,44,.18)]">
           <h3 className="text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-[#f3b56f] to-[#c97c2c] bg-clip-text text-transparent">
-            Inventory in. Donation out.{" "}
+            Inventory in. Donation out.
           </h3>
           <p className="mt-2 text-[#6b4d2e]">
             Track today’s product, flag the extras, and post them in the same
-            flow.{" "}
+            flow.
           </p>
           <div className="mt-6">
             <Link
@@ -581,19 +743,19 @@ const Home = () => {
         </svg>
 
         <div className="bg-[#fff3e6]">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 grid gap-8 md:grid-cols-3 items-start">
-            <div className="flex items-start gap-3">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 grid gap-8 md:grid-cols-3 items-start text-center md:text-left">
+            <div className="flex flex-nowrap items-center md:items-start justify-center md:justify-start gap-3">
               <img
                 src="/images/DoughNationLogo.png"
                 alt="DoughNation logo"
-                className="w-[22px] h-[22px] object-contain logo-bread"
+                className="w-[22px] h-[22px] object-contain logo-bread shrink-0"
               />
-              <div>
+              <div className="text-left">
                 <span className="text-xl font-extrabold text-[#c97c2c]">
                   DoughNation
                 </span>
                 <p className="mt-2 max-w-2xl text-sm text-[#6b4d2e]">
-                  Bakeries and charities, together against food waste.
+                  Bakeries and charities, together against baked good surplus.
                 </p>
               </div>
             </div>
@@ -602,23 +764,8 @@ const Home = () => {
               <img
                 src="/images/DonationHand.png"
                 alt="Donation handshake"
-                className="w-[min(60vw,150px)] rounded-md object-contain"
+                className="w-[min(60vw,150px)] mx-auto rounded-md object-contain"
               />
-            </div>
-
-            <div className="md:justify-self-end">
-              <h4 className="font-semibold text-[#6f4a23]">Contact Us</h4>
-              <ul className="mt-3 space-y-2 text-sm text-[#6b4d2e]">
-                <li>
-                  <span>Questions: doughnationsupport@gmail.com</span>
-                </li>
-                <li>
-                  <span>Need help? Email doughnationsupport@gmail.com</span>
-                </li>
-                <li>
-                  <span>Partnerships: doughnationpartnerships@gmail.com</span>
-                </li>
-              </ul>
             </div>
           </div>
 
@@ -639,7 +786,10 @@ const Home = () => {
 
       <button
         aria-label="Back to top"
-        onClick={scrollTop}
+        onClick={() => {
+          setMobileOpen(false);
+          scrollTop();
+        }}
         className={`fixed right-4 bottom-4 sm:right-6 sm:bottom-6 rounded-full p-3 shadow-lg transition-all active:scale-95 ${
           showTop
             ? "opacity-100 translate-y-0"

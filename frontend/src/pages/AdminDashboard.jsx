@@ -14,6 +14,7 @@ import axios from "../api/axios";
 import AdminComplaint from "./AdminComplaint";
 import AdminBadge from "./AdminBadge";
 import AdminUser from "./AdminUser";
+import Leaderboards from "./Leaderboards";
 
 const AdminDashboard = () => {
   const [name, setName] = useState("Admin");
@@ -388,9 +389,8 @@ const AdminDashboard = () => {
               <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
               <TabsTrigger value="users">Manage Users</TabsTrigger>
               <TabsTrigger value="reports">Report Generation</TabsTrigger>
-              <TabsTrigger value="validation">Validate Donations</TabsTrigger>
+              <TabsTrigger value="track">Bakery Leaderboards</TabsTrigger>
               <TabsTrigger value="badges">Assign Badges</TabsTrigger>
-              <TabsTrigger value="feedback">Manage Feedback</TabsTrigger>
               <TabsTrigger value="complaints">Manage Complaints</TabsTrigger>
             </TabsList>
           </div>
@@ -473,53 +473,8 @@ const AdminDashboard = () => {
               <Card className="glass-card shadow-none">
                 <CardHeader>
                   <CardTitle>User Management</CardTitle>
-                  <CardDescription>Approve or reject pending registrations</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  {pendingUsers.length > 0 ? (
-                    <div className="overflow-hidden rounded-xl border border-white/70">
-                      <table className="w-full text-sm bg-white/80 backdrop-blur">
-                        <thead className="bg-[#FFF3E6]">
-                          <tr className="text-left">
-                            <th className="p-3">Name</th>
-                            <th className="p-3">Email</th>
-                            <th className="p-3">Role</th>
-                            <th className="p-3">Proof</th>
-                            <th className="p-3 text-center">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {pendingUsers.map((u) => (
-                            <tr key={u.id} className="border-t border-white/70">
-                              <td className="p-3">{u.name}</td>
-                              <td className="p-3">{u.email}</td>
-                              <td className="p-3">{u.role}</td>
-                              <td className="p-3">
-                                {u.proof_file ? (
-                                  <a
-                                    href={`http://localhost:8000/${u.proof_file}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-[#C97C2C] underline"
-                                  >
-                                    View Proof
-                                  </a>
-                                ) : ("No file")}
-                              </td>
-                              <td className="p-3">
-                                <div className="flex gap-2 justify-center">
-                                  <Button size="sm" onClick={() => handleVerify(u.id)}>Approve</Button>
-                                  <Button size="sm" variant="secondary" onClick={() => handleReject(u.id)}>Reject</Button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No pending users.</p>
-                  )}
+                <CardContent>                 
                   <AdminUser />
                 </CardContent>
               </Card>
@@ -542,15 +497,11 @@ const AdminDashboard = () => {
           </TabsContent>
 
           {/* Validate Donations */}
-          <TabsContent value="validation" className="reveal">
+          <TabsContent value="track" className="reveal">
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
-                <CardHeader>
-                  <CardTitle>Validate Donations</CardTitle>
-                  <CardDescription>Review and approve donation records</CardDescription>
-                </CardHeader>
                 <CardContent className="text-sm text-muted-foreground">
-                  (Placeholder — add donation validation table/workflow.)
+                  <Leaderboards />
                 </CardContent>
               </Card>
             </div>
@@ -564,18 +515,6 @@ const AdminDashboard = () => {
                   <CardTitle>Assign Badges</CardTitle>
                 </CardHeader>
                   <AdminBadge />
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Manage Feedback */}
-          <TabsContent value="feedback" className="reveal">
-            <div className="gwrap hover-lift">
-              <Card className="glass-card shadow-none">
-                <CardHeader>
-                  <CardTitle>Manage Feedback</CardTitle>
-                  <CardDescription>Review and respond to charity feedback</CardDescription>
-                </CardHeader>
               </Card>
             </div>
           </TabsContent>

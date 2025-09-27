@@ -222,7 +222,30 @@ export default function Messages({ currentUser: currentUserProp }) {
   const [pendingOpen, setPendingOpen] = useState(false);
   const [pendingCards, setPendingCards] = useState([]);
   const [showScrollButton, setShowScrollButton] = useState(false);
-  const [processingCards, setProcessingCards] = useState({}); // key: card.id, value: true/false
+  const [disabledDonations, setDisabledDonations] = useState(() => {
+  try {
+    return new Set(JSON.parse(localStorage.getItem("disabled_donations")) || []);
+  } catch {
+    return new Set();
+  }
+});
+
+useEffect(() => {
+  localStorage.setItem("disabled_donations", JSON.stringify([...disabledDonations]));
+}, [disabledDonations]);
+
+const [acceptedDonations, setAcceptedDonations] = useState(() => {
+  try {
+    return new Set(JSON.parse(localStorage.getItem("accepted_donations")) || []);
+  } catch {
+    return new Set();
+  }
+});
+
+// Persist accepted donations
+useEffect(() => {
+  localStorage.setItem("accepted_donations", JSON.stringify([...acceptedDonations]));
+}, [acceptedDonations]);
 
   const [messages, setMessages] = useState(() => {
     try {
@@ -243,6 +266,32 @@ export default function Messages({ currentUser: currentUserProp }) {
       return new Map();
     }
   });
+  
+  const [removedDonations, setRemovedDonations] = useState(() => {
+  try {
+    return new Set(JSON.parse(localStorage.getItem("removed_donations")) || []);
+  } catch {
+    return new Set();
+  }
+});
+
+// Persist
+useEffect(() => {
+  localStorage.setItem("removed_donations", JSON.stringify([...removedDonations]));
+}, [removedDonations]);
+
+  const removePendingDonation = (donationCardMessage) => {
+  if (!donationCardMessage) return;
+  let donationId;
+  try {
+    const p = JSON.parse(donationCardMessage.content);
+    donationId = p.donation?.id;
+  } catch {
+    return;
+  }
+  setRemovedDonations((prev) => new Set(prev).add(donationId));
+  setPendingCards((prev) => prev.filter((m) => m.id !== donationCardMessage.id));
+};
 
   const [currentUser, setCurrentUser] = useState(currentUserProp || null);
   const [peerTyping, setPeerTyping] = useState(false);
@@ -264,23 +313,6 @@ export default function Messages({ currentUser: currentUserProp }) {
     const el = messageRefs.current.get(id);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   };
-
-  // To click accept and calcel only once
-   const handleAccept = () => {
-        if (isProcessing) return; // prevent multiple clicks
-        setProcessingCards((prev) => ({ ...prev, [card.id]: true }));
-        acceptDonation(card).finally(() => {
-          setProcessingCards((prev) => ({ ...prev, [card.id]: false }));
-        });
-      };
-
-      const handleCancel = () => {
-        if (isProcessing) return; // prevent multiple clicks
-        setProcessingCards((prev) => ({ ...prev, [card.id]: true }));
-        cancelDonation(card).finally(() => {
-          setProcessingCards((prev) => ({ ...prev, [card.id]: false }));
-        });
-      };
 
 
   /* Close dropdown when clicking outside */
@@ -477,16 +509,28 @@ export default function Messages({ currentUser: currentUserProp }) {
                 })
               );
               break;
-            case "history":
-              setMessages(
-                (data.messages || []).map((m) => ({
-                  ...m,
-                  id: Number(m.id),
-                  sender_id: Number(m.sender_id),
-                  receiver_id: Number(m.receiver_id),
-                }))
-              );
+            case "history": {
+              const incoming = (data.messages || []).map((m) => ({
+                ...m,
+                id: Number(m.id),
+                sender_id: Number(m.sender_id),
+                receiver_id: Number(m.receiver_id),
+              }));
+
+              // merge with localStorage copy
+              try {
+                const local = JSON.parse(localStorage.getItem("chat_messages")) || [];
+                const merged = incoming.map((msg) => {
+                  const localMatch = local.find((lm) => lm.id === msg.id);
+                  return localMatch ? { ...msg, ...localMatch } : msg;
+                });
+                setMessages(merged);
+              } catch {
+                setMessages(incoming);
+              }
               break;
+            }
+
             case "active_chats": {
               const map = new Map();
               for (const c of data.chats || []) {
@@ -657,17 +701,19 @@ export default function Messages({ currentUser: currentUserProp }) {
 
   /* Track pending donation cards */
   useEffect(() => {
-    const cards = messages.filter((m) => {
-      try {
-        const p =
-          typeof m.content === "string" ? JSON.parse(m.content) : m.content;
-        return p?.type === "donation_card" && !m.accepted;
-      } catch {
-        return false;
-      }
-    });
-    setPendingCards(cards);
-  }, [messages]);
+  const cards = messages.filter((m) => {
+    try {
+      const p =
+        typeof m.content === "string" ? JSON.parse(m.content) : m.content;
+      const donationId = p?.donation?.id;
+      return p?.type === "donation_card" && !m.accepted && !removedDonations.has(donationId) && !acceptedDonations.has(donationId);
+    } catch {
+      return false;
+    }
+  });
+  setPendingCards(cards);
+}, [messages, removedDonations]);
+
 
   /* Scroll handling */
   useEffect(() => {
@@ -795,7 +841,6 @@ export default function Messages({ currentUser: currentUserProp }) {
 
   let donation;
   let originalCharityId;
-
   try {
     const parsed = JSON.parse(donationCardMessage.content);
     donation = parsed.donation;
@@ -805,32 +850,92 @@ export default function Messages({ currentUser: currentUserProp }) {
     return;
   }
 
-  // Call backend to mark request as accepted
+  // prevent double POST
+  if (disabledDonations.has(donation.id)) return;
+
+  // Disable button for this donation
+  setDisabledDonations((prev) => {
+    const copy = new Set(prev);
+    copy.add(donation.id);
+    return copy;
+  });
+
   try {
     const token = localStorage.getItem("token");
     const opts = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+    await axios.post(`${API_URL}/donation/accept/${donation.id}`, {}, opts);
 
-    const res = await axios.post(`${API_URL}/donation/accept/${donation.id}`, {}, opts);
+    // Mark as accepted in state + persist
+    setAcceptedDonations((prev) => {
+      const copy = new Set(prev);
+      copy.add(donation.id);
+      return copy;
+    });
+
+    // Optionally mark the message as accepted so UI updates
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === donationCardMessage.id ? { ...m, accepted: true } : m
+      )
+    );
+
+    // Remove from pending donations bar
+    setPendingCards((prev) => prev.filter((m) => m.id !== donationCardMessage.id));
   } catch (err) {
     console.error("Failed to mark donation as accepted:", err);
-  }
 
-  //  Send confirmation message to charity
+  // Disable button for this donation + persist to localStorage
+  setDisabledDonations((prev) => {
+    const copy = new Set(prev);
+    copy.add(donation.id);
+    localStorage.setItem("disabled_donations", JSON.stringify([...copy])); // save
+    return copy;
+  });
+}
+
+  // Send confirmation message
   const msg = {
     type: "message",
     sender_id: Number(currentUser.id),
     receiver_id: Number(originalCharityId),
     content: JSON.stringify({ type: "confirmed_donation", donation }),
   };
-  wsRef.current?.send(JSON.stringify(msg));
+  wsRef.current?.send(JSON.stringify(msg));  
 };
 
 
-  const cancelDonation = (donationCardMessage) => {
-    if (!donationCardMessage) return;
-    wsRef.current?.send(JSON.stringify({ type: "cancel_donation", id: donationCardMessage.id }));
-    setMessages((prev) => prev.filter((m) => m.id !== donationCardMessage.id));
-  };
+ const cancelDonation = (donationCardMessage) => {
+  if (!donationCardMessage) return;
+
+  let donation;
+  try {
+    const parsed = JSON.parse(donationCardMessage.content);
+    donation = parsed.donation;
+  } catch {
+    console.error("Invalid donation card");
+    return;
+  }
+
+  // Disable cancel button for this donation
+  setDisabledDonations((prev) => {
+    const copy = new Set(prev);
+    copy.add(donation.id);
+    return copy;
+  });
+
+  // Send cancel request
+  wsRef.current?.send(
+    JSON.stringify({ type: "cancel_donation", id: donationCardMessage.id })
+  );
+
+setMessages((prev) => prev.filter((m) => m.id !== donationCardMessage.id));
+
+try {
+  const stored = JSON.parse(localStorage.getItem("chat_messages")) || [];
+  const updated = stored.filter((m) => m.id !== donationCardMessage.id);
+  localStorage.setItem("chat_messages", JSON.stringify(updated));
+} catch {}
+};
 
   const deleteMessage = (id) => {
     setMessages((prev) => prev.filter((m) => m.id !== id));
@@ -849,7 +954,7 @@ export default function Messages({ currentUser: currentUserProp }) {
       if (p?.type === "donation_card") {
         const d = p.donation || {};
         const iAmReceiver = Number(m.receiver_id) === Number(currentUser?.id);
-        const accepted = m.accepted;
+        const accepted = m.accepted || acceptedDonations.has(d.id);
         return {
           isMedia: false,
           body: (
@@ -857,7 +962,7 @@ export default function Messages({ currentUser: currentUserProp }) {
               <div style={{ fontWeight: 800 }}>Donation Request</div>
               <div style={{ fontSize: 13 }}>
                 {d.product_name || d.name || "Baked Goods"} • Qty:{" "}
-                {d.quantity ?? "-"}{accepted ? " • (Accepted)" : ""}
+                {d.quantity ?? "-"}
               </div>
               {!accepted && iAmReceiver && (
                 <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
@@ -880,6 +985,20 @@ export default function Messages({ currentUser: currentUserProp }) {
           body: (
             <div>
               <div style={{ fontWeight: 800 }}>Donation Confirmed</div>
+              <div style={{ fontSize: 13 }}>
+                {d.product_name || d.name || "Item"} • Qty: {d.quantity ?? "-"}
+              </div>
+            </div>
+          ),
+        };
+      } 
+      else {
+        const d = p.donation || {};
+        return {
+          isMedia: false,
+          body: (
+            <div>
+              <div style={{ fontWeight: 800 }}>Sorry! Already Donated</div>
               <div style={{ fontSize: 13 }}>
                 {d.product_name || d.name || "Item"} • Qty: {d.quantity ?? "-"}
               </div>
@@ -1089,31 +1208,37 @@ export default function Messages({ currentUser: currentUserProp }) {
                   try { d = JSON.parse(card.content).donation || {}; } catch {}
                   const iAmReceiver = Number(card.receiver_id) === Number(currentUser?.id);
 
-                  // Track if this card is already being processed
-                  const isProcessing = processingCards[card.id] || false;
-
                   return (
                     <div key={`pend-${card.id}`} className="pend-row">
                       <div className="pend-meta">
                         <div className="pend-title">{d.product_name || d.name || "Donation"}</div>
-                        <div className="pend-sub">Qty: {d.quantity ?? "-"} • From: {d.charity_name || d.from || "—"}</div>
+                        <div className="pend-sub">Qty: {d.quantity ?? "-"}</div>
                       </div>
                       <div className="pend-actions">
-                        <button className="btn-mini" onClick={() => jumpTo(card.id)}>Open</button>
+                        <button className="btn-mini" onClick={() => {jumpTo(card.id); setPendingOpen(false);}}>Open</button>
                         {iAmReceiver && (
                           <>
-                            <button className="btn-mini accept"
-                            disabled={isProcessing} // disable after click
-                             onClick={() => {
-                              acceptDonation(card)}}
+                            <button
+                              className="btn-mini accept"
+                              onClick={() => {acceptDonation(m); setPendingOpen(false);}}
+                              disabled={disabledDonations.has(d.id)} 
+                               
                             >
                               <Check className="w-4 h-4" /> Accept
                             </button>
-                            <button className="btn-mini" 
-                             disabled={isProcessing} // disable after click
-                             onClick={() => {
-                              cancelDonation(card)}}>
+                            <button
+                              className="btn-mini"
+                              onClick={() => {cancelDonation(m); setPendingOpen(false);}}
+                              disabled={disabledDonations.has(d.id)}
+                            >
                               <XCircle className="w-4 h-4" /> Cancel
+                            </button>
+
+                            <button
+                              className="btn-mini"
+                              onClick={() => removePendingDonation(card)}
+                            >
+                              X
                             </button>
                           </>
                         )}

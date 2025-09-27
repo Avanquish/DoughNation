@@ -349,10 +349,13 @@ class BadgeBase(BaseModel):
     icon_url: Optional[str] = None
 
 class BadgeCreate(BadgeBase):
+    user_id: int
     pass
 
 class BadgeResponse(BadgeBase):
     id: int
+    name: str
+    icon_url: Optional[str]
     is_special: bool
     created_by: Optional[int]
 
@@ -362,13 +365,16 @@ class BadgeResponse(BadgeBase):
 class UserBadgeBase(BaseModel):
     user_id: int
     badge_id: int
+    badge_name: Optional[str] = None 
     description: Optional[str] = None
 
 class UserBadgeResponse(BaseModel):
     id: int
     user_id: int
     badge_id: int
-    unlocked_at: datetime
+    badge_name: Optional[str] = None
+    description: Optional[str] = None
+    unlocked_at: Optional[datetime] = None
     badge: BadgeResponse
 
     class Config:

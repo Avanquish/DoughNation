@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-from app import models, schemas, crud
+from app import models, schemas, crud, database
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import get_current_admin, get_current_user
 
 router = APIRouter(prefix="/badges", tags=["Badges"])
 
@@ -55,23 +55,37 @@ def get_user_badge_progress(user_id: int, db: Session = Depends(get_db)):
         )
     return result
 
-# ---------------- Assign Badge (Admin or System) ----------------
+# ---------------- Assign Badge (Admin) ----------------
 @router.post("/assign", response_model=schemas.UserBadgeResponse)
 def assign_badge(
     payload: schemas.UserBadgeBase,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    db: Session = Depends(database.get_db),
+    current_admin: models.User = Depends(get_current_admin)  # Only admins
 ):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Only admins can assign badges")
+    # Ensure user exists
+    user = db.query(models.User).filter(models.User.id == payload.user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
-    badge = crud.assign_badge_to_user(
+    # Ensure badge exists
+    badge = db.query(models.Badge).filter(models.Badge.id == payload.badge_id).first()
+    if not badge:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Badge not found")
+
+    # Assign badge
+    # Assign badge to user
+    user_with_badge = crud.assign_badge_to_user(
         db, 
         payload.user_id, 
         payload.badge_id, 
-        payload.description  # ✅ forward description
+        payload.badge_name,
+        payload.description
     )
-    return badge
+
+    if not user_with_badge:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return user_with_badge  # ✅ return the updated user with badges
 
 # ---------------- Update Badge Progress ----------------
 @router.post("/progress", response_model=schemas.BadgeProgressResponse)

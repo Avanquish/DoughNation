@@ -458,42 +458,67 @@ def list_donations(db: Session, bakery_id: int):
 
 
 # ------------------ Badges ------------------
-def create_badge(db: Session, badge: schemas.BadgeCreate, admin_id: int):
-    new_badge = models.Badge(
-        name=badge.name,
-        category=badge.category,
-        description=badge.description,
-        icon_url=badge.icon_url,
-        is_special=True,
-        created_by=admin_id
-    )
-    db.add(new_badge)
+ALLOWED_BADGES = ["Bakery Star", "Community Champion", "Legendary Donor"]
+
+def create_badge(db: Session, badge: schemas.BadgeCreate):
+    if badge.name not in ALLOWED_BADGES:
+        raise ValueError(f"Invalid badge name: {badge.name}. Allowed: {ALLOWED_BADGES}")
+
+    db_badge = models.Badge(name=badge.name, user_id=badge.user_id)
+    db.add(db_badge)
     db.commit()
-    db.refresh(new_badge)
-    return new_badge
+    db.refresh(db_badge)
+    return db_badge
 
 def get_all_badges(db: Session):
     return db.query(models.Badge).filter(models.Badge.id.in_([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24]))
 
 def get_admin_badges(db: Session):
-    return db.query(models.Badge).filter(models.Badge.name.in_(["Default Badge", "Bakery Star", "Community Champion", "Legendary Donor"])).all()
+    return db.query(models.Badge).filter(models.Badge.name.in_([" ", "Bakery Star", "Community Champion", "Legendary Donor"])).all()
 
 def get_badge_by_name(db: Session, name: str):
     return db.query(models.Badge).filter(models.Badge.name == name).first()
 
 # -------- User Badge CRUD --------
-def assign_badge_to_user(db: Session, user_id: int, badge_id: int, description: str = None):
+def assign_badge_to_user(
+    db: Session, 
+    user_id: int, 
+    badge_id: int, 
+    badge_name: str = None, 
+    description: str = None
+):
+    # Prevent duplicate user-badge
     exists = db.query(models.UserBadge).filter_by(user_id=user_id, badge_id=badge_id).first()
     if exists:
         return exists
-    new_user_badge = models.UserBadge(user_id=user_id, badge_id=badge_id)
+
+    # ✅ Fetch badge if name not provided
+    badge = db.query(models.Badge).filter_by(id=badge_id).first()
+    if not badge:
+        raise HTTPException(status_code=404, detail="Badge not found")
+
+    if not badge_name:
+        badge_name = badge.name  # ✅ fallback to the real badge name
+
+    new_user_badge = models.UserBadge(
+        user_id=user_id, 
+        badge_id=badge_id, 
+        badge_name=badge_name, 
+        description=description
+    )
+
     db.add(new_user_badge)
     db.commit()
     db.refresh(new_user_badge)
     return new_user_badge
 
 def get_user_badges(db: Session, user_id: int):
-    return db.query(models.UserBadge).filter(models.UserBadge.user_id == user_id).all()
+    return (
+        db.query(models.UserBadge)
+        .options(joinedload(models.UserBadge.badge))
+        .filter(models.UserBadge.user_id == user_id)
+        .all()
+        )
 
 # -------- Badge Progress --------
 def update_progress(db: Session, user_id: int, badge_id: int, increment: int = 1):
@@ -557,7 +582,7 @@ def seed_badges(db: Session):
         {"name": "Legendary Donor", "category": "Recognition", "description": "Long-term high-impact donator.", "icon_url": "uploads/badge_images/Legendary Donor.png"},
         
         #Default Logo
-        {"name": "Default Badge", "category": "Recognition", "description": "Default badge for testing.", "icon_url": "uploads/badge_images/default_badge.png"}
+        {"name": " ", "category": "Recognition", "description": "Default badge for testing.", "icon_url": "uploads/badge_images/default_badge.png"}
     ]
 
     for data in badges_data:

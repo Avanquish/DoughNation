@@ -239,9 +239,11 @@ class UserBadge(Base):
     badge_id = Column(Integer, ForeignKey("badges.id", ondelete="CASCADE"))
     unlocked_at = Column(TIMESTAMP, server_default=func.now())
     description = Column(Text, nullable=True)
+    badge_name = Column(String, nullable=True)
+    
 
     user = relationship("User", back_populates="badges")
-    badge = relationship("Badge", back_populates="user_badges")
+    badge = relationship("Badge", back_populates="user_badges", lazy="joined")
 
 class BadgeProgress(Base):
     __tablename__ = "badge_progress"

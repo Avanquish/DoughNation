@@ -75,6 +75,7 @@ export default function BakeryProfile() {
       if (token) {
         const decoded = JSON.parse(atob(token.split(".")[1]));
         setName(decoded.name || "Bakery Name");
+        setCurrentUser(decoded);
       }
     } catch (err){
         console.error("Error fetching bakery profile stats:", err);
@@ -899,7 +900,7 @@ export default function BakeryProfile() {
                   </div>
                 </TabsContent>
 
-                {/* Badges (designing pa & not yet ready)*/}
+                {/* Badges */}
                 <TabsContent value="analytics" className="pt-6 space-y-6">
                   <div className="gwrap">
                     <Card className="glass-card shadow-none">
@@ -909,19 +910,23 @@ export default function BakeryProfile() {
                       </CardHeader>
                       <CardContent className="min-h-[80px] flex flex-wrap gap-4">
                         {badges && badges.length > 0 ? (
-                          badges.map((badge) => (
-                            <div key={badge.id} className="flex flex-col items-center">
+                          badges.map((userBadge) => (
+                            <div key={userBadge.id} className="flex flex-col items-center">
                               <img
                                 src={
-                                  badge.icon_url
-                                    ? `${API}/${badge.icon_url}`
+                                  userBadge.badge?.icon_url
+                                    ? `${API}/${userBadge.badge.icon_url}`
                                     : "/placeholder-badge.png"
                                 }
-                                alt={badge.name}
-                                title={badge.name} // Tooltip on hover
+                                alt={userBadge.badge?.name}
+                                title={userBadge.badge?.name}
                                 className="w-12 h-12 hover:scale-110 transition-transform"
                               />
-                              <span className="text-xs mt-1">{badge.name}</span>
+                              <span className="text-xs mt-1">
+                                {userBadge.badge_name && userBadge.badge_name.trim() !== ""
+                                  ? userBadge.badge_name
+                                  : userBadge.badge?.name}
+                              </span>
                             </div>
                           ))
                         ) : (

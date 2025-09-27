@@ -43,7 +43,7 @@ const RecentDonations = ({ userId }) => { // <-- accept optional userId
   }, [userId]); // refetch if userId changes
 
   return (
-    <Card className="glass-card shadow-none h-[400px]">
+    <Card className="glass-card border-0 shadow-none h-[400px]">
       <CardContent className="h-full flex flex-col">
         {loading ? (
           <p className="text-gray-500">Loading...</p>

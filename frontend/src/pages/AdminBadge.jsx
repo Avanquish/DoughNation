@@ -2,22 +2,35 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 
+// ✅ Attach token globally to every request
+axios.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 const AdminBadge = () => {
   const [users, setUsers] = useState([]);
   const [badges, setBadges] = useState([]);
   const [selectedUser, setSelectedUser] = useState("");
   const [selectedBadge, setSelectedBadge] = useState(null);
+  const [badgeName, setBadgeName] = useState(""); // ✅ New state for custom badge name
   const [description, setDescription] = useState("");
 
   // Fetch bakery users & admin badges
   useEffect(() => {
     axios
-      .get("http://localhost:8000/badges/bakery-users", { withCredentials: true })
+      .get("http://localhost:8000/badges/bakery-users")
       .then((res) => setUsers(res.data))
       .catch((err) => console.error("Error fetching users:", err));
 
     axios
-      .get("http://localhost:8000/badges/admin-badge", { withCredentials: true })
+      .get("http://localhost:8000/badges/admin-badge")
       .then((res) => setBadges(res.data))
       .catch((err) => console.error("Error fetching badges:", err));
   }, []);
@@ -29,19 +42,17 @@ const AdminBadge = () => {
     }
 
     try {
-      await axios.post(
-        "http://localhost:8000/badges/assign",
-        {
-          user_id: selectedUser,
-          badge_id: selectedBadge.id,
-          description: description || null,
-        },
-        { withCredentials: true }
-      );
+      await axios.post("http://localhost:8000/badges/assign", {
+        user_id: selectedUser,
+        badge_id: selectedBadge.id,
+        badge_name: badgeName || selectedBadge.name, // ✅ use input or fallback
+        description: description || null,
+      });
 
       Swal.fire("Success", "Badge assigned successfully!", "success");
       setSelectedUser("");
       setSelectedBadge(null);
+      setBadgeName("");
       setDescription("");
     } catch (err) {
       Swal.fire(
@@ -79,6 +90,20 @@ const AdminBadge = () => {
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Badge Name Input */}
+          <div className="mb-6">
+            <label className="block text-gray-700 font-semibold mb-2">
+              Badge Name:
+            </label>
+            <input
+              type="text"
+              className="w-full p-3 border rounded-lg"
+              placeholder="Enter custom badge name (optional)"
+              value={badgeName}
+              onChange={(e) => setBadgeName(e.target.value)}
+            />
           </div>
 
           {/* Manual Description */}

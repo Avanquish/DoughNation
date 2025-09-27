@@ -33,6 +33,7 @@ import BakeryAnalytics from "./BakeryAnalytics";
 import AchievementBadges from "./AchievementBadges";
 import RecentDonations from "./RecentDonations";
 import DashboardSearch from "./DashboardSearch";
+import UserBadge from "./UserBadge";
 
 const API = "http://localhost:8000";
 
@@ -59,11 +60,10 @@ const BakeryDashboard = () => {
   const [isVerified, setIsVerified] = useState(false);
   const [name, setName] = useState("Bakery");
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [badges, setBadges] = useState([]);
 
   const [highlightedDonationId, setHighlightedDonationId] = useState(null);
   const [totals, setTotals] = useState({ grand_total: 0, normal_total: 0, direct_total: 0 });
-  const [badges, setBadges] = useState([]);
-  const [loadingBadges, setLoadingBadges] = useState(true);
   const [unlockedBadge, setUnlockedBadge] = useState(null);
 
 
@@ -77,97 +77,103 @@ const BakeryDashboard = () => {
 
   const navigate = useNavigate();
 
-  // Fetch badges whenever currentUser is available
-  useEffect(() => {
-    if (!currentUser?.id) {
-      setBadges([]);
-      setLoadingBadges(false);
+useEffect(() => {
+  const token = localStorage.getItem("token");
+  if (!token) return;
+
+  let decoded;
+  try {
+    decoded = JSON.parse(atob(token.split(".")[1]));
+    console.log("Decoded token:", decoded);
+    setName(decoded.name || "Madam Bakery");
+    setIsVerified(decoded.is_verified);
+    if (!decoded?.id) {
+      console.error("User ID missing in token:", decoded);
       return;
     }
 
-    const fetchBadges = async () => {
-      try {
-        setLoadingBadges(true);
-        const token = localStorage.getItem("token");
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const res = await axios.get(`${API}/badges/user/${currentUser.id}/`, { headers });
+    const userId = decoded.id || decoded.user_id || decoded._id;
+
+    // Fetch badges for the user
+    axios
+      .get(`${API}/badges/user/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        console.log("User badges response:", res.data);
         setBadges(res.data || []);
-      } catch (err) {
-        console.error("Error fetching badges:", err);
+        setCurrentUser({
+          id: userId,
+          name: decoded.name,
+          is_verified: decoded.is_verified,
+          badges: res.data || [],
+        });
+      })
+      .catch((err) => {
+        console.error("Failed to fetch user badges:", err);
         setBadges([]);
-      } finally {
-        setLoadingBadges(false);
-      }
-    };
+        setCurrentUser({
+          id: userId,
+          name: decoded.name,
+          is_verified: decoded.is_verified,
+          badges: [],
+        });
+      });
 
-    fetchBadges();
-  }, [currentUser?.id]);
+  } catch (err) {
+    console.error("Error decoding token:", err);
+  }
+}, []);
 
-  // Fetch info
+
+
+  // Fetch inventory, employees, uploaded and donated products
   useEffect(() => {
     const token = localStorage.getItem("token");
-    try {
-      if (token) {
-        const decoded = JSON.parse(atob(token.split(".")[1]));
-        setName(decoded.name || "Madam Bakery");
-        setIsVerified(decoded.is_verified);
-      }
-    } catch (err){
-      console.error("Error fetching bakery dashboard stats:", err);
-    }
-
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
     const loadInventory = () =>
-      axios
-        .get(`${API}/inventory`, { headers })
+      axios.get(`${API}/inventory`, { headers })
         .then((r) => setInventory(r.data || []))
         .catch(() => setInventory([]));
 
     const loadEmployees = () =>
-      axios
-        .get(`${API}/employees`, { headers })
+      axios.get(`${API}/employees`, { headers })
         .then((r) => setEmployeeCount((r.data || []).length))
         .catch(() => setEmployeeCount(0));
 
     const loadUploadedProducts = () =>
-      axios
-        .get(`${API}/donations`, { headers })
+      axios.get(`${API}/donations`, { headers })
         .then((r) => {
           const available = (r.data || []).filter((d) => d.status === "available").length;
           setUploadedProducts(available);
         })
         .catch(() => setUploadedProducts(0));
 
-      const loadDonatedProducts = () =>
-      axios
-        .get(`${API}/donations`, { headers })
+    const loadDonatedProducts = () =>
+      axios.get(`${API}/donations`, { headers })
         .then((r) => {
           const donated = (r.data || []).filter((d) => d.status === "donated").length;
           setDonatedProducts(donated);
         })
         .catch(() => setDonatedProducts(0));
 
-    // initial
     loadInventory();
     loadEmployees();
     loadUploadedProducts();
     loadDonatedProducts();
 
-    // listen for cross-page updates
     const onInventoryChange = () => loadInventory();
     const onEmployeesChange = () => loadEmployees();
     window.addEventListener("inventory:changed", onInventoryChange);
     window.addEventListener("employees:changed", onEmployeesChange);
 
-    // refresh on focus
     const onFocus = () => {
       loadInventory();
       loadEmployees();
     };
     window.addEventListener("focus", onFocus);
 
-    // safety polling
     const pollId = setInterval(() => {
       loadInventory();
       loadEmployees();
@@ -634,33 +640,36 @@ useEffect(() => {
                 </Card>
               </div>
 
-                 <div className="gwrap hover-lift reveal">
+              <div className="gwrap hover-lift reveal">
                 <Card className="glass-card shadow-none">
                   <CardHeader className="pb-2">
                     <CardTitle>Achievements &amp; Badges</CardTitle>
                     <CardDescription>Your donation milestones</CardDescription>
                   </CardHeader>
                   <CardContent className="min-h-[404px] flex flex-wrap gap-3">
-                    {loadingBadges ? (
-                      <p className="text-sm text-gray-400">Loading badges...</p>
-                    ) : badges.length > 0 ? (
-                      badges.map((badge) => (
-                        <div
-                          key={badge.id}
-                          className="flex flex-col items-center p-2 rounded-lg shadow-sm w-20 hover:scale-105 transition-transform bg-green-100"
-                        >
-                          <img
-                            src={`${API}/${badge.icon || badge.icon_url}`}
-                            alt={badge.name}
-                            title={badge.name}
-                            className="w-10 h-10 object-contain mb-1"
-                          />
-                          <span className="text-xs text-center">{badge.name}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-gray-400">No badges unlocked yet.</p>
-                    )}
+                    {badges && badges.length > 0 ? (
+                          badges.map((userBadge) => (
+                            <div key={userBadge.id} className="flex flex-col items-center">
+                              <img
+                                src={
+                                  userBadge.badge?.icon_url
+                                    ? `${API}/${userBadge.badge.icon_url}`
+                                    : "/placeholder-badge.png"
+                                }
+                                alt={userBadge.badge?.name}
+                                title={userBadge.badge?.name}
+                                className="w-12 h-12 hover:scale-110 transition-transform"
+                              />
+                              <span className="text-xs mt-1">
+                                {userBadge.badge_name && userBadge.badge_name.trim() !== ""
+                                  ? userBadge.badge_name
+                                  : userBadge.badge?.name}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-gray-400">No badges unlocked yet.</p>
+                        )}
                   </CardContent>
                 </Card>
               </div>

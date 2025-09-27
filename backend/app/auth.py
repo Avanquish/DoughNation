@@ -7,7 +7,7 @@ from app import models, schemas, database
 from sqlalchemy.orm import Session
 import os
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
@@ -30,34 +30,41 @@ def decode_access_token(token: str):
     except JWTError:
         return None
     
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)) -> models.User:
+    if not SECRET_KEY or not ALGORITHM:
+        raise RuntimeError("SECRET_KEY or ALGORITHM environment variable not set")
+    
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Missing authentication token",
+                            headers={"WWW-Authenticate": "Bearer"})
+    
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         sub = payload.get("sub")
         if sub is None:
-            raise credentials_exception
-        # sub might be string - convert to int if possible
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+        
+        # Convert sub to int if possible (user ID)
         try:
             user_id = int(sub)
-        except Exception:
-            # fallback: assume sub may be email; then query by email
-            user_id = None
-            user_by_email = db.query(models.User).filter(models.User.email == sub).first()
-            if user_by_email:
-                return user_by_email
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
+            user = db.query(models.User).filter(models.User.id == user_id).first()
+        except ValueError:
+            # fallback: assume sub is email
+            user = db.query(models.User).filter(models.User.email == sub).first()
+        
+        if not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        
+        print(f"Authenticated user: {user.id} | role: {user.role}")
+        return user
 
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if user is None:
-        raise credentials_exception
-    return user
+    except JWTError as e:
+        print("JWT decode error:", e)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Could not validate credentials",
+                            headers={"WWW-Authenticate": "Bearer"})
+
 
 def get_current_admin(current_user: models.User = Depends(get_current_user)):
     if current_user.role.lower() != "admin":

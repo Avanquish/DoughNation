@@ -171,7 +171,8 @@ class NotificationRead(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     notif_id = Column(String, index=True)
     read_at = Column(DateTime, default=datetime.utcnow)
-
+    
+    user = relationship("User", backref="read_notifications")
 
 #---------Feedback------------
 class Feedback(Base):

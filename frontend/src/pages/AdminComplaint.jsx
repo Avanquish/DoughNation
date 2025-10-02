@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-} from "@/components/ui/card";
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 
 export default function AdminComplaints() {
@@ -52,8 +52,10 @@ export default function AdminComplaints() {
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
       <Card>
-        <CardHeader>
-          <CardTitle>📋 Complaints Management</CardTitle>
+        <CardHeader className="flex justify-center">
+          <CardTitle className="text-xl font-bold text-center">
+            📋 Complaints Management
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -61,32 +63,34 @@ export default function AdminComplaints() {
           ) : complaints.length === 0 ? (
             <p>No complaints submitted yet.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border rounded-lg">
-                <thead className="bg-gray-100">
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full border-collapse">
+                <thead className="bg-gray-100 text-sm font-semibold text-gray-700">
                   <tr>
-                    <th className="p-3 text-left">ID</th>
-                    <th className="p-3 text-left">User</th>
-                    <th className="p-3 text-left">Subject</th>
-                    <th className="p-3 text-left">Description</th>
-                    <th className="p-3 text-left">Status</th>
-                    <th className="p-3 text-left">Created</th>
-                    <th className="p-3 text-left">Action</th>
+                    <th className="p-3 border text-center">ID</th>
+                    <th className="p-3 border text-center">User</th>
+                    <th className="p-3 border text-center">Subject</th>
+                    <th className="p-3 border text-center">Description</th>
+                    <th className="p-3 border text-center">Status</th>
+                    <th className="p-3 border text-center">Created</th>
+                    <th className="p-3 border text-center">Action</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="text-sm text-gray-800">
                   {complaints.map((c) => (
-                    <tr key={c.id} className="border-b">
-                      <td className="p-3">{c.id}</td>
-                      <td className="p-3">{c.user_name || "Unknown"}</td>
-                      <td className="p-3">{c.subject}</td>
-                      <td className="p-3">{c.description}</td>
-                      <td className="p-3">
+                    <tr key={c.id} className="bg-white hover:bg-gray-50">
+                      <td className="p-3 border text-center">{c.id}</td>
+                      <td className="p-3 border text-center">
+                        {c.user_name || "Unknown"}
+                      </td>
+                      <td className="p-3 border text-center">{c.subject}</td>
+                      <td className="p-3 border">{c.description}</td>
+                      <td className="p-3 border text-center">
                         <Badge
                           variant={
-                            c.status === "pending"
+                            c.status.toLowerCase() === "pending"
                               ? "secondary"
-                              : c.status === "resolved"
+                              : c.status.toLowerCase() === "resolved"
                               ? "default"
                               : "destructive"
                           }
@@ -94,21 +98,38 @@ export default function AdminComplaints() {
                           {c.status}
                         </Badge>
                       </td>
-                      <td className="p-3">
+                      <td className="p-3 border text-center">
                         {new Date(c.created_at).toLocaleString()}
                       </td>
-                      <td className="p-3">
+                      <td className="p-3 border text-center">
                         <Select
                           onValueChange={(val) => updateStatus(c.id, val)}
                           defaultValue={c.status}
                         >
-                          <SelectTrigger className="w-[120px]">
+                          <SelectTrigger className="w-[130px] bg-white">
                             <SelectValue placeholder="Change" />
                           </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Pending">Pending</SelectItem>
-                            <SelectItem value="In Review">In Review</SelectItem>
-                            <SelectItem value="Resolved">Resolved</SelectItem>
+
+                          {/* ✅ White dropdown, no checkmarks */}
+                          <SelectContent className="bg-white shadow-md rounded-md">
+                            <SelectItem
+                              value="Pending"
+                              className="[&>[data-state=checked]]:hidden"
+                            >
+                              Pending
+                            </SelectItem>
+                            <SelectItem
+                              value="In Review"
+                              className="[&>[data-state=checked]]:hidden"
+                            >
+                              In Review
+                            </SelectItem>
+                            <SelectItem
+                              value="Resolved"
+                              className="[&>[data-state=checked]]:hidden"
+                            >
+                              Resolved
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </td>

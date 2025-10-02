@@ -171,6 +171,8 @@ class NotificationRead(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     notif_id = Column(String, index=True)
     read_at = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship("User", backref="read_notifications")
 
 
 #---------Feedback------------
@@ -241,7 +243,6 @@ class UserBadge(Base):
     description = Column(Text, nullable=True)
     badge_name = Column(String, nullable=True)
     
-
     user = relationship("User", back_populates="badges")
     badge = relationship("Badge", back_populates="user_badges", lazy="joined")
 

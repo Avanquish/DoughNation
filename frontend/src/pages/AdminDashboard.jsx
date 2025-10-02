@@ -29,10 +29,12 @@ const AdminDashboard = () => {
   });
   const [pendingUsers, setPendingUsers] = useState([]);
   const [feedbacks, setFeedbacks] = useState([]);
+  const [complaints, setComplaints] = useState([]);
 
   // Notifications
   const [notifOpen, setNotifOpen] = useState(false);
-  const notifCount = pendingUsers.length + feedbacks.length;
+  const [readNotifs, setReadNotifs] = useState(new Set());
+  
 
   const navigate = useNavigate();
 
@@ -101,6 +103,22 @@ const AdminDashboard = () => {
     })();
   }, []);
 
+  // Complaints
+useEffect(() => {
+  (async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get("/complaints", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setComplaints(res.data || []);
+    } catch (e) {
+      console.error(e);
+      setComplaints([]);
+    }
+  })();
+}, []);
+
   // Actions
   const handleVerify = async (id) => {
     try {
@@ -162,11 +180,52 @@ const AdminDashboard = () => {
       title: f.type ? `${f.type} from ${f.charity_name}` : `New report from ${f.charity_name || "Charity"}`,
       subtitle: (f.summary || f.message || f.subject || "").toString().slice(0, 120),
     }));
-    return [...reg, ...fbs].sort((a, b) => {
-      if (a.at && b.at) return new Date(b.at) - new Date(a.at);
-      return 0;
+    const complaintsNotifs = complaints.map((c) => ({
+      kind: "complaint",
+      id: `comp-${c.id}`,
+      at: c.created_at || null,
+      title: `Complaint from ${c.user_name || "User"}`,
+      subtitle: (c.subject || c.description || "").toString().slice(0, 120),
+    }));
+     return [...reg, ...fbs, ...complaintsNotifs]
+    .sort((a, b) => (a.at && b.at ? new Date(b.at) - new Date(a.at) : 0))
+    .map((n) => ({
+      ...n,
+      isRead: readNotifs.has(n.id),
+    }));
+}, [pendingUsers, feedbacks, complaints, readNotifs]);
+
+// Action: mark as read
+const markAsRead = async (notifId) => {
+  try {
+    const token = localStorage.getItem("token");
+    await axios.post(`/notifications/mark-read/${notifId}`, {}, {
+      headers: { Authorization: `Bearer ${token}` },
     });
-  }, [pendingUsers, feedbacks]);
+    setReadNotifs((prev) => new Set(prev).add(notifId));
+  } catch (e) {
+    console.error("Failed to mark notification as read:", e);
+  }
+};
+
+useEffect(() => {
+  (async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get("/notifications/read", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setReadNotifs(new Set(res.data || [])); // Restore saved read notifications
+    } catch (e) {
+      console.error("Failed to load read notifications:", e);
+    }
+  })();
+}, []);
+
+  const notifCount = useMemo(
+  () => notifications.filter((n) => !n.isRead).length,
+  [notifications]
+);
 
   // Header status chip text
   const statusText = useMemo(() => {
@@ -341,12 +400,17 @@ const AdminDashboard = () => {
             <ul className="max-h-[60vh] overflow-auto">
               {notifications.length ? (
                 notifications.map((n) => (
-                  <li key={n.id} className="p-4 border-b last:border-b-0">
+                  <li key={n.id} className={`p-4 border-b last:border-b-0 ${
+                    n.isRead ? "opacity-60" : "bg-amber-100"
+                  }`}>
                     <button
                       className="w-full text-left flex items-start gap-3"
                       onClick={() => {
+                        markAsRead(n.id);
                         setNotifOpen(false);
-                        setActiveTab(n.kind === "registration" ? "users" : "feedback");
+                        setActiveTab(n.kind === "registration" ? "users" 
+                                                : n.kind === "feedback" ? "feedback" 
+                                                : "complaints");
                       }}
                     >
                       <div className="mt-0.5">

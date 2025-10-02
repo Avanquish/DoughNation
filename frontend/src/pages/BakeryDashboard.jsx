@@ -25,7 +25,7 @@ import BakeryEmployee from "./BakeryEmployee";
 import BakeryDonation from "./BakeryDonation";
 import Messages from "../pages/Messages";
 import Complaint from "../pages/Complaint";
-import BakeryReportGeneration from "../pages/BakeryReports";
+import BakeryReports from "../pages/BakeryReports";
 import BakeryNotification from "./BakeryNotification";
 import BDonationStatus from "./BDonationStatus";
 import BFeedback from "./BFeedback";
@@ -716,7 +716,7 @@ useEffect(() => {
           </TabsContent>
 
           <TabsContent value="reports" className="reveal">
-            <BakeryReportGeneration />
+            <BakeryReports />
           </TabsContent>
 
           {/* Feedback */}

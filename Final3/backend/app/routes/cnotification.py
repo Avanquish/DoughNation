@@ -403,7 +403,7 @@ def process_geofence_notifications(db: Session, bakery_id: int):
                     continue
 
             elif donation.expiration_date == one_day_from_now:
-                # Second wave → 10 km, remove old 10km notifications first
+                # Second wave → 10 km, remove old 5km notifications first
                 db.query(NotificationRead).filter(
                     NotificationRead.notif_id == f"geofence-{donation.id}-to-{charity.id}"
                 ).delete()
@@ -434,3 +434,4 @@ def process_geofence_notifications(db: Session, bakery_id: int):
 
     db.commit()
     print("[Geofence] ✅ Finished geofence notifications")
+

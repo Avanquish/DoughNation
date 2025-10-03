@@ -397,18 +397,18 @@ def process_geofence_notifications(db: Session, bakery_id: int):
 
             # --- Wave logic ---
             if donation.expiration_date == two_days_from_now:
-                # First wave → 10 km
-                if distance > 10:
-                    print(f"   ❌ Charity {charity.id} outside 10km (first wave)")
+                # First wave → 5 km
+                if distance > 5:
+                    print(f"   ❌ Charity {charity.id} outside/not 5km (first wave)")
                     continue
 
             elif donation.expiration_date == one_day_from_now:
-                # Second wave → 5 km, remove old 10km notifications first
+                # Second wave → 10 km, remove old 10km notifications first
                 db.query(NotificationRead).filter(
                     NotificationRead.notif_id == f"geofence-{donation.id}-to-{charity.id}"
                 ).delete()
-                if distance > 5:
-                    print(f"   ❌ Charity {charity.id} outside 5km (second wave)")
+                if distance > 10:
+                    print(f"   ❌ Charity {charity.id} outside/not 10km (second wave)")
                     continue
                 else:
                     print(f"   🗑 Removed old 2-day notif for donation {donation.id} → Charity {charity.id}")

@@ -12,6 +12,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "../api/axios";
 
 import AdminComplaint from "./AdminComplaint";
+import AdminReports from "./AdminReports";
 import AdminBadge from "./AdminBadge";
 import AdminUser from "./AdminUser";
 import Leaderboards from "./Leaderboards";
@@ -547,16 +548,8 @@ useEffect(() => {
 
           {/* Report Generation */}
           <TabsContent value="reports" className="reveal">
-            <div className="gwrap hover-lift">
-              <Card className="glass-card shadow-none">
-                <CardHeader>
-                  <CardTitle>Report Generation</CardTitle>
-                  <CardDescription>Create and download administrative reports</CardDescription>
-                </CardHeader>
-                <CardContent className="text-sm text-muted-foreground">
-                  (Placeholder — hook up your reporting UI here.)
-                </CardContent>
-              </Card>
+            <div>
+             <AdminReports />
             </div>
           </TabsContent>
 

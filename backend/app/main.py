@@ -6,7 +6,7 @@ from app.routes import (auth_routes, admin_routes, binventory_routes,
                         bemployee_routes, bakerydashboardstats, admindashboardstats, 
                         bdonation_routes, bnotification, cnotification, messages, charitydonation_routes,
                         direct_donation, CFeedback, BFeedback, Compute_TOT_Donations, complaint_routes, BReportGene, 
-                        geofence, badges, RecentDonations, DashboardSearch, leaderboards
+                        AdminReportGene, geofence, badges, RecentDonations, DashboardSearch, leaderboards
                         )
 from app.database import engine, SessionLocal
 from app import models, crud, database
@@ -30,9 +30,8 @@ app = FastAPI()
 scheduler = BackgroundScheduler()
 
 
-origins = [
-    "https://your-frontend.vercel.app",
-    ]
+origins = ["http://localhost:5173",
+           "http://127.0.0.1:5173",]
 
 app.add_middleware(
     CORSMiddleware,
@@ -59,6 +58,7 @@ app.include_router(BFeedback.router),
 app.include_router(Compute_TOT_Donations.router)
 app.include_router(complaint_routes.router)
 app.include_router(BReportGene.router)
+app.include_router(AdminReportGene.router)
 app.include_router(geofence.router)
 app.include_router(badges.router)
 app.include_router(RecentDonations.router)

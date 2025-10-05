@@ -47,6 +47,9 @@ const daysUntil = (dateStr) => {
   return Math.ceil((d - today) / (1000 * 60 * 60 * 24));
 };
 const statusOf = (item) => {
+  // If already donated, skip from expired/soon/fresh logic
+  if (item.status === "donated") return "donated";
+
   const d = daysUntil(item.expiration_date);
   if (d === null) return "fresh";
   if (d < 0) return "expired";
@@ -209,20 +212,26 @@ useEffect(() => {
 
   // Stats calculations
   const stats = useMemo(() => {
-    const totalProducts = inventory.length;
-    const expiredProducts = inventory.filter((i) => statusOf(i) === "expired").length;
-    const nearingExpiration = inventory.filter((i) => statusOf(i) === "soon").length;
-    return {
-      totalDonations: donatedProducts,
-      totalInventory: totalProducts,
-      uploadedProducts,
-      donatedProducts,
-      employeeCount,
-      expiredProducts,
-      nearingExpiration,
-    };
-  }, [inventory, employeeCount, uploadedProducts, donatedProducts]);
+  const totalProducts = inventory.length;
 
+  const expiredProducts = inventory.filter(
+    (i) => i.status !== "donated" && statusOf(i) === "expired"
+  ).length;
+
+  const nearingExpiration = inventory.filter(
+    (i) => i.status !== "donated" && statusOf(i) === "soon"
+  ).length;
+
+  return {
+    totalDonations: donatedProducts,
+    totalInventory: totalProducts,
+    uploadedProducts,
+    donatedProducts,
+    employeeCount,
+    expiredProducts,
+    nearingExpiration,
+  };
+}, [inventory, employeeCount, uploadedProducts, donatedProducts]);
 
   // ui helpers
   const handleLogout = () => {

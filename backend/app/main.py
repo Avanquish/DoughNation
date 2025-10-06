@@ -30,7 +30,7 @@ app = FastAPI()
 scheduler = BackgroundScheduler()
 
 
-origins = ["https://api.doughnationhq.cloud/"]
+origins = ["https://doughnationhq.cloud/"]
 
 app.add_middleware(
     CORSMiddleware,

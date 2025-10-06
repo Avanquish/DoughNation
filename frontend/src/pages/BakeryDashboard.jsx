@@ -35,7 +35,7 @@ import RecentDonations from "./RecentDonations";
 import DashboardSearch from "./DashboardSearch";
 import UserBadge from "./UserBadge";
 
-const API = "http://localhost:8000";
+const API = "https://api.doughnationhq.cloud/";
 
 const parseDate = (s) => (s ? new Date(s) : null);
 const daysUntil = (dateStr) => {

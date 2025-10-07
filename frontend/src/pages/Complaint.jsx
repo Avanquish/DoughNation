@@ -29,7 +29,7 @@ export default function ComplaintModule() {
   const fetchComplaints = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await axios.get("http://127.0.0.1:8000/complaints/me", {
+      const res = await axios.get("https://api.doughnationhq.cloud/complaints/me", {
         headers: { Authorization: `Bearer ${token}` },
       });
       setComplaints(res.data);
@@ -52,7 +52,7 @@ export default function ComplaintModule() {
 
     try {
       const token = localStorage.getItem("token");
-      await axios.post("http://127.0.0.1:8000/complaints/", formData, {
+      await axios.post("https://api.doughnationhq.cloud/complaints/", formData, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

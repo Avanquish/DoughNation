@@ -25,12 +25,12 @@ const AdminBadge = () => {
   // Fetch bakery users & admin badges
   useEffect(() => {
     axios
-      .get("http://localhost:8000/badges/bakery-users")
+      .get("https://api.doughnationhq.cloud/badges/bakery-users")
       .then((res) => setUsers(res.data))
       .catch((err) => console.error("Error fetching users:", err));
 
     axios
-      .get("http://localhost:8000/badges/admin-badge")
+      .get("https://api.doughnationhq.cloud/badges/admin-badge")
       .then((res) => setBadges(res.data))
       .catch((err) => console.error("Error fetching badges:", err));
   }, []);
@@ -42,7 +42,7 @@ const AdminBadge = () => {
     }
 
     try {
-      await axios.post("http://localhost:8000/badges/assign", {
+      await axios.post("https://api.doughnationhq.cloud/badges/assign", {
         user_id: selectedUser,
         badge_id: selectedBadge.id,
         badge_name: badgeName || selectedBadge.name, // ✅ use input or fallback
@@ -145,7 +145,7 @@ const AdminBadge = () => {
                 }`}
               >
                 <img
-                  src={`http://localhost:8000/${badge.icon_url}`}
+                  src={`https://api.doughnationhq.cloud/${badge.icon_url}`}
                   alt={badge.name}
                   className="w-12 h-12 mr-4 object-contain"
                 />

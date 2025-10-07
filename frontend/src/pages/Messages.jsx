@@ -14,7 +14,7 @@ import {
 import axios from "axios";
 
 /* ==== Config & helpers ==== */
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_URL = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
 
 const fileUrl = (path) => {
   if (!path) return "";
@@ -440,7 +440,7 @@ useEffect(() => {
 
     const connectWS = () => {
       const ws = new WebSocket(
-        `${API_URL.replace(/^http/, "ws")}/ws/messages/${currentUser.id}`
+        `${API_URL.replace(/^https/, "ws")}/ws/messages/${currentUser.id}`
       );
       wsRef.current = ws;
 

@@ -35,7 +35,7 @@ import {
 } from "recharts";
 import Swal from "sweetalert2";
 
-const API = "http://localhost:8000";  
+const API = "https://api.doughnationhq.cloud";  
 const parseDate = (s) => (s ? new Date(s) : null);
 const daysUntil = (dateStr) => {
   const d = parseDate(dateStr);
@@ -260,7 +260,7 @@ export default function BakeryProfile() {
         const token = localStorage.getItem("token");
         if (!token) return;
 
-        const res = await axios.get("http://localhost:8000/information", {
+        const res = await axios.get("https://api.doughnationhq.cloud/information", {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -669,7 +669,7 @@ export default function BakeryProfile() {
             <div className="flex flex-col md:flex-row md:items-end gap-6">
               <div className="avatar-ring shrink-0">
                 <img
-                  src={profilePic ? `http://localhost:8000/${profilePic}` : "/default-avatar.png"}  
+                  src={profilePic ? `https://api.doughnationhq.cloud/${profilePic}` : "/default-avatar.png"}
                   alt="Profile Picture"
                   className="h-32 w-32 rounded-full object-cover"
                 />

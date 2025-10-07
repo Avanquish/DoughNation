@@ -20,7 +20,7 @@ export default function AdminComplaints() {
   const fetchComplaints = async () => {
     try {
       setLoading(true);
-      const res = await axios.get("http://127.0.0.1:8000/complaints/", {
+      const res = await axios.get("https://api.doughnationhq.cloud/complaints/", {
         headers: { Authorization: `Bearer ${token}` },
       });
       setComplaints(res.data);
@@ -35,7 +35,7 @@ export default function AdminComplaints() {
   const updateStatus = async (id, newStatus) => {
     try {
       await axios.put(
-        `http://127.0.0.1:8000/complaints/${id}/status`,
+        `https://api.doughnationhq.cloud/complaints/${id}/status`,
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );

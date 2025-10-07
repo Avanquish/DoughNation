@@ -6,7 +6,7 @@ import { Search } from "lucide-react";
 import { createPortal } from "react-dom";
 import ShowSearchedProfile from "./ShowSearchedProfile";
 
-const API = "http://localhost:8000";
+const API = "https://api.doughnationhq.cloud";
 
 const SearchBar = ({ searchType = "all" }) => {
   const [query, setQuery] = useState("");

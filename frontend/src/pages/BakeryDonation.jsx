@@ -3,7 +3,7 @@ import ReactDOM from "react-dom";
 import axios from "axios";
 import Swal from "sweetalert2";
 
-const API = "http://localhost:8000";
+const API = "https://api.doughnationhq.cloud";
 
 // helper: treat items expiring today or earlier as expired (consistent with inventory logic)
 const isExpired = (dateStr) => {

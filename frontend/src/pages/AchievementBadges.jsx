@@ -23,16 +23,16 @@ const AchievementBadges = () => {
     if (!userId) return;
 
     // Fetch all badges
-    axios.get("http://localhost:8000/badges/").then((res) => setAllBadges(res.data));
+    axios.get("https://api.doughnationhq.cloud/badges/").then((res) => setAllBadges(res.data));
 
     // Fetch unlocked badges
     axios
-      .get(`http://localhost:8000/badges/user/${userId}`)
+      .get(`https://api.doughnationhq.cloud/badges/user/${userId}`)
       .then((res) => setUserBadges(res.data));
 
     // Fetch progress for each badge
     axios
-      .get(`http://localhost:8000/badges/progress/${userId}`)
+      .get(`https://api.doughnationhq.cloud/badges/progress/${userId}`)
       .then((res) => setBadgeProgress(res.data));
   }, [userId]);
 
@@ -88,7 +88,7 @@ const AchievementBadges = () => {
               </CardHeader>
               <CardContent className="flex flex-col items-center">
                 <img
-                  src={badge.icon_url ? `http://localhost:8000/${badge.icon_url}` : "/placeholder-badge.png"}
+                  src={badge.icon_url ? `https://api.doughnationhq.cloud/${badge.icon_url}` : "/placeholder-badge.png"}
                   alt={badge.name}
                   className={`w-20 h-20 mb-3 ${unlocked ? "" : "grayscale opacity-60"}`}
                 />

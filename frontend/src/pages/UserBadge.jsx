@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 
-const API = "https://api.doughnationhq.cloud";
+const API = "https://api.doughnationhq.cloud/";
 
 const UserBadge = ({ currentUser }) => {
   const [badges, setBadges] = useState([]);

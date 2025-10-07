@@ -35,7 +35,7 @@ import {
 } from "recharts";
 import Swal from "sweetalert2";
 
-const API = "https://api.doughnationhq.cloud";  
+const API = "https://api.doughnationhq.cloud/";  
 const parseDate = (s) => (s ? new Date(s) : null);
 const daysUntil = (dateStr) => {
   const d = parseDate(dateStr);

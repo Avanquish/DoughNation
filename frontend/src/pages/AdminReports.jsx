@@ -20,7 +20,7 @@ export default function AdminReports() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  const API_URL = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
+  const API_URL = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud/";
   const normalizePath = (path) => path.replace(/\\/g, "/");
 
   const reportTypes = [{ key: "manage_users", label: "Manage Users" }];

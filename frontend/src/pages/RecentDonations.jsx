@@ -3,7 +3,7 @@ import axios from "axios";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle } from "lucide-react";
 
-const API = "https://api.doughnationhq.cloud";
+const API = "https://api.doughnationhq.cloud/";
 
 const RecentDonations = ({ userId }) => { // <-- accept optional userId
   const [donations, setDonations] = useState([]);

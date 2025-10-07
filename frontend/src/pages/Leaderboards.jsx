@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 
-const API = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
+const API = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud/";
 
 const Leaderboards = () => {
   const [leaderboard, setLeaderboard] = useState([]);

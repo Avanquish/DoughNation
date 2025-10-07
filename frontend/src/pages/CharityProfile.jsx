@@ -35,7 +35,7 @@ import {
 } from "recharts";
 import Swal from "sweetalert2";
 
-const API = "https://api.doughnationhq.cloud";  
+const API = "https://api.doughnationhq.cloud/";  
 
 export default function CharityProfile() {
   const { id } = useParams();

@@ -15,7 +15,7 @@ function UnreadCircle({ read }) {
   );
 }
 
-const API = "https://api.doughnationhq.cloud";
+const API = "https://api.doughnationhq.cloud/";
 const STORAGE_KEY = "readNotifications";
 
 export default function NotificationBell() {

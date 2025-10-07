@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { FaStar } from "react-icons/fa"; // for star ratings
 
-const API = "https://api.doughnationhq.cloud";
+const API = "https://api.doughnationhq.cloud/";
 
 const StarRating = ({ rating }) => {
   const maxStars = 5;

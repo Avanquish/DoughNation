@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Swal from "sweetalert2";
 
-const API = "https://api.doughnationhq.cloud";
+const API = "https://api.doughnationhq.cloud/";
 
 export default function CharityDonationFeed() {
   const [donations, setDonations] = useState([]);

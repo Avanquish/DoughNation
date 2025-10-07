@@ -3,7 +3,7 @@ import ReactDOM from "react-dom";
 import axios from "axios";
 import Swal from "sweetalert2";
 
-const API = "https://api.doughnationhq.cloud";
+const API = "https://api.doughnationhq.cloud/";
 
 // Helpers
 const parseDate = (s) => (s ? new Date(s) : null);

@@ -52,7 +52,7 @@ export default function BakeryReports() {
     { key: "monthly", label: "Monthly Summary" },
   ];
 
-  const API_URL = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
+  const API_URL = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud/";
 
 const normalizePath = (path) => path.replace(/\\/g, "/");
 

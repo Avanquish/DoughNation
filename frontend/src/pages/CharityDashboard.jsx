@@ -26,7 +26,7 @@ import CFeedback from "./CFeedback.jsx";
 import RecentDonations from "./RecentDonations.jsx";
 import DashboardSearch from "./DashboardSearch.jsx";
 
-const API = "https://api.doughnationhq.cloud";
+const API = "https://api.doughnationhq.cloud/";
 
 const CharityDashboard = () => {
   const [name, setName] = useState("");

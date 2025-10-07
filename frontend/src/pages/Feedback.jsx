@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 
-const API = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
+const API = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud/";
 
 export default function Feedback({ donationId, isDirect, onSubmitted }) {
   const [isOpen, setIsOpen] = useState(false);

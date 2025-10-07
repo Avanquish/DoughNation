@@ -14,7 +14,7 @@ import Swal from "sweetalert2";
 // Try to use the axios instance baseURL, fallback to localhost
 const API_BASE =
   (axios?.defaults?.baseURL && axios.defaults.baseURL.replace(/\/$/, "")) ||
-  "https://api.doughnationhq.cloud";
+  "https://api.doughnationhq.cloud/";
 
 // Build an absolute URL from possibly-relative path
 const toUrl = (p) => {

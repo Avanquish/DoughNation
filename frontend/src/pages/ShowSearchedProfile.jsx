@@ -17,7 +17,7 @@ import {
 import RecentDonations from "./RecentDonations";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 
-const API = "https://api.doughnationhq.cloud";
+const API = "https://api.doughnationhq.cloud/";
 
 export default function ShowSearchedProfile({ id, onBack }) {
   const [profile, setProfile] = useState(null);

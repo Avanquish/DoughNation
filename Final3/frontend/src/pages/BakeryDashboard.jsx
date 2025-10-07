@@ -90,20 +90,19 @@ useEffect(() => {
     console.log("Decoded token:", decoded);
     setName(decoded.name || "Madam Bakery");
     setIsVerified(decoded.is_verified);
-    if (!decoded?.id) {
+   const userId = decoded.sub || decoded.id || decoded.user_id || decoded._id;
+    if (!userId) {
       console.error("User ID missing in token:", decoded);
       return;
     }
-
-    const userId = decoded.id || decoded.user_id || decoded._id;
-
+    
     // Fetch badges for the user
     axios
       .get(`${API}/badges/user/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
-        console.log("User badges response:", res.data);
+        console.log("User badges", res.data);
         setBadges(res.data || []);
         setCurrentUser({
           id: userId,
@@ -127,7 +126,6 @@ useEffect(() => {
     console.error("Error decoding token:", err);
   }
 }, []);
-
 
 
   // Fetch inventory, employees, uploaded and donated products

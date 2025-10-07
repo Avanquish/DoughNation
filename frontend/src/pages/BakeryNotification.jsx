@@ -2,13 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { Bell, ExternalLink, X, ChevronRight } from "lucide-react";
 
-
 // Small unread/read circle indicator
 function UnreadCircle({ read }) {
   return (
     <span
       aria-hidden
-      className={`inline-block mr-2 rounded-full align-middle shrink-0 ${read ? "w-2.5 h-2.5 border border-[#BF7327] bg-transparent" : "w-2.5 h-2.5 border border-[#BF7327] bg-[#BF7327]"}`}
+      className={`inline-block mr-2 rounded-full align-middle shrink-0 ${
+        read
+          ? "w-2.5 h-2.5 border border-[#BF7327] bg-transparent"
+          : "w-2.5 h-2.5 border border-[#BF7327] bg-[#BF7327]"
+      }`}
       title={read ? "Read" : "Unread"}
     />
   );
@@ -26,7 +29,7 @@ export default function BakeryNotification() {
   const [messages, setMessages] = useState([]);
 
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [anchor, setAnchor] = useState(null); 
+  const [anchor, setAnchor] = useState(null);
 
   const dropdownRef = useRef(null);
   const cardRef = useRef(null);
@@ -83,7 +86,9 @@ export default function BakeryNotification() {
 
   // selection & read
   const markAsRead = (id) => {
-    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, read: true } : p)));
+    setProducts((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, read: true } : p))
+    );
     const bag = getReadFromStorage();
     if (!bag.includes(id)) saveReadToStorage([...bag, id]);
   };
@@ -132,7 +137,8 @@ export default function BakeryNotification() {
   // Close on outside click
   useEffect(() => {
     const onDown = (e) => {
-      const withinDropdown = dropdownRef.current && dropdownRef.current.contains(e.target);
+      const withinDropdown =
+        dropdownRef.current && dropdownRef.current.contains(e.target);
       const withinCard = cardRef.current && cardRef.current.contains(e.target);
       if (!withinDropdown && !withinCard) {
         setOpen(false);
@@ -338,7 +344,7 @@ export default function BakeryNotification() {
                               : "bg-[rgba(255,246,236,1)]"
                           }`}
                         >
-      <UnreadCircle read={n.read} />
+                          <UnreadCircle read={n.read} />
                           <p
                             className={`text-[13px] text-left flex-1 ${
                               n.read
@@ -372,7 +378,7 @@ export default function BakeryNotification() {
                           className="w-full p-3 flex items-center gap-2 text-left hover:bg-[#fff6ec]"
                         >
                           <UnreadCircle read={false} />
-      <img
+                          <img
                             src={
                               m.sender_profile_picture
                                 ? `${API}/${m.sender_profile_picture}`
@@ -381,13 +387,15 @@ export default function BakeryNotification() {
                             alt={m.sender_name}
                             className="w-8 h-8 rounded-full object-cover border"
                           />
-      
+
                           <div className="min-w-0 flex-1">
                             <p className="text-[13px] leading-tight">
                               <span className="font-bold text-[#6b4b2b]">
                                 {m.sender_name}:
                               </span>{" "}
-                              <span className="text-[#6b4b2b]">{m.preview}</span>
+                              <span className="text-[#6b4b2b]">
+                                {m.preview}
+                              </span>
                             </p>
                           </div>
                           <ChevronRight
@@ -401,7 +409,7 @@ export default function BakeryNotification() {
                 )}
               </div>
 
-              {/* footer hint */}
+              {/* footer */}
               <div className="px-3 py-2 text-[11px] text-[#8a5a25] bg-white/70">
                 Tip: Click a product alert to view quick details or jump to
                 Inventory.
@@ -456,8 +464,7 @@ export default function BakeryNotification() {
               </h3>
               <div className="space-y-1 text-[12px] text-[#6b4b2b]">
                 <p>
-                  <strong>Quantity:</strong>{" "}
-                  {selectedProduct.quantity ?? "-"}
+                  <strong>Quantity:</strong> {selectedProduct.quantity ?? "-"}
                 </p>
                 <p>
                   <strong>Creation Date:</strong>{" "}
@@ -476,8 +483,8 @@ export default function BakeryNotification() {
                     : "-"}
                 </p>
                 <p>
-                  <strong>Threshold:</strong>{" "}
-                  {selectedProduct.threshold ?? "-"} days
+                  <strong>Threshold:</strong> {selectedProduct.threshold ?? "-"}{" "}
+                  days
                 </p>
               </div>
 

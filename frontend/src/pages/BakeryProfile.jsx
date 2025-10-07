@@ -11,11 +11,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Package,
-  Heart,
   Clock,
   AlertTriangle,
   LogOut,
-  Bell,
   MessageSquareText,
   X,
   ChevronRight,
@@ -35,7 +33,9 @@ import {
 } from "recharts";
 import Swal from "sweetalert2";
 
-const API = "https://api.doughnationhq.cloud/";  
+const API = "https://api.doughnationhq.cloud/";
+
+// Helpers for product status
 const parseDate = (s) => (s ? new Date(s) : null);
 const daysUntil = (dateStr) => {
   const d = parseDate(dateStr);
@@ -45,7 +45,6 @@ const daysUntil = (dateStr) => {
   d.setHours(0, 0, 0, 0);
   return Math.ceil((d - today) / (1000 * 60 * 60 * 24));
 };
-
 const statusOf = (item) => {
   const d = daysUntil(item.expiration_date);
   if (d === null) return "fresh";
@@ -54,10 +53,28 @@ const statusOf = (item) => {
   return "fresh";
 };
 
+// Sub-tab state management
+const SUBTAB_KEY = "bakery_profile_active_subtab";
+const ALLOWED_SUBTABS = ["about", "history", "analytics"];
+const getInitialSubTab = () => {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get("sub");
+    if (fromUrl && ALLOWED_SUBTABS.includes(fromUrl)) return fromUrl;
+
+    const stored = localStorage.getItem(SUBTAB_KEY);
+    if (stored && ALLOWED_SUBTABS.includes(stored)) return stored;
+
+    return "about";
+  } catch {
+    return "about";
+  }
+};
+
 export default function BakeryProfile() {
   const { id } = useParams();
   const [name, setName] = useState("Bakery Name");
-  const [activeSubTab, setActiveSubTab] = useState("about");
+  const [activeSubTab, setActiveSubTab] = useState(getInitialSubTab); // <- changed
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isMsgOpen, setIsMsgOpen] = useState(false);
   const [inventory, setInventory] = useState([]);
@@ -66,9 +83,13 @@ export default function BakeryProfile() {
   const [readMessageIds, setReadMessageIds] = useState(new Set());
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isChangePassOpen, setIsChangePassOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null)
+  const [currentUser, setCurrentUser] = useState(null);
+  const [profilePic, setProfilePic] = useState(null);
+  const [badges, setBadges] = useState([]);
+
   const navigate = useNavigate();
 
+  // keep data fresh: inventory, employees
   useEffect(() => {
     const token = localStorage.getItem("token");
     try {
@@ -77,43 +98,97 @@ export default function BakeryProfile() {
         setName(decoded.name || "Bakery Name");
         setCurrentUser(decoded);
       }
-    } catch (err){
-        console.error("Error fetching bakery profile stats:", err);
+    } catch (err) {
+      console.error("Error fetching bakery profile stats:", err);
     }
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
     const loadInventory = () =>
       axios
         .get(`${API}/inventory`, { headers })
         .then((r) => setInventory(r.data || []))
         .catch(() => setInventory([]));
+
     const loadEmployees = () =>
       axios
         .get(`${API}/employees`, { headers })
         .then((r) => setEmployeeCount((r.data || []).length))
         .catch(() => setEmployeeCount(0));
+
     loadInventory();
     loadEmployees();
+
     const onInventoryChange = () => loadInventory();
     const onEmployeesChange = () => loadEmployees();
     window.addEventListener("inventory:changed", onInventoryChange);
     window.addEventListener("employees:changed", onEmployeesChange);
+
     const onFocus = () => {
       loadInventory();
       loadEmployees();
     };
     window.addEventListener("focus", onFocus);
-    const id = setInterval(() => {
+
+    const poll = setInterval(() => {
       loadInventory();
       loadEmployees();
     }, 10000);
+
     return () => {
       window.removeEventListener("inventory:changed", onInventoryChange);
       window.removeEventListener("employees:changed", onEmployeesChange);
       window.removeEventListener("focus", onFocus);
-      clearInterval(id);
+      clearInterval(poll);
     };
   }, []);
 
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+
+        const res = await axios.get(`${API}/information`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const user = res.data;
+        setProfilePic(user.profile_picture);
+        setName(user.name);
+      } catch (err) {
+        console.error("Failed to fetch user:", err);
+      }
+    };
+
+    fetchUser();
+  }, []);
+
+  const userId = id;
+  useEffect(() => {
+    axios
+      .get(`${API}/badges/user/${userId}`)
+      .then((res) => setBadges(res.data))
+      .catch((err) => console.error(err));
+  }, [userId]);
+
+  // persist sub-tab across reloads
+  useEffect(() => {
+    try {
+      if (!activeSubTab) return;
+      localStorage.setItem(SUBTAB_KEY, activeSubTab);
+
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("sub") !== activeSubTab) {
+        params.set("sub", activeSubTab);
+        const next = `${window.location.pathname}?${params.toString()}${
+          window.location.hash
+        }`;
+        window.history.replaceState({}, "", next);
+      }
+    } catch {}
+  }, [activeSubTab]);
+
+  // calculate inventory status counts
   const statusCounts = useMemo(() => {
     const expired = inventory.filter((i) => statusOf(i) === "expired").length;
     const soon = inventory.filter((i) => statusOf(i) === "soon").length;
@@ -160,26 +235,20 @@ export default function BakeryProfile() {
     ],
     []
   );
-  const unreadProductCount = useMemo(
-    () => productAlerts.filter((n) => !readProductIds.has(n.id)).length,
-    [productAlerts, readProductIds]
-  );
-  const unreadMessageCount = useMemo(
-    () => messageNotifs.filter((m) => !readMessageIds.has(m.id)).length,
-    [messageNotifs, readMessageIds]
-  );
-  const totalUnread = unreadProductCount + unreadMessageCount;
 
+  // UX tweaks: prevent background scroll when notif open
   useEffect(() => {
     document.documentElement.style.overflow = isNotifOpen ? "hidden" : "";
     return () => {
       document.documentElement.style.overflow = "";
     };
   }, [isNotifOpen]);
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     navigate("/");
   };
+
   const handleClickProductNotification = (n) => {
     setReadProductIds((p) => {
       const next = new Set(p);
@@ -196,84 +265,58 @@ export default function BakeryProfile() {
   };
 
   const handleEditSubmit = async (e) => {
-  e.preventDefault();
-  const token = localStorage.getItem("token");
+    e.preventDefault();
+    const token = localStorage.getItem("token");
 
-  const formData = new FormData();
+    const formData = new FormData();
+    const name = e.target.name?.value;
+    const contactPerson = e.target.contact_person?.value;
+    const contactNumber = e.target.contact_number?.value;
+    const address = e.target.address?.value;
+    const profilePicture = e.target.profile_picture?.files[0];
 
-  const name = e.target.name?.value;
-  const contactPerson = e.target.contact_person?.value;
-  const contactNumber = e.target.contact_number?.value;
-  const address = e.target.address?.value;
-  const profilePicture = e.target.profile_picture?.files[0];
+    if (name) formData.append("name", name);
+    if (contactPerson) formData.append("contact_person", contactPerson);
+    if (contactNumber) formData.append("contact_number", contactNumber);
+    if (address) formData.append("address", address);
+    if (profilePicture) formData.append("profile_picture", profilePicture);
 
-  if (name) formData.append("name", name);
-  if (contactPerson) formData.append("contact_person", contactPerson);
-  if (contactNumber) formData.append("contact_number", contactNumber);
-  if (address) formData.append("address", address);
-  if (profilePicture) formData.append("profile_picture", profilePicture);
+    if (formData.keys().next().done) {
+      Swal.fire({
+        icon: "warning",
+        title: "No changes",
+        text: "Please fill at least one field to save changes.",
+      });
+      return;
+    }
 
-  // Validation: at least one field must be filled
-  if (formData.keys().next().done) {
-    Swal.fire({
-      icon: "warning",
-      title: "No changes",
-      text: "Please fill at least one field to save changes.",
-    });
-    return;
-  }
+    try {
+      await axios.put(`${API}/edit`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
+      });
 
-  try {
-    await axios.put(`${API}/edit`, formData, {
-      headers: { 
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "multipart/form-data"
-      },
-    });
+      setIsEditOpen(false);
+      window.dispatchEvent(new Event("profile:updated"));
 
-    setIsEditOpen(false);
-    window.dispatchEvent(new Event("profile:updated"));
-
-    Swal.fire({
-      icon: "success",
-      title: "Profile Updated",
-      text: "Your changes have been saved successfully.",
-      timer: 2500,
-      showConfirmButton: false,
-    });
-  } catch (err) {
-    console.error("Failed to update profile:", err);
-    Swal.fire({
-      icon: "error",
-      title: "Update Failed",
-      text: "There was an error saving your changes. Please try again.",
-    });
-  }
-};
-
-
-  const [profilePic, setProfilePic] = useState(null);
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        if (!token) return;
-
-        const res = await axios.get("https://api.doughnationhq.cloud/information", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        const user = res.data;
-        setProfilePic(user.profile_picture);
-        setName(user.name); 
-      } catch (err) {
-        console.error("Failed to fetch user:", err);
-      }
-    };
-
-    fetchUser();
-  }, []);
+      Swal.fire({
+        icon: "success",
+        title: "Profile Updated",
+        text: "Your changes have been saved successfully.",
+        timer: 2500,
+        showConfirmButton: false,
+      });
+    } catch (err) {
+      console.error("Failed to update profile:", err);
+      Swal.fire({
+        icon: "error",
+        title: "Update Failed",
+        text: "There was an error saving your changes. Please try again.",
+      });
+    }
+  };
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
@@ -296,9 +339,9 @@ export default function BakeryProfile() {
 
     try {
       await axios.put(`${API}/changepass`, data, {
-        headers: { 
+        headers: {
           Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",  // 👈 force JSON
+          "Content-Type": "application/json",
         },
       });
 
@@ -320,94 +363,120 @@ export default function BakeryProfile() {
     }
   };
 
-  const [badges, setBadges] = useState([]);
-  const userId = id; // or decode from token
-
-  useEffect(() => {
-    axios
-      .get(`${API}/badges/user/${userId}`)
-      .then((res) => {
-        // your backend returns a list of user badges directly
-        console.log("User badges response:", res.data);
-        setBadges(res.data);
-      })
-      .catch((err) => console.error(err));
-  }, [userId]);
-
+  // Styles
   const Styles = () => (
     <style>{`
-      .gwrap{
-  position:relative; border-radius:16px; padding:1px;
-  background:linear-gradient(135deg, rgba(247,199,137,.9), rgba(201,124,44,.55));
-  background-size:200% 200%;
-  animation:borderShift 8s ease-in-out infinite;
-}
-@keyframes borderShift{0%{background-position:0% 0%}50%{background-position:100% 100%}100%{background-position:0% 0%}}
+      :root{
+        --ink:#7a4f1c;
+        --grad1:#FFFCF6; --grad2:#FFF3E3; --grad3:#FFE9CF; --grad4:#F9D9AE;
+        --brand1:#F6C17C; --brand2:#E49A52; --brand3:#BF7327;
+      }
 
-.glass-card{
-  border-radius:15px;
-  background:rgba(255,255,255,.94);    /* <- this is what removes the tan */
-  backdrop-filter:blur(8px);
-  box-shadow:none;
-}
-
-/* keep these identical to the dashboard for overlay + messages */
-.overlay-root{position:fixed; inset:0; z-index:50;}
-.overlay-bg{position:absolute; inset:0; background:rgba(0,0,0,.32); backdrop-filter:blur(6px); opacity:0; animation:showBg .2s ease forwards}
-@keyframes showBg{to{opacity:1}}
-.overlay-panel{position:relative; margin:6rem auto 2rem; width:min(92%,560px); border-radius:16px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,.18)}
-.overlay-enter{transform:translateY(10px) scale(.98); opacity:0; animation:pop .22s ease forwards}
-@keyframes pop{to{transform:translateY(0) scale(1); opacity:1}}
-
-.msg-wrap{position:relative}
-.msg-panel{position:absolute; right:0; top:48px; width:340px; background:rgba(255,255,255,.98); border:1px solid rgba(0,0,0,.06); border-radius:14px; box-shadow:0 18px 40px rgba(0,0,0,.14); overflow:hidden; animation:pop .18s ease forwards}
-.skeleton{position:relative; overflow:hidden; background:#f3f3f3}
-.skeleton::after{content:""; position:absolute; inset:0; transform:translateX(-100%); background:linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.6), rgba(255,255,255,0)); animation:shimmer 1.2s infinite}
-@keyframes shimmer{100%{transform:translateX(100%)}}
-
-.chip{width:46px; height:46px; display:flex; align-items:center; justify-content:center; border-radius:9999px; background:linear-gradient(180deg,#FFE7C5,#F7C489); color:#8a5a25; border:1px solid #fff3e0; box-shadow:0 6px 18px rgba(201,124,44,.18)}
-      .overlay-root{position:fixed; inset:0; z-index:50;}
-.overlay-bg{position:absolute; inset:0; background:rgba(0,0,0,.32); backdrop-filter:blur(6px); opacity:0; animation:showBg .2s ease forwards}
-@keyframes showBg{to{opacity:1}}
-.overlay-panel{position:relative; margin:6rem auto 2rem; width:min(92%,560px); border-radius:16px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,.18)}
-.overlay-enter{transform:translateY(10px) scale(.98); opacity:0; animation:pop .22s ease forwards}
-@keyframes pop{to{transform:translateY(0) scale(1); opacity:1}}
-
-.msg-wrap{position:relative}
-.msg-panel{position:absolute; right:0; top:48px; width:340px; background:rgba(255,255,255,.98); border:1px solid rgba(0,0,0,.06); border-radius:14px; box-shadow:0 18px 40px rgba(0,0,0,.14); overflow:hidden; animation:pop .18s ease forwards}
-.skeleton{position:relative; overflow:hidden; background:#f3f3f3}
-.skeleton::after{content:""; position:absolute; inset:0; transform:translateX(-100%); background:linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.6), rgba(255,255,255,0)); animation:shimmer 1.2s infinite}
-@keyframes shimmer{100%{transform:translateX(100%)}}
-
-/* chip (used in notif items) */
-.chip{width:46px; height:46px; display:flex; align-items:center; justify-content:center; border-radius:9999px; background:linear-gradient(180deg,#FFE7C5,#F7C489); color:#8a5a25; border:1px solid #fff3e0; box-shadow:0 6px 18px rgba(201,124,44,.18)}
-      :root{--ink:#7a4f1c; --grad1:#FFF7EC; --grad2:#FFE7C8; --grad3:#FFD6A1; --grad4:#F3C27E; --brand1:#F6C17C; --brand2:#E49A52; --brand3:#BF7327;}
       .page-bg{position:fixed; inset:0; z-index:-10; overflow:hidden; pointer-events:none;}
       .page-bg::before,.page-bg::after{content:""; position:absolute; inset:0}
-      .page-bg::before{background:radial-gradient(1200px 520px at 12% -10%,var(--grad1) 0%,var(--grad2) 42%,transparent 70%), radial-gradient(900px 420px at 110% 18%, rgba(255,208,153,.40), transparent 70%), linear-gradient(135deg,#FFF9EF 0%,#FFF2E3 60%,#FFE7D1 100%);}
-      .blob{position:absolute; width:420px; height:420px; border-radius:50%; filter:blur(36px); mix-blend-mode:multiply; opacity:.22}
-      .blob.a{left:-120px; top:30%; background:radial-gradient(circle at 35% 35%, #ffd9aa, transparent 60%)}
-      .blob.b{right:-140px; top:6%; background:radial-gradient(circle at 60% 40%, #ffc985, transparent 58%)}
-      .head{position:sticky; top:0; z-index:40; border-bottom:1px solid rgba(0,0,0,.06); backdrop-filter:blur(10px);}
-      .head-bg{position:absolute; inset:0; z-index:-1; opacity:.92; background:linear-gradient(110deg,#ffffff 0%,#fff8ec 28%,#ffeccd 55%,#ffd7a6 100%); background-size:220% 100%;}
+      .page-bg::before{
+        background:
+          radial-gradient(1200px 520px at 12% -10%, var(--grad1) 0%, var(--grad2) 45%, transparent 70%),
+          radial-gradient(900px 420px at 110% 18%, rgba(255,208,153,.28), transparent 70%),
+          linear-gradient(135deg, #FFFEFB 0%, #FFF8ED 60%, #FFEFD9 100%);
+        animation: drift 26s ease-in-out infinite alternate;
+      }
+              .page-bg::after{
+        background: repeating-linear-gradient(-35deg, rgba(201,124,44,.045) 0 8px, rgba(201,124,44,0) 8px 18px);
+        mix-blend-mode:multiply; opacity:.10; animation: pan 40s linear infinite;
+      }
+      .blob{position:absolute; width:420px; height:420px; border-radius:50%; filter:blur(36px); mix-blend-mode:multiply; opacity:.14}
+      .blob.a{left:-120px; top:30%; background:radial-gradient(circle at 35% 35%, #ffd9aa, transparent 60%); animation: blob 18s ease-in-out infinite alternate;}
+      .blob.b{right:-140px; top:6%; background:radial-gradient(circle at 60% 40%, #ffc985, transparent 58%); animation: blob 20s 2s ease-in-out infinite alternate;}
+      @keyframes drift{from{transform:translate3d(0,0,0)}to{transform:translate3d(0,-18px,0)}}
+      @keyframes pan{from{transform:translate3d(0,0,0)}to{transform:translate3d(-6%,-6%,0)}}
+      @keyframes blob{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(24px,-20px,0) scale(1.04)}}
+
+      .head{position:sticky; top:0; z-index:40; border-bottom:1px solid rgba(0,0,0,.06); backdrop-filter: blur(10px);}
+      .head-bg{position:absolute; inset:0; z-index:-1; opacity:.96;
+        background: linear-gradient(110deg, #ffffff 0%, #fff9f1 28%, #ffefd9 55%, #ffe5c2 100%);
+        background-size: 220% 100%;
+        animation: headerSlide 18s linear infinite;
+      }
+      @keyframes headerSlide{0%{background-position:0% 50%}100%{background-position:100% 50%}}
       .head-inner{max-width:80rem; margin:0 auto; padding:.9rem 1rem;}
       .brand{display:flex; gap:.8rem; align-items:center}
-      .ring{width:48px; height:48px; border-radius:9999px; padding:2px; background:conic-gradient(from 210deg,#F7C789,#E8A765,#C97C2C,#E8A765,#F7C789)}
+      .ring{width:48px; height:48px; border-radius:9999px; padding:2px; background:conic-gradient(from 210deg,#F7C789,#E8A765,#C97C2C,#E8A765,#F7C789); animation: spin 10s linear infinite; box-shadow:0 10px 24px rgba(201,124,44,.16)}
       .ring>div{width:100%; height:100%; border-radius:9999px; background:#fff; display:flex; align-items:center; justify-content:center}
+      @keyframes spin{to{transform:rotate(360deg)}}
+      .bread{transform-origin:50% 60%; animation: float 6s ease-in-out infinite}
+      @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
       .title-ink{font-weight:800; letter-spacing:.2px; background:linear-gradient(90deg,#F3B56F,#E59B50,#C97C2C); -webkit-background-clip:text; background-clip:text; color:transparent}
-      .status-chip{display:inline-flex; align-items:center; gap:.5rem; margin-top:.15rem; padding:.28rem .6rem; font-size:.78rem; border-radius:9999px; color:#7a4f1c; background:linear-gradient(180deg,#FFE7C5,#F7C489); border:1px solid #fff3e0}
+
+      /* 'Profile' pill */
+      .status-chip{display:inline-flex; align-items:center; gap:.5rem; margin-top:.15rem; padding:.30rem .72rem; font-size:.82rem; border-radius:9999px; color:#7a4f1c; background:linear-gradient(180deg,#FFE7C5,#F7C489); border:1px solid #fff3e0; font-weight:800;}
+
       .iconbar{display:flex; align-items:center; gap:.5rem}
-      .icon-btn{position:relative; display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:9999px; background:rgba(255,255,255,.9); border:1px solid rgba(0,0,0,.06)}
-      .badge{position:absolute; top:-4px; right:-4px; min-width:18px; height:18px; padding:0 4px; border-radius:9999px; background:linear-gradient(180deg,#ff6b6b,#e03131); color:#fff; font-size:11px; line-height:18px; text-align:center; font-weight:800}
-      .btn-logout{position:relative; overflow:hidden; border-radius:9999px; padding:.58rem .95rem; gap:.5rem; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); color:#fff; border:1px solid rgba(255,255,255,.6)}
-      .hero{position:relative; border-radius:16px; overflow:hidden; box-shadow:0 16px 40px rgba(201,124,44,.12)}
-      .hero-bg{position:absolute; inset:0; background:linear-gradient(180deg, rgba(255,255,255,.35), rgba(255,255,255,0)), linear-gradient(135deg,#f9e7cf,#f7c78a);}
-      .hero-pattern{position:absolute; inset:0; opacity:.16}
+      .icon-btn{position:relative; display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:9999px; background:rgba(255,255,255,.92); border:1px solid rgba(0,0,0,.06); box-shadow:0 6px 16px rgba(201,124,44,.14); transition:transform .18s ease, box-shadow .18s ease}
+      .icon-btn:hover{transform:translateY(-1px); box-shadow:0 10px 22px rgba(201,124,44,.20)}
+
+      /* Buttons */
+      .btn-pill{
+        position:relative; overflow:hidden; border-radius:9999px; padding:.65rem 1.05rem;
+        background:linear-gradient(135deg,#F6C17C,#BF7327); color:#fff; font-weight:700;
+        border:1px solid rgba(255,255,255,.65); box-shadow:0 10px 28px rgba(201,124,44,.28);
+        transition:transform .18s ease, box-shadow .18s ease;
+      }
+      .btn-pill:hover{ transform:translateY(-1px) scale(1.02); box-shadow:0 14px 36px rgba(201,124,44,.34); }
+      .btn-change{
+        border-radius:9999px; padding:.65rem 1.05rem; font-weight:800; color:var(--ink);
+        background:linear-gradient(180deg,#ffffff,#fff6ea);
+        border:1.5px solid #e7b072;
+        box-shadow:inset 0 1px 0 #ffffff, 0 8px 20px rgba(201,124,44,.18);
+        transition:transform .18s ease, box-shadow .18s ease, background .18s ease;
+      }
+      .btn-change:hover{ transform:translateY(-1px) scale(1.02); background:linear-gradient(180deg,#fffaf2,#ffe4c6); box-shadow:inset 0 1px 0 #ffffff, 0 12px 30px rgba(201,124,44,.24); }
+
+      /* hero + avatar */
+      .hero{position:relative; border-radius:16px; overflow:hidden; box-shadow:0 12px 34px rgba(201,124,44,.10)}
+      .hero-bg{position:absolute; inset:0; background:linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,.0)), linear-gradient(135deg,#fbeedc,#f7cea1);}
+      .hero-pattern{position:absolute; inset:0; opacity:.10}
       .avatar-ring{position:relative; width:120px; height:120px; border-radius:9999px; padding:3px; background:conic-gradient(from 210deg,#F7C789,#E8A765,#C97C2C,#E8A765,#F7C789)}
       .avatar-ring>img{width:100%; height:100%; object-fit:cover; border-radius:9999px; background:#fff}
+
+      /* inner segment tabs like dashboard seg */
       .subseg{display:flex; gap:.4rem; background:rgba(255,255,255,.94); border:1px solid rgba(0,0,0,.07); border-radius:12px; padding:.3rem; box-shadow:0 8px 24px rgba(201,124,44,.08); width:fit-content}
       .subseg [role="tab"]{border-radius:10px; padding:.48rem .95rem; color:#6b4b2b; font-weight:700}
-      .subseg [role="tab"][data-state="active"]{color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3))}
+      .subseg [role="tab"][data-state="active"]{color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); box-shadow:0 8px 18px rgba(201,124,44,.28)}
+
+      /* overlay + modals */
+      .overlay-root{position:fixed; inset:0; z-index:50;}
+      .overlay-bg{position:absolute; inset:0; background:rgba(0,0,0,.32); backdrop-filter: blur(6px); opacity:0; animation: showBg .2s ease forwards}
+      @keyframes showBg{to{opacity:1}}
+      .overlay-panel{position:relative; margin:6rem auto 2rem; width:min(92%, 560px); border-radius:16px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,.18)}
+      .overlay-enter{transform:translateY(10px) scale(.98); opacity:0; animation: pop .22s ease forwards}
+      @keyframes pop{to{transform:translateY(0) scale(1); opacity:1}}
+
+      .modal-card{background:rgba(255,255,255,.96); backdrop-filter: blur(8px); border-radius:16px; border:1px solid rgba(0,0,0,.06); transition: transform .2s ease, box-shadow .2s ease;}
+      .modal-card:hover{transform: scale(1.01); box-shadow: 0 28px 70px rgba(0,0,0,.22);}
+      .modal-head{background:linear-gradient(180deg,#fff,#fff8ef); border-bottom:1px solid rgba(0,0,0,.06)}
+      .modal-input{border-radius:10px; padding:.65rem .8rem; border:1px solid rgba(0,0,0,.18)}
+      .modal-input:focus{outline:none; border-color:#E49A52; box-shadow:0 0 0 3px rgba(228,154,82,.2)}
+
+      /* titles */
+      .brown-title { color: #7a4f1c; }
+
+      /* dashboard-like wrappers + chips for tiles */
+      .gwrap{position:relative; border-radius:16px; padding:1px; background:linear-gradient(135deg, rgba(247,199,137,.9), rgba(201,124,44,.55)); background-size:200% 200%; animation:borderShift 8s ease-in-out infinite}
+      @keyframes borderShift{0%{background-position:0% 0%}50%{background-position:100% 100%}100%{background-position:0% 0%}}
+      .glass-card{border-radius:15px; background:rgba(255,255,255,.94); backdrop-filter:blur(8px)}
+      .chip{width:46px; height:46px; display:flex; align-items:center; justify-content:center; border-radius:9999px; background:linear-gradient(180deg,#FFE7C5,#F7C489); color:#8a5a25; border:1px solid #fff3e0; box-shadow:0 6px 18px rgba(201,124,44,.18)}
+
+      /* hover zooms */
+      .card-zoom{ transition:transform .18s ease, box-shadow .18s ease; will-change: transform; }
+      .card-zoom:hover{ transform:translateY(-2px) scale(1.02); box-shadow:0 18px 44px rgba(201,124,44,.18); }
+      .tile{ transition:transform .18s ease, box-shadow .18s ease; will-change: transform; }
+      .tile:hover{ transform:translateY(-2px) scale(1.02); box-shadow:0 10px 28px rgba(201,124,44,.16); }
+
+      /* NOTIFICATION THEME — match with dashboard */
+      .notif-card{ background:linear-gradient(180deg,#ffffff,#fff8ef); }
+      .notif-head{ background:linear-gradient(90deg,#FFE7C5,#F6C17C,#E49A52); color:#572f00; }
+      .notif-section{ padding:.6rem .9rem; font-size:.78rem; font-weight:800; color:#7a4f1c; background:linear-gradient(180deg,#fff7ec,#ffefd9); }
     `}</style>
   );
 
@@ -416,7 +485,6 @@ export default function BakeryProfile() {
     { name: "Soon", value: statusCounts.soon },
     { name: "Expired", value: statusCounts.expired },
   ];
-  const COLORS = ["#68b266", "#f3c04f", "#e05b5b"];
 
   return (
     <div className="min-h-screen relative">
@@ -426,83 +494,81 @@ export default function BakeryProfile() {
         <span className="blob b" />
       </div>
 
-      {/* Header / actions (same visual language as dashboard) */}
+      {/* Header */}
       <header className="head">
         <div className="head-bg" />
-  <div className="head-inner">
-    <div className="flex items-start justify-between gap-4">
-      <div className="flex-1 min-w-0">
-        <div className="brand">
-          <div className="ring">
-            <div>
-              <svg
-                width="28"
-                height="28"
-                viewBox="0 0 64 48"
-                aria-hidden="true"
+        <div className="head-inner">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="brand gap-2">
+                {/* Go Back beside rotating logo */}
+                <button
+                  className="icon-btn"
+                  aria-label="Back to dashboard"
+                  title="Back to Dashboard"
+                  onClick={() =>
+                    navigate(`/bakery-dashboard/${id}?tab=dashboard`)
+                  }
+                >
+                  <ChevronLeft className="h-[18px] w-[18px]" />
+                </button>
+
+                {/* Rotating ring + bread glyph */}
+                <div className="ring">
+                  <div>
+                    <svg
+                      width="28"
+                      height="28"
+                      viewBox="0 0 64 48"
+                      aria-hidden="true"
+                      className="bread"
+                    >
+                      <rect
+                        x="4"
+                        y="12"
+                        rx="12"
+                        ry="12"
+                        width="56"
+                        height="28"
+                        fill="#E8B06A"
+                      />
+                      <path
+                        d="M18 24c0-3 3-5 7-5s7 2 7 5m4 0c0-3 3-5 7-5s7 2 7 5"
+                        stroke="#9A5E22"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        fill="none"
+                      />
+                    </svg>
+                  </div>
+                </div>
+
+                <div className="min-w-0 ml-1">
+                  <h1 className="title-ink text-2xl sm:text-[26px] truncate">
+                    {name}
+                  </h1>
+                  <span className="status-chip">Profile</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right-side actions */}
+            <div className="pt-1 iconbar">
+              <Messages currentUser={currentUser} />
+              <BakeryNotification />
+              <Button
+                onClick={handleLogout}
+                className="btn-pill flex items-center"
               >
-                <rect
-                  x="4"
-                  y="12"
-                  rx="12"
-                  ry="12"
-                  width="56"
-                  height="28"
-                  fill="#E8B06A"
-                />
-                <path
-                  d="M18 24c0-3 3-5 7-5s7 2 7 5m4 0c0-3 3-5 7-5s7 2 7 5"
-                  stroke="#9A5E22"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  fill="none"
-                />
-              </svg>
+                <LogOut className="h-4 w-4" />
+                <span>Log Out</span>
+              </Button>
             </div>
           </div>
-          <div className="min-w-0">
-            <h1 className="title-ink text-2xl sm:text-[26px] truncate">
-              {name}
-            </h1>
-            <span className="status-chip">Profile</span>
-          </div>
         </div>
-      </div>
+      </header>
 
-      <div className="pt-1 iconbar">
-        <div className="msg-wrap"></div>
-        <button
-          className="icon-btn"
-          aria-label="Back to dashboard"
-          title="Back to Dashboard"
-          onClick={() => navigate(`/bakery-dashboard/${id}?tab=dashboard`)}
-        >
-          <ChevronLeft className="h-[18px] w-[18px]" />
-        </button>
-
-        <div className="pt-1 iconbar">
-          <div>
-            < Messages currentUser={currentUser}/>
-          </div>
-
-          <div>
-            < BakeryNotification/>
-          </div>
-
-          <Button
-            onClick={handleLogout}
-            className="btn-logout flex items-center"
-          >
-            <LogOut className="h-4 w-4" />
-            <span>Log Out</span>
-          </Button>
-        </div>
-      </div>
-    </div>
-  </div>
-</header>
-
-      {/* notif overlay (same sa dashboard) */}
+      {/* Notifications overlay */}
       {isNotifOpen && (
         <div
           className="overlay-root"
@@ -512,11 +578,11 @@ export default function BakeryProfile() {
         >
           <div className="overlay-bg" onClick={() => setIsNotifOpen(false)} />
           <div className="overlay-panel overlay-enter">
-            <Card className="glass-card shadow-none">
-              <CardHeader className="pb-2">
+            <Card className="modal-card notif-card">
+              <CardHeader className="pb-2 modal-head notif-head">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Notifications</CardTitle>
+                    <CardTitle className="brown-title">Notifications</CardTitle>
                     <CardDescription>
                       Product alerts & message notifications
                     </CardDescription>
@@ -532,9 +598,7 @@ export default function BakeryProfile() {
               </CardHeader>
               <CardContent className="p-0">
                 <ul className="max-h-[60vh] overflow-auto divide-y divide-[rgba(0,0,0,.06)]">
-                  <li className="p-3 text-xs font-semibold text-[var(--ink)] bg-[#fff9f0]">
-                    Inventory
-                  </li>
+                  <li className="notif-section">Inventory</li>
                   {productAlerts.length === 0 && (
                     <li className="p-6 text-sm text-muted-foreground">
                       No inventory alerts.
@@ -545,7 +609,7 @@ export default function BakeryProfile() {
                     .map((n) => (
                       <li
                         key={n.id}
-                        className="p-4 hover:bg-black/5 cursor-pointer"
+                        className="p-4 hover:bg黑/5 cursor-pointer"
                         onClick={() => handleClickProductNotification(n)}
                       >
                         <div className="flex items-start gap-3">
@@ -595,9 +659,7 @@ export default function BakeryProfile() {
                       </li>
                     ))}
 
-                  <li className="p-3 text-xs font-semibold text-[var(--ink)] bg-[#fff9f0]">
-                    Messages
-                  </li>
+                  <li className="notif-section">Messages</li>
                   {messageNotifs.filter((m) => !readMessageIds.has(m.id))
                     .length === 0 && (
                     <li className="p-6 text-sm text-muted-foreground">
@@ -609,7 +671,7 @@ export default function BakeryProfile() {
                     .map((m) => (
                       <li
                         key={m.id}
-                        className="p-4 hover:bg-black/5 cursor-pointer"
+                        className="p-4 hover:bg黑/5 cursor-pointer"
                         onClick={() => handleClickMessageNotification(m)}
                       >
                         <div className="flex items-start gap-3">
@@ -660,7 +722,7 @@ export default function BakeryProfile() {
         </div>
       )}
 
-      {/* Hero + sub-tabs */}
+      {/* hero + subtabs */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7 space-y-6">
         <div className="hero">
           <div className="hero-bg" />
@@ -669,11 +731,14 @@ export default function BakeryProfile() {
             <div className="flex flex-col md:flex-row md:items-end gap-6">
               <div className="avatar-ring shrink-0">
                 <img
-                  src={profilePic ? `https://api.doughnationhq.cloud/${profilePic}` : "/default-avatar.png"}
+                  src={
+                    profilePic ? `${API}/${profilePic}` : "/default-avatar.png"
+                  }
                   alt="Profile Picture"
                   className="h-32 w-32 rounded-full object-cover"
                 />
               </div>
+
               <div className="flex-1 min-w-0">
                 <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[var(--ink)]">
                   {name}
@@ -683,15 +748,14 @@ export default function BakeryProfile() {
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Button
-                    className="bg-[var(--brand2)] hover:bg-[var(--brand3)] text-white"
+                    className="btn-pill"
                     onClick={() => setIsEditOpen(true)}
                   >
                     Edit Profile
                   </Button>
                   <Button
-                    variant="outline"
+                    className="btn-change"
                     onClick={() => setIsChangePassOpen(true)}
-                    className="border-amber-300/70"
                   >
                     Change Password
                   </Button>
@@ -702,62 +766,62 @@ export default function BakeryProfile() {
             {/* Edit Profile Modal */}
             {isEditOpen && (
               <div className="overlay-root" role="dialog">
-                <div className="overlay-bg" onClick={() => setIsEditOpen(false)} />
+                <div
+                  className="overlay-bg"
+                  onClick={() => setIsEditOpen(false)}
+                />
                 <div className="overlay-panel overlay-enter">
-                  <Card className="glass-card">
-                    <CardHeader className="flex items-center justify-between">
-                      <CardTitle>Edit Profile</CardTitle>
+                  <Card className="modal-card">
+                    <CardHeader className="modal-head">
+                      <CardTitle className="text-center brown-title">
+                        Edit Profile
+                      </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <form className="space-y-3" onSubmit={handleEditSubmit}>
                         <div className="flex flex-col">
-                          <p>Bakery Name</p>
+                          <p className="brown-title">Bakery Name</p>
                           <input
                             type="text"
                             name="name"
                             defaultValue={name}
-                            className="w-full border rounded-md p-2"
+                            className="w-full modal-input"
                           />
                         </div>
-
                         <div className="flex flex-col">
-                          <p>Contact Person</p>
+                          <p className="brown-title">Contact Person</p>
                           <input
                             type="text"
                             name="contact_person"
-                            className="w-full border rounded-md p-2"
+                            className="w-full modal-input"
                           />
                         </div>
-
                         <div className="flex flex-col">
-                          <p>Contact Number</p>
+                          <p className="brown-title">Contact Number</p>
                           <input
                             type="text"
                             name="contact_number"
-                            className="w-full border rounded-md p-2"
+                            className="w-full modal-input"
                           />
                         </div>
-
                         <div className="flex flex-col">
-                          <p>Address</p>
+                          <p className="brown-title">Address</p>
                           <input
                             type="text"
                             name="address"
-                            className="w-full border rounded-md p-2"
+                            className="w-full modal-input"
                           />
                         </div>
-
                         <div className="flex flex-col">
-                          <p>Profile Picture</p>
+                          <p className="brown-title">Profile Picture</p>
                           <input
                             type="file"
                             name="profile_picture"
                             accept="image/*"
-                            className="w-full border rounded-md p-2"
+                            className="w-full modal-input"
                           />
                         </div>
-
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end gap-2 pt-1">
                           <Button
                             type="button"
                             variant="ghost"
@@ -765,7 +829,9 @@ export default function BakeryProfile() {
                           >
                             Cancel
                           </Button>
-                          <Button type="submit">Save Changes</Button>
+                          <Button type="submit" className="btn-pill">
+                            Save Changes
+                          </Button>
                         </div>
                       </form>
                     </CardContent>
@@ -774,61 +840,72 @@ export default function BakeryProfile() {
               </div>
             )}
 
-              {/* Change Password Modal */}
-              {isChangePassOpen && (
-                <div className="overlay-root" role="dialog">
-                  <div className="overlay-bg" onClick={() => setIsChangePassOpen(false)} />
-                  <div className="overlay-panel overlay-enter">
-                    <Card className="glass-card">
-                      <CardHeader className="flex items-center justify-between">
-                        <CardTitle>Change Password</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <form className="space-y-3" onSubmit={handleChangePassword}>
-                          <div className="flex flex-col">
-                            <p>Current Password</p>
-                            <input
-                              type="password"
-                              name="current_password"
-                              required
-                              className="w-full border rounded-md p-2"
-                            />
-                          </div>
-
-                          <div className="flex flex-col">
-                            <p>New Password</p>
-                            <input
-                              type="password"
-                              name="new_password"
-                              required
-                              className="w-full border rounded-md p-2"
-                            />
-                          </div>
-
-                          <div className="flex flex-col">
-                            <p>Confirm New Password</p>
-                            <input
-                              type="password"
-                              name="confirm_password"
-                              required
-                              className="w-full border rounded-md p-2"
-                            />
-                          </div>
-
-                          <div className="flex justify-end gap-2">
-                            <Button type="button" variant="ghost" onClick={() => setIsChangePassOpen(false)}>
-                              Cancel
-                            </Button>
-                            <Button type="submit">Change Password</Button>
-                          </div>
-                        </form>
-                      </CardContent>
-                    </Card>
-                  </div>
+            {/* Change Password Modal */}
+            {isChangePassOpen && (
+              <div className="overlay-root" role="dialog">
+                <div
+                  className="overlay-bg"
+                  onClick={() => setIsChangePassOpen(false)}
+                />
+                <div className="overlay-panel overlay-enter">
+                  <Card className="modal-card">
+                    <CardHeader className="modal-head">
+                      <CardTitle className="text-center brown-title">
+                        Change Password
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <form
+                        className="space-y-3"
+                        onSubmit={handleChangePassword}
+                      >
+                        <div className="flex flex-col">
+                          <p className="brown-title">Current Password</p>
+                          <input
+                            type="password"
+                            name="current_password"
+                            required
+                            className="w-full modal-input"
+                          />
+                        </div>
+                        <div className="flex flex-col">
+                          <p className="brown-title">New Password</p>
+                          <input
+                            type="password"
+                            name="new_password"
+                            required
+                            className="w-full modal-input"
+                          />
+                        </div>
+                        <div className="flex flex-col">
+                          <p className="brown-title">Confirm New Password</p>
+                          <input
+                            type="password"
+                            name="confirm_password"
+                            required
+                            className="w-full modal-input"
+                          />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setIsChangePassOpen(false)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button type="submit" className="btn-pill">
+                            Change Password
+                          </Button>
+                        </div>
+                      </form>
+                    </CardContent>
+                  </Card>
                 </div>
-              )}
+              </div>
+            )}
 
-
+            {/* Subtabs (About / Donation History / Analytics) */}
             <div className="mt-6">
               <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
                 <div className="subseg">
@@ -843,9 +920,9 @@ export default function BakeryProfile() {
 
                 <TabsContent value="about" className="pt-6">
                   <div className="gwrap">
-                    <Card className="glass-card shadow-none">
+                    <Card className="glass-card shadow-none card-zoom">
                       <CardHeader className="pb-2">
-                        <CardTitle>About</CardTitle>
+                        <CardTitle className="brown-title">About</CardTitle>
                         <CardDescription>
                           Tell donors more about your bakery
                         </CardDescription>
@@ -856,7 +933,7 @@ export default function BakeryProfile() {
                           display your story, mission, and donation preferences.
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          <div className="p-4 rounded-lg border bg-white/70">
+                          <div className="tile p-4 rounded-lg border bg-white/70">
                             <div className="text-sm text-muted-foreground">
                               Employees
                             </div>
@@ -864,7 +941,7 @@ export default function BakeryProfile() {
                               {employeeCount}
                             </div>
                           </div>
-                          <div className="p-4 rounded-lg border bg-white/70">
+                          <div className="tile p-4 rounded-lg border bg-white/70">
                             <div className="text-sm text-muted-foreground">
                               Products Tracked
                             </div>
@@ -872,7 +949,7 @@ export default function BakeryProfile() {
                               {statusCounts.total}
                             </div>
                           </div>
-                          <div className="p-4 rounded-lg border bg-white/70">
+                          <div className="tile p-4 rounded-lg border bg-white/70">
                             <div className="text-sm text-muted-foreground">
                               Active Alerts
                             </div>
@@ -886,32 +963,41 @@ export default function BakeryProfile() {
                   </div>
                 </TabsContent>
 
+                {/* Donation History */}
                 <TabsContent value="history" className="pt-6">
                   <div className="gwrap">
-                    <Card className="glass-card shadow-none">
+                    <Card className="glass-card shadow-none h-[560px] flex flex-col card-zoom">
                       <CardHeader className="pb-2">
-                        <CardTitle>Donation History</CardTitle>
+                        <CardTitle className="brown-title">
+                          Donation History
+                        </CardTitle>
                         <CardDescription>
-                         < RecentDonations />
+                          Your completed donations
                         </CardDescription>
                       </CardHeader>
-                      <CardContent className="min-h-[140px]" />
+                      <CardContent className="pt-0 flex-1 overflow-auto">
+                        <div className="h-full max-h-full">
+                          <RecentDonations />
+                        </div>
+                      </CardContent>
                     </Card>
                   </div>
                 </TabsContent>
 
-                {/* Badges */}
                 <TabsContent value="analytics" className="pt-6 space-y-6">
                   <div className="gwrap">
-                    <Card className="glass-card shadow-none">
+                    <Card className="glass-card shadow-none card-zoom">
                       <CardHeader className="pb-2">
-                        <CardTitle>Badges</CardTitle>
+                        <CardTitle className="brown-title">Badges</CardTitle>
                         <CardDescription />
                       </CardHeader>
                       <CardContent className="min-h-[80px] flex flex-wrap gap-4">
                         {badges && badges.length > 0 ? (
                           badges.map((userBadge) => (
-                            <div key={userBadge.id} className="flex flex-col items-center">
+                            <div
+                              key={userBadge.id}
+                              className="flex flex-col items-center"
+                            >
                               <img
                                 src={
                                   userBadge.badge?.icon_url
@@ -923,30 +1009,34 @@ export default function BakeryProfile() {
                                 className="w-12 h-12 hover:scale-110 transition-transform"
                               />
                               <span className="text-xs mt-1">
-                                {userBadge.badge_name && userBadge.badge_name.trim() !== ""
+                                {userBadge.badge_name &&
+                                userBadge.badge_name.trim() !== ""
                                   ? userBadge.badge_name
                                   : userBadge.badge?.name}
                               </span>
                             </div>
                           ))
                         ) : (
-                          <p className="text-sm text-gray-400">No badges unlocked yet.</p>
+                          <p className="text-sm text-gray-400">
+                            No badges unlocked yet.
+                          </p>
                         )}
                       </CardContent>
                     </Card>
                   </div>
 
-                  {/* Data Visualization */}
                   <div className="gwrap">
-                    <Card className="glass-card shadow-none">
+                    <Card className="glass-card shadow-none card-zoom">
                       <CardHeader className="pb-2">
-                        <CardTitle>Data Visualization</CardTitle>
+                        <CardTitle className="brown-title">
+                          Data Visualization
+                        </CardTitle>
                         <CardDescription>
                           Inventory status at a glance
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div className="p-4 rounded-lg border bg-white/70">
+                        <div className="tile p-4 rounded-lg border bg-white/70">
                           <div className="text-sm text-muted-foreground mb-2">
                             Total
                           </div>
@@ -954,21 +1044,28 @@ export default function BakeryProfile() {
                             <ResponsiveContainer width="100%" height="100%">
                               <PieChart>
                                 <Pie
-                                  data={statusPie}
+                                  data={[
+                                    {
+                                      name: "Fresh",
+                                      value: statusCounts.fresh,
+                                    },
+                                    { name: "Soon", value: statusCounts.soon },
+                                    {
+                                      name: "Expired",
+                                      value: statusCounts.expired,
+                                    },
+                                  ]}
                                   dataKey="value"
                                   nameKey="name"
                                   innerRadius={60}
                                   outerRadius={80}
                                   paddingAngle={2}
                                 >
-                                  {statusPie.map((_, i) => (
-                                    <Cell
-                                      key={i}
-                                      fill={
-                                        ["#68b266", "#f3c04f", "#e05b5b"][i % 3]
-                                      }
-                                    />
-                                  ))}
+                                  {["#68b266", "#f3c04f", "#e05b5b"].map(
+                                    (c, i) => (
+                                      <Cell key={i} fill={c} />
+                                    )
+                                  )}
                                 </Pie>
                                 <Tooltip />
                                 <Legend />
@@ -976,7 +1073,8 @@ export default function BakeryProfile() {
                             </ResponsiveContainer>
                           </div>
                         </div>
-                        <div className="p-4 rounded-lg border bg-white/70">
+
+                        <div className="tile p-4 rounded-lg border bg-white/70">
                           <div className="text-sm text-muted-foreground mb-2">
                             Fresh vs Soon
                           </div>
@@ -1005,7 +1103,8 @@ export default function BakeryProfile() {
                             </ResponsiveContainer>
                           </div>
                         </div>
-                        <div className="p-4 rounded-lg border bg-white/70">
+
+                        <div className="tile p-4 rounded-lg border bg-white/70">
                           <div className="text-sm text-muted-foreground mb-2">
                             Expired Share
                           </div>

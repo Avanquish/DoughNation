@@ -1,12 +1,12 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  UserCog, Building2, HelpingHand, ShieldCheck, LineChart,
-  LogOut, Bell, BellRing, MessageSquare, AlertTriangle,
+  UserCog, Building2, HelpingHand, ShieldCheck,
+  LogOut, Bell,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import axios from "../api/axios";
@@ -17,9 +17,60 @@ import AdminBadge from "./AdminBadge";
 import AdminUser from "./AdminUser";
 import Leaderboards from "./Leaderboards";
 
+// Tab persistence
+const ADMIN_TAB_KEY = "admin_active_tab";
+const ADMIN_ALLOWED_TABS = [
+  "dashboard",
+  "users",
+  "reports",
+  "track",
+  "badges",
+  "complaints",
+];
+
+// Small unread/read circle indicator
+function UnreadCircle({ read }) {
+  return (
+    <span
+      aria-hidden
+      className={`inline-block mr-2 rounded-full align-middle shrink-0 ${
+        read
+          ? "w-2.5 h-2.5 border border-[#BF7327] bg-transparent"
+          : "w-2.5 h-2.5 border border-[#BF7327] bg-[#BF7327]"
+      }`}
+      title={read ? "Read" : "Unread"}
+    />
+  );
+}
+
 const AdminDashboard = () => {
   const [name, setName] = useState("Admin");
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const fromUrl = params.get("tab");
+      if (fromUrl && ADMIN_ALLOWED_TABS.includes(fromUrl)) return fromUrl;
+
+      const fromStorage = localStorage.getItem(ADMIN_TAB_KEY);
+      if (fromStorage && ADMIN_ALLOWED_TABS.includes(fromStorage)) return fromStorage;
+    } catch {}
+    return "dashboard";
+  });
+
+  // Keep tab on reload
+  useEffect(() => {
+    try {
+      if (!activeTab) return;
+      localStorage.setItem(ADMIN_TAB_KEY, activeTab);
+
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("tab") !== activeTab) {
+        params.set("tab", activeTab);
+        const next = `${window.location.pathname}?${params.toString()}${window.location.hash}`;
+        window.history.replaceState({}, "", next);
+      }
+    } catch {}
+  }, [activeTab]);
 
   // Data
   const [stats, setStats] = useState({
@@ -29,13 +80,15 @@ const AdminDashboard = () => {
     pendingUsersCount: 0,
   });
   const [pendingUsers, setPendingUsers] = useState([]);
-  const [feedbacks, setFeedbacks] = useState([]);
+  const [feedbacks, setFeedbacks] = useState([]); 
   const [complaints, setComplaints] = useState([]);
 
-  // Notifications
+  // Notifications 
   const [notifOpen, setNotifOpen] = useState(false);
   const [readNotifs, setReadNotifs] = useState(new Set());
-  
+  const [notifTab, setNotifTab] = useState("verifications"); // "verifications" | "complaints" | "reports"
+  const dropdownRef = useRef(null);
+  const bellRef = useRef(null);
 
   const navigate = useNavigate();
 
@@ -45,7 +98,7 @@ const AdminDashboard = () => {
     try {
       const decoded = JSON.parse(atob(token.split(".")[1]));
       setName(decoded.name || "Admin");
-    } catch (err){
+    } catch (err) {
       console.error("Error fetching admin dashboard stats:", err);
     }
   }, []);
@@ -85,7 +138,7 @@ const AdminDashboard = () => {
     })();
   }, []);
 
-  // Feedback / reports (safe fallbacks)
+  // Feedback / reports 
   useEffect(() => {
     (async () => {
       const token = localStorage.getItem("token");
@@ -105,20 +158,20 @@ const AdminDashboard = () => {
   }, []);
 
   // Complaints
-useEffect(() => {
-  (async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get("https://api.doughnationhq.cloud/complaints", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setComplaints(res.data || []);
-    } catch (e) {
-      console.error(e);
-      setComplaints([]);
-    }
-  })();
-}, []);
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await axios.get("https://api.doughnationhq.cloud/complaints", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setComplaints(res.data || []);
+      } catch (e) {
+        console.error(e);
+        setComplaints([]);
+      }
+    })();
+  }, []);
 
   // Actions
   const handleVerify = async (id) => {
@@ -152,20 +205,19 @@ useEffect(() => {
     navigate("/");
   };
 
-  // Overlay behavior
+  // Close dropdown on outside click 
   useEffect(() => {
     if (!notifOpen) return;
-    const onKey = (e) => e.key === "Escape" && setNotifOpen(false);
-    document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
+    const onDown = (e) => {
+      const inDrop = dropdownRef.current && dropdownRef.current.contains(e.target);
+      const inBell = bellRef.current && bellRef.current.contains(e.target);
+      if (!inDrop && !inBell) setNotifOpen(false);
     };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
   }, [notifOpen]);
 
-  // Combined notifications
+  // Notifications list
   const notifications = useMemo(() => {
     const reg = pendingUsers.map((u) => ({
       kind: "registration",
@@ -175,7 +227,7 @@ useEffect(() => {
       subtitle: `${u.name} · ${u.email}`,
     }));
     const fbs = feedbacks.map((f) => ({
-      kind: "feedback",
+      kind: "feedback", 
       id: `fb-${f.id}`,
       at: f.created_at || f.date || null,
       title: f.type ? `${f.type} from ${f.charity_name}` : `New report from ${f.charity_name || "Charity"}`,
@@ -188,61 +240,70 @@ useEffect(() => {
       title: `Complaint from ${c.user_name || "User"}`,
       subtitle: (c.subject || c.description || "").toString().slice(0, 120),
     }));
-     return [...reg, ...fbs, ...complaintsNotifs]
-    .sort((a, b) => (a.at && b.at ? new Date(b.at) - new Date(a.at) : 0))
-    .map((n) => ({
-      ...n,
-      isRead: readNotifs.has(n.id),
-    }));
-}, [pendingUsers, feedbacks, complaints, readNotifs]);
+    return [...reg, ...fbs, ...complaintsNotifs]
+      .sort((a, b) => (a.at && b.at ? new Date(b.at) - new Date(a.at) : 0))
+      .map((n) => ({
+        ...n,
+        isRead: readNotifs.has(n.id),
+      }));
+  }, [pendingUsers, feedbacks, complaints, readNotifs]);
 
-// Action: mark as read
-const markAsRead = async (notifId) => {
-  try {
-    const token = localStorage.getItem("token");
-    await axios.post(`/notifications/mark-read/${notifId}`, {}, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    setReadNotifs((prev) => new Set(prev).add(notifId));
-  } catch (e) {
-    console.error("Failed to mark notification as read:", e);
-  }
-};
-
-useEffect(() => {
-  (async () => {
+  // Action: mark as read
+  const markAsRead = async (notifId) => {
     try {
       const token = localStorage.getItem("token");
-      const res = await axios.get("https://api.doughnationhq.cloud/notifications/read", {
+      await axios.post(`https://api.doughnationhq.cloud/notifications/mark-read/${notifId}`, {}, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setReadNotifs(new Set(res.data || [])); // Restore saved read notifications
+      setReadNotifs((prev) => new Set(prev).add(notifId));
     } catch (e) {
-      console.error("Failed to load read notifications:", e);
+      console.error("Failed to mark notification as read:", e);
     }
-  })();
-}, []);
+  };
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await axios.get("https://api.doughnationhq.cloud/notifications/read", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setReadNotifs(new Set(res.data || [])); 
+      } catch (e) {
+        console.error("Failed to load read notifications:", e);
+      }
+    })();
+  }, []);
 
   const notifCount = useMemo(
-  () => notifications.filter((n) => !n.isRead).length,
-  [notifications]
-);
+    () => notifications.filter((n) => !n.isRead).length,
+    [notifications]
+  );
 
-  // Header status chip text
+  // Header status text
   const statusText = useMemo(() => {
-    switch (activeTab) {
-      case "users": return "User Management";
-      case "reports": return "Report Generation";
-      case "validation": return "Validate Donations";
-      case "badges": return "Assign Badges";
-      case "feedback": return "Manage Feedback";
-      default: return "Dashboard";
-    }
+    const map = {
+      dashboard: "Dashboard",
+      users: "User Management",
+      reports: "Report Generation",
+      track: "Bakery Leaderboards",
+      badges: "Assign Badges",
+      complaints: "Manage Complaints",
+    };
+    return map[activeTab] ?? "Dashboard";
   }, [activeTab]);
+
+  // Categorized lists & unread counts
+  const verificationList = notifications.filter((n) => n.kind === "registration");
+  const complaintsList  = notifications.filter((n) => n.kind === "complaint");
+  const reportsList     = notifications.filter((n) => n.kind === "feedback");
+
+  const unreadVerifications = verificationList.filter((n) => !n.isRead).length;
+  const unreadComplaints    = complaintsList.filter((n) => !n.isRead).length;
+  const unreadReports       = reportsList.filter((n) => !n.isRead).length;
 
   return (
     <div className="min-h-screen relative">
-      {/* Theme styles (your design) */}
       <style>{`
         :root{
           --amber1:#fff7ec; --amber2:#ffe7c8; --amber3:#ffd6a1; --amber4:#f3c27e;
@@ -264,10 +325,11 @@ useEffect(() => {
         .blob{position:absolute; width:420px; height:420px; border-radius:50%; filter:blur(36px); mix-blend-mode:multiply; opacity:.18}
         .blob.a{left:-120px; top:30%; background:radial-gradient(circle at 35% 35%, #ffe0b6, transparent 60%); animation: blob 18s ease-in-out infinite alternate;}
         .blob.b{right:-140px; top:6%; background:radial-gradient(circle at 60% 40%, #ffd3a0, transparent 58%); animation: blob 20s 2s ease-in-out infinite alternate;}
-        @keyframes drift{from{transform:translate3d(0,0,0)}to{transform:translate3d(0,-18px,0)}}
+        @keyframes drift{from{transform:translate3d(0,0,0)}to{transform:translate3d(24px,-18px,0)}}
         @keyframes pan{from{transform:translate3d(0,0,0)}to{transform:translate3d(-6%,-6%,0)}}
-        @keyframes blob{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(24px,-20px,0) scale(1.04)}}
+        @keyframes blob{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(24px,-20px,0) scale(1.04)}
 
+        }
         .head{position:sticky; top:0; z-index:40; border-bottom:1px solid rgba(0,0,0,.06); backdrop-filter: blur(10px);}
         .head-bg{position:absolute; inset:0; z-index:-1; opacity:.95;
           background: linear-gradient(110deg, #ffffff 0%, #fff7ef 28%, #ffeddc 55%, #ffe6cf 100%);
@@ -289,8 +351,9 @@ useEffect(() => {
           background:linear-gradient(90deg,#F3B56F,#E59B50,#C97C2C);
           background-size:200% auto; -webkit-background-clip:text; background-clip:text; color:transparent; animation: ink 9s ease infinite}
         @keyframes ink{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+
         .status-chip{display:inline-flex; align-items:center; gap:.5rem; margin-top:.15rem;
-          padding:.28rem .6rem; font-size:.78rem; border-radius:9999px;
+          padding:.28rem .6rem; font-size:.78rem; font-weight:800; border-radius:9999px;
           color:#7a4f1c; background:linear-gradient(180deg,#FFE7C5,#F7C489); border:1px solid #fff3e0}
 
         .seg-wrap{max-width:80rem; margin:.75rem auto 0; padding:0 1rem;}
@@ -318,6 +381,34 @@ useEffect(() => {
         .reveal{opacity:0; transform:translateY(8px) scale(.985); animation:rise .6s ease forwards}
         .r1{animation-delay:.05s}.r2{animation-delay:.1s}.r3{animation-delay:.15s}.r4{animation-delay:.2s}
         @keyframes rise{to{opacity:1; transform:translateY(0) scale(1)}}
+
+        .bell-icon { color:#6B4B2B; transition: transform .18s ease; }
+        .icon-btn:hover .bell-icon { transform: translateY(-1px); }
+
+        @keyframes bell-bounce {
+          0%, 100% { transform: translateY(0); }
+          30% { transform: translateY(-2px); }
+          60% { transform: translateY(0); }
+        }
+        
+        .bell-anim { animation: bell-bounce 1.2s cubic-bezier(.22,1,.36,1) infinite; }
+
+        
+        .stat { position: relative; border-radius: 16px; padding: 1px; will-change: transform; }
+        .stat::before { content: ""; position: absolute; inset: 0; border-radius: 16px;
+          background: linear-gradient(135deg, rgba(247,199,137,.9), rgba(201,124,44,.45)); opacity: .9; filter: saturate(1.02); }
+        .stat-inner { position: relative; border-radius: 15px; background: rgba(255,255,255,.94);
+          backdrop-filter: blur(8px); height: 120px; display: flex; align-items: center; justify-content: space-between;
+          padding: 1rem 1.25rem; box-shadow: 0 10px 24px rgba(201,124,44,.10);
+          transition: box-shadow .25s cubic-bezier(.22,.98,.4,1), transform .25s cubic-bezier(.22,.98,.4,1); }
+        .stat:hover .stat-inner { box-shadow: 0 16px 36px rgba(201,124,44,.18); transform: translateY(-2px); }
+        .stat-title { font-size: .95rem; font-weight: 700; color: #2b2b2b; }
+        .stat-value { font-size: 2rem; line-height: 1; font-weight: 800; color: #2a170a; margin-top: .25rem; letter-spacing: .2px; }
+        .stat-ico { width: 54px; height: 54px; display: grid; place-items: center; border-radius: 9999px;
+          background: radial-gradient(120% 120% at 30% 25%, #ffe6c6 0%, #f7c489 55%, #e8a765 100%);
+          box-shadow: 0 10px 24px rgba(201,124,44,.20), inset 0 1px 0 rgba(255,255,255,.8);
+          border: 1px solid rgba(255,255,255,.8); }
+        .stat-ico svg{ width: 22px; height: 22px; color: #8a5a25; }
       `}</style>
 
       <div className="page-bg">
@@ -345,21 +436,203 @@ useEffect(() => {
               </div>
             </div>
 
-            {/* RIGHT SIDE: Bell next to logout */}
-            <div className="pt-1 flex items-center gap-3">
+            {/* Notifications */}
+            <div className="pt-1 flex items-center gap-3 relative">
               <button
-                aria-label="Open notifications"
+                ref={bellRef}
+                className="icon-btn relative inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/90 hover:bg-white border border-[#C97C2C] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C97C2C]/30"
+                aria-label="Notifications"
                 onClick={() => setNotifOpen((v) => !v)}
-                className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#C97C2C] bg-white/90 hover:bg-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C97C2C]/30"
+                title="Notifications"
               >
-                {/* Force stroke color for the header notification icon */}
-                <Bell className="h-4 w-4 text-[#C97C2C] [stroke:#C97C2C]" />
+                <Bell
+                  className={`bell-icon w-[18px] h-[18px] ${notifCount > 0 ? "bell-anim" : ""}`}
+                />
                 {notifCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[1.1rem] h-5 px-1 rounded-full bg-red-500 text-white text-[10px] leading-5 text-center">
+                  <span
+                    className="absolute -top-1.5 -right-1.5 text-[10px] font-extrabold leading-none px-[6px] py-[3px] rounded-full text-white"
+                    style={{
+                      background:
+                        "linear-gradient(90deg, var(--brand2, #E49A52), var(--brand3, #BF7327))",
+                      boxShadow: "0 6px 16px rgba(201,124,44,.35)",
+                      border: "1px solid rgba(255,255,255,.65)",
+                    }}
+                  >
                     {notifCount > 99 ? "99+" : notifCount}
                   </span>
                 )}
               </button>
+
+              {/* Dropdown */}
+              {notifOpen && (
+                <div
+                  ref={dropdownRef}
+                  className="absolute right-0 top-12 z-[60] w-[460px] max-w-[90vw]"
+                >
+                  <div className="gwrap rounded-2xl shadow-xl">
+                    <div className="glass-card rounded-[14px] overflow-hidden">
+                      {/* Tabs header */}
+                      <div className="flex items-center">
+                        {[
+                          { key: "verifications", label: "Verifications", count: unreadVerifications },
+                          { key: "complaints",    label: "Complaints",    count: unreadComplaints },
+                          { key: "reports",       label: "Reports",       count: unreadReports },
+                        ].map((t) => (
+                          <button
+                            key={t.key}
+                            onClick={() => setNotifTab(t.key)}
+                            className={`flex-1 py-2.5 text-sm font-bold transition-colors ${
+                              notifTab === t.key
+                                ? "text-white"
+                                : "text-[#6b4b2b] hover:text-[#4f371f]"
+                            }`}
+                            style={
+                              notifTab === t.key
+                                ? {
+                                    background:
+                                      "linear-gradient(90deg, var(--brand1,#F6C17C), var(--brand2,#E49A52), var(--brand3,#BF7327))",
+                                  }
+                                : { background: "transparent" }
+                            }
+                          >
+                            {t.label}
+                            {t.count > 0 && (
+                              <span
+                                className="ml-1 text-[11px] font-extrabold"
+                                style={{ color: notifTab === t.key ? "#fff" : "#BF7327" }}
+                              >
+                                ({t.count})
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Lists */}
+                      <div className="max-h-80 overflow-y-auto divide-y">
+                        {/* VERIFICATIONS */}
+                        {notifTab === "verifications" && (
+                          <div>
+                            {verificationList.length === 0 ? (
+                              <div className="p-4 text-sm text-gray-500">No verification alerts</div>
+                            ) : (
+                              verificationList.map((n) => (
+                                <button
+                                  key={n.id}
+                                  onClick={() => {
+                                    markAsRead(n.id);
+                                    setNotifOpen(false);
+                                    setActiveTab("users");
+                                  }}
+                                  className={`w-full p-3 focus:outline-none transition-colors flex items-center ${
+                                    n.isRead ? "bg-white hover:bg-[#fff6ec]" : "bg-[rgba(255,246,236,1)]"
+                                  }`}
+                                >
+                                  <UnreadCircle read={n.isRead} />
+                                  <div className="text-left flex-1">
+                                    <p className={`text-[13px] ${
+                                      n.isRead ? "text-[#6b4b2b]" : "text-[#4f371f] font-semibold"
+                                    }`}>
+                                      {n.title}
+                                    </p>
+                                    {n.subtitle && (
+                                      <p className="text-[12px] text-[#6b4b2b]">{n.subtitle}</p>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">
+                                    {n.at ? new Date(n.at).toLocaleDateString() : ""}
+                                  </span>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        )}
+
+                        {/* COMPLAINTS */}
+                        {notifTab === "complaints" && (
+                          <div>
+                            {complaintsList.length === 0 ? (
+                              <div className="p-4 text-sm text-gray-500">No complaints</div>
+                            ) : (
+                              complaintsList.map((n) => (
+                                <button
+                                  key={n.id}
+                                  onClick={() => {
+                                    markAsRead(n.id);
+                                    setNotifOpen(false);
+                                    setActiveTab("complaints");
+                                  }}
+                                  className={`w-full p-3 focus:outline-none transition-colors flex items-center ${
+                                    n.isRead ? "bg-white hover:bg-[#fff6ec]" : "bg-[rgba(255,246,236,1)]"
+                                  }`}
+                                >
+                                  <UnreadCircle read={n.isRead} />
+                                  <div className="text-left flex-1">
+                                    <p className={`text-[13px] ${
+                                      n.isRead ? "text-[#6b4b2b]" : "text-[#4f371f] font-semibold"
+                                    }`}>
+                                      {n.title}
+                                    </p>
+                                    {n.subtitle && (
+                                      <p className="text-[12px] text-[#6b4b2b]">{n.subtitle}</p>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">
+                                    {n.at ? new Date(n.at).toLocaleDateString() : ""}
+                                  </span>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        )}
+
+                        {/* REPORTS */}
+                        {notifTab === "reports" && (
+                          <div>
+                            {reportsList.length === 0 ? (
+                              <div className="p-4 text-sm text-gray-500">No reports</div>
+                            ) : (
+                              reportsList.map((n) => (
+                                <button
+                                  key={n.id}
+                                  onClick={() => {
+                                    markAsRead(n.id);
+                                    setNotifOpen(false);
+                                    setActiveTab("reports");
+                                  }}
+                                  className={`w-full p-3 focus:outline-none transition-colors flex items-center ${
+                                    n.isRead ? "bg-white hover:bg-[#fff6ec]" : "bg-[rgba(255,246,236,1)]"
+                                  }`}
+                                >
+                                  <UnreadCircle read={n.isRead} />
+                                  <div className="text-left flex-1">
+                                    <p className={`text-[13px] ${
+                                      n.isRead ? "text-[#6b4b2b]" : "text-[#4f371f] font-semibold"
+                                    }`}>
+                                      {n.title}
+                                    </p>
+                                    {n.subtitle && (
+                                      <p className="text-[12px] text-[#6b4b2b]">{n.subtitle}</p>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground shrink-0">
+                                    {n.at ? new Date(n.at).toLocaleDateString() : ""}
+                                  </span>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Footer */}
+                      <div className="px-3 py-2 text-[11px] text-[#8a5a25] bg-white/70">
+                        Tip: Click a notification to jump to its section.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <Button onClick={handleLogout} className="btn-logout flex items-center">
                 <LogOut className="h-4 w-4" />
@@ -369,82 +642,6 @@ useEffect(() => {
           </div>
         </div>
       </header>
-
-      {/* Notification Overlay */}
-      {notifOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-md flex items-center justify-center p-4"
-          onClick={() => setNotifOpen(false)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="notif-title"
-            className="w-full max-w-lg rounded-xl border bg-white shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b p-4">
-              <div className="flex items-center gap-2">
-                {/* Modal title icon with forced stroke color */}
-                <BellRing className="h-5 w-5 text-[#C97C2C] [stroke:#C97C2C]" />
-                <h3 id="notif-title" className="text-base font-semibold">Notifications</h3>
-              </div>
-              <button
-                aria-label="Close"
-                onClick={() => setNotifOpen(false)}
-                className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-gray-100"
-              >
-                ×
-              </button>
-            </div>
-
-            <ul className="max-h-[60vh] overflow-auto">
-              {notifications.length ? (
-                notifications.map((n) => (
-                  <li key={n.id} className={`p-4 border-b last:border-b-0 ${
-                    n.isRead ? "opacity-60" : "bg-amber-100"
-                  }`}>
-                    <button
-                      className="w-full text-left flex items-start gap-3"
-                      onClick={() => {
-                        markAsRead(n.id);
-                        setNotifOpen(false);
-                        setActiveTab(n.kind === "registration" ? "users" 
-                                                : n.kind === "feedback" ? "feedback" 
-                                                : "complaints");
-                      }}
-                    >
-                      <div className="mt-0.5">
-                        {n.kind === "registration" ? (
-                          <BellRing className="h-5 w-5 text-[#C97C2C] [stroke:#C97C2C]" />
-                        ) : (
-                          <span className="inline-flex">
-                            <MessageSquare className="h-5 w-5 text-[#C97C2C] [stroke:#C97C2C]" />
-                            <AlertTriangle className="h-5 w-5 -ml-1 opacity-70 text-[#C97C2C] [stroke:#C97C2C]" />
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{n.title}</p>
-                        {n.subtitle && (
-                          <p className="text-xs text-muted-foreground">{n.subtitle}</p>
-                        )}
-                      </div>
-                      <span className="text-[10px] text-muted-foreground shrink-0">
-                        {n.at ? new Date(n.at).toLocaleDateString() : ""}
-                      </span>
-                    </button>
-                  </li>
-                ))
-              ) : (
-                <li className="p-6 text-sm text-muted-foreground text-center">
-                  You’re all caught up — no pending items.
-                </li>
-              )}
-            </ul>
-          </div>
-        </div>
-      )}
 
       {/* Controller */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -466,68 +663,56 @@ useEffect(() => {
           {/* Dashboard */}
           <TabsContent value="dashboard" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="gwrap reveal r1 hover-lift">
-                <Card className="glass-card shadow-none">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Total Bakeries</p>
-                        <p className="text-3xl font-extrabold">{stats.totalBakeries}</p>
-                      </div>
-                      <div className="chip">
-                        <Building2 className="h-5 w-5" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+              {/* Stat: Total Bakeries */}
+              <div className="stat reveal r1">
+                <div className="stat-inner">
+                  <div>
+                    <p className="stat-title">Total Bakeries</p>
+                    <p className="stat-value">{stats.totalBakeries}</p>
+                  </div>
+                  <div className="stat-ico">
+                    <Building2 />
+                  </div>
+                </div>
               </div>
 
-              <div className="gwrap reveal r2 hover-lift">
-                <Card className="glass-card shadow-none">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Total Charities</p>
-                        <p className="text-3xl font-extrabold">{stats.totalCharities}</p>
-                      </div>
-                      <div className="chip">
-                        <HelpingHand className="h-5 w-5" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+              {/* Stat: Total Charities */}
+              <div className="stat reveal r2">
+                <div className="stat-inner">
+                  <div>
+                    <p className="stat-title">Total Charities</p>
+                    <p className="stat-value">{stats.totalCharities}</p>
+                  </div>
+                  <div className="stat-ico">
+                    <HelpingHand />
+                  </div>
+                </div>
               </div>
 
-              <div className="gwrap reveal r3 hover-lift">
-                <Card className="glass-card shadow-none">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Total Users</p>
-                        <p className="text-3xl font-extrabold">{stats.totalUsers}</p>
-                      </div>
-                      <div className="chip">
-                        <UserCog className="h-5 w-5" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+              {/* Stat: Total Users */}
+              <div className="stat reveal r3">
+                <div className="stat-inner">
+                  <div>
+                    <p className="stat-title">Total Users</p>
+                    <p className="stat-value">{stats.totalUsers}</p>
+                  </div>
+                  <div className="stat-ico">
+                    <UserCog />
+                  </div>
+                </div>
               </div>
 
-              <div className="gwrap reveal r4 hover-lift">
-                <Card className="glass-card shadow-none">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Pending Users</p>
-                        <p className="text-3xl font-extrabold">{stats.pendingUsersCount}</p>
-                      </div>
-                      <div className="chip">
-                        <ShieldCheck className="h-5 w-5" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+              {/* Stat: Pending Users */}
+              <div className="stat reveal r4">
+                <div className="stat-inner">
+                  <div>
+                    <p className="stat-title">Pending Users</p>
+                    <p className="stat-value">{stats.pendingUsersCount}</p>
+                  </div>
+                  <div className="stat-ico">
+                    <ShieldCheck />
+                  </div>
+                </div>
               </div>
             </div>
           </TabsContent>
@@ -537,9 +722,11 @@ useEffect(() => {
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardHeader>
-                  <CardTitle>User Management</CardTitle>
+                  <CardTitle className="text-3xl font-extrabold text-[#6b4b2b]">
+                    User Management
+                  </CardTitle>
                 </CardHeader>
-                <CardContent>                 
+                <CardContent>
                   <AdminUser />
                 </CardContent>
               </Card>
@@ -549,11 +736,11 @@ useEffect(() => {
           {/* Report Generation */}
           <TabsContent value="reports" className="reveal">
             <div>
-             <AdminReports />
+              <AdminReports />
             </div>
           </TabsContent>
 
-          {/* Validate Donations */}
+          {/* Leaderboards */}
           <TabsContent value="track" className="reveal">
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
@@ -569,9 +756,11 @@ useEffect(() => {
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardHeader>
-                  <CardTitle>Assign Badges</CardTitle>
+                  <CardTitle className="text-3xl font-extrabold text-[#6b4b2b]">
+                    Assign Badges
+                  </CardTitle>
                 </CardHeader>
-                  <AdminBadge />
+                <AdminBadge />
               </Card>
             </div>
           </TabsContent>
@@ -581,7 +770,9 @@ useEffect(() => {
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardHeader>
-                  <CardTitle>Manage Complaints</CardTitle>
+                  <CardTitle className="text-3xl font-extrabold text-[#6b4b2b]">
+                    Manage Complaints
+                  </CardTitle>
                   <CardDescription>Review and respond to user complaints</CardDescription>
                 </CardHeader>
                 <CardContent>

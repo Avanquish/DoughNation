@@ -22,7 +22,7 @@ const ForgotPassword = () => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // ---------- Background Parallax ----------
+  // Background parallax effect
   const bgRef = useRef(null);
   const rafRef = useRef(0);
   const targetRef = useRef({ x: 0, y: 0 });
@@ -69,7 +69,7 @@ const ForgotPassword = () => {
   };
   const onMouseLeave = () => (targetRef.current = { x: 0, y: 0 });
 
-  // ---------- Step Handlers ----------
+  // Handlers for each step
   const handleValidateEmail = async (e) => {
     e.preventDefault();
     try {

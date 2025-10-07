@@ -149,7 +149,7 @@ export default function Register() {
     }
 
     try {
-    await axios.post("https://api.doughnationhq.cloud/register", submitData, {
+      await axios.post("https://api.doughnationhq.cloud/register", submitData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
 
@@ -481,7 +481,7 @@ export default function Register() {
               {/* Address */}
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-2 text-[#8f642a]">
-                  <MapPin className="h-4 w-4" /> Address
+                  <MapPin wclassName="h-4 w-4" /> Address
                 </Label>
                 <Input
                   value={formData.address}

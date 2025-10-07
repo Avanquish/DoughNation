@@ -80,7 +80,7 @@ export default function NotificationBell() {
       // Build "Received" rows based on real status 
       const nextStatusMap = {};
 
-      // Use backend "type" field to decide message
+      // track previous status to detect changes
       const mapped = (rDons || []).map((d) => {
         let message;
         switch (d.type) {
@@ -162,12 +162,9 @@ export default function NotificationBell() {
     path ? `${API}/${path}` : fallback;
 
 
-  // --- Click Handlers ---
+  // Click handlers
 const handleNormalDonationClick = (d) => {
-  // remove it from the state
   setDonations((prev) => prev.filter((don) => don.id !== d.id));
-
-  // still navigate + mark read
   localStorage.setItem("highlight_donation", d.donation_id || d.id);
   window.dispatchEvent(new CustomEvent("switch_to_donation_tab"));
   setTimeout(() => window.dispatchEvent(new Event("highlight_donation")), 100);
@@ -177,7 +174,6 @@ const handleNormalDonationClick = (d) => {
 
 const handlePriorityDonationClick = (d) => {
   if (d.status === "pending") {
-    // remove if pending
     setPriorityDonations((prev) => prev.filter((don) => don.id !== d.id));
   }
 

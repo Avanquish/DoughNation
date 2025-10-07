@@ -1,12 +1,7 @@
-// React & router basics
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
-
-// Auth context & API helper
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
-
-// Swal Alerts
 import Swal from "sweetalert2";
 
 // UI components
@@ -136,7 +131,7 @@ const Login = () => {
 
       const { sub, role: actualRole } = JSON.parse(atob(token.split(".")[1]));
       if (actualRole !== role) {
-        // ✅ SweetAlert2 for unauthorized role
+        // SweetAlert2 for unauthorized role
         Swal.fire({
           icon: "error",
           title: "Unauthorized",
@@ -154,7 +149,7 @@ const Login = () => {
         error.response?.data?.detail ||
         "Login failed. Please check your credentials.";
 
-      // ✅ SweetAlert2 for login failure
+      // SweetAlert2 for login failure
       Swal.fire({
         icon: "error",
         title: "Login Failed",
@@ -273,7 +268,7 @@ const Login = () => {
 
       {/* Layout */}
       <div className="relative z-20 flex flex-col md:flex-row min-h-screen">
-        {/* RIGHT (Login card) — first on mobile */}
+        {/* Login card */}
         <section className="order-1 md:order-2 md:basis-[55%] flex items-center justify-center px-6 pt-6 md:pt-0 py-10">
           <Card
             className="login-card relative w-full max-w-[640px] rounded-[26px] backdrop-blur-2xl bg-white/50 border-white/60 shadow-[0_16px_56px_rgba(0,0,0,0.16)]"
@@ -440,7 +435,7 @@ const Login = () => {
           </Card>
         </section>
 
-        {/* LEFT (DoughNation info) — second on mobile */}
+        {/* DoughNation info */}
         <section className="order-2 md:order-1 left-hero relative md:basis-[45%] min-h-[52vh] md:min-h-screen flex mt-4 md:mt-0">
           <div className="left-hero-surface absolute inset-0" />
           <div className="relative w-full h-full flex items-center">
@@ -479,7 +474,7 @@ const Login = () => {
             </div>
           </div>
 
-          {/* Illustration (under text) */}
+          {/* Illustration */}
           <img
             src="/images/GivingDonation.png"
             alt="Giving donation"

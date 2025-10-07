@@ -1,6 +1,70 @@
 import React, { useState, useEffect } from "react";
 const API = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud/";
 
+// Helpers
+const statusOrder = ["preparing", "ready_for_pickup", "in_transit", "received", "complete"];
+
+const nice = (s = "") => s.replaceAll("_", " ").replace(/\b\w/g, (m) => m.toUpperCase());
+
+const daysUntil = (dateStr) => {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  const t = new Date();
+  d.setHours(0, 0, 0, 0);
+  t.setHours(0, 0, 0, 0);
+  return Math.ceil((d - t) / (1000 * 60 * 60 * 24));
+};
+
+const statusColor = (status) => {
+  switch (status) {
+    case "preparing":
+      return "bg-[#E7F1FF] text-[#2457A3] border-[#cfe2ff]";
+    case "ready_for_pickup":
+      return "bg-[#FFF6E6] text-[#8a5a25] border-[#ffe7bf]";
+    case "in_transit":
+      return "bg-[#E9F7FF] text-[#1c6b80] border-[#cdeef9]";
+    case "received":
+      return "bg-[#E9F9EF] text-[#2b7a3f] border-[#c7ecd5]";
+    case "complete":
+      return "bg-[#e9ffe9] text-[#1c7c1c] border-[#c7f3c7]";
+    default:
+      return "bg-slate-100 text-slate-600 border-slate-200";
+  }
+};
+
+// Generic resolver
+const getRequesterName = (d) =>
+  d?.requester_name ||
+  d?.requested_by_name ||
+  d?.requested_by ||
+  d?.charity_name ||
+  d?.charity?.name ||
+  d?.charity ||
+  "Unknown Charity";
+
+// Pending-only resolver 
+const getPendingRequesterName = (d) =>
+  d?.charity_name ||
+  d?.charity ||
+  d?.charity?.name ||
+  d?.requester_name ||
+  d?.requester?.name ||
+  d?.requested_by_name ||
+  d?.requested_by ||
+  d?.charityName ||
+  d?.charity_title ||
+  d?.requesting_charity ||
+  "";
+
+// Pending-only avatar resolver (tries more keys)
+const getPendingRequesterAvatar = (d) =>
+  d?.charity_profile_picture ||
+  d?.requester_profile_picture ||
+  d?.charity?.profile_picture ||
+  d?.charityAvatar ||
+  d?.requester_avatar ||
+  null;
+
 const BDonationStatus = () => {
   const [receivedDonations, setReceivedDonations] = useState([]);
   const [pendingDonations, setPendingDonations] = useState([]);
@@ -8,14 +72,21 @@ const BDonationStatus = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [highlightedId, setHighlightedId] = useState(null);
   const [selectedDonation, setSelectedDonation] = useState(null);
-  const statusOrder = ["preparing", "ready_for_pickup", "in_transit", "received", "complete"];
 
-  
-  // Load current user
+// Set "Bakery Status" tab on mount
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("tab") !== "bakerystatus") {
+      url.searchParams.set("tab", "bakerystatus");
+      window.history.replaceState({}, "", url.toString());
+    }
+    sessionStorage.setItem("activeTab", "bakerystatus");
+  }, []);
+
+// Load current user from token
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
-
     try {
       const decoded = JSON.parse(atob(token.split(".")[1]));
       setCurrentUser({
@@ -29,143 +100,102 @@ const BDonationStatus = () => {
     }
   }, []);
 
-  const sortByStatus = (donations) => {
-  return donations
-    .slice()
-    .sort((a, b) => {
-      const statusIndex = (d) => statusOrder.indexOf(d.tracking_status || "preparing");
-      return statusIndex(a) - statusIndex(b);
-    });
-};
+  const sortByStatus = (donations) =>
+    donations
+      .slice()
+      .sort(
+        (a, b) =>
+          statusOrder.indexOf(a.tracking_status || "preparing") -
+          statusOrder.indexOf(b.tracking_status || "preparing")
+      );
 
-const handleUpdateTracking = async (donationId, currentStatus, isDirect = false) => {
-  const token = localStorage.getItem("token");
-  if (!token) return;
-
-  const nextStatusMap = {
-    preparing: "ready_for_pickup",
-    ready_for_pickup: "in_transit",
-    in_transit: "received",
-    received: "completed",
-  };
-  const nextStatus = nextStatusMap[currentStatus];
-  if (!nextStatus) return;
-
-  const endpoint = isDirect
-    ? `${API}/direct/tracking/${donationId}`
-    : `${API}/donation/tracking/${donationId}`;
-
-  try {
-    const body = isDirect
-      ? { btracking_status: nextStatus } // <-- important for direct donations
-      : { tracking_status: nextStatus };
-
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-      // Update state for UI
-     if (res.ok) {
-    // Update state for UI
-      if (isDirect) {
-        setDirectDonations((prev) =>
-          prev.map((d) =>
-            d.id === donationId ? { ...d, tracking_status: nextStatus } : d
-          )
-        );
-      } else {
-        setReceivedDonations((prev) =>
-          prev.map((d) =>
-            d.id === donationId ? { ...d, tracking_status: nextStatus } : d
-          )
-        );
-      }
-
-      // ALSO update the modal if it is open
-      if (selectedDonation && selectedDonation.id === donationId) {
-        setSelectedDonation({ ...selectedDonation, tracking_status: nextStatus });
-      }
-    }
-  } catch (err) {
-    console.error("Failed to update tracking status:", err);
-  }
-};
-
-  useEffect(() => {
-  if (!currentUser) return;
-
-  const token = localStorage.getItem("token");
-
-  if (currentUser.role === "charity") {
-    // Charity → fetch own received donations
-    fetch(`${API}/donation/received`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        const accepted = data.filter((d) => d.status === "accepted");
-        const pending = data.filter((d) => d.status === "pending");
-        setReceivedDonations(accepted);
-        setPendingDonations(pending);
-      })
-      .catch((err) => console.error("Failed to fetch charity donations:", err));
-  }
-
-  if (currentUser.role === "bakery") {
-    // Bakery → fetch all requests for their inventory
-    fetch(`${API}/donation/requests`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        const accepted = data.filter((d) => d.status === "accepted");
-        const pending = data.filter((d) => d.status === "pending");
-        setReceivedDonations(accepted);
-        setPendingDonations(pending);
-      })
-      .catch((err) => console.error("Failed to fetch bakery requests:", err));
-  }
-}, [currentUser]);
-
-
-
-// Fetch direct donations
-useEffect(() => {
-  if (!currentUser || currentUser.role !== "bakery") return;
-
-  const fetchDirectDonations = async () => {
+  const handleUpdateTracking = async (donationId, currentStatus, isDirect = false) => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
+    // Keep bakery flow exactly as-is
+    const nextStatusMap = {
+      preparing: "ready_for_pickup",
+      ready_for_pickup: "in_transit",
+      in_transit: "received",
+      received: "completed",
+    };
+    const nextStatus = nextStatusMap[currentStatus];
+    if (!nextStatus) return;
+
+    const endpoint = isDirect ? `${API}/direct/tracking/${donationId}` : `${API}/donation/tracking/${donationId}`;
+
     try {
-      const response = await fetch(`${API}/direct/bakery`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const body = isDirect ? { btracking_status: nextStatus } : { tracking_status: nextStatus };
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
       });
 
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-      const data = await response.json();
-
-      // Map backend field `btracking_status` to frontend `tracking_status`
-      const mappedData = data.map(d => ({
-        ...d,
-        tracking_status: d.btracking_status || "preparing", // this ensures we use the saved status
-      }));
-
-      setDirectDonations(mappedData);
-    } catch (error) {
-      console.error("Failed to fetch direct donations:", error);
+      if (res.ok) {
+        if (isDirect) {
+          setDirectDonations((prev) =>
+            prev.map((d) => (d.id === donationId ? { ...d, tracking_status: nextStatus } : d))
+          );
+        } else {
+          setReceivedDonations((prev) =>
+            prev.map((d) => (d.id === donationId ? { ...d, tracking_status: nextStatus } : d))
+          );
+        }
+        if (selectedDonation && selectedDonation.id === donationId) {
+          setSelectedDonation({ ...selectedDonation, tracking_status: nextStatus });
+        }
+      }
+    } catch (err) {
+      console.error("Failed to update tracking status:", err);
     }
   };
 
-  fetchDirectDonations();
-}, [currentUser]);
+  // Fetch received & pending donations when currentUser is set/changes
+  useEffect(() => {
+    if (!currentUser) return;
+    const token = localStorage.getItem("token");
+    if (currentUser.role === "charity" || currentUser.role === "bakery") {
+      const url = currentUser.role === "charity" ? `${API}/donation/received` : `${API}/donation/requests`;
+      fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => res.json())
+        .then((data) => {
+          const accepted = data.filter((d) => d.status === "accepted");
+          const pending = data.filter((d) => d.status === "pending");
+          setReceivedDonations(accepted);
+          setPendingDonations(pending);
+        })
+        .catch((err) => console.error("Failed to fetch requests/received:", err));
+    }
+  }, [currentUser]);
 
-  // Highlight when triggered from message.jsx
+  // Direct donations
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== "bakery") return;
+    (async () => {
+      const token = localStorage.getItem("token");
+      try {
+        const resp = await fetch(`${API}/direct/bakery`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await resp.json();
+        const mapped = (data || []).map((d) => ({
+          ...d,
+          // normalize to use the same field for UI sorting/status chips
+          tracking_status: d.btracking_status || "preparing",
+        }));
+        setDirectDonations(mapped);
+      } catch (e) {
+        console.error("Failed to fetch direct donations:", e);
+      }
+    })();
+  }, [currentUser]);
+
+// Highlight newly received donation (from request) if signaled via localStorage event
   useEffect(() => {
     const handler = () => {
       const id = localStorage.getItem("highlight_received_donation");
@@ -173,338 +203,317 @@ useEffect(() => {
         setHighlightedId(Number(id));
         const el = document.getElementById(`received-${id}`);
         if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-
-        // Remove highlight after 3s
         setTimeout(() => setHighlightedId(null), 3000);
-
         localStorage.removeItem("highlight_received_donation");
       }
     };
-
     window.addEventListener("highlight_received_donation", handler);
-    return () =>
-      window.removeEventListener("highlight_received_donation", handler);
+    return () => window.removeEventListener("highlight_received_donation", handler);
   }, []);
 
-  return (
-    <div className="p-6 ">
-      <h2 className="text-2xl font-bold mb-4">Donations from Request</h2>
-
-      {/* Donations from Request Cards */}
-      {receivedDonations.length > 0 ? (
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {sortByStatus(receivedDonations).map((d) => (
-          <div
-            key={d.id}
-            id={`received-${d.donation_id || d.id}`}
-            className={`bg-white rounded-xl shadow-md overflow-hidden transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:brightness-95 ${
-              highlightedId === (d.donation_id || d.id)
-                ? "border-4 border-amber-500 bg-amber-100"
-                : ""
-            }`}
-             onClick={() => setSelectedDonation(d)} 
-          >
-            {d.image ? (
-              <img
-                src={`${API}/${d.image}`}
-                alt={d.name}
-                className="h-40 w-full object-cover"
-              />
-            ) : (
-              <div className="h-40 flex items-center justify-center bg-gray-100 text-gray-400">
-                No Image
-              </div>
-            )}
-            <div className="p-4">
-              <h3 className="text-lg font-semibold">{d.name}</h3>
-              <p className="text-sm text-gray-600">Quantity: {d.quantity}</p>
-              {d.expiration_date && (
-                <p className="text-sm text-red-500">
-                  Expires: {new Date(d.expiration_date).toLocaleDateString()}
-                </p>
-              )}
-              {d.description && (
-                <p className="mt-2 text-sm text-gray-600 line-clamp-2">
-                  {d.description}
-                </p>
-              )}
-              <h3 className="text-center"><br />DONATION FOR:</h3>
-                <div className="flex items-center  gap-2">
-                  {d.charity_profile_picture ? (
-                    <img
-                      src={`${API}/${d.charity_profile_picture}`}
-                      alt={d.charity_name}
-                      className="w-8 h-8 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-gray-600">?</div>
-                  )}
-                  <span className="text-sm font-medium">
-                    {d.charity_name || "Unknown Charity"}
-                  </span>
-                </div>
-                 <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">
-                        Status: {d.tracking_status.replaceAll("_", " ").toUpperCase()} 
-                    </span>
-                    {d.tracking_completed_at && (
-                      <span className="text-sm font-medium">
-                        {new Date(d.tracking_completed_at).toLocaleDateString()}
-                      </span>
-                    )}
-                  </div>
-            </div>
-          </div>
-        ))}
+// Section wrapper to reduce repetition
+  const Section = ({ title, count, children }) => (
+    <div
+      className="
+        rounded-3xl border border-[#eadfce]
+        bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
+        shadow-[0_2px_8px_rgba(93,64,28,.06)] p-6 mb-8
+      "
+    >
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="text-xl sm:text-2xl font-extrabold text-[#4A2F17]">{title}</h3>
+        <span className="text-xs font-semibold px-2 py-1 rounded-full border bg-white/80 border-[#f2e3cf] text-[#6b4b2b]">
+          {count} item{count === 1 ? "" : "s"}
+        </span>
       </div>
-    ) : (
-      <p className="text-gray-500">No donations yet.</p>
-    )}
-
-      {/* Direct Donations */}
-      <h2 className="text-2xl font-bold mb-4 mt-8">Direct Donations</h2>
-
-      {directDonations.length > 0 ? (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {sortByStatus(directDonations).map((d) => (
-            <div
-              key={d.id}
-              id={`received-${d.donation_id || d.id}`}
-              className={`bg-white rounded-xl shadow-md overflow-hidden transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:brightness-95 ${
-                highlightedId === (d.donation_id || d.id)
-                  ? "border-4 border-amber-500 bg-amber-100"
-                  : ""
-              }`}
-              onClick={() => setSelectedDonation(d)}
-            >
-              {d.image ? (
-                <img
-                  src={`${API}/${d.image}`}
-                  alt={d.name}
-                  className="h-40 w-full object-cover"
-                />
-              ) : (
-                <div className="h-40 flex items-center justify-center bg-gray-100 text-gray-400">
-                  No Image
-                </div>
-              )}
-              <div className="p-4">
-                <h3 className="text-lg font-semibold">{d.name}</h3>
-                <p className="text-sm text-gray-600">Quantity: {d.quantity}</p>
-                {d.expiration_date && (
-                  <p className="text-sm text-red-500">
-                    Expires: {new Date(d.expiration_date).toLocaleDateString()}
-                  </p>
-                )}
-
-                <h3 className="text-center"><br />DONATION FOR:</h3>
-                <div className="flex items-center  gap-2">
-                  {d.charity_profile_picture ? (
-                    <img
-                      src={`${API}/${d.charity_profile_picture}`}
-                      alt={d.charity_name}
-                      className="w-8 h-8 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-gray-600">?</div>
-                  )}
-                  <span className="text-sm font-medium">
-                    {d.charity_name || "Unknown Charity"}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">
-                        Status: {d.tracking_status.replaceAll("_", " ").toUpperCase()}
-                    </span>
-                    {d.btracking_completed_at && (
-                      <span className="text-sm font-medium">
-                        {new Date(d.btracking_completed_at).toLocaleDateString()}
-                      </span>
-                    )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-gray-500">No direct donations yet.</p>
-      )}
-
-
-    <h2 className="text-2xl font-bold mb-4 mt-8">Pending Request</h2>
-    {pendingDonations.length > 0 ? (
-    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {pendingDonations.map((d) => (
-        <div
-            key={d.id}
-            id={`pending-${d.donation_id || d.id}`}
-            className={`bg-white rounded-xl shadow-md overflow-hidden transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:brightness-95 ${
-            highlightedId === (d.donation_id || d.id)
-                ? "border-4 border-amber-500 bg-amber-100"
-                : ""
-            }`}
-        >
-            {d.image ? (
-            <img
-                src={`${API}/${d.image}`}
-                alt={d.name}
-                className="h-40 w-full object-cover"
-            />
-            ) : (
-            <div className="h-40 flex items-center justify-center bg-gray-100 text-gray-400">
-                No Image
-            </div>
-            )}
-            <div className="p-4">
-            <h3 className="text-lg font-semibold">{d.name}</h3>
-            <p className="text-sm text-gray-600">Quantity: {d.quantity}</p>
-            {d.expiration_date && (
-                <p className="text-sm text-red-500">
-                Expires: {new Date(d.expiration_date).toLocaleDateString()}
-                </p>
-            )}
-            {d.description && (
-                <p className="mt-2 text-sm text-gray-600 line-clamp-2">
-                {d.description}
-                </p>
-            )}
-            </div>
-        </div>
-        ))}
+      {children}
     </div>
-    ) : (
-    <p className="text-gray-500">No pending request.</p>
-    )}
+  );
 
-     {/* --- MODAL --- */}
-      {selectedDonation && (
-        <div
-          className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-md z-50"
-          onClick={() => setSelectedDonation(null)}
-        >
-          <div
-            className="bg-white rounded-xl max-w-lg w-full p-6 relative"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              className="absolute top-3 right-3 text-gray-500 hover:text-gray-800 font-bold text-2xl"
-              onClick={() => setSelectedDonation(null)}
-            >
-              ×
-            </button>
+  // Card now accepts label + name/avatar resolvers so we can change ONLY the pending section
+  const Card = ({ d, onClick, label = "Donation For", nameResolver = getRequesterName, avatarResolver }) => {
+    const left = daysUntil(d.expiration_date);
+    const showExpiry = Number.isFinite(left) && left >= 0;
 
-            {selectedDonation.image && (
-              <img
-                src={`${API}/${selectedDonation.image}`}
-                alt={selectedDonation.name}
-                className="h-48 w-full object-cover rounded-md mb-4"
-              />
-            )}
-            <h3 className="text-xl font-semibold">{selectedDonation.name}</h3>
-            {selectedDonation.description && (
-              <p className="text-sm text-gray-600 mt-2">{selectedDonation.description}</p>
-            )}
-            <p className="mt-2 text-sm text-gray-600">Quantity: {selectedDonation.quantity}</p>
-            {selectedDonation.expiration_date && (
-              <p className="text-sm text-red-500 mt-2">
-                Expires: {new Date(selectedDonation.expiration_date).toLocaleDateString()}
-              </p>
-            )}
+    const displayName = nameResolver?.(d) ?? "";
+    const avatar = avatarResolver ? avatarResolver(d) : d?.charity_profile_picture;
 
-            <h3 className="text-center mt-4">DONATION FOR:</h3>
-            <div className="flex items-center justify-center gap-2 mt-2">
-              {selectedDonation.charity_profile_picture ? (
+    return (
+      <div
+        id={`received-${d.donation_id || d.id}`}
+        onClick={onClick}
+        className={`group rounded-2xl border border-[#f2e3cf] bg-white/70
+                    shadow-[0_2px_10px_rgba(93,64,28,.05)]
+                    overflow-hidden transition-all duration-300 cursor-pointer
+                    hover:scale-[1.015] hover:shadow-[0_14px_32px_rgba(191,115,39,.18)]
+                    hover:ring-1 hover:ring-[#E49A52]/35
+                    ${
+                      highlightedId === (d.donation_id || d.id)
+                        ? "ring-2 ring-[#E49A52]"
+                        : ""
+                    }`}
+      >
+        <div className="relative h-40 overflow-hidden">
+          {d.image ? (
+            <img
+              src={`${API}/${d.image}`}
+              alt={d.name}
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+          ) : (
+            <div className="h-full w-full grid place-items-center bg-[#FFF6E9] text-[#b88a5a]">
+              No Image
+            </div>
+          )}
+          {showExpiry && (
+            <div className="absolute top-3 right-3 text-[11px] font-bold inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-[#fff8e6] border-[#ffe7bf] text-[#8a5a25]">
+              Expires in {left} {left === 1 ? "day" : "days"}
+            </div>
+          )}
+        </div>
+
+        <div className="p-4">
+          <div className="flex items-start justify-between gap-2">
+            <h4 className="text-lg font-semibold text-[#3b2a18]">{d.name}</h4>
+            <span className={`text-[11px] font-semibold px-2 py-1 rounded-full border ${statusColor(d.tracking_status)}`}>
+              {nice(d.tracking_status)}
+            </span>
+          </div>
+
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#FFEFD9] border border-[#f3ddc0] text-[#6b4b2b]">
+              Qty: {d.quantity}
+            </span>
+            {d.threshold != null && (
+              <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#FFF6E9] border border-[#f4e6cf] text-[#6b4b2b]">
+                Threshold: {d.threshold}
+              </span>
+            )}
+          </div>
+
+          {/* Only this label changes for Pending cards */}
+          <div className="mt-4">
+            <p className="text-[12px] font-semibold text-[#7b5836] mb-1">{label}</p>
+            <div className="flex items-center gap-2">
+              {avatar ? (
                 <img
-                  src={`${API}/${selectedDonation.charity_profile_picture}`}
-                  alt={selectedDonation.charity_name}
+                  src={`${API}/${avatar}`}
+                  alt={displayName || "Requester"}
                   className="w-8 h-8 rounded-full object-cover"
                 />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-gray-600">
-                  ?
-                </div>
+                <div className="w-8 h-8 rounded-full bg-gray-300 grid place-items-center text-gray-600">?</div>
               )}
               <span className="text-sm font-medium">
-                {selectedDonation.charity_name || "Unknown Charity"}
+                {displayName || "—"}
               </span>
             </div>
+          </div>
 
-            {/* Stepper */}
-            <div className="flex items-center justify-between w-full mt-6 relative">
-              {statusOrder.map((status, idx) => {
-                const currentIndex = statusOrder.indexOf(selectedDonation.tracking_status);
-                const isCompleted = selectedDonation.tracking_status === "complete";
+          {d.description && (
+            <p className="mt-3 text-sm text-[#7b5836] line-clamp-2">{d.description}</p>
+          )}
+        </div>
+      </div>
+    );
+  };
 
-                return (
-                  <div key={status} className="flex-1 flex flex-col items-center relative">
-                    {/* Left connector */}
-                    {idx > 0 && (
-                      <div
-                        className={`absolute top-4 left-0 w-1/2 h-1 z-0 ${
-                          isCompleted || idx - 1 < currentIndex ? "bg-green-500" : "bg-gray-300"
-                        }`}
-                      ></div>
-                    )}
+// Main render
+  return (
+    <div className="relative mx-auto max-w-[1280px] px-6 py-8">
+      <div className="mb-6 flex items-center justify-between">
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-[#4A2F17]">Bakery Status</h2>
+      </div>
 
-                    {/* Right connector */}
-                    {idx < statusOrder.length - 1 && (
-                      <div
-                        className={`absolute top-4 right-0 w-1/2 h-1 z-0 ${
-                          isCompleted || idx < currentIndex ? "bg-green-500" : "bg-gray-300"
-                        }`}
-                      ></div>
-                    )}
+      {/* Accepted requests */}
+      <Section title="Donations from Request" count={receivedDonations.length}>
+        {receivedDonations.length > 0 ? (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {sortByStatus(receivedDonations).map((d) => (
+              <Card key={d.id} d={d} onClick={() => setSelectedDonation(d)} />
+            ))}
+          </div>
+        ) : (
+          <p className="text-[#7b5836]">No donations yet.</p>
+        )}
+      </Section>
 
-                    {/* Circle */}
-                    <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-white z-10 transition-all duration-300 ${
-                        isCompleted
-                          ? "bg-green-500"
-                          : idx < currentIndex
-                          ? "bg-green-500"
-                          : idx === currentIndex
-                          ? "bg-green-500 -translate-y-2 scale-110"
-                          : "bg-gray-300"
-                      }`}
-                    >
-                      {/* Show ✓ on last step if completed, else step number */}
-                      {isCompleted && idx === statusOrder.length - 1 ? "✓" : idx + 1}
-                    </div>
+      {/* Direct donations */}
+      <Section title="Direct Donations" count={directDonations.length}>
+        {directDonations.length > 0 ? (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {sortByStatus(directDonations).map((d) => (
+              <Card key={d.id} d={d} onClick={() => setSelectedDonation(d)} />
+            ))}
+          </div>
+        ) : (
+          <p className="text-[#7b5836]">No direct donations yet.</p>
+        )}
+      </Section>
 
-                    {/* Label */}
-                    <span
-                      className={`mt-2 text-xs text-center transition-all duration-300 ${
-                        idx === currentIndex && !isCompleted ? "-translate-y-2 font-semibold" : ""
-                      }`}
-                    >
-                      {status.replaceAll("_", " ")}
-                    </span>
-                  </div>
-                );
-              })}
+      {/* Pending requests */}
+      <Section title="Pending Request" count={pendingDonations.length}>
+        {pendingDonations.length > 0 ? (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {pendingDonations.map((d) => (
+              <Card
+                key={d.id}
+                d={d}
+                onClick={() => setSelectedDonation(d)}
+                label="Requester"
+                nameResolver={getPendingRequesterName}
+                avatarResolver={getPendingRequesterAvatar}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-[#7b5836]">No pending request.</p>
+        )}
+      </Section>
+
+      {/* Modal */}
+      {selectedDonation && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setSelectedDonation(null)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-[#FFE4C5] via-[#FFD49B] to-[#F0A95F]">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-[#4A2F17]">Donation Details</h3>
+                <button
+                  className="text-[#4A2F17]/70 hover:text-[#4A2F17] text-2xl leading-none"
+                  onClick={() => setSelectedDonation(null)}
+                >
+                  ×
+                </button>
+              </div>
             </div>
 
-              {/* Show button only if preparing or ready_for_pickup */}
-                {(selectedDonation.tracking_status === "preparing" ||
-                  selectedDonation.tracking_status === "ready_for_pickup") && (
-                  <button
-                    onClick={() =>
-                      handleUpdateTracking(
-                        selectedDonation.id,
-                        selectedDonation.tracking_status,
-                        selectedDonation.btracking_status !== undefined
-                      )
-                    }
-                    className="mt-6 w-full px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+            <div className="p-6">
+              {/* Image + status pill */}
+              {selectedDonation.image && (
+                <div className="relative">
+                  <img
+                    src={`${API}/${selectedDonation.image}`}
+                    alt={selectedDonation.name}
+                    className="h-56 w-full object-cover rounded-xl"
+                  />
+                  <span
+                    className={`absolute right-3 top-3 text-xs font-semibold px-2 py-1 rounded-full border ${statusColor(
+                      selectedDonation.tracking_status
+                    )}`}
                   >
-                    {selectedDonation.tracking_status === "preparing"
-                      ? "Ready for Pickup"
-                      : "In Transit"}
-                  </button>
-                )}    
+                    {nice(selectedDonation.tracking_status)}
+                  </span>
+                </div>
+              )}
+
+              {/* Title + details */}
+              <div className="mt-5 flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-2xl font-semibold text-[#3b2a18]">{selectedDonation.name}</h3>
+                  {selectedDonation.description && (
+                    <p className="text-sm text-[#7b5836] mt-2">{selectedDonation.description}</p>
+                  )}
+                  <div className="mt-3 text-sm text-[#7b5836] space-y-1">
+                    <div>
+                      Quantity: <span className="font-semibold">{selectedDonation.quantity}</span>
+                    </div>
+                    {selectedDonation.expiration_date && (
+                      <div>
+                        Expires:{" "}
+                        <span className="font-semibold">
+                          {new Date(selectedDonation.expiration_date).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Stepper */}
+              <div className="mt-7 px-3 py-4 rounded-xl bg-white border border-[#f0e3d0]">
+                <div className="relative flex items-center justify-between">
+                  <div className="absolute left-0 right-0 top-4 h-1 bg-gray-200 rounded" />
+                  <div
+                    className="absolute left-0 top-4 h-1 bg-green-500 rounded transition-all"
+                    style={{
+                      width: `${
+                        (Math.max(
+                          0,
+                          statusOrder.indexOf(
+                            selectedDonation.tracking_status === "complete"
+                              ? "complete"
+                              : selectedDonation.tracking_status
+                          )
+                        ) /
+                          (statusOrder.length - 1)) *
+                        100
+                      }%`,
+                    }}
+                  />
+                  {statusOrder.map((status, idx) => {
+                    const currentIndex = statusOrder.indexOf(
+                      selectedDonation.tracking_status === "complete"
+                        ? "complete"
+                        : selectedDonation.tracking_status
+                    );
+                    const isActive = idx <= currentIndex;
+                    const isLast = idx === statusOrder.length - 1;
+                    return (
+                      <div key={status} className="flex flex-col items-center z-10 w-20">
+                        <div
+                          className={`w-9 h-9 rounded-full grid place-items-center text-white font-bold shadow ${
+                            isActive ? "bg-green-500" : "bg-gray-300"
+                          }`}
+                        >
+                          {isLast && selectedDonation.tracking_status === "complete" ? "✓" : idx + 1}
+                        </div>
+                        <span
+                          className={`mt-2 text-xs text-center ${
+                            idx === currentIndex && selectedDonation.tracking_status !== "complete"
+                              ? "font-semibold"
+                              : ""
+                          }`}
+                        >
+                          {nice(status)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* CTA */}
+              {(selectedDonation.tracking_status === "preparing" ||
+                selectedDonation.tracking_status === "ready_for_pickup") && (
+                <button
+                  onClick={() =>
+                    handleUpdateTracking(
+                      selectedDonation.id,
+                      selectedDonation.tracking_status,
+                      selectedDonation.btracking_status !== undefined
+                    )
+                  }
+                  className="mt-6 w-full rounded-full px-5 py-3 font-semibold text-white
+                             bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327]
+                             shadow-[0_10px_26px_rgba(201,124,44,.25)]
+                             hover:brightness-[1.05]"
+                >
+                  {selectedDonation.tracking_status === "preparing"
+                    ? "Mark as Ready for Pickup"
+                    : "Mark as In Transit"}
+                </button>
+              )}
+            </div>
           </div>
         </div>
-        )}
+      )}
     </div>
   );
 };

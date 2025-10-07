@@ -1,12 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-} from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -23,16 +18,22 @@ export default function ComplaintModule() {
   const [formData, setFormData] = useState({ subject: "", description: "" });
   const [loading, setLoading] = useState(false);
   const [complaints, setComplaints] = useState([]);
-  const [open, setOpen] = useState(false); // control modal
+  const [open, setOpen] = useState(false);
 
-  // Fetch user complaints
+  const formatDate = (s) => {
+    if (!s) return "—";
+    const d = new Date(s);
+    if (isNaN(d)) return "—";
+    return d.toLocaleDateString("en-US");
+  };
+
   const fetchComplaints = async () => {
     try {
       const token = localStorage.getItem("token");
       const res = await axios.get("https://api.doughnationhq.cloud/complaints/me", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setComplaints(res.data);
+      setComplaints(res.data || []);
     } catch (err) {
       console.error("Error fetching complaints:", err);
     }
@@ -43,7 +44,7 @@ export default function ComplaintModule() {
   }, []);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setFormData((p) => ({ ...p, [e.target.name]: e.target.value }));
   };
 
   const handleSubmit = async (e) => {
@@ -56,7 +57,6 @@ export default function ComplaintModule() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      // ✅ Close modal first
       setOpen(false);
 
       Swal.fire({
@@ -66,7 +66,7 @@ export default function ComplaintModule() {
       });
 
       setFormData({ subject: "", description: "" });
-      fetchComplaints(); // refresh list
+      fetchComplaints();
     } catch (err) {
       Swal.fire({
         icon: "error",
@@ -81,81 +81,129 @@ export default function ComplaintModule() {
   };
 
   return (
-    <div className="flex flex-col items-center py-10 space-y-6">
-      {/* Submit Complaint Button & Dialog */}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          <Button className="bg-[var(--brand2)] hover:bg-[var(--brand3)] text-white">
-            Submit Complaint
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Submit a Complaint</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Subject</label>
-              <Input
-                type="text"
-                name="subject"
-                value={formData.subject}
-                onChange={handleChange}
-                required
-                placeholder="Enter complaint subject"
-              />
-            </div>
+    <div className="relative mx-auto max-w-[1280px] px-6 py-8">
+      {/* Title */}
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-3xl font-extrabold tracking-tight text-[#4A2F17]">
+          Complaints
+        </h1>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Description
-              </label>
-              <Textarea
-                name="description"
-                value={formData.description}
-                onChange={handleChange}
-                required
-                placeholder="Describe your issue..."
-                rows={4}
-              />
-            </div>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button
+              className="rounded-full px-5 py-2 text-white shadow-md
+                         bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327]
+                         hover:brightness-[1.03]"
+            >
+              Submit Complaint
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="text-[#4A2F17]">
+                Submit a Complaint
+              </DialogTitle>
+            </DialogHeader>
 
-            <DialogFooter>
-              <Button
-                type="submit"
-                className="w-full bg-[var(--brand2)] hover:bg-[var(--brand3)] text-white"
-                disabled={loading}
-              >
-                {loading ? "Submitting..." : "Submit Complaint"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-[#6b4b2b]">
+                  Subject
+                </label>
+                <Input
+                  type="text"
+                  name="subject"
+                  value={formData.subject}
+                  onChange={handleChange}
+                  required
+                  placeholder="Enter complaint subject"
+                  className="border-[#f2d4b5] focus-visible:ring-[#E49A52]"
+                />
+              </div>
 
-      {/* Complaints List */}
-      <Card className="w-full max-w-2xl shadow-lg rounded-2xl">
-        <CardHeader>
-          <CardTitle className="text-xl font-semibold">My Complaints</CardTitle>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-[#6b4b2b]">
+                  Description
+                </label>
+                <Textarea
+                  name="description"
+                  value={formData.description}
+                  onChange={handleChange}
+                  required
+                  placeholder="Describe your issue..."
+                  rows={4}
+                  className="border-[#f2d4b5] focus-visible:ring-[#E49A52]"
+                />
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full rounded-full text-white
+                             bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327]
+                             hover:brightness-[1.03]"
+                >
+                  {loading ? "Submitting..." : "Submit Complaint"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* List wrapper card */}
+      <Card className="rounded-2xl border border-black/10 bg-white/80 shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
+        <CardHeader className="pb-0">
+          <CardTitle className="text-lg font-semibold text-[#4A2F17]">
+            My Complaints
+          </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pb-6 pt-4">
           {complaints.length === 0 ? (
             <p className="text-gray-500">No complaints submitted yet.</p>
           ) : (
-            <ul className="space-y-3">
+            <ul className="grid grid-cols-1 gap-4">
               {complaints.map((c) => (
                 <li
                   key={c.id}
-                  className="p-3 border rounded-lg hover:bg-gray-50 transition"
+                  className="rounded-2xl border border-black/10 bg-[#FFF6EC]
+                             px-5 py-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]
+                             transform-gpu transition-all duration-300
+                             ease-[cubic-bezier(.2,.9,.4,1)]
+                             hover:scale-[1.02]
+                             hover:shadow-[0_12px_30px_rgba(191,115,39,0.20)]
+                             hover:ring-1 hover:ring-[#E49A52]/40
+                             motion-reduce:hover:scale-100"
                 >
-                  <p className="font-semibold">{c.subject}</p>
-                  <p className="text-sm text-gray-600">{c.description}</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Status:{" "}
-                    <span className="font-medium capitalize">
-                      {c.status || "Pending"}
-                    </span>
+                  <p className="text-xl font-semibold text-[#2b1a0b]">
+                    {c.subject}
                   </p>
+
+                  {c.description && (
+                    <p className="mt-2 text-[15px] text-[#5b4a3b]">
+                      {c.description}
+                    </p>
+                  )}
+
+                  <div className="mt-4 flex flex-wrap items-center gap-6 text-sm">
+                    <p className="text-[#6b4b2b]">
+                      <span className="font-semibold text-[#4A2F17]">
+                        Status:
+                      </span>{" "}
+                      <span className="font-medium capitalize">
+                        {c.status || "Pending"}
+                      </span>
+                    </p>
+                    <p className="text-[#6b4b2b]">
+                      <span className="font-semibold text-[#4A2F17]">
+                        Created:
+                      </span>{" "}
+                      <span className="font-medium">
+                        {formatDate(c.created_at || c.created || c.date)}
+                      </span>
+                    </p>
+                  </div>
                 </li>
               ))}
             </ul>

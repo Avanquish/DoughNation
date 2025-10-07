@@ -55,7 +55,7 @@ const AdminDashboard = () => {
     (async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await axios.get("/admin-dashboard-stats", {
+        const res = await axios.get("https://api.doughnationhq.cloud/admin-dashboard-stats", {
           headers: { Authorization: `Bearer ${token}` },
         });
         setStats({
@@ -75,7 +75,7 @@ const AdminDashboard = () => {
     (async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await axios.get("/pending-users", {
+        const res = await axios.get("https://api.doughnationhq.cloud/pending-users", {
           headers: { Authorization: `Bearer ${token}` },
         });
         setPendingUsers(res.data || []);
@@ -91,11 +91,11 @@ const AdminDashboard = () => {
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
       try {
-        const r1 = await axios.get("/admin/feedbacks", { headers });
+        const r1 = await axios.get("https://api.doughnationhq.cloud/admin/feedbacks", { headers });
         setFeedbacks(r1.data || []);
       } catch {
         try {
-          const r2 = await axios.get("/feedbacks/pending", { headers });
+          const r2 = await axios.get("https://api.doughnationhq.cloud/feedbacks/pending", { headers });
           setFeedbacks(r2.data || []);
         } catch {
           setFeedbacks([]);
@@ -109,7 +109,7 @@ useEffect(() => {
   (async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await axios.get("/complaints", {
+      const res = await axios.get("https://api.doughnationhq.cloud/complaints", {
         headers: { Authorization: `Bearer ${token}` },
       });
       setComplaints(res.data || []);
@@ -124,7 +124,7 @@ useEffect(() => {
   const handleVerify = async (id) => {
     try {
       const token = localStorage.getItem("token");
-      await axios.post(`/verify-user/${id}`, {}, {
+      await axios.post(`https://api.doughnationhq.cloud/verify-user/${id}`, {}, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setPendingUsers((p) => p.filter((u) => u.id !== id));
@@ -137,7 +137,7 @@ useEffect(() => {
   const handleReject = async (id) => {
     try {
       const token = localStorage.getItem("token");
-      await axios.post(`/reject-user/${id}`, {}, {
+      await axios.post(`https://api.doughnationhq.cloud/reject-user/${id}`, {}, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setPendingUsers((p) => p.filter((u) => u.id !== id));
@@ -213,7 +213,7 @@ useEffect(() => {
   (async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await axios.get("/notifications/read", {
+      const res = await axios.get("https://api.doughnationhq.cloud/notifications/read", {
         headers: { Authorization: `Bearer ${token}` },
       });
       setReadNotifs(new Set(res.data || [])); // Restore saved read notifications

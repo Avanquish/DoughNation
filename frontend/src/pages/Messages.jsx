@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import axios from "axios";
 
-/* ==== Config & helpers ==== */
+// Helpers
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const fileUrl = (path) => {
@@ -51,7 +51,7 @@ const formatBytes = (bytes) => {
   }
 };
 
-/* ==== Theme ==== */
+// Styles
 const Styles = () => (
   <style>{`
     :root{
@@ -206,14 +206,14 @@ const Styles = () => (
   `}</style>
 );
 
-/* ==== Component ==== */
+// Main component
 export default function Messages({ currentUser: currentUserProp }) {
-  /* UI */
+
   const [openList, setOpenList] = useState(false);
   const [openDock, setOpenDock] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
 
-  /* Data */
+  // Data states
   const [search, setSearch] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [menuOpenId, setMenuOpenId] = useState(null);
@@ -296,7 +296,7 @@ useEffect(() => {
   const [currentUser, setCurrentUser] = useState(currentUserProp || null);
   const [peerTyping, setPeerTyping] = useState(false);
 
-  /* Refs */
+  // Refs
   const wsRef = useRef(null);
   const dockScrollRef = useRef(null);
   const typingTimer = useRef(null);
@@ -314,8 +314,7 @@ useEffect(() => {
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
-
-  /* Close dropdown when clicking outside */
+// Close dropdown when clicking outside
  useEffect(() => {
   const handler = (e) => {
     const wrap = launcherWrapRef.current;
@@ -331,7 +330,7 @@ useEffect(() => {
   return () => document.removeEventListener("mousedown", handler);
 }, []);
 
-  /* Media preview */
+  // Media preview
   useEffect(() => {
     if (!mediaFile) {
       setMediaPreview(null);
@@ -342,7 +341,7 @@ useEffect(() => {
     return () => URL.revokeObjectURL(url);
   }, [mediaFile]);
 
-  /* Decode current user if not provided */
+  // Decode token if no currentUser prop
   useEffect(() => {
     if (currentUserProp) return;
     const token = localStorage.getItem("token");
@@ -360,7 +359,7 @@ useEffect(() => {
     }
   }, [currentUserProp]);
 
-  /* Persist */
+  // Persist messages and active chats
   useEffect(() => {
     try {
       localStorage.setItem("chat_messages", JSON.stringify(messages));
@@ -374,7 +373,7 @@ useEffect(() => {
     } catch {}
   }, [activeChats]);
 
-  /* Summaries */
+  // Summaries and unread count
   const summaries = useMemo(() => {
     const map = new Map();
     const me = Number(currentUser?.id);
@@ -429,7 +428,7 @@ useEffect(() => {
   return () => window.removeEventListener("donation_cancelled", handleCancel);
 }, [messages]);
 
-  /* WebSocket */
+  // WebSocket connection
   useEffect(() => {
      console.log("[WS-DEBUG] useEffect triggered");
      console.log("[WS-DEBUG] currentUser:", currentUser);
@@ -591,7 +590,7 @@ useEffect(() => {
     };
   }, [currentUser]);
 
-  /* External openers */
+  // Event listeners
   useEffect(() => {
     const h = () => setOpenList(true);
     window.addEventListener("open_messenger", h);
@@ -637,7 +636,7 @@ useEffect(() => {
     return () => window.removeEventListener("open_chat", h);
   }, [currentUser]);
 
-  /* Selecting a peer */
+  // Selecting a user
   useEffect(() => {
     if (!selectedUser || !currentUser) return;
     setActiveChats((prev) => {
@@ -667,7 +666,7 @@ useEffect(() => {
     }
   }, [selectedUser, currentUser]);
 
-  /* Mark inbound messages as read */
+  // Mark messages as read when selecting a user
   useEffect(() => {
     if (!selectedUser?.id || !currentUser?.id) return;
     setMessages((prev) => {
@@ -687,7 +686,7 @@ useEffect(() => {
     });
   }, [selectedUser?.id, currentUser?.id]);
 
-  /* Derived */
+  // Filter messages for current conversation
   const filteredMessages = useMemo(() => {
     if (!selectedUser || !currentUser) return [];
     return messages.filter(
@@ -699,7 +698,7 @@ useEffect(() => {
     );
   }, [messages, selectedUser, currentUser]);
 
-  /* Track pending donation cards */
+  // Track pending donation cards
   useEffect(() => {
   const cards = messages.filter((m) => {
     try {
@@ -715,7 +714,7 @@ useEffect(() => {
 }, [messages, removedDonations]);
 
 
-  /* Scroll handling */
+  // Scroll to bottom on new message or typing
   useEffect(() => {
     const el = dockScrollRef.current;
     if (!el) return;
@@ -734,7 +733,7 @@ useEffect(() => {
     return () => el.removeEventListener("scroll", onScroll);
   }, [dockScrollRef, filteredMessages]);
 
-  /* Typing */
+  // Typing indicator
   const [newMessage, setNewMessage] = useState("");
   useEffect(() => {
     if (!wsRef.current || !selectedUser || wsRef.current.readyState !== WebSocket.OPEN) return;
@@ -756,7 +755,7 @@ useEffect(() => {
     }, 800);
   }, [newMessage, currentUser, selectedUser]);
 
-  /* Search */
+  // Search users
   const handleSearch = (e) => {
     const q = e.target.value;
     setSearch(q);
@@ -775,7 +774,7 @@ useEffect(() => {
   );
   const sidebarUsers = allUsers;
 
-  /* Actions */
+  // Actions
   const sendMessage = () => {
     if (!newMessage.trim() && !mediaFile) return;
     if (!selectedUser || !currentUser) return;
@@ -946,7 +945,7 @@ try {
     wsRef.current?.send(JSON.stringify({ type: "delete_for_me", id }));
   };
 
-  /* Render helpers */
+  // Render helpers
   const renderMessageBody = (m) => {
     try {
       const p =
@@ -1037,7 +1036,7 @@ try {
     return { isMedia: false, body: <div>{text}</div> };
   };
 
-  /* Auto-resize compose textarea */
+  // Auto-resize composer
   useEffect(() => {
     const ta = composeRef.current;
     if (!ta) return;

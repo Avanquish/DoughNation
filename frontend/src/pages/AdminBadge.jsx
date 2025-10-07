@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 
-// ✅ Attach token globally to every request
+// Globally attach token to every request
 axios.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
@@ -19,22 +19,26 @@ const AdminBadge = () => {
   const [badges, setBadges] = useState([]);
   const [selectedUser, setSelectedUser] = useState("");
   const [selectedBadge, setSelectedBadge] = useState(null);
-  const [badgeName, setBadgeName] = useState(""); // ✅ New state for custom badge name
+  const [badgeName, setBadgeName] = useState(""); 
   const [description, setDescription] = useState("");
 
-  // Fetch bakery users & admin badges
+  // Fetch bakery users 
   useEffect(() => {
     axios
       .get("http://localhost:8000/badges/bakery-users")
-      .then((res) => setUsers(res.data))
+      .then((res) => setUsers(res.data || []))
       .catch((err) => console.error("Error fetching users:", err));
+  }, []);
 
+  // Fetch admin badges (limit to 4)
+  useEffect(() => {
     axios
       .get("http://localhost:8000/badges/admin-badge")
-      .then((res) => setBadges(res.data))
+      .then((res) => setBadges(Array.isArray(res.data) ? res.data.slice(0, 4) : []))
       .catch((err) => console.error("Error fetching badges:", err));
   }, []);
 
+  // Handle badge assignment
   const handleGiveBadge = async () => {
     if (!selectedUser || !selectedBadge) {
       Swal.fire("Error", "Please select both a user and a badge.", "error");
@@ -42,13 +46,15 @@ const AdminBadge = () => {
     }
 
     try {
+      // Use badgeName if provided, else fallback to selectedBadge.name
       await axios.post("http://localhost:8000/badges/assign", {
         user_id: selectedUser,
         badge_id: selectedBadge.id,
-        badge_name: badgeName || selectedBadge.name, // ✅ use input or fallback
+        badge_name: badgeName || selectedBadge.name, // use custom name if provided
         description: description || null,
       });
 
+      // Success feedback
       Swal.fire("Success", "Badge assigned successfully!", "success");
       setSelectedUser("");
       setSelectedBadge(null);
@@ -65,95 +71,146 @@ const AdminBadge = () => {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto bg-white shadow rounded-2xl">
-      <h2 className="text-2xl font-bold mb-6 text-center">
-        🎖️ Assign Badge to Bakery User
-      </h2>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* LEFT COLUMN */}
-        <div>
-          {/* User Select */}
-          <div className="mb-6">
-            <label className="block text-gray-700 font-semibold mb-2">
-              Select User:
-            </label>
-            <select
-              className="w-full p-2 border rounded-lg"
-              value={selectedUser}
-              onChange={(e) => setSelectedUser(e.target.value)}
-            >
-              <option value="">-- Choose User --</option>
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Badge Name Input */}
-          <div className="mb-6">
-            <label className="block text-gray-700 font-semibold mb-2">
-              Badge Name:
-            </label>
-            <input
-              type="text"
-              className="w-full p-3 border rounded-lg"
-              placeholder="Enter custom badge name (optional)"
-              value={badgeName}
-              onChange={(e) => setBadgeName(e.target.value)}
-            />
-          </div>
-
-          {/* Manual Description */}
-          <div className="mb-6">
-            <label className="block text-gray-700 font-semibold mb-2">
-              Description:
-            </label>
-            <textarea
-              className="w-full p-3 border rounded-lg"
-              placeholder="Enter custom description for this badge..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={6}
-            />
-          </div>
-
-          <button
-            onClick={handleGiveBadge}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 w-full"
-          >
-            ✅ Assign Badge
-          </button>
+    <div className="p-4 sm:p-6">
+      <div className="max-w-5xl mx-auto rounded-3xl bg-gradient-to-br from-[#FFF5EA] via-[#FFF0DE] to-[#FFE9CE] ring-1 ring-black/10 shadow-sm">
+        {/* Header */}
+        <div className="px-6 pt-8 pb-4 border-b border-[#e8d8c2]/70 text-center">
+          <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
+            Assign Badge to Bakery User
+          </h2>
+          <p className="mt-1 text-sm text-[#7b5836]">
+            Choose a user, select a badge, and optionally customize its name and description.
+          </p>
         </div>
 
-        {/* RIGHT COLUMN */}
-        <div>
-          <label className="block text-gray-700 font-semibold mb-4">
-            Select Badge:
-          </label>
-          <div className="grid grid-cols-1 gap-3">
-            {badges.map((badge) => (
-              <div
-                key={badge.id}
-                onClick={() => setSelectedBadge(badge)}
-                className={`flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-100 transition ${
-                  selectedBadge?.id === badge.id
-                    ? "border-blue-500 bg-blue-50"
-                    : ""
-                }`}
-              >
-                <img
-                  src={`http://localhost:8000/${badge.icon_url}`}
-                  alt={badge.name}
-                  className="w-12 h-12 mr-4 object-contain"
-                />
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="rounded-2xl bg-white/90 ring-1 ring-[#e9d7c3] shadow">
+              <div className="p-5 space-y-5">
+                {/* User Select */}
                 <div>
-                  <p className="font-semibold">{badge.name}</p>
+                  <label className="block text-sm font-semibold mb-2 text-[#6b4b2b]">
+                    Select User
+                  </label>
+                  <select
+                    className="w-full rounded-lg border border-[#f2d4b5] bg-white px-3 py-2.5 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                    value={selectedUser}
+                    onChange={(e) => setSelectedUser(e.target.value)}
+                  >
+                    <option value="">-- Choose User --</option>
+                    {users.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Badge Name */}
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-[#6b4b2b]">
+                    Badge Name (optional)
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full rounded-lg border border-[#f2d4b5] bg-white px-3 py-2.5 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                    placeholder="e.g., Community Hero"
+                    value={badgeName}
+                    onChange={(e) => setBadgeName(e.target.value)}
+                  />
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-[#6b4b2b]">
+                    Description (optional)
+                  </label>
+                  <textarea
+                    className="w-full rounded-lg border border-[#f2d4b5] bg-white px-3 py-2.5 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                    placeholder="Add a short description for this badge…"
+                    rows={6}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                  />
+                </div>
+
+                {/* Submit */}
+                <button
+                  onClick={handleGiveBadge}
+                  className="w-full rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2.5 font-semibold shadow-md ring-1 ring-white/60 hover:brightness-95"
+                >
+                  Assign Badge
+                </button>
+              </div>
+            </div>
+
+            {/* Badges grid (limit to 4) */}
+            <div className="rounded-2xl bg-white/90 ring-1 ring-[#e9d7c3] shadow">
+              <div className="p-5">
+                <h3 className="mb-4 text-lg font-extrabold text-[#6b4b2b]">
+                  Available Badges
+                </h3>
+
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {badges.slice(0, 4).map((badge) => {
+                    const isActive = selectedBadge?.id === badge.id;
+                    const iconSrc = badge.icon_url
+                      ? `http://localhost:8000/${badge.icon_url}`
+                      : badge.icon
+                      ? badge.icon
+                      : null;
+
+                    return (
+                      <button
+                        type="button"
+                        key={badge.id || badge.name}
+                        onClick={() => setSelectedBadge(badge)}
+                        className={`text-left flex items-center gap-3 p-3 rounded-xl transition
+                                    ring-1 shadow-sm w-full
+                                    ${
+                                      isActive
+                                        ? "bg-[#FFF5E6] ring-[#E49A52]"
+                                        : "bg-white/90 ring-[#f2e3cf] hover:bg-[#fff6ec]"
+                                    }`}
+                      >
+                        {iconSrc ? (
+                          <img
+                            src={iconSrc}
+                            alt={badge.name}
+                            className="w-12 h-12 object-contain rounded-md border border-[#f2e3cf] bg-white"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-md grid place-items-center bg-[#FFEFD9] border border-[#f3ddc0] text-[#6b4b2b] text-sm font-bold">
+                            {badge?.name ? badge.name.charAt(0).toUpperCase() : "B"}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-semibold text-[#3b2a18] truncate">
+                            {badge.name || "Untitled Badge"}
+                          </p>
+                          {badge.description && (
+                            <p className="text-[11px] text-[#7b5836] truncate">
+                              {badge.description}
+                            </p>
+                          )}
+                          {isActive && (
+                            <p className="text-[11px] font-medium text-[#8a5a25]">
+                              Selected
+                            </p>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+
+                  {badges.length === 0 && (
+                    <p className="text-sm text-[#6b4b2b]/70">
+                      No badges available.
+                    </p>
+                  )}
                 </div>
               </div>
-            ))}
+            </div>
           </div>
         </div>
       </div>

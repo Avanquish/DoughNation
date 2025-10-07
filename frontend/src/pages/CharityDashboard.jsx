@@ -8,14 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  HeartHandshake,
-  PackageCheck,
-  MessageCircleHeart,
-  LogOut,
-  Smile,
-  Users,
-} from "lucide-react";
+import { HeartHandshake, PackageCheck, LogOut, CheckCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import CharityDonation from "./CharityDonation.jsx";
 import Messages from "./Messages.jsx";
@@ -27,87 +20,57 @@ import RecentDonations from "./RecentDonations.jsx";
 import DashboardSearch from "./DashboardSearch.jsx";
 
 const API = "http://localhost:8000";
+const TAB_KEY = "charity_active_tab";
+const ALLOWED_TABS = [
+  "dashboard",
+  "donation",
+  "donationStatus",
+  "received",
+  "feedback",
+];
 
 const CharityDashboard = () => {
   const [name, setName] = useState("");
   const [isVerified, setIsVerified] = useState(false);
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [currentUser, setCurrentUser] = useState(null);
-  const [totals, setTotals] = useState({ grand_total: 0, normal_total: 0, direct_total: 0 });
+
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const fromUrl = params.get("tab");
+      if (fromUrl && ALLOWED_TABS.includes(fromUrl)) return fromUrl;
+
+      const fromStorage = localStorage.getItem(TAB_KEY);
+      if (fromStorage && ALLOWED_TABS.includes(fromStorage)) return fromStorage;
+
+      return "donation";
+    } catch {
+      return "donation";
+    }
+  });
+
   const navigate = useNavigate();
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      try {
-        const decoded = JSON.parse(atob(token.split(".")[1]));
-        setName(decoded.name || "FoodCharity");
-        setIsVerified(decoded.is_verified);
-      } catch (error) {
-        console.error("Failed to decode token:", error);
+    try {
+      if (!activeTab) return;
+      localStorage.setItem(TAB_KEY, activeTab);
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("tab") !== activeTab) {
+        params.set("tab", activeTab);
+        const next = `${window.location.pathname}?${params.toString()}${
+          window.location.hash
+        }`;
+        window.history.replaceState({}, "", next);
       }
-    }
-  }, []);
-  
-
-  useEffect(() => {
-    const handleSwitch = () => setActiveTab("donation");
-    window.addEventListener("switch_to_donation_tab", handleSwitch);
-    return () =>
-      window.removeEventListener("switch_to_donation_tab", handleSwitch);
-  }, []);
-
-  useEffect(() => {
-    const handleSwitch = () => setActiveTab("donationStatus");
-    window.addEventListener("switch_to_donationStatus_tab", handleSwitch);
-    return () =>
-      window.removeEventListener("switch_to_donationStatus_tab", handleSwitch);
-  }, []);
-
- 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    navigate("/");
-  };
-
-  const statusText = useMemo(() => {
-    switch (activeTab) {
-      case "donation":
-        return "Donation";
-      case "received":
-        return "Received";
-      case "feedback":
-        return "Feedback";
-      default:
-        return "Dashboard";
-    }
+    } catch {}
   }, [activeTab]);
 
-  // Fetch the computed Donation Received
-  useEffect(() => {
-    const fetchTotals = async () => {
-      try {
-        const res = await fetch(`${API}/charity/total_donations`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-        });
-
-        if (!res.ok) {
-          console.error("Failed to fetch totals, status:", res.status);
-          return;
-        }
-
-        const data = await res.json();
-        console.log("✅ Totals response from backend:", data); // debug log
-        setTotals(data);
-      } catch (err) {
-        console.error("❌ Error fetching totals:", err);
-      }
-    };
-
-    fetchTotals();
-  }, []);
-
-
+  const [currentUser, setCurrentUser] = useState(null);
+  const [totals, setTotals] = useState({
+    grand_total: 0,
+    normal_total: 0,
+    direct_total: 0,
+  });
 
   const Styles = () => (
     <style>{`
@@ -143,6 +106,7 @@ const CharityDashboard = () => {
       .ring{width:48px; height:48px; border-radius:9999px; padding:2px;
         background:conic-gradient(from 210deg, #F7C789, #E8A765, #C97C2C, #E8A765, #F7C789)}
       .ring>div{width:100%; height:100%; border-radius:9999px; background:#fff; display:flex; align-items:center; justify-content:center}
+
       .title-ink{font-weight:800; letter-spacing:.2px;
         background:linear-gradient(90deg,#F3B56F,#E59B50,#C97C2C);
         -webkit-background-clip:text; background-clip:text; color:transparent}
@@ -150,7 +114,7 @@ const CharityDashboard = () => {
         padding:.28rem .6rem; font-size:.78rem; border-radius:9999px;
         color:#7a4f1c; background:linear-gradient(180deg,#FFE7C5,#F7C489); border:1px solid #fff3e0}
 
-      /* Bakery-style segmented tabs */
+      /* Tabs */
       .tabwrap{max-width:80rem; margin:.75rem auto 0; padding:0 1rem;}
       .tabbar{display:flex; gap:.5rem; background:rgba(255,255,255,.95); border:1px solid rgba(0,0,0,.06);
         border-radius:16px; padding:.4rem; box-shadow:0 10px 26px rgba(201,124,44,.15); width:fit-content}
@@ -163,17 +127,27 @@ const CharityDashboard = () => {
       .gwrap{position:relative; border-radius:16px; padding:1px;
         background:linear-gradient(135deg, rgba(247,199,137,.9), rgba(201,124,44,.55))}
       .glass-card{border-radius:15px; background:rgba(255,255,255,.94); backdrop-filter:blur(8px)}
-      .chip{width:46px; height:46px; display:flex; align-items:center; justify-content:center; border-radius:9999px;
-        background:linear-gradient(180deg,#FFE7C5,#F7C489); color:#8a5a25; border:1px solid #fff3e0}
+      .chip{
+  width:54px; height:54px;
+  display:grid; place-items:center;
+  border-radius:9999px;
+  background: radial-gradient(120% 120% at 30% 25%, #ffe6c6 0%, #f7c489 55%, #e8a765 100%);
+  box-shadow: 0 10px 24px rgba(201,124,44,.20), inset 0 1px 0 rgba(255,255,255,.8);
+  border: 1px solid rgba(255,255,255,.8);
+}
+  .chip svg{
+  width:22px; height:22px;
+  color:#8a5a25;
+}
       .metric{margin-top:.25rem; font-size:1.75rem; line-height:2rem; font-weight:900; letter-spacing:-.02em}
 
-      /* Right-side icon cluster (matches Bakery) */
+      /* Right-side icon cluster */
       .iconbar{display:flex; align-items:center; gap:.5rem}
       .icon-btn{position:relative; display:inline-flex; align-items:center; justify-content:center;
         width:40px; height:40px; border-radius:9999px; background:rgba(255,255,255,.9);
         border:1px solid rgba(0,0,0,.06); box-shadow:0 6px 16px rgba(201,124,44,.14)}
 
-      /* Logout button like Bakery */
+      /* Logout */
       .btn-logout{position:relative; overflow:hidden; border-radius:9999px; padding:.58rem .95rem; gap:.5rem;
         background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); color:#fff;
         border:1px solid rgba(255,255,255,.6); box-shadow:0 8px 26px rgba(201,124,44,.25)}
@@ -181,8 +155,92 @@ const CharityDashboard = () => {
         transform:rotate(10deg); background:linear-gradient(90deg, rgba(255,255,255,.26), rgba(255,255,255,0) 55%);
         animation: shine 3.2s linear infinite}
       @keyframes shine{from{left:-70%}to{left:120%}}
+
+      /* Spinning logo (unchanged) */
+      @keyframes spin360 { to { transform: rotate(360deg); } }
+      .logo-spin { animation: spin360 8s linear infinite; transform-origin: center; }
+      .logo-spin:hover { animation-play-state: paused; }
+      @media (prefers-reduced-motion: reduce) { .logo-spin { animation: none; } }
+
+      /* >>> NEW: simple bounce-on-hover for specific icons only <<< */
+      .bounce-hover{transition: transform .18s cubic-bezier(.34,1.56,.64,1);}
+      .bounce-hover:hover{transform: translateY(-2px) scale(1.06);}
+      .bounce-hover:active{transform: translateY(0) scale(.98);}
     `}</style>
   );
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      try {
+        const decoded = JSON.parse(atob(token.split(".")[1]));
+        setName(decoded.name || "FoodCharity");
+        setIsVerified(decoded.is_verified);
+      } catch (error) {
+        console.error("Failed to decode token:", error);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleSwitch = () => setActiveTab("donation");
+    window.addEventListener("switch_to_donation_tab", handleSwitch);
+    return () =>
+      window.removeEventListener("switch_to_donation_tab", handleSwitch);
+  }, []);
+
+  useEffect(() => {
+    const handleSwitch = () => setActiveTab("donationStatus");
+    window.addEventListener("switch_to_donationStatus_tab", handleSwitch);
+    return () =>
+      window.removeEventListener("switch_to_donationStatus_tab", handleSwitch);
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    navigate("/");
+  };
+
+  const statusText = useMemo(() => {
+    switch (activeTab) {
+      case "donation":
+        return "Donation";
+      case "received":
+        return "Received";
+      case "feedback":
+        return "Feedback";
+      default:
+        return "Dashboard";
+    }
+  }, [activeTab]);
+
+  // Verified pill content (shown only when verified)
+  const verifiedPill = useMemo(() => {
+    if (!isVerified) return null;
+    return (
+      <span
+        className="flex items-center gap-1 font-bold"
+        style={{ color: "#16a34a" }}
+      >
+        <CheckCircle className="w-4 h-4 text-green-600" />
+        Verified
+      </span>
+    );
+  }, [isVerified]);
+
+  useEffect(() => {
+    const fetchTotals = async () => {
+      try {
+        const res = await fetch(`${API}/charity/total_donations`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setTotals(data);
+      } catch {}
+    };
+    fetchTotals();
+  }, []);
 
   if (!isVerified) {
     return (
@@ -196,11 +254,6 @@ const CharityDashboard = () => {
               features.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col items-center gap-4">
-            <Button onClick={handleLogout} variant="destructive">
-              Log Out
-            </Button>
-          </CardContent>
         </Card>
       </div>
     );
@@ -222,50 +275,55 @@ const CharityDashboard = () => {
             <div className="flex items-center gap-3 min-w-0">
               <div className="ring">
                 <div>
-                  <HeartHandshake className="h-6 w-6 text-amber-700" />
+                  {/* Spinning charity logo */}
+                  <HeartHandshake className="h-6 w-6 text-amber-700 logo-spin" />
                 </div>
               </div>
               <div className="min-w-0">
                 <h1 className="title-ink text-2xl sm:text-[26px] truncate">
                   {name}
                 </h1>
-                <span className="status-chip">{statusText}</span>
+                {verifiedPill && <span className="status-chip">{verifiedPill}</span>}
               </div>
             </div>
+
+            {/* search + icons */}
             <div className="iconbar">
-              <div className="mb-12">
-                <DashboardSearch />
-              </div>
+              <DashboardSearch size="sm" />
 
               <div className="icon-btn">
                 <Messages currentUser={currentUser} compact />
               </div>
 
-              <div className="icon-btn">
+              {/* Bouncy notification icon */}
+              <div className="icon-btn bounce-hover">
                 <CharityNotification />
               </div>
 
-              {/* Simple profile */}
-              <span className="icon-btn" title="Profile">
+              {/* Bouncy profile icon */}
+              <button
+                className="icon-btn cursor-pointer bounce-hover"
+                title="Profile"
+                onClick={() =>
+                  navigate(`/charity-dashboard/${currentUser?.id || 0}/profile`)
+                }
+              >
                 <span
-                  className="icon-btn cursor-pointer"
-                  title="Profile"
-                  onClick={() => navigate(`/charity-dashboard/${currentUser?.id || 0}/profile`)}
+                  className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold"
+                  style={{
+                    background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
+                    color: "#7a4f1c",
+                    border: "1px solid #fff3e0",
+                  }}
                 >
-                  <span
-                    className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold"
-                    style={{
-                      background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
-                      color: "#7a4f1c",
-                      border: "1px solid #fff3e0",
-                    }}
-                  >
-                    {name?.trim()?.charAt(0).toUpperCase() || " "}
-                  </span>
+                  {name?.trim()?.charAt(0).toUpperCase() || " "}
                 </span>
-                </span>
+              </button>
 
-              <Button onClick={handleLogout} className="btn-logout flex items-center">
+              <Button
+                onClick={handleLogout}
+                className="btn-logout flex items-center"
+              >
                 <LogOut className="h-4 w-4" />
                 <span>Log Out</span>
               </Button>
@@ -279,8 +337,8 @@ const CharityDashboard = () => {
         <div className="tabwrap">
           <div className="tabbar">
             <TabsList className="bg-transparent p-0 border-0">
-              <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
               <TabsTrigger value="donation">Available Donation</TabsTrigger>
+              <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
               <TabsTrigger value="donationStatus">Donation Status</TabsTrigger>
               <TabsTrigger value="received">Donation Received</TabsTrigger>
               <TabsTrigger value="feedback">Feedback</TabsTrigger>
@@ -288,9 +346,7 @@ const CharityDashboard = () => {
           </div>
         </div>
 
-        {/* Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7">
-          {/* Dashboard */}
           <TabsContent value="dashboard" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6">
               <div className="gwrap">
@@ -298,9 +354,11 @@ const CharityDashboard = () => {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">
+                        <CardTitle
+                          style={{ color: "#6B4B2B", fontWeight: "700" }}
+                        >
                           Total Donations Received
-                        </p>
+                        </CardTitle>
                         <div className="metric">{totals.grand_total}</div>
                       </div>
                       <div className="chip">
@@ -313,32 +371,38 @@ const CharityDashboard = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="gwrap">
-                <Card className="glass-card shadow-none">
+              <div className="gwrap min-h-[560px]">
+                <Card className="glass-card shadow-none h-full flex flex-col">
                   <CardHeader className="pb-2">
-                    <CardTitle>Recent Donations</CardTitle>
+                    <CardTitle style={{ color: "#6B4B2B", fontWeight: "700" }}>
+                      Recent Donations
+                    </CardTitle>
                     <CardDescription>
-                     <RecentDonations />
+                      A quick look at your latest completed donations
                     </CardDescription>
                   </CardHeader>
+                  <CardContent className="pt-0 flex-1">
+                    <RecentDonations />
+                  </CardContent>
                 </Card>
               </div>
 
-              <div className="gwrap">
-                <Card className="glass-card shadow-none">
+              <div className="gwrap min-h-[560px]">
+                <Card className="glass-card shadow-none h-full flex flex-col">
                   <CardHeader className="pb-2">
-                    <CardTitle>Feedback &amp; Ratings</CardTitle>
+                    <CardTitle style={{ color: "#6B4B2B", fontWeight: "700" }}>
+                      Feedback &amp; Ratings
+                    </CardTitle>
                     <CardDescription>
                       Feedback from your partnered bakeries
                     </CardDescription>
-                     <CardContent className="min-h-[374px] flex flex-wrap gap-3"></CardContent>
                   </CardHeader>
+                  <CardContent className="pt-0 flex-1" />
                 </Card>
               </div>
             </div>
           </TabsContent>
 
-          {/* Received */}
           <TabsContent value="received">
             <div className="gwrap">
               <Card className="glass-card shadow-none">
@@ -349,19 +413,19 @@ const CharityDashboard = () => {
             </div>
           </TabsContent>
 
-          {/* Feedback */}
           <TabsContent value="feedback">
             <div className="gwrap">
               <Card className="glass-card shadow-none">
                 <CardHeader className="pb-2">
-                  <CardTitle>Feedback</CardTitle>
+                  <CardTitle style={{ color: "#6B4B2B", fontWeight: "700" }}>
+                    Feedback
+                  </CardTitle>
                 </CardHeader>
                 <CFeedback />
               </Card>
             </div>
           </TabsContent>
 
-          {/* Donation */}
           <TabsContent value="donation">
             <div className="gwrap">
               <Card className="glass-card shadow-none">
@@ -371,11 +435,9 @@ const CharityDashboard = () => {
             </div>
           </TabsContent>
 
-           {/* Donation Status*/}
           <TabsContent value="donationStatus">
             <div className="gwrap">
               <Card className="glass-card shadow-none">
-                <CardContent className="min-h-[40px]" />
                 <CDonationStatus />
               </Card>
             </div>

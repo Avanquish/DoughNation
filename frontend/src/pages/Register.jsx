@@ -481,13 +481,13 @@ export default function Register() {
               {/* Address */}
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-2 text-[#8f642a]">
-                  <MapPin wclassName="h-4 w-4" /> Address
+                  <MapPin className="h-4 w-4" /> Address
                 </Label>
                 <Input
                   value={formData.address}
-                  onChange={(e) => handleInputChange("address", e.target.value)}
-                  required
-                  className="h-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E]"
+                  readOnly
+                  placeholder="Select your location on the map"
+                  className="h-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E] cursor-not-allowed"
                 />
               </div>
 

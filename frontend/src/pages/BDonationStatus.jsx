@@ -322,8 +322,28 @@ const BDonationStatus = () => {
   return (
     <div className="relative mx-auto max-w-[1280px] px-6 py-8">
       <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-3xl sm:text-4xl font-extrabold text-[#4A2F17]">Bakery Status</h2>
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-[#4A2F17]">Donation Status</h2>
       </div>
+
+      {/* Pending requests */}
+      <Section title="Pending Request" count={pendingDonations.length}>
+        {pendingDonations.length > 0 ? (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {pendingDonations.map((d) => (
+              <Card
+                key={d.id}
+                d={d}
+                onClick={() => setSelectedDonation(d)}
+                label="Requester"
+                nameResolver={getPendingRequesterName}
+                avatarResolver={getPendingRequesterAvatar}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-[#7b5836]">No pending request.</p>
+        )}
+      </Section>
 
       {/* Accepted requests */}
       <Section title="Donations from Request" count={receivedDonations.length}>
@@ -348,26 +368,6 @@ const BDonationStatus = () => {
           </div>
         ) : (
           <p className="text-[#7b5836]">No direct donations yet.</p>
-        )}
-      </Section>
-
-      {/* Pending requests */}
-      <Section title="Pending Request" count={pendingDonations.length}>
-        {pendingDonations.length > 0 ? (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {pendingDonations.map((d) => (
-              <Card
-                key={d.id}
-                d={d}
-                onClick={() => setSelectedDonation(d)}
-                label="Requester"
-                nameResolver={getPendingRequesterName}
-                avatarResolver={getPendingRequesterAvatar}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="text-[#7b5836]">No pending request.</p>
         )}
       </Section>
 

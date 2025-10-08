@@ -4,7 +4,7 @@ import axios from "axios";
 import Swal from "sweetalert2";
 import { Heart, Clock, AlertTriangle, Package } from "lucide-react";
 
-const API = "https://api.doughnationhq.cloud/";
+const API = "https://api.doughnationhq.cloud";
 
 // Helpers for donation status
 const isExpired = (dateStr) => {

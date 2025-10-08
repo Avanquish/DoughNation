@@ -14,7 +14,7 @@ import {
 import axios from "axios";
 
 // Helpers
-const API_URL = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud/";
+const API_URL = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
 
 const fileUrl = (path) => {
   if (!path) return "";

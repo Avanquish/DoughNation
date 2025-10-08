@@ -20,7 +20,7 @@ import RecentDonations from "./RecentDonations.jsx";
 import DashboardSearch from "./DashboardSearch.jsx";
 import Complaint from "./Complaint.jsx";
 
-const API = "https://api.doughnationhq.cloud/";
+const API = "https://api.doughnationhq.cloud";
 const TAB_KEY = "charity_active_tab";
 const ALLOWED_TABS = [
   "dashboard",

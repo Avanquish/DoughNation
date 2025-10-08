@@ -3,7 +3,7 @@ import axios from "axios";
 import Swal from "sweetalert2";
 import { Crown, Medal } from "lucide-react";
 
-const API = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud/";
+const API = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
 
 const Leaderboards = () => {
   const [leaderboard, setLeaderboard] = useState([]);

@@ -4,7 +4,7 @@ import { Search } from "lucide-react";
 import { createPortal } from "react-dom";
 import ShowSearchedProfile from "./ShowSearchedProfile";
 
-const API = "https://api.doughnationhq.cloud/";
+const API = "https://api.doughnationhq.cloud";
 
 const SIZES = {
   sm: { h: "h-10", inputPad: "pl-9 pr-3", btnPx: "px-3", icon: "w-4 h-4", width: "w-[240px]" },

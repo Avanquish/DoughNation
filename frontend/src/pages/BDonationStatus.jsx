@@ -2,9 +2,16 @@ import React, { useState, useEffect } from "react";
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // Helpers
-const statusOrder = ["preparing", "ready_for_pickup", "in_transit", "received", "complete"];
+const statusOrder = [
+  "preparing",
+  "ready_for_pickup",
+  "in_transit",
+  "received",
+  "complete",
+];
 
-const nice = (s = "") => s.replaceAll("_", " ").replace(/\b\w/g, (m) => m.toUpperCase());
+const nice = (s = "") =>
+  s.replaceAll("_", " ").replace(/\b\w/g, (m) => m.toUpperCase());
 
 const daysUntil = (dateStr) => {
   if (!dateStr) return null;
@@ -16,7 +23,10 @@ const daysUntil = (dateStr) => {
 };
 
 const statusColor = (status) => {
-  switch (status) {
+  const s = (status || "").toLowerCase();
+  switch (s) {
+    case "pending":
+      return "bg-[#E7F1FF] text-[#2457A3] border-[#cfe2ff]";
     case "preparing":
       return "bg-[#E7F1FF] text-[#2457A3] border-[#cfe2ff]";
     case "ready_for_pickup":
@@ -26,7 +36,14 @@ const statusColor = (status) => {
     case "received":
       return "bg-[#E9F9EF] text-[#2b7a3f] border-[#c7ecd5]";
     case "complete":
+    case "completed":
       return "bg-[#e9ffe9] text-[#1c7c1c] border-[#c7f3c7]";
+    case "cancelled":
+    case "canceled":
+    case "declined":
+    case "expired":
+    case "failed":
+      return "bg-[#FFE9E9] text-[#8a1f1f] border-[#ffd0d0]";
     default:
       return "bg-slate-100 text-slate-600 border-slate-200";
   }
@@ -42,38 +59,64 @@ const getRequesterName = (d) =>
   d?.charity ||
   "Unknown Charity";
 
-// Pending-only resolver 
-const getPendingRequesterName = (d) =>
-  d?.charity_name ||
-  d?.charity ||
-  d?.charity?.name ||
-  d?.requester_name ||
-  d?.requester?.name ||
-  d?.requested_by_name ||
-  d?.requested_by ||
-  d?.charityName ||
-  d?.charity_title ||
-  d?.requesting_charity ||
-  "";
+// ---- Bucket + priority helpers ----
+const isComplete = (d) => {
+  const s = (d.tracking_status || d.status || "").toLowerCase();
+  return s === "complete" || s === "completed";
+};
 
-// Pending-only avatar resolver (tries more keys)
-const getPendingRequesterAvatar = (d) =>
-  d?.charity_profile_picture ||
-  d?.requester_profile_picture ||
-  d?.charity?.profile_picture ||
-  d?.charityAvatar ||
-  d?.requester_avatar ||
-  null;
+
+// NEW: split into 4 buckets — pending, preparing (active flow), complete
+const bucketize4 = (list = []) => {
+  const pending = [];
+  const preparing = [];
+  const complete = [];
+  list.forEach((d) => {
+    const raw = (d.tracking_status || d.status || "").toLowerCase();
+
+    if (isComplete(d)) {
+      complete.push(d);
+      return;
+    }
+    if (raw === "pending") {
+      pending.push(d);
+      return;
+    }
+    // Active flow (preparing / ready_for_pickup / in_transit / received / unknown non-final)
+    preparing.push(d);
+  });
+  return { pending, preparing, complete, };
+};
+
+const prioritySort = (list = []) => {
+  const score = (d) => {
+    const s = (d.tracking_status || d.status || "").toLowerCase();
+    const isDone = s === "complete" || s === "completed";
+    const expiry = daysUntil(d.expiration_date);
+    const expScore = Number.isFinite(expiry) ? expiry : Number.POSITIVE_INFINITY;
+    const raw = (d.tracking_status || d.status || "pending").toLowerCase();
+    const normalized = raw === "pending" ? "preparing" : raw;
+    const idx = statusOrder.indexOf(normalized);
+    const stageScore = idx >= 0 ? idx : statusOrder.length;
+    return { isDone, expScore, stageScore };
+  };
+  return [...list].sort((a, b) => {
+    const A = score(a), B = score(b);
+    if (A.isDone !== B.isDone) return A.isDone ? 1 : -1;   // non-complete first
+    if (A.expScore !== B.expScore) return A.expScore - B.expScore; // sooner expiry first
+    return A.stageScore - B.stageScore; // earlier stage first
+  });
+};
+// -----------------------------------
 
 const BDonationStatus = () => {
   const [receivedDonations, setReceivedDonations] = useState([]);
-  const [pendingDonations, setPendingDonations] = useState([]);
   const [directDonations, setDirectDonations] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [highlightedId, setHighlightedId] = useState(null);
   const [selectedDonation, setSelectedDonation] = useState(null);
 
-// Set "Bakery Status" tab on mount
+  // Set "Bakery Status" tab on mount
   useEffect(() => {
     const url = new URL(window.location.href);
     if (url.searchParams.get("tab") !== "bakerystatus") {
@@ -83,7 +126,7 @@ const BDonationStatus = () => {
     sessionStorage.setItem("activeTab", "bakerystatus");
   }, []);
 
-// Load current user from token
+  // Load current user from token
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
@@ -100,20 +143,27 @@ const BDonationStatus = () => {
     }
   }, []);
 
+  // Make status sort stable (map "pending" to earliest step)
   const sortByStatus = (donations) =>
-    donations
-      .slice()
-      .sort(
-        (a, b) =>
-          statusOrder.indexOf(a.tracking_status || "preparing") -
-          statusOrder.indexOf(b.tracking_status || "preparing")
+    donations.slice().sort((a, b) => {
+      const norm = (s) => {
+        const x = (s || "pending").toLowerCase();
+        return x === "pending" ? "preparing" : x;
+        };
+      return (
+        statusOrder.indexOf(norm(a.tracking_status || a.status)) -
+        statusOrder.indexOf(norm(b.tracking_status || b.status))
       );
+    });
 
-  const handleUpdateTracking = async (donationId, currentStatus, isDirect = false) => {
+  const handleUpdateTracking = async (
+    donationId,
+    currentStatus,
+    isDirect = false
+  ) => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
-    // Keep bakery flow exactly as-is
     const nextStatusMap = {
       preparing: "ready_for_pickup",
       ready_for_pickup: "in_transit",
@@ -123,10 +173,14 @@ const BDonationStatus = () => {
     const nextStatus = nextStatusMap[currentStatus];
     if (!nextStatus) return;
 
-    const endpoint = isDirect ? `${API}/direct/tracking/${donationId}` : `${API}/donation/tracking/${donationId}`;
+    const endpoint = isDirect
+      ? `${API}/direct/tracking/${donationId}`
+      : `${API}/donation/tracking/${donationId}`;
 
     try {
-      const body = isDirect ? { btracking_status: nextStatus } : { tracking_status: nextStatus };
+      const body = isDirect
+        ? { btracking_status: nextStatus }
+        : { tracking_status: nextStatus };
       const res = await fetch(endpoint, {
         method: "POST",
         headers: {
@@ -139,15 +193,22 @@ const BDonationStatus = () => {
       if (res.ok) {
         if (isDirect) {
           setDirectDonations((prev) =>
-            prev.map((d) => (d.id === donationId ? { ...d, tracking_status: nextStatus } : d))
+            prev.map((d) =>
+              d.id === donationId ? { ...d, tracking_status: nextStatus } : d
+            )
           );
         } else {
           setReceivedDonations((prev) =>
-            prev.map((d) => (d.id === donationId ? { ...d, tracking_status: nextStatus } : d))
+            prev.map((d) =>
+              d.id === donationId ? { ...d, tracking_status: nextStatus } : d
+            )
           );
         }
         if (selectedDonation && selectedDonation.id === donationId) {
-          setSelectedDonation({ ...selectedDonation, tracking_status: nextStatus });
+          setSelectedDonation({
+            ...selectedDonation,
+            tracking_status: nextStatus,
+          });
         }
       }
     } catch (err) {
@@ -155,47 +216,59 @@ const BDonationStatus = () => {
     }
   };
 
-  // Fetch received & pending donations when currentUser is set/changes
+  // Fetch accepted + pending (merge) for Requested; Direct separately
   useEffect(() => {
     if (!currentUser) return;
     const token = localStorage.getItem("token");
+
     if (currentUser.role === "charity" || currentUser.role === "bakery") {
-      const url = currentUser.role === "charity" ? `${API}/donation/received` : `${API}/donation/requests`;
+      const url =
+        currentUser.role === "charity"
+          ? `${API}/donation/received`
+          : `${API}/donation/requests`;
       fetch(url, { headers: { Authorization: `Bearer ${token}` } })
         .then((res) => res.json())
         .then((data) => {
-          const accepted = data.filter((d) => d.status === "accepted");
-          const pending = data.filter((d) => d.status === "pending");
-          setReceivedDonations(accepted);
-          setPendingDonations(pending);
+          const accepted = (data || []).filter((d) => d.status === "accepted");
+          const pending = (data || []).filter((d) => d.status === "pending");
+
+          const acceptedNorm = accepted.map((d) => ({
+            ...d,
+            tracking_status: (d.tracking_status || d.status || "").toLowerCase(),
+          }));
+          const pendingNorm = pending.map((d) => ({
+            ...d,
+            tracking_status: "pending",
+          }));
+
+          setReceivedDonations([...acceptedNorm, ...pendingNorm]);
         })
-        .catch((err) => console.error("Failed to fetch requests/received:", err));
+        .catch((err) =>
+          console.error("Failed to fetch requests/received:", err)
+        );
+    }
+
+    if (currentUser.role === "bakery") {
+      (async () => {
+        try {
+          const resp = await fetch(`${API}/direct/bakery`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await resp.json();
+          const mapped = (data || []).map((d) => ({
+            ...d,
+            tracking_status:
+              (d.btracking_status || d.tracking_status || d.status || "pending").toLowerCase(),
+          }));
+          setDirectDonations(mapped);
+        } catch (e) {
+          console.error("Failed to fetch direct donations:", e);
+        }
+      })();
     }
   }, [currentUser]);
 
-  // Direct donations
-  useEffect(() => {
-    if (!currentUser || currentUser.role !== "bakery") return;
-    (async () => {
-      const token = localStorage.getItem("token");
-      try {
-        const resp = await fetch(`${API}/direct/bakery`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await resp.json();
-        const mapped = (data || []).map((d) => ({
-          ...d,
-          // normalize to use the same field for UI sorting/status chips
-          tracking_status: d.btracking_status || "preparing",
-        }));
-        setDirectDonations(mapped);
-      } catch (e) {
-        console.error("Failed to fetch direct donations:", e);
-      }
-    })();
-  }, [currentUser]);
-
-// Highlight newly received donation (from request) if signaled via localStorage event
+  // Highlight helper
   useEffect(() => {
     const handler = () => {
       const id = localStorage.getItem("highlight_received_donation");
@@ -208,10 +281,11 @@ const BDonationStatus = () => {
       }
     };
     window.addEventListener("highlight_received_donation", handler);
-    return () => window.removeEventListener("highlight_received_donation", handler);
+    return () =>
+      window.removeEventListener("highlight_received_donation", handler);
   }, []);
 
-// Section wrapper to reduce repetition
+  // Section shell
   const Section = ({ title, count, children }) => (
     <div
       className="
@@ -221,7 +295,9 @@ const BDonationStatus = () => {
       "
     >
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-xl sm:text-2xl font-extrabold text-[#4A2F17]">{title}</h3>
+        <h3 className="text-xl sm:text-2xl font-extrabold text-[#4A2F17]">
+          {title}
+        </h3>
         <span className="text-xs font-semibold px-2 py-1 rounded-full border bg-white/80 border-[#f2e3cf] text-[#6b4b2b]">
           {count} item{count === 1 ? "" : "s"}
         </span>
@@ -230,13 +306,12 @@ const BDonationStatus = () => {
     </div>
   );
 
-  // Card now accepts label + name/avatar resolvers so we can change ONLY the pending section
-  const Card = ({ d, onClick, label = "Donation For", nameResolver = getRequesterName, avatarResolver }) => {
+  // Card
+  const Card = ({ d, onClick }) => {
     const left = daysUntil(d.expiration_date);
     const showExpiry = Number.isFinite(left) && left >= 0;
-
-    const displayName = nameResolver?.(d) ?? "";
-    const avatar = avatarResolver ? avatarResolver(d) : d?.charity_profile_picture;
+    const displayName = getRequesterName(d);
+    const avatar = d?.charity_profile_picture;
 
     return (
       <div
@@ -247,11 +322,7 @@ const BDonationStatus = () => {
                     overflow-hidden transition-all duration-300 cursor-pointer
                     hover:scale-[1.015] hover:shadow-[0_14px_32px_rgba(191,115,39,.18)]
                     hover:ring-1 hover:ring-[#E49A52]/35
-                    ${
-                      highlightedId === (d.donation_id || d.id)
-                        ? "ring-2 ring-[#E49A52]"
-                        : ""
-                    }`}
+                    ${highlightedId === (d.donation_id || d.id) ? "ring-2 ring-[#E49A52]" : ""}`}
       >
         <div className="relative h-40 overflow-hidden">
           {d.image ? (
@@ -275,8 +346,12 @@ const BDonationStatus = () => {
         <div className="p-4">
           <div className="flex items-start justify-between gap-2">
             <h4 className="text-lg font-semibold text-[#3b2a18]">{d.name}</h4>
-            <span className={`text-[11px] font-semibold px-2 py-1 rounded-full border ${statusColor(d.tracking_status)}`}>
-              {nice(d.tracking_status)}
+            <span
+              className={`text-[11px] font-semibold px-2 py-1 rounded-full border ${statusColor(
+                d.tracking_status || d.status
+              )}`}
+            >
+              {nice((d.tracking_status || d.status || "").toLowerCase())}
             </span>
           </div>
 
@@ -291,9 +366,10 @@ const BDonationStatus = () => {
             )}
           </div>
 
-          {/* Only this label changes for Pending cards */}
           <div className="mt-4">
-            <p className="text-[12px] font-semibold text-[#7b5836] mb-1">{label}</p>
+            <p className="text-[12px] font-semibold text-[#7b5836] mb-1">
+              Donation For
+            </p>
             <div className="flex items-center gap-2">
               {avatar ? (
                 <img
@@ -302,70 +378,111 @@ const BDonationStatus = () => {
                   className="w-8 h-8 rounded-full object-cover"
                 />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-gray-300 grid place-items-center text-gray-600">?</div>
+                <div className="w-8 h-8 rounded-full bg-gray-300 grid place-items-center text-gray-600">
+                  ?
+                </div>
               )}
-              <span className="text-sm font-medium">
-                {displayName || "—"}
-              </span>
+              <span className="text-sm font-medium">{displayName || "—"}</span>
             </div>
           </div>
 
           {d.description && (
-            <p className="mt-3 text-sm text-[#7b5836] line-clamp-2">{d.description}</p>
+            <p className="mt-3 text-sm text-[#7b5836] line-clamp-2">
+              {d.description}
+            </p>
           )}
         </div>
       </div>
     );
   };
 
-// Main render
+  const ScrollColumn = ({ title, items, emptyText, renderItem }) => (
+    <div className="flex flex-col rounded-xl border border-[#f2e3cf] bg-white/60">
+      <div className="sticky top-0 z-10 px-4 py-2 border-b border-[#f2e3cf] bg-white/90 rounded-t-xl">
+        <p className="text-sm font-semibold text-[#4A2F17]">{title}</p>
+      </div>
+      <div className="max-h-[520px] overflow-y-auto p-4 space-y-4">
+        {items.length ? items.map(renderItem) : (
+          <p className="text-sm text-[#7b5836]">{emptyText}</p>
+        )}
+      </div>
+    </div>
+  );
+
+  // Main render
   return (
     <div className="relative mx-auto max-w-[1280px] px-6 py-8">
       <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-3xl sm:text-4xl font-extrabold text-[#4A2F17]">Donation Status</h2>
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-[#4A2F17]">
+          Donation Status
+        </h2>
       </div>
 
-      {/* Pending requests */}
-      <Section title="Pending Request" count={pendingDonations.length}>
-        {pendingDonations.length > 0 ? (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {pendingDonations.map((d) => (
-              <Card
-                key={d.id}
-                d={d}
-                onClick={() => setSelectedDonation(d)}
-                label="Requester"
-                nameResolver={getPendingRequesterName}
-                avatarResolver={getPendingRequesterAvatar}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="text-[#7b5836]">No pending request.</p>
-        )}
-      </Section>
-
-      {/* Accepted requests */}
-      <Section title="Donations from Request" count={receivedDonations.length}>
+      {/* ===== Requested Donations: Pending → Preparing → Complete ===== */}
+      <Section title="Requested Donations" count={receivedDonations.length}>
         {receivedDonations.length > 0 ? (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {sortByStatus(receivedDonations).map((d) => (
-              <Card key={d.id} d={d} onClick={() => setSelectedDonation(d)} />
-            ))}
-          </div>
+          (() => {
+            const { pending, preparing, complete } = bucketize4(sortByStatus(receivedDonations));
+            return (
+              <div className="grid gap-4 md:grid-cols-3">
+                <ScrollColumn
+                  title={`Pending (${pending.length})`}
+                  items={prioritySort(pending)}
+                  emptyText="No pending items."
+                  renderItem={(d) => (
+                    <Card key={`req-p-${d.id}`} d={d} onClick={() => setSelectedDonation(d)} />
+                  )}
+                />
+                <ScrollColumn
+                  title={`Preparing (${preparing.length})`}
+                  items={prioritySort(preparing)}
+                  emptyText="No preparing items."
+                  renderItem={(d) => (
+                    <Card key={`req-prep-${d.id}`} d={d} onClick={() => setSelectedDonation(d)} />
+                  )}
+                />
+                <ScrollColumn
+                  title={`Complete (${complete.length})`}
+                  items={prioritySort(complete)}
+                  emptyText="No completed items."
+                  renderItem={(d) => (
+                    <Card key={`req-c-${d.id}`} d={d} onClick={() => setSelectedDonation(d)} />
+                  )}
+                />
+              </div>
+            );
+          })()
         ) : (
           <p className="text-[#7b5836]">No donations yet.</p>
         )}
       </Section>
 
-      {/* Direct donations */}
+      {/* ===== Direct Donations: Pending → Preparing → Complete ===== */}
       <Section title="Direct Donations" count={directDonations.length}>
         {directDonations.length > 0 ? (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {sortByStatus(directDonations).map((d) => (
-              <Card key={d.id} d={d} onClick={() => setSelectedDonation(d)} />
-            ))}
-          </div>
+          (() => {
+            const { preparing, complete } = bucketize4(sortByStatus(directDonations));
+            return (
+              <div className="grid gap-4 md:grid-cols-2">
+                <ScrollColumn
+                  title={`Preparing (${preparing.length})`}
+                  items={prioritySort(preparing)}
+                  emptyText="No preparing items."
+                  renderItem={(d) => (
+                    <Card key={`dir-prep-${d.id}`} d={d} onClick={() => setSelectedDonation(d)} />
+                  )}
+                />
+                <ScrollColumn
+                  title={`Complete (${complete.length})`}
+                  items={prioritySort(complete)}
+                  emptyText="No completed items."
+                  renderItem={(d) => (
+                    <Card key={`dir-c-${d.id}`} d={d} onClick={() => setSelectedDonation(d)} />
+                  )}
+                />
+              </div>
+            );
+          })()
         ) : (
           <p className="text-[#7b5836]">No direct donations yet.</p>
         )}
@@ -384,7 +501,9 @@ const BDonationStatus = () => {
             {/* Header */}
             <div className="px-6 py-4 bg-gradient-to-r from-[#FFE4C5] via-[#FFD49B] to-[#F0A95F]">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-[#4A2F17]">Donation Details</h3>
+                <h3 className="text-lg font-semibold text-[#4A2F17]">
+                  Donation Details
+                </h3>
                 <button
                   className="text-[#4A2F17]/70 hover:text-[#4A2F17] text-2xl leading-none"
                   onClick={() => setSelectedDonation(null)}
@@ -405,10 +524,15 @@ const BDonationStatus = () => {
                   />
                   <span
                     className={`absolute right-3 top-3 text-xs font-semibold px-2 py-1 rounded-full border ${statusColor(
-                      selectedDonation.tracking_status
+                      selectedDonation.tracking_status || selectedDonation.status
                     )}`}
                   >
-                    {nice(selectedDonation.tracking_status)}
+                    {nice(
+                      (selectedDonation.tracking_status ||
+                        selectedDonation.status ||
+                        ""
+                      ).toLowerCase()
+                    )}
                   </span>
                 </div>
               )}
@@ -416,19 +540,28 @@ const BDonationStatus = () => {
               {/* Title + details */}
               <div className="mt-5 flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-2xl font-semibold text-[#3b2a18]">{selectedDonation.name}</h3>
+                  <h3 className="text-2xl font-semibold text-[#3b2a18]">
+                    {selectedDonation.name}
+                  </h3>
                   {selectedDonation.description && (
-                    <p className="text-sm text-[#7b5836] mt-2">{selectedDonation.description}</p>
+                    <p className="text-sm text-[#7b5836] mt-2">
+                      {selectedDonation.description}
+                    </p>
                   )}
                   <div className="mt-3 text-sm text-[#7b5836] space-y-1">
                     <div>
-                      Quantity: <span className="font-semibold">{selectedDonation.quantity}</span>
+                      Quantity:{" "}
+                      <span className="font-semibold">
+                        {selectedDonation.quantity}
+                      </span>
                     </div>
                     {selectedDonation.expiration_date && (
                       <div>
                         Expires:{" "}
                         <span className="font-semibold">
-                          {new Date(selectedDonation.expiration_date).toLocaleDateString()}
+                          {new Date(
+                            selectedDonation.expiration_date
+                          ).toLocaleDateString()}
                         </span>
                       </div>
                     )}
@@ -447,9 +580,13 @@ const BDonationStatus = () => {
                         (Math.max(
                           0,
                           statusOrder.indexOf(
-                            selectedDonation.tracking_status === "complete"
+                            ((selectedDonation.tracking_status || "pending").toLowerCase() ===
+                            "complete"
                               ? "complete"
-                              : selectedDonation.tracking_status
+                              : (selectedDonation.tracking_status || "pending").toLowerCase()) ===
+                            "pending"
+                              ? "preparing"
+                              : (selectedDonation.tracking_status || "pending").toLowerCase()
                           )
                         ) /
                           (statusOrder.length - 1)) *
@@ -458,25 +595,32 @@ const BDonationStatus = () => {
                     }}
                   />
                   {statusOrder.map((status, idx) => {
+                    const raw = (selectedDonation.tracking_status || "pending").toLowerCase();
+                    const normalized = raw === "pending" ? "preparing" : raw;
                     const currentIndex = statusOrder.indexOf(
-                      selectedDonation.tracking_status === "complete"
-                        ? "complete"
-                        : selectedDonation.tracking_status
+                      normalized === "complete" ? "complete" : normalized
                     );
                     const isActive = idx <= currentIndex;
                     const isLast = idx === statusOrder.length - 1;
                     return (
-                      <div key={status} className="flex flex-col items-center z-10 w-20">
+                      <div
+                        key={status}
+                        className="flex flex-col items-center z-10 w-20"
+                      >
                         <div
                           className={`w-9 h-9 rounded-full grid place-items-center text-white font-bold shadow ${
                             isActive ? "bg-green-500" : "bg-gray-300"
                           }`}
                         >
-                          {isLast && selectedDonation.tracking_status === "complete" ? "✓" : idx + 1}
+                          {isLast && (normalized === "complete" || normalized === "completed")
+                            ? "✓"
+                            : idx + 1}
                         </div>
                         <span
                           className={`mt-2 text-xs text-center ${
-                            idx === currentIndex && selectedDonation.tracking_status !== "complete"
+                            idx === currentIndex &&
+                            normalized !== "complete" &&
+                            normalized !== "completed"
                               ? "font-semibold"
                               : ""
                           }`}

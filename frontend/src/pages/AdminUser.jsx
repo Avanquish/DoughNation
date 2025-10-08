@@ -3,7 +3,7 @@ import Swal from "sweetalert2";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 
-const API = "https://api.doughnationhq.cloud/";
+const API = "https://api.doughnationhq.cloud";
 
 const AdminUser = () => {
   const [pendingUsers, setPendingUsers] = useState([]);

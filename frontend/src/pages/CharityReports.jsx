@@ -39,8 +39,6 @@ export default function BakeryReports() {
 
   const reportTypes = [
     { key: "donation_history", label: "Donation History" },
-    { key: "expiry", label: "Expiry Loss" },
-    { key: "top_items", label: "Top Donated Items" },
     { key: "weekly", label: "Weekly Summary" },
     { key: "monthly", label: "Monthly Summary" },
   ];
@@ -144,7 +142,7 @@ export default function BakeryReports() {
     setActiveReport(type);
     try {
       const token = localStorage.getItem("token");
-      let url = `${API_URL}/reports/${type}`;
+      let url = `${API_URL}/report/${type}`;
 
       if (type === "weekly" && param?.start && param?.end) {
         url += `?start_date=${param.start}&end_date=${param.end}`;
@@ -161,7 +159,7 @@ export default function BakeryReports() {
       localStorage.setItem("lastReportType", type);
       localStorage.setItem("lastReportData", JSON.stringify(res.data));
 
-      const bakeryRes = await axios.get(`${API_URL}/reports/bakery-info`, {
+      const bakeryRes = await axios.get(`${API_URL}/report/charity-info`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setBakeryInfo(bakeryRes.data);

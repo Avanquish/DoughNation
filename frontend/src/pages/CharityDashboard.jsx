@@ -19,6 +19,7 @@ import CFeedback from "./CFeedback.jsx";
 import RecentDonations from "./RecentDonations.jsx";
 import DashboardSearch from "./DashboardSearch.jsx";
 import Complaint from "./Complaint.jsx";
+import CharityReports from "./CharityReports.jsx"
 
 const API = "http://localhost:8000";
 const TAB_KEY = "charity_active_tab";
@@ -344,6 +345,7 @@ const CharityDashboard = () => {
               <TabsTrigger value="received">Donation Received</TabsTrigger>
               <TabsTrigger value="feedback">Feedback</TabsTrigger>
               <TabsTrigger value="complaints">Complaints</TabsTrigger>
+              <TabsTrigger value="reports">Generate Reports</TabsTrigger>
             </TabsList>
           </div>
         </div>
@@ -447,6 +449,10 @@ const CharityDashboard = () => {
 
           <TabsContent value="complaints" className="reveal">
               <Complaint />
+          </TabsContent>
+
+          <TabsContent value="reports" className="reveal">
+              <CharityReports />
           </TabsContent>
         </div>
       </Tabs>

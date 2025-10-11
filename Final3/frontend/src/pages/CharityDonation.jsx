@@ -161,11 +161,17 @@ export default function CharityDonationFeed() {
                 <h2 className="text-lg font-semibold mt-2">{donation.name}</h2>
                 <p className="text-sm text-gray-500">From {donation.bakery_name}</p>
                 <p className="text-sm">Quantity: {donation.quantity}</p>
-                {donation.expiration_date && (
-                  <p className="text-sm text-red-500">
-                    Expires: {donation.expiration_date}
-                  </p>
-                )}
+                {/* Expiration + Distance */}
+                <div className="flex justify-between text-sm mt-1">
+                  {donation.expiration_date ? (
+                    <span className="text-red-500">Expires: {donation.expiration_date}</span>
+                  ) : (
+                    <span></span>
+                  )}
+                  {donation.distance_km !== null && (
+                    <span className="text-gray-400">Approx: {donation.distance_km} km</span>
+                  )}
+                </div>
 
                 <Button
                   className="mt-2 w-full text-black"

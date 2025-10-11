@@ -426,15 +426,20 @@ const BDonationStatus = () => {
             )}
           </div>
 
-          <div className="mt-4">
-            <p className="text-[12px] font-semibold text-[#7b5836] mb-1">
-              Donation For
-            </p>
-            <div className="flex items-center gap-2">
-              {avatar ? (
+<div className="mt-4">
+  {d.status === "pending" ? (
+    <>
+      <p className="text-[12px] font-semibold text-[#7b5836] mb-1">
+        Requested By:
+      </p>
+      {Array.isArray(d.requested_by) && d.requested_by.length > 0 ? (
+        <div className="space-y-2">
+          {d.requested_by.map((req, i) => (
+            <div key={i} className="flex items-center gap-2">
+              {req.profile_picture ? (
                 <img
-                  src={`${API}/${avatar}`}
-                  alt={displayName || "Requester"}
+                  src={`${API}/${req.profile_picture}`}
+                  alt={req.name}
                   className="w-8 h-8 rounded-full object-cover"
                 />
               ) : (
@@ -442,9 +447,40 @@ const BDonationStatus = () => {
                   ?
                 </div>
               )}
-              <span className="text-sm font-medium">{displayName || "—"}</span>
+              <span className="text-sm font-medium text-[#4A2F17]">
+                {req.name}
+              </span>
             </div>
+          ))}
+        </div>
+      ) : (
+        <span className="text-sm text-gray-500">No requests yet</span>
+      )}
+    </>
+  ) : (
+    <>
+      <p className="text-[12px] font-semibold text-[#7b5836] mb-1">
+        Donation For:
+      </p>
+      <div className="flex items-center gap-2">
+        {d.charity_profile_picture ? (
+          <img
+            src={`${API}/${d.charity_profile_picture}`}
+            alt={d.charity_name || "Charity"}
+            className="w-8 h-8 rounded-full object-cover"
+          />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-gray-300 grid place-items-center text-gray-600">
+            ?
           </div>
+        )}
+        <span className="text-sm font-medium text-[#4A2F17]">
+          {d.charity_name || "—"}
+        </span>
+      </div>
+    </>
+  )}
+</div>
 
           {d.description && (
             <p className="mt-3 text-sm text-[#7b5836] line-clamp-2">
@@ -535,7 +571,7 @@ const pillSolid = "bg-[#E49A52] text-white px-4 py-2 rounded-full hover:bg-[#d08
                     <Card key={`req-p-${d.id}`} d={d} onClick={() => setSelectedDonation(d)} />
                   )}
                 />
-                <ScrollColumn
+                <ScrollColumn 
                   title={`Preparing (${preparing.length})`}
                   items={prioritySort(preparing)}
                   emptyText="No preparing items."

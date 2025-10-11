@@ -67,6 +67,9 @@ const BakeryDonation = ({ highlightedDonationId }) => {
   const [employeeRole, setEmployeeRole] = useState("");
   const [employees, setEmployees] = useState([]);
   const canModify = ["Manager", "Full Time Staff"].includes(employeeRole);
+  const [recommendedInventory, setRecommendedInventory] = useState({ recommended: [], rest: [] });
+  const [Charities, SetCharities] = useState({ recommended: [], rest: [] });
+
 
   // modal + form state
   const [showDonate, setShowDonate] = useState(false);
@@ -83,6 +86,36 @@ const BakeryDonation = ({ highlightedDonationId }) => {
     charity_id: "",
     image_file: null,
   });
+
+    const RECOMMENDED_DAYS = 3;
+
+const getRecommendedInventory = (items) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Items that expire within 3 days
+  let recommended = items.filter((it) => {
+    if (!it.expiration_date) return false;
+    const d = new Date(it.expiration_date);
+    d.setHours(0, 0, 0, 0);
+    const diff = Math.ceil((d - today) / (1000 * 60 * 60 * 24));
+    return diff > 0 && diff <= RECOMMENDED_DAYS;
+  });
+
+  // If none in 3 days, take the nearest to expire
+  if (recommended.length === 0 && items.length > 0) {
+    const sortedByExpire = items
+      .filter((it) => it.expiration_date)
+      .sort((a, b) => new Date(a.expiration_date) - new Date(b.expiration_date));
+    if (sortedByExpire.length > 0) recommended = [sortedByExpire[0]];
+  }
+
+  // The rest (non-recommended)
+  const recommendedIds = recommended.map((i) => i.id);
+  const rest = items.filter((i) => !recommendedIds.includes(i.id));
+
+  return { recommended, rest };
+};
 
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
@@ -153,28 +186,34 @@ const BakeryDonation = ({ highlightedDonationId }) => {
   }, [highlightedDonationId, donations]);
 
   // modal data
-  const fetchInventory = async () => {
-    try {
-      const res = await axios.get(`${API}/inventory`, { headers });
-      const ok = (res.data || []).filter((it) => {
-        const s = String(it.status || "").toLowerCase();
-        return (
-          s !== "donated" && s !== "requested" && !isExpired(it.expiration_date)
-        );
-      });
-      setInventory(ok);
-    } catch (e) {
-      console.error("inventory", e);
-    }
-  };
-  const fetchCharities = async () => {
-    try {
-      const res = await axios.get(`${API}/charities`, { headers });
-      setCharities(res.data || []);
-    } catch (e) {
-      console.error("charities", e);
-    }
-  };
+ const fetchInventory = async () => {
+  try {
+    const res = await axios.get(`${API}/inventory`, { headers });
+    const ok = (res.data || []).filter((it) => {
+      const s = String(it.status || "").toLowerCase();
+      return s !== "donated" && s !== "requested" && !isExpired(it.expiration_date);
+    });
+
+    setInventory(ok);
+
+    // split recommended + rest
+    const recommendedInventory = getRecommendedInventory(ok);
+    setRecommendedInventory(recommendedInventory);
+  } catch (e) {
+    console.error("inventory", e);
+  }
+};
+
+const fetchCharities = async () => {
+  try {
+    const res = await axios.get(`${API}/charities/recommended`, { headers });
+    console.log ("charities", res.data);
+    setCharities(res.data);
+  } catch (e) {
+    console.error("charities", e);
+  }
+};
+
   useEffect(() => {
     if (!showDonate) return;
     fetchInventory();
@@ -229,6 +268,22 @@ const BakeryDonation = ({ highlightedDonationId }) => {
       icon: <Package className="w-3.5 h-3.5" />,
     };
   };
+
+  // Sort donations by nearest expiration first, then fresh items
+const sortedDonations = [...donations].sort((a, b) => {
+  const daysA = daysUntil(a.expiration_date);
+  const daysB = daysUntil(b.expiration_date);
+
+  // prioritize those within 2 days
+  const aUrgent = daysA !== null && daysA <= 2 ? 0 : 1;
+  const bUrgent = daysB !== null && daysB <= 2 ? 0 : 1;
+
+  if (aUrgent !== bUrgent) return aUrgent - bUrgent; // urgent first
+  if (daysA === null) return 1; // fresh items without expiration go last
+  if (daysB === null) return -1;
+  return daysA - daysB; // ascending by days left
+});
+
 
 const sectionHeader = "border-b border-[#eadfce] bg-[#FFF6E9] px-4 py-2";
 const labelTone = "block text-sm font-medium text-[#6b4b2b]";
@@ -538,19 +593,46 @@ const pillSolid = "bg-[#E49A52] text-white px-4 py-2 rounded-full hover:bg-[#d08
                 >
                   Inventory Item
                 </label>
-                <select
-                  className="w-full rounded-md border border-[#f2d4b5] bg-white p-2 outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52]"
-                  value={form.bakery_inventory_id}
-                  onChange={(e) => onPickInventory(e.target.value)}
-                  required
-                >
-                  <option value="">Select item to donate</option>
-                  {inventory.map((it) => (
-                    <option key={it.id} value={it.id}>
-                      {it.name} (Qty: {it.quantity})
-                    </option>
-                  ))}
-                </select>
+                  <select
+                    className="w-full rounded-md border border-[#f2d4b5] bg-white p-2 outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52]"
+                    value={form.bakery_inventory_id}
+                    onChange={(e) => onPickInventory(e.target.value)}
+                    required
+                  >
+                    <option value="">Select item to donate</option>
+
+                    {/* Recommended Section */}
+                    {recommendedInventory.recommended.length > 0 && (
+                      <optgroup label="Recommended Soon to Expire">
+                        {recommendedInventory.recommended
+                          .slice() // clone to avoid mutating original
+                          .sort((a, b) => daysUntil(a.expiration_date) - daysUntil(b.expiration_date))
+                          .map((it) => (
+                            <option key={it.id} value={it.id}>
+                              {it.name} (Qty: {it.quantity}) — expires in {daysUntil(it.expiration_date)}d
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+
+                    {/* Normal Section */}
+                    {recommendedInventory.rest.length > 0 && (
+                      <optgroup label="Other Items">
+                        {recommendedInventory.rest
+                          .slice()
+                          .sort((a, b) => {
+                            const daysA = daysUntil(a.expiration_date) ?? Infinity;
+                            const daysB = daysUntil(b.expiration_date) ?? Infinity;
+                            return daysA - daysB;
+                          })
+                          .map((it) => (
+                            <option key={it.id} value={it.id}>
+                              {it.name} (Qty: {it.quantity})
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                  </select>
               </div>
 
               {/* Name */}
@@ -577,21 +659,36 @@ const pillSolid = "bg-[#E49A52] text-white px-4 py-2 rounded-full hover:bg-[#d08
                 >
                   Charity
                 </label>
-                <select
-                  className="w-full rounded-md border border-[#f2d4b5] bg-white p-2 outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52]"
-                  value={form.charity_id}
-                  onChange={(e) =>
-                    setForm({ ...form, charity_id: e.target.value })
-                  }
-                  required
-                >
-                  <option value="">Select Charity</option>
-                  {charities.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+                  <select
+                    className="w-full rounded-md border border-[#f2d4b5] bg-white p-2 outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52]"
+                    value={form.charity_id}
+                    onChange={(e) => setForm({ ...form, charity_id: e.target.value })}
+                    required
+                  >
+                    <option value="">Select Charity</option>
+
+                    {/* Recommended Section */}
+                    {charities.recommended?.length > 0 && (
+                      <optgroup label="Recommended (Low Donations)">
+                        {charities.recommended.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} ({c.transaction_count} donations)
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+
+                    {/* Other Charities Section */}
+                    {charities.rest?.length > 0 && (
+                      <optgroup label="Other Charities">
+                        {charities.rest.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} ({c.transaction_count} donations)
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
               </div>
 
               {/* Quantity */}
@@ -613,100 +710,6 @@ const pillSolid = "bg-[#E49A52] text-white px-4 py-2 rounded-full hover:bg-[#d08
                     })
                   }
                   required
-                />
-              </div>
-
-              {/* Threshold */}
-              <div className="sm:col-span-1">
-                <label
-                  className="block text-sm font-semibold"
-                  style={{ color: "#6b4b2b" }}
-                >
-                  Threshold (days)
-                </label>
-                <input
-                  type="number"
-                  className="w-full rounded-md border border-[#f2d4b5] bg-white p-2 outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52]"
-                  value={form.threshold}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      threshold: parseInt(e.target.value || 0, 10),
-                    })
-                  }
-                  required
-                />
-              </div>
-
-              {/* Creation Date */}
-              <div className="sm:col-span-1">
-                <label
-                  className="block text-sm font-semibold"
-                  style={{ color: "#6b4b2b" }}
-                >
-                  Creation Date
-                </label>
-                <input
-                  type="date"
-                  className="w-full rounded-md border border-[#f2d4b5] bg-white p-2 outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52]"
-                  value={form.creation_date}
-                  onChange={(e) =>
-                    setForm({ ...form, creation_date: e.target.value })
-                  }
-                  required
-                />
-              </div>
-
-              {/* Expiration Date */}
-              <div className="sm:col-span-1">
-                <label
-                  className="block text-sm font-semibold"
-                  style={{ color: "#6b4b2b" }}
-                >
-                  Expiration Date
-                </label>
-                <input
-                  type="date"
-                  className="w-full rounded-md border border-[#f2d4b5] bg-white p-2 outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52]"
-                  value={form.expiration_date}
-                  onChange={(e) =>
-                    setForm({ ...form, expiration_date: e.target.value })
-                  }
-                />
-              </div>
-
-              {/* Image */}
-              <div className="sm:col-span-1">
-                <label
-                  className="block text-sm font-semibold"
-                  style={{ color: "#6b4b2b" }}
-                >
-                  Picture (optional)
-                </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="w-full rounded-md border border-[#f2d4b5] bg-white p-2 outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52]"
-                  onChange={(e) =>
-                    setForm({ ...form, image_file: e.target.files[0] })
-                  }
-                />
-              </div>
-
-              {/* Description */}
-              <div className="sm:col-span-2">
-                <label
-                  className="block text-sm font-semibold"
-                  style={{ color: "#6b4b2b" }}
-                >
-                  Description
-                </label>
-                <textarea
-                  className="w-full rounded-md border border-[#f2d4b5] bg-white p-2 outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] min-h-[80px]"
-                  value={form.description}
-                  onChange={(e) =>
-                    setForm({ ...form, description: e.target.value })
-                  }
                 />
               </div>
             </form>

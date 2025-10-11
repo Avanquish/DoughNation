@@ -4,6 +4,7 @@ from datetime import datetime, date
 
 from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.database import get_db
 from app.auth import get_current_user
@@ -280,3 +281,81 @@ def update_tracking_status(
         update_user_badges(db, current_user.id)
     
     return donation_request
+
+@router.get("/charities/recommended")
+def get_recommended_charities(
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if current_user.role.lower() != "bakery":
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Count accepted donation requests per charity
+    request_counts = (
+        db.query(
+            models.DonationRequest.charity_id,
+            func.count(models.DonationRequest.id).label("count")
+        )
+        .filter(
+            models.DonationRequest.bakery_id == current_user.id,
+            models.DonationRequest.status == "accepted"
+        )
+        .group_by(models.DonationRequest.charity_id)
+        .all()
+    )
+
+    #Count direct donations per charity
+    direct_counts = (
+        db.query(
+            models.DirectDonation.charity_id,
+            func.count(models.DirectDonation.id).label("count")
+        )
+        .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
+        .filter(models.BakeryInventory.bakery_id == current_user.id)
+        .group_by(models.DirectDonation.charity_id)
+        .all()
+    )
+
+    #  Merge counts into total_counts
+    total_counts = {}
+    for row in request_counts:
+        total_counts[row.charity_id] = total_counts.get(row.charity_id, 0) + row.count
+    for row in direct_counts:
+        total_counts[row.charity_id] = total_counts.get(row.charity_id, 0) + row.count
+
+    # Fetch all active charities
+    charities = db.query(models.User).filter(models.User.role.ilike("charity")).all()
+
+    # Determine which are recommended
+    all_have_5plus = all(total_counts.get(c.id, 0) >= 5 for c in charities) if charities else False
+
+    if all_have_5plus:
+        # All have high activity → pick 3 least active
+        sorted_charities = sorted(charities, key=lambda c: total_counts.get(c.id, 0))
+        recommended = sorted_charities[:3]
+    else:
+        # Recommended are those with <5 transactions
+        recommended = [c for c in charities if total_counts.get(c.id, 0) < 5]
+
+    #The rest (non-recommended)
+    recommended_ids = {c.id for c in recommended}
+    rest = [c for c in charities if c.id not in recommended_ids]
+
+    # Response format
+    def charity_data(c):
+        return {
+            "id": c.id,
+            "name": c.name,
+            "email": c.email,
+            "contact_person": c.contact_person,
+            "contact_number": c.contact_number,
+            "address": c.address,
+            "profile_picture": c.profile_picture,
+            "transaction_count": total_counts.get(c.id, 0)
+        }
+
+    return {
+        "recommended": [charity_data(c) for c in recommended],
+        "rest": [charity_data(c) for c in rest],
+        "all": [charity_data(c) for c in charities]  # Optional: full list
+    }

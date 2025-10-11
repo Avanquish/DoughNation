@@ -121,6 +121,16 @@ class DonationRequest(Base):
 
     charity = relationship("User", foreign_keys=[charity_id])
     bakery = relationship("User", foreign_keys=[bakery_id])
+
+class DonationCardChecking(Base):
+    __tablename__ = "donationscardchecking"
+    id = Column(Integer, primary_key=True, index=True)
+    donor_id = Column(Integer)
+    recipient_id = Column(Integer)
+    donation_request_id = Column(Integer, ForeignKey("donation_requests.id", ondelete="CASCADE"), nullable=False)
+    status = Column(String, default="pending")
+
+    request = relationship("DonationRequest", backref="check_records")
     
 class DirectDonation(Base):
     __tablename__ = "direct_donations"

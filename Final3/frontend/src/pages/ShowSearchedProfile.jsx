@@ -14,8 +14,6 @@ import {
   TabsTrigger,
   TabsContent,
 } from "@/components/ui/tabs";
-import RecentDonations from "./RecentDonations";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 
 const API = "http://localhost:8000";
 
@@ -151,9 +149,8 @@ export default function ShowSearchedProfile({ id, onBack }) {
               <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
                 <TabsList className="bg-transparent border-0 mb-4">
                   <TabsTrigger value="about">About</TabsTrigger>
-                  <TabsTrigger value="history">Donation History</TabsTrigger>
                   {profile.role.toLowerCase() === "bakery" && (
-                    <TabsTrigger value="analytics">Analytics & Badges</TabsTrigger>
+                    <TabsTrigger value="analytics">Badges</TabsTrigger>
                   )}
                 </TabsList>
 
@@ -169,11 +166,6 @@ export default function ShowSearchedProfile({ id, onBack }) {
                       </CardDescription>
                     </CardHeader>
                   </Card>
-                </TabsContent>
-
-                {/* Donation History Tab */}
-                <TabsContent value="history">
-                  <RecentDonations userId={id} role={profile.role.toLowerCase()} />
                 </TabsContent>
 
                 {/* Analytics Tab (Bakery only) */}
@@ -209,115 +201,6 @@ export default function ShowSearchedProfile({ id, onBack }) {
                         )}
                       </CardContent>
                     </Card>
-
-                    {/* Data Visualization */}
-                    <div className="gwrap">
-                      <Card className="glass-card shadow-none">
-                        <CardHeader className="pb-2">
-                          <CardTitle>Data Visualization</CardTitle>
-                            <CardDescription>
-                              Inventory status at a glance
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                          <div className="p-4 rounded-lg border bg-white/70">
-                            <div className="text-sm text-muted-foreground mb-2">
-                              Total
-                            </div>
-                              <div className="h-56">
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                  <PieChart>
-                                                    <Pie
-                                                      data={statusPie}
-                                                      dataKey="value"
-                                                      nameKey="name"
-                                                      innerRadius={60}
-                                                      outerRadius={80}
-                                                      paddingAngle={2}
-                                                    >
-                                                      {statusPie.map((_, i) => (
-                                                        <Cell
-                                                          key={i}
-                                                          fill={
-                                                            ["#68b266", "#f3c04f", "#e05b5b"][i % 3]
-                                                          }
-                                                        />
-                                                      ))}
-                                                    </Pie>
-                                                    <Tooltip />
-                                                    <Legend />
-                                                  </PieChart>
-                                                </ResponsiveContainer>
-                                              </div>
-                                            </div>
-                                            <div className="p-4 rounded-lg border bg-white/70">
-                                              <div className="text-sm text-muted-foreground mb-2">
-                                                Fresh vs Soon
-                                              </div>
-                                              <div className="h-56">
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                  <PieChart>
-                                                    <Pie
-                                                      data={[
-                                                        {
-                                                          name: "Fresh",
-                                                          value: statusCounts.fresh,
-                                                        },
-                                                        { name: "Soon", value: statusCounts.soon },
-                                                      ]}
-                                                      dataKey="value"
-                                                      nameKey="name"
-                                                      innerRadius={50}
-                                                      outerRadius={75}
-                                                    >
-                                                      <Cell fill="#68b266" />
-                                                      <Cell fill="#f3c04f" />
-                                                    </Pie>
-                                                    <Tooltip />
-                                                    <Legend />
-                                                  </PieChart>
-                                                </ResponsiveContainer>
-                                              </div>
-                                            </div>
-                                            <div className="p-4 rounded-lg border bg-white/70">
-                                              <div className="text-sm text-muted-foreground mb-2">
-                                                Expired Share
-                                              </div>
-                                              <div className="h-56">
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                  <PieChart>
-                                                    <Pie
-                                                      data={[
-                                                        {
-                                                          name: "Expired",
-                                                          value: statusCounts.expired,
-                                                        },
-                                                        {
-                                                          name: "Other",
-                                                          value: Math.max(
-                                                            statusCounts.total -
-                                                              statusCounts.expired,
-                                                            0
-                                                          ),
-                                                        },
-                                                      ]}
-                                                      dataKey="value"
-                                                      nameKey="name"
-                                                      innerRadius={50}
-                                                      outerRadius={75}
-                                                    >
-                                                      <Cell fill="#e05b5b" />
-                                                      <Cell fill="#e5decf" />
-                                                    </Pie>
-                                                    <Tooltip />
-                                                    <Legend />
-                                                  </PieChart>
-                                                </ResponsiveContainer>
-                                              </div>
-                                            </div>
-                                          </CardContent>
-                                        </Card>
-                                      </div>
                   </TabsContent>
                 )}
               </Tabs>

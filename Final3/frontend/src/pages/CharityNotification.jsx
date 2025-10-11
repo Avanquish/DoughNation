@@ -287,8 +287,9 @@ const handlePriorityDonationClick = (d) => {
                                 }`}
                               >
                                 <strong>{d.bakery_name}</strong>: {d.name} ({d.quantity}){" "}
-                                <span className="ml-1 text-xs text-gray-500">
-                                  Exp: {new Date(d.expiration_date).toLocaleDateString()}
+                               <span className="ml-1 text-xs text-gray-500">
+                                  Exp: {new Date(d.expiration_date).toLocaleDateString()}{" "}
+                                  {d.distance_km != null && `• Approx ${d.distance_km} km`} 
                                 </span>
                               </p>
                             </div>
@@ -338,9 +339,14 @@ const handlePriorityDonationClick = (d) => {
                                 }`}
                               >
                                 <strong>{d.bakery_name}</strong>: {d.name} ({d.quantity})
+                                  {d.distance_km != null && (
+                                    <span className="ml-1 text-xs text-gray-400">
+                                      • Approx {d.distance_km} km 
+                                    </span>
+                                  )}
                               </p>
                             </div>
-                            <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "#8b6b48" }} />
+                            <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "#8b6b48" }} /> 
                           </button>
                         ))}
                       </div>
@@ -348,8 +354,6 @@ const handlePriorityDonationClick = (d) => {
                   </div>
                 </div>
               )}
-
-
 
                 {/* Received Donations */}
                 {tab === "receivedDonations" && (
@@ -454,4 +458,4 @@ const handlePriorityDonationClick = (d) => {
       )}
     </div>
   );
-}
+} 

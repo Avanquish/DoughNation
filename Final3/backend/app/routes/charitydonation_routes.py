@@ -11,6 +11,7 @@ from app.models import DonationCardChecking
 import os
 
 from app.routes.binventory_routes import check_threshold_and_create_donation
+from app.routes.cnotification import haversine
 from app.crud import update_user_badges
 
 router = APIRouter()
@@ -60,7 +61,17 @@ def get_available_donations(
         donation_dict["bakery_name"] = bakery.name
         donation_dict["bakery_profile_picture"] = bakery.profile_picture 
         if donation_dict.get("image"):
-            donation_dict["image"] = donation_dict["image"]  
+            donation_dict["image"] = donation_dict["image"]
+
+        # Calculate distance if both coordinates exist
+        distance_km = None
+        if (
+            current_user.latitude is not None and current_user.longitude is not None
+            and bakery.latitude is not None and bakery.longitude is not None
+        ):
+            distance_km = round(haversine(bakery.latitude, bakery.longitude, current_user.latitude, current_user.longitude), 1)
+        donation_dict["distance_km"] = distance_km
+
         donation_list.append(schemas.DonationRead(**donation_dict))
 
     return donation_list

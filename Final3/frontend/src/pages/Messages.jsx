@@ -225,6 +225,7 @@ export default function Messages({ currentUser: currentUserProp }) {
   const [acceptedDonations, setAcceptedDonations] = useState(new Set());
   const [disabledDonations, setDisabledDonations] = useState(new Set());
   const [allDonationRequests, setAllDonationRequests] = useState([]);
+  const [removedProducts, setRemovedProducts] = useState(new Set());
 
   const [messages, setMessages] = useState(() => {
     try {
@@ -298,24 +299,51 @@ useEffect(() => {
     const token = localStorage.getItem("token");
     const opts = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
 
+    // Fetch all accepted + pending for the bakery
     const [acceptedRes, pendingRes] = await Promise.all([
       axios.get(`${API_URL}/donation/accepted`, opts),
       axios.get(`${API_URL}/donation/my_requests`, opts),
     ]);
 
-    // Combine both accepted + pending (backend auto-cancels others)
+    // Combine both accepted + pending
     const combined = [...acceptedRes.data, ...pendingRes.data];
     setAllDonationRequests(combined);
 
-    // For convenience, also mark accepted ids
-    setAcceptedDonations(
-  new Set(acceptedRes.data.map(d => d.bakery_inventory_id))
-);
+    // Track all inventory IDs that are accepted OR canceled
+    const takenIds = new Set(
+      combined
+        .filter(d => d.status === "accepted" || d.status === "canceled")
+        .map(d => d.bakery_inventory_id)
+    );
+
+    setAcceptedDonations(takenIds);
+
   } catch (err) {
     console.error("Error fetching donation statuses:", err);
   }
 };
-  
+
+  const fetchRemovedProducts = async () => {
+  try {
+    const token = localStorage.getItem("token");
+    const opts = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+
+    const res = await axios.get(`${API_URL}/donation/accepted`, opts);
+
+    // We’ll use bakery_inventory_id — represents the same product across all requests
+    const removed = new Set(res.data.map(r => r.bakery_inventory_id));
+
+    setRemovedProducts(removed);
+  } catch (err) {
+    console.error("Error fetching accepted donations:", err);
+  }
+};
+
+// Fetch once on mount
+useEffect(() => {
+  fetchRemovedProducts();
+}, []);
+
   useEffect(() => {
     if (!currentUser) return;
 
@@ -695,7 +723,7 @@ useEffect(() => {
 
   useEffect(() => {
   fetchAllDonationStatuses();
-}, [selectedUser]);
+}, [activeChats]);
 
   /* Mark inbound messages as read */
   useEffect(() => {
@@ -736,13 +764,16 @@ useEffect(() => {
       const p =
         typeof m.content === "string" ? JSON.parse(m.content) : m.content;
       const donationId = p?.donation?.id;
-      return p?.type === "donation_card" && !m.accepted && !removedDonations.has(donationId) && !acceptedDonations.has(donationId);
+      const donation = p?.donation;
+      const inventoryId = donation?.bakery_inventory_id;
+
+      return p?.type === "donation_card" && !m.accepted && !removedDonations.has(donationId) && !acceptedDonations.has(donationId) &&  !removedProducts.has(inventoryId);
     } catch {
       return false;
     }
   });
   setPendingCards(cards);
-}, [messages, removedDonations, acceptedDonations]);
+}, [messages, removedDonations, acceptedDonations, removedProducts]);
 
 
   /* Scroll handling */
@@ -902,6 +933,7 @@ const acceptDonation = async (donationCardMessage) => {
     
     // Refresh all donation statuses from backend (accepted + canceled)
     await fetchAllDonationStatuses();
+    await fetchRemovedProducts();
 
     // Send WebSocket confirmation to accepted charity
     if (wsRef.current && accepted_charity_id) {
@@ -1040,6 +1072,7 @@ const renderMessageBody = (m) => {
 });
 
   const hideButtons = isProductAcceptedOrCancelled;
+  const isTaken = acceptedDonations.has(d.bakery_inventory_id);
 
   return {
     isMedia: false,
@@ -1050,7 +1083,7 @@ const renderMessageBody = (m) => {
           {d.product_name || d.name || "Baked Goods"} • Qty: {d.quantity ?? "-"}
         </div>
 
-        {!hideButtons && !accepted && iAmReceiver && (
+        {!hideButtons && !accepted && iAmReceiver && !isTaken && (
           <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
             <button className="btn-mini accept" onClick={() => acceptDonation(m)}>
               <Check className="w-4 h-4" /> Accept
@@ -1064,7 +1097,6 @@ const renderMessageBody = (m) => {
     ),
   };
 }
-
     // Confirmed donation (accepted)
     if (parsed?.type === "confirmed_donation") {
       const { donation, message } = parsed;

@@ -222,30 +222,9 @@ export default function Messages({ currentUser: currentUserProp }) {
   const [pendingOpen, setPendingOpen] = useState(false);
   const [pendingCards, setPendingCards] = useState([]);
   const [showScrollButton, setShowScrollButton] = useState(false);
-  const [disabledDonations, setDisabledDonations] = useState(() => {
-  try {
-    return new Set(JSON.parse(localStorage.getItem("disabled_donations")) || []);
-  } catch {
-    return new Set();
-  }
-});
-
-useEffect(() => {
-  localStorage.setItem("disabled_donations", JSON.stringify([...disabledDonations]));
-}, [disabledDonations]);
-
-const [acceptedDonations, setAcceptedDonations] = useState(() => {
-  try {
-    return new Set(JSON.parse(localStorage.getItem("accepted_donations")) || []);
-  } catch {
-    return new Set();
-  }
-});
-
-// Persist accepted donations
-useEffect(() => {
-  localStorage.setItem("accepted_donations", JSON.stringify([...acceptedDonations]));
-}, [acceptedDonations]);
+  const [acceptedDonations, setAcceptedDonations] = useState(new Set());
+  const [disabledDonations, setDisabledDonations] = useState(new Set());
+  const [allDonationRequests, setAllDonationRequests] = useState([]);
 
   const [messages, setMessages] = useState(() => {
     try {
@@ -314,7 +293,50 @@ useEffect(() => {
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
+  const fetchAllDonationStatuses = async () => {
+  try {
+    const token = localStorage.getItem("token");
+    const opts = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
 
+    const [acceptedRes, pendingRes] = await Promise.all([
+      axios.get(`${API_URL}/donation/accepted`, opts),
+      axios.get(`${API_URL}/donation/my_requests`, opts),
+    ]);
+
+    // Combine both accepted + pending (backend auto-cancels others)
+    const combined = [...acceptedRes.data, ...pendingRes.data];
+    setAllDonationRequests(combined);
+
+    // For convenience, also mark accepted ids
+    setAcceptedDonations(
+  new Set(acceptedRes.data.map(d => d.bakery_inventory_id))
+);
+  } catch (err) {
+    console.error("Error fetching donation statuses:", err);
+  }
+};
+  
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const fetchAccepted = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/donation/accepted`, {
+          headers: { Authorization: `Bearer ${currentUser?.token}` },
+        });
+        const ids = res.data.map((d) => d.donation_id || d.id);
+        setAcceptedDonations(new Set(ids));
+      } catch (err) {
+        console.error("Error fetching accepted donations:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAccepted();
+  }, [currentUser]);
+
+  
   /* Close dropdown when clicking outside */
  useEffect(() => {
   const handler = (e) => {
@@ -428,6 +450,8 @@ useEffect(() => {
   window.addEventListener("donation_cancelled", handleCancel);
   return () => window.removeEventListener("donation_cancelled", handleCancel);
 }, [messages]);
+
+
 
   /* WebSocket */
   useEffect(() => {
@@ -597,6 +621,7 @@ useEffect(() => {
     window.addEventListener("open_messenger", h);
     return () => window.removeEventListener("open_messenger", h);
   }, []);
+  
   useEffect(() => {
     const h = (e) => {
       const id = Number(e.detail?.id);
@@ -636,6 +661,7 @@ useEffect(() => {
     window.addEventListener("open_chat", h);
     return () => window.removeEventListener("open_chat", h);
   }, [currentUser]);
+  
 
   /* Selecting a peer */
   useEffect(() => {
@@ -666,6 +692,10 @@ useEffect(() => {
       );
     }
   }, [selectedUser, currentUser]);
+
+  useEffect(() => {
+  fetchAllDonationStatuses();
+}, [selectedUser]);
 
   /* Mark inbound messages as read */
   useEffect(() => {
@@ -712,7 +742,7 @@ useEffect(() => {
     }
   });
   setPendingCards(cards);
-}, [messages, removedDonations]);
+}, [messages, removedDonations, acceptedDonations]);
 
 
   /* Scroll handling */
@@ -834,9 +864,9 @@ useEffect(() => {
       ]);
     }
   };
-
- // Accept donation requested by charity 
-  const acceptDonation = async (donationCardMessage) => {
+ 
+  // Accept donation requested by charity 
+const acceptDonation = async (donationCardMessage) => {
   if (!donationCardMessage || !currentUser) return;
 
   let donation;
@@ -850,61 +880,79 @@ useEffect(() => {
     return;
   }
 
-  // prevent double POST
-  if (disabledDonations.has(donation.id)) return;
-
-  // Disable button for this donation
-  setDisabledDonations((prev) => {
-    const copy = new Set(prev);
-    copy.add(donation.id);
-    return copy;
-  });
+  // Disable the buttons immediately
+  setDisabledDonations(prev => new Set(prev).add(donation.id));
 
   try {
     const token = localStorage.getItem("token");
     const opts = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
-    await axios.post(`${API_URL}/donation/accept/${donation.id}`, {}, opts);
 
-    // Mark as accepted in state + persist
-    setAcceptedDonations((prev) => {
-      const copy = new Set(prev);
-      copy.add(donation.id);
-      return copy;
-    });
+    setAcceptedDonations(prev => new Set([...prev, donation.id]));
 
-    // Optionally mark the message as accepted so UI updates
-    setMessages((prev) =>
-      prev.map((m) =>
+    setMessages(prev =>
+      prev.map(m =>
         m.id === donationCardMessage.id ? { ...m, accepted: true } : m
       )
     );
 
-    // Remove from pending donations bar
-    setPendingCards((prev) => prev.filter((m) => m.id !== donationCardMessage.id));
+    //  Tell backend that this donation is accepted
+    const res = await axios.post(`${API_URL}/donation/accept/${donation.id}`,
+    { charity_id: originalCharityId }, opts);
+    const { accepted_charity_id, canceled_charities, donation_name } = res.data;
+    
+    // Refresh all donation statuses from backend (accepted + canceled)
+    await fetchAllDonationStatuses();
+
+    // Send WebSocket confirmation to accepted charity
+    if (wsRef.current && accepted_charity_id) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: "message",
+          sender_id: Number(currentUser.id),
+          receiver_id: Number(accepted_charity_id),
+          content: JSON.stringify({
+            type: "confirmed_donation",
+            donation,
+            message: `Your request for ${donation_name} was accepted! 🎉`,
+          }),
+        })
+      );
+    }
+
+    // Notify canceled charities that donation is no longer available
+    if (wsRef.current && canceled_charities?.length > 0) {
+      canceled_charities.forEach(cid => {
+        wsRef.current.send(
+          JSON.stringify({
+            type: "message",
+            sender_id: Number(currentUser.id),
+            receiver_id: Number(cid),
+            content: JSON.stringify({
+              type: "donation_unavailable",
+              donation,
+              message: `Sorry ${donation_name} has already been donated to other charity.`,
+            }),
+          })
+        );
+      });
+    }
+
+    toast.success(`You accepted the donation: ${donation_name}`);
+
   } catch (err) {
-    console.error("Failed to mark donation as accepted:", err);
-
-  // Disable button for this donation + persist to localStorage
-  setDisabledDonations((prev) => {
-    const copy = new Set(prev);
-    copy.add(donation.id);
-    localStorage.setItem("disabled_donations", JSON.stringify([...copy])); // save
-    return copy;
-  });
-}
-
-  // Send confirmation message
-  const msg = {
-    type: "message",
-    sender_id: Number(currentUser.id),
-    receiver_id: Number(originalCharityId),
-    content: JSON.stringify({ type: "confirmed_donation", donation }),
-  };
-  wsRef.current?.send(JSON.stringify(msg));  
+    console.error("Failed to accept donation:", err);
+    toast.error("Failed to accept donation.");
+  } finally {
+    // Re-enable buttons
+    setDisabledDonations(prev => {
+      const copy = new Set(prev);
+      copy.delete(donation.id);
+      return copy;
+    });
+  }
 };
 
-
- const cancelDonation = (donationCardMessage) => {
+ const cancelDonation = async (donationCardMessage) => {
   if (!donationCardMessage) return;
 
   let donation;
@@ -916,26 +964,39 @@ useEffect(() => {
     return;
   }
 
-  // Disable cancel button for this donation
-  setDisabledDonations((prev) => {
-    const copy = new Set(prev);
-    copy.add(donation.id);
-    return copy;
-  });
+  setDisabledDonations(prev => new Set(prev).add(donation.id));
 
-  // Send cancel request
-  wsRef.current?.send(
-    JSON.stringify({ type: "cancel_donation", id: donationCardMessage.id })
-  );
+  try {
+    const token = localStorage.getItem("token");
+    const opts = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
 
-setMessages((prev) => prev.filter((m) => m.id !== donationCardMessage.id));
+    await axios.post(`${API_URL}/donation/cancel/${donation.id}`, {}, opts);
 
-try {
-  const stored = JSON.parse(localStorage.getItem("chat_messages")) || [];
-  const updated = stored.filter((m) => m.id !== donationCardMessage.id);
-  localStorage.setItem("chat_messages", JSON.stringify(updated));
-} catch {}
+    // Optionally refresh accepted list again if backend removes it
+    const res = await axios.get(`${API_URL}/donation/accepted`, opts);
+    setAcceptedDonations(new Set(res.data.map(d => d.id)));
+
+    // remove cancelled message
+    setMessages(prev => prev.filter(m => m.id !== donationCardMessage.id));
+
+    // Optionally tell via WebSocket that it’s cancelled
+    wsRef.current?.send(
+      JSON.stringify({
+        type: "donation_cancelled",
+        donation_id: donation.id,
+      })
+    );
+  } catch (err) {
+    console.error("Failed to cancel donation:", err);
+  } finally {
+    setDisabledDonations(prev => {
+      const copy = new Set(prev);
+      copy.delete(donation.id);
+      return copy;
+    });
+  }
 };
+
 
   const deleteMessage = (id) => {
     setMessages((prev) => prev.filter((m) => m.id !== id));
@@ -947,95 +1008,168 @@ try {
   };
 
   /* Render helpers */
-  const renderMessageBody = (m) => {
-    try {
-      const p =
-        typeof m.content === "string" ? JSON.parse(m.content) : m.content;
-      if (p?.type === "donation_card") {
-        const d = p.donation || {};
-        const iAmReceiver = Number(m.receiver_id) === Number(currentUser?.id);
-        const accepted = m.accepted || acceptedDonations.has(d.id);
-        return {
-          isMedia: false,
-          body: (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <div style={{ fontWeight: 800 }}>Donation Request</div>
-              <div style={{ fontSize: 13 }}>
-                {d.product_name || d.name || "Baked Goods"} • Qty:{" "}
-                {d.quantity ?? "-"}
-              </div>
-              {!accepted && iAmReceiver && (
-                <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                  <button className="btn-mini accept" onClick={() => acceptDonation(m)}>
-                    <Check className="w-4 h-4" /> Accept
-                  </button>
-                  <button className="btn-mini" onClick={() => cancelDonation(m)}>
-                    <XCircle className="w-4 h-4" /> Cancel
-                  </button>
-                </div>
-              )}
-            </div>
-          ),
-        };
-      }
-      if (p?.type === "confirmed_donation") {
-        const d = p.donation || {};
-        return {
-          isMedia: false,
-          body: (
-            <div>
-              <div style={{ fontWeight: 800 }}>Donation Confirmed</div>
-              <div style={{ fontSize: 13 }}>
-                {d.product_name || d.name || "Item"} • Qty: {d.quantity ?? "-"}
-              </div>
-            </div>
-          ),
-        };
-      } 
-      else {
-        const d = p.donation || {};
-        return {
-          isMedia: false,
-          body: (
-            <div>
-              <div style={{ fontWeight: 800 }}>Sorry! Already Donated</div>
-              <div style={{ fontSize: 13 }}>
-                {d.product_name || d.name || "Item"} • Qty: {d.quantity ?? "-"}
-              </div>
-            </div>
-          ),
-        };
-      }
-    } catch {}
+const renderMessageBody = (m) => {
+  try {
+    const parsed =
+      typeof m.content === "string" ? JSON.parse(m.content) : m.content;
 
-    const text = (m.content || "").trim();
-    const hasImg = Boolean(m.image) || (m.media && m.media_type?.startsWith("image/"));
-    const hasVid = Boolean(m.video) || (m.media && m.media_type?.startsWith("video/"));
-    const hasMedia = hasImg || hasVid;
+    // Donation card (request)
+  if (parsed?.type === "donation_card") {
+  const d = parsed.donation || {};
+  const iAmReceiver = Number(m.receiver_id) === Number(currentUser?.id);
+  const accepted = m.accepted || acceptedDonations.has(d.id);
 
-    if (hasMedia) {
+  console.log("🧩 Render donation:", {
+    donation_id: d.id,
+    allDonationRequests,
+  });
+
+ const isProductAcceptedOrCancelled = allDonationRequests.some(
+  req =>
+    req.bakery_inventory_id === d.id &&
+    (req.status === "accepted" || req.status === "canceled")
+);
+
+  console.log("🎯 Hide check", {
+  d_id: d.id,
+  matched: allDonationRequests.filter(
+     req =>
+    req.bakery_inventory_id === d.id &&
+    (req.status === "accepted" || req.status === "canceled")
+  ),
+});
+
+  const hideButtons = isProductAcceptedOrCancelled;
+
+  return {
+    isMedia: false,
+    body: (
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ fontWeight: 800 }}>Donation Request</div>
+        <div style={{ fontSize: 13 }}>
+          {d.product_name || d.name || "Baked Goods"} • Qty: {d.quantity ?? "-"}
+        </div>
+
+        {!hideButtons && !accepted && iAmReceiver && (
+          <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+            <button className="btn-mini accept" onClick={() => acceptDonation(m)}>
+              <Check className="w-4 h-4" /> Accept
+            </button>
+            <button className="btn-mini" onClick={() => cancelDonation(m)}>
+              <XCircle className="w-4 h-4" /> Cancel
+            </button>
+          </div>
+        )}
+      </div>
+    ),
+  };
+}
+
+    // Confirmed donation (accepted)
+    if (parsed?.type === "confirmed_donation") {
+      const { donation, message } = parsed;
       return {
-        isMedia: true,
+        isMedia: false,
         body: (
-          <>
-            <div className="media-wrap">
-              {m.image && <img src={fileUrl(m.image)} alt="attachment" />}
-              {m.video && <video controls src={fileUrl(m.video)} />}
-              {m.media && m.media_type?.startsWith("image/") && (
-                <img src={mediaDataURL(m.media_type, m.media)} alt="attachment" />
-              )}
-              {m.media && m.media_type?.startsWith("video/") && (
-                <video controls src={mediaDataURL(m.media_type, m.media)} />
-              )}
+          <div
+            className="flex items-center gap-2 p-3 border rounded-2xl bg-green-50"
+            style={{ alignItems: "center" }}
+          >
+            {donation?.image && (
+              <img
+                src={`${API_URL}/${donation.image}`}
+                alt={donation.name}
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 10,
+                  objectFit: "cover",
+                }}
+              />
+            )}
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <strong style={{ color: "#166534" }}>
+                {message || "Your donation was accepted!"}
+              </strong>
+              <span style={{ fontSize: 13, color: "#374151" }}>
+                {donation?.name} • Qty: {donation?.quantity}
+              </span>
             </div>
-            {text && <div className="media-caption">{text}</div>}
-          </>
+          </div>
         ),
       };
     }
 
-    return { isMedia: false, body: <div>{text}</div> };
-  };
+    // Donation unavailable (accepted by someone else)
+    if (parsed?.type === "donation_unavailable") {
+      const { donation, message } = parsed;
+      return {
+        isMedia: false,
+        body: (
+          <div
+            className="flex items-center gap-2 p-3 border rounded-2xl bg-red-50"
+            style={{ alignItems: "center" }}
+          >
+            {donation?.image && (
+              <img
+                src={`${API_URL}/${donation.image}`}
+                alt={donation.name}
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 10,
+                  objectFit: "cover",
+                }}
+              />
+            )}
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <strong style={{ color: "#991b1b" }}>
+                {message || "This donation is no longer available."}
+              </strong>
+              <span style={{ fontSize: 13, color: "#374151" }}>
+                {donation?.name} • Qty: {donation?.quantity}
+              </span>
+            </div>
+          </div>
+        ),
+      };
+    }
+  } catch (err) {
+    console.error("Parse error in renderMessageBody:", err);
+  }
+
+  // Default (plain text or media)
+  const text = (m.content || "").trim();
+  const hasImg =
+    Boolean(m.image) || (m.media && m.media_type?.startsWith("image/"));
+  const hasVid =
+    Boolean(m.video) || (m.media && m.media_type?.startsWith("video/"));
+  const hasMedia = hasImg || hasVid;
+
+  if (hasMedia) {
+    return {
+      isMedia: true,
+      body: (
+        <>
+          <div className="media-wrap">
+            {m.image && <img src={fileUrl(m.image)} alt="attachment" />}
+            {m.video && <video controls src={fileUrl(m.video)} />}
+            {m.media && m.media_type?.startsWith("image/") && (
+              <img src={mediaDataURL(m.media_type, m.media)} alt="attachment" />
+            )}
+            {m.media && m.media_type?.startsWith("video/") && (
+              <video controls src={mediaDataURL(m.media_type, m.media)} />
+            )}
+          </div>
+          {text && <div className="media-caption">{text}</div>}
+        </>
+      ),
+    };
+  }
+
+  return { isMedia: false, body: <div>{text}</div> };
+};
+
 
   /* Auto-resize compose textarea */
   useEffect(() => {
@@ -1220,7 +1354,7 @@ try {
                           <>
                             <button
                               className="btn-mini accept"
-                              onClick={() => {acceptDonation(m); setPendingOpen(false);}}
+                              onClick={() => {acceptDonation(card); setPendingOpen(false);}}
                               disabled={disabledDonations.has(d.id)} 
                                
                             >
@@ -1228,7 +1362,7 @@ try {
                             </button>
                             <button
                               className="btn-mini"
-                              onClick={() => {cancelDonation(m); setPendingOpen(false);}}
+                              onClick={() => {cancelDonation(card); setPendingOpen(false);}}
                               disabled={disabledDonations.has(d.id)}
                             >
                               <XCircle className="w-4 h-4" /> Cancel

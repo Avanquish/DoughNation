@@ -125,6 +125,10 @@ export default function BakeryInventory() {
   const [showForm, setShowForm] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [verified, setVerified] = useState(false); // Access control
+  const [employeeName, setEmployeeName] = useState("");
+  const [employeeRole, setEmployeeRole] = useState("");
+  const canModify = ["Manager", "Full Time Staff"].includes(employeeRole);
 
   const [form, setForm] = useState({
     item_name: "",
@@ -178,10 +182,39 @@ export default function BakeryInventory() {
 
   useEffect(() => {
     fetchEmployees();
-    fetchInventory();
   }, []);
 
+   // Fetch inventory if verified.
+  useEffect(() => {
+    if (verified) fetchInventory();
+  }, [verified]);
 
+
+  // Employee verification.
+  const handleVerify = () => {
+  const found = employees.find(
+    (emp) => emp.name.toLowerCase() === employeeName.trim().toLowerCase()
+  );
+
+  if (found) {
+    setVerified(true);
+    setEmployeeRole(found.role || ""); // store role
+    setForm((prev) => ({ ...prev, uploaded: found.name }));
+    Swal.fire({
+      title: "Access Granted",
+      text: `Welcome, ${found.name}! Role: ${found.role}`,
+      icon: "success",
+      timer: 1500,
+      showConfirmButton: false,
+    });
+  } else {
+    Swal.fire({
+      title: "Employee Not Found",
+      text: "Please enter a valid employee name.",
+      icon: "error",
+    });
+  }
+};
 
   // From Notifs
   useEffect(() => {
@@ -274,6 +307,10 @@ export default function BakeryInventory() {
   // CRUD
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!canModify) {
+      Swal.fire("Permission Denied", "You are not allowed to add products.", "error");
+        return;
+    }
 
     const fd = new FormData();
     fd.append("name", form.item_name);
@@ -306,6 +343,11 @@ export default function BakeryInventory() {
 
   const handleDelete = async (id) => {
 
+     if (!canModify) {
+      Swal.fire("Permission Denied", "You are not allowed to delete products.", "error");
+        return;
+    }
+
     const ok = await Swal.fire({
       title: "Are you sure?",
       text: "This can't be undone.",
@@ -331,6 +373,11 @@ export default function BakeryInventory() {
   const handleUpdate = async (e) => {
     e.preventDefault();
 
+     if (!canModify) {
+      Swal.fire("Permission Denied", "You are not allowed to edit products.", "error");
+        return;
+    }
+
     if (!selectedItem) return;
 
     const ok = await Swal.fire({
@@ -348,7 +395,7 @@ export default function BakeryInventory() {
     fd.append("creation_date", selectedItem.creation_date);
     fd.append("expiration_date", selectedItem.expiration_date);
     fd.append("threshold", selectedItem.threshold);
-    fd.append("uploaded", selectedItem.uploaded || "");
+    fd.append("uploaded", employeeName || selectedItem.uploaded || "");
     fd.append("description", selectedItem.description || "");
     if (selectedItem.image_file) fd.append("image", selectedItem.image_file);
 
@@ -520,9 +567,11 @@ export default function BakeryInventory() {
               </button>
             )}
           </div>
-            <button onClick={() => setShowForm(true)} className={pillSolid}>
-              + Add Product
-            </button>
+           {canModify && (
+              <button onClick={() => setShowForm(true)} className={pillSolid}>
+                + Add Product
+              </button>
+            )}
         </div>
       </div>
 
@@ -538,6 +587,7 @@ export default function BakeryInventory() {
         >
           Select Expired
         </button>
+        {canModify && (
         <button
           onClick={deleteSelected}
           disabled={!selectedCount}
@@ -545,12 +595,50 @@ export default function BakeryInventory() {
         >
           Delete Selected
         </button>
+        )}
         {selectedCount > 0 && (
           <button onClick={clearSelection} className={pillOutline}>
             Clear Selection
           </button>
         )}
       </div>
+
+       {/* Verification Modal*/}
+      {employees.length > 0 && !verified && (
+        <div className="fixed inset-35 z-50 flex items-center justify-center bg-transparent bg-opacity-40">
+          <div className="bg-white rounded-2xl shadow-2xl ring-1 overflow-hidden max-w-md w-full">
+            <div className={sectionHeader}>
+              <h2 className="text-xl font-semibold text-[#6b4b2b] text-center">
+                Verify Access
+              </h2>
+            </div>
+            <div className="p-5 sm:p-6">
+              <div className="space-y-3">
+                <label className={labelTone} htmlFor="verify_name">
+                  Employee Name
+                </label>
+                <input
+                  id="verify_name"
+                  type="text"
+                  placeholder="Enter employee name"
+                  value={employeeName}
+                  onChange={(e) => setEmployeeName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleVerify()}
+                  className={inputTone}
+                />
+                <p className="text-xs text-gray-500">
+                  Type your name exactly as saved by HR to continue.
+                </p>
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <button onClick={handleVerify} className={pillSolid}>
+                  Enter Employee
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-x-auto rounded-xl shadow ring-1 ring-black/5 bg-white/80 backdrop-blur-sm">
@@ -785,22 +873,13 @@ export default function BakeryInventory() {
                   <label htmlFor="prod_uploader" className={labelTone}>
                     Uploaded By
                   </label>
-                  <select
+                  <input
                     id="prod_uploader"
+                    type="text"
                     className={inputTone}
-                    value={form.uploaded}
-                    onChange={(e) =>
-                      setForm({ ...form, uploaded: e.target.value })
-                    }
-                    required
-                  >
-                    <option value="">Select Employee</option>
-                    {employees.map((emp) => (
-                      <option key={emp.id} value={emp.name}>
-                        {emp.name}
-                      </option>
-                    ))}
-                  </select>
+                    value={employeeName}
+                    disabled
+                  />
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2">
@@ -881,15 +960,16 @@ export default function BakeryInventory() {
             </div>
 
             <div className="mt-auto p-5 flex flex-wrap gap-2 justify-end border-t bg-white">
-              <button
-                onClick={() => handleDelete(selectedItem.id)}
-                className={pillSolid}
-              >
-                Delete
-              </button>
-              <button onClick={() => setIsEditing(true)} className={pillSolid}>
-                Edit
-              </button>
+              {canModify && (
+                <>
+                  <button onClick={() => handleDelete(selectedItem.id)} className={pillSolid}>
+                    Delete
+                  </button>
+                  <button onClick={() => setIsEditing(true)} className={pillSolid}>
+                    Edit
+                  </button>
+                </>
+              )}
               <button
                 onClick={() => {
                   setSelectedItem(null);
@@ -958,21 +1038,17 @@ export default function BakeryInventory() {
                 }
                 required
               />
-              <select
-                className={inputTone}
-                value={selectedItem.uploaded || ""}
-                onChange={(e) =>
-                  setSelectedItem({ ...selectedItem, uploaded: e.target.value })
-                }
-                required
-              >
-                <option value="">Select Employee</option>
-                {employees.map((emp) => (
-                  <option key={emp.id} value={emp.name}>
-                    {emp.name}
-                  </option>
-                ))}
-              </select>
+             <div>
+                <label htmlFor="prod_uploader" className={labelTone}>
+                </label>
+                <input
+                  id="prod_uploader"
+                  type="text"
+                  className={inputTone}
+                  value={employeeName}
+                  disabled
+                />
+              </div>
               <input
                 type="date"
                 className={inputTone}

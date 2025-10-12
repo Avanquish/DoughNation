@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from app.database import get_db
 from app import database, models, auth
 from datetime import datetime, timedelta
 
@@ -16,7 +17,67 @@ def check_bakery(current_user: models.User = Depends(auth.get_current_user)):
 
 from sqlalchemy.orm import joinedload
 
-@router.get("/expiry")
+@router.get("/donation_activity")
+def donation_history(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(check_bakery),  # restrict to bakeries
+):
+    results = []
+
+    # For bakeries — donations they sent
+    donation_requests = (
+        db.query(models.DonationRequest)
+        .filter(
+            models.DonationRequest.bakery_id == current_user.id,
+            models.DonationRequest.tracking_status == "complete",
+            models.DonationRequest.tracking_completed_at != None,
+        )
+        .options(joinedload(models.DonationRequest.charity))
+        .all()
+    )
+
+    direct_donations = (
+        db.query(models.DirectDonation)
+        .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
+        .filter(
+            models.BakeryInventory.bakery_id == current_user.id,
+            models.DirectDonation.btracking_status == "complete",
+            models.DirectDonation.btracking_completed_at != None,
+        )
+        .options(joinedload(models.DirectDonation.charity))
+        .all()
+    )
+
+    # Add donation requests
+    for d in donation_requests:
+        results.append({
+            "id": d.id,
+            "type": "request",
+            "completed_at": d.tracking_completed_at,
+            "product_name": (
+                d.donation_name or (d.inventory_item.name if d.inventory_item else "Unknown")
+            ),
+            "quantity": d.donation_quantity or 0,
+            "charity_name": d.charity.name if d.charity else "Unknown",
+        })
+
+    # Add direct donations
+    for d in direct_donations:
+        results.append({
+            "id": d.id,
+            "type": "direct",
+            "completed_at": d.btracking_completed_at,
+            "product_name": d.name or "Unknown",
+            "quantity": d.quantity or 0,
+            "charity_name": d.charity.name if d.charity else "Unknown",
+        })
+
+    # Sort latest first
+    results.sort(key=lambda x: x["completed_at"], reverse=True)
+
+    return results
+
+@router.get("/expiry_loss")
 def expiry_loss_report(
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(check_bakery)
@@ -99,6 +160,94 @@ def top_donated_items(
     ]
 
     result = sorted(result, key=lambda x: x["total_quantity"], reverse=True)[:10]
+
+    return result
+
+@router.get("/charity_list")
+def charity_list_report(
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(check_bakery)
+):
+    from collections import defaultdict
+
+    charities = defaultdict(lambda: {
+        "charity_name": None,
+        "charity_profile": None,
+        "direct_count": 0,
+        "request_count": 0,
+        "direct_qty": 0,
+        "request_qty": 0,
+        "total_received_qty": 0,
+        "total_transactions": 0,
+    })
+
+    # Accepted donation requests
+    donation_requests = (
+        db.query(models.DonationRequest)
+        .join(models.User, models.DonationRequest.charity_id == models.User.id)
+        .filter(
+            models.DonationRequest.bakery_id == current_user.id,
+            models.DonationRequest.tracking_status == "complete"
+        )
+        .options(joinedload(models.DonationRequest.charity))
+        .all()
+    )
+
+    for req in donation_requests:
+        if not req.charity:
+            continue
+        cid = req.charity.id
+        charities[cid]["charity_name"] = req.charity.name
+        charities[cid]["charity_profile"] = req.charity.profile_picture
+        charities[cid]["request_count"] += 1
+        #Use correct field name
+        charities[cid]["request_qty"] += req.donation_quantity or 0
+
+    # Direct donations
+    direct_donations = (
+        db.query(models.DirectDonation)
+        .join(models.User, models.DirectDonation.charity_id == models.User.id)
+        .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
+        .filter(models.BakeryInventory.bakery_id == current_user.id,
+                models.DirectDonation.btracking_status == "complete"
+        )
+         
+        .options(joinedload(models.DirectDonation.charity))
+        .all()
+    )
+
+    for d in direct_donations:
+        if not d.charity:
+            continue
+        cid = d.charity.id
+        charities[cid]["charity_name"] = d.charity.name
+        charities[cid]["charity_profile"] = d.charity.profile_picture
+        charities[cid]["direct_count"] += 1
+        charities[cid]["direct_qty"] += d.quantity or 0
+
+    #Totals per charity
+    for c in charities.values():
+        c["total_received_qty"] = c["direct_qty"] + c["request_qty"]
+        c["total_transactions"] = c["direct_count"] + c["request_count"]
+
+    #Grand totals
+    grand_totals = {
+        "total_direct_count": sum(c["direct_count"] for c in charities.values()),
+        "total_request_count": sum(c["request_count"] for c in charities.values()),
+        "total_direct_qty": sum(c["direct_qty"] for c in charities.values()),
+        "total_request_qty": sum(c["request_qty"] for c in charities.values()),
+        "total_received_qty": sum(c["total_received_qty"] for c in charities.values()),
+        "total_transactions": sum(c["total_transactions"] for c in charities.values()),
+    }
+
+    result = {
+        "charities": sorted(
+            charities.values(),
+            key=lambda x: x["total_transactions"],
+            reverse=True
+        ),
+        "grand_totals": grand_totals
+    }
 
     return result
 
@@ -337,91 +486,3 @@ def bakery_info(current_user: models.User = Depends(check_bakery)):
         "contact_number": current_user.contact_number,
         "email": current_user.email
     }
-    
-@router.get("/donation_history")
-def donation_history(
-    user_id: int = None,  # optional: view another user's donation history
-    db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(auth.get_current_user),
-):
-    target_user_id = user_id or current_user.id
-    results = []
-
-    # Fetch user role for the target user
-    target_user = db.query(models.User).filter(models.User.id == target_user_id).first()
-    if not target_user:
-        return results
-
-    if target_user.role == "Bakery":
-        # All donations sent by bakery (no date limit)
-        donation_requests = db.query(models.DonationRequest).filter(
-            models.DonationRequest.bakery_id == target_user_id,
-            models.DonationRequest.tracking_status == "complete",
-            models.DonationRequest.tracking_completed_at != None,
-        ).all()
-
-        direct_donations = db.query(models.DirectDonation).filter(
-            models.DirectDonation.bakery_inventory.has(bakery_id=target_user_id),
-            models.DirectDonation.btracking_status == "complete",
-            models.DirectDonation.btracking_completed_at != None,
-        ).all()
-
-        for d in donation_requests:
-            results.append({
-                "id": d.id,
-                "type": "request",
-                # 🗓 Format date as MM-DD-YYYY
-                "completed_at": d.tracking_completed_at.strftime("%m-%d-%Y") if d.tracking_completed_at else None,
-                "product_name": d.donation_name or (d.inventory_item.name if d.inventory_item else "Unknown"),
-                "quantity": d.donation_quantity or 0,
-                "charity_name": d.charity.name if d.charity else "Unknown",
-            })
-
-        for d in direct_donations:
-            results.append({
-                "id": d.id,
-                "type": "direct",
-                "completed_at": d.btracking_completed_at.strftime("%m-%d-%Y") if d.btracking_completed_at else None,
-                "product_name": d.name,
-                "quantity": d.quantity,
-                "charity_name": d.charity.name if d.charity else "Unknown",
-            })
-
-    elif target_user.role == "Charity":
-        # All donations received by charity (no date limit)
-        donation_requests = db.query(models.DonationRequest).filter(
-            models.DonationRequest.charity_id == target_user_id,
-            models.DonationRequest.tracking_status == "complete",
-            models.DonationRequest.tracking_completed_at != None,
-        ).all()
-
-        direct_donations = db.query(models.DirectDonation).filter(
-            models.DirectDonation.charity_id == target_user_id,
-            models.DirectDonation.btracking_status == "complete",
-            models.DirectDonation.btracking_completed_at != None,
-        ).all()
-
-        for d in donation_requests:
-            results.append({
-                "id": d.id,
-                "type": "request",
-                "completed_at": d.tracking_completed_at.strftime("%m-%d-%Y") if d.tracking_completed_at else None,
-                "product_name": d.donation_name or (d.inventory_item.name if d.inventory_item else "Unknown"),
-                "quantity": d.donation_quantity or 0,
-                "bakery_name": d.bakery.name if d.bakery else "Unknown",
-            })
-
-        for d in direct_donations:
-            bakery_name = getattr(getattr(d.bakery_inventory, "bakery", None), "name", "Unknown")
-            results.append({
-                "id": d.id,
-                "type": "direct",
-                "completed_at": d.btracking_completed_at.strftime("%m-%d-%Y") if d.btracking_completed_at else None,
-                "product_name": d.name,
-                "quantity": d.quantity,
-                "bakery_name": bakery_name,
-            })
-
-    # Sort by most recent first
-    results.sort(key=lambda x: x["completed_at"], reverse=True)
-    return results

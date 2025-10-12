@@ -148,7 +148,9 @@ class DonationCreate(BaseModel):
 class DonationRead(DonationBase):
     bakery_id: int
     bakery_name: str  
-    bakery_profile_picture: Optional[str] = None 
+    bakery_profile_picture: Optional[str] = None
+    distance_km: Optional[float] = None  #Add this to show kn on donation available cards
+ 
 
     class Config:
         from_attributes = True

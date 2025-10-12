@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import axios from "axios";
+import Swal from "sweetalert2";
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // Helpers
@@ -115,6 +117,15 @@ const BDonationStatus = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [highlightedId, setHighlightedId] = useState(null);
   const [selectedDonation, setSelectedDonation] = useState(null);
+  const [verified, setVerified] = useState(false); // Access control 
+  const [employeeName, setEmployeeName] = useState("");
+  const [employeeRole, setEmployeeRole] = useState("");
+  const [employees, setEmployees] = useState([]);
+  const canModify = ["Manager", "Full Time Staff"].includes(employeeRole);
+
+  const [acceptedNorm, setAcceptedNorm] = useState([]);
+  const [pendingNorm, setPendingNorm] = useState([]);
+  const [mapped, setMapped] = useState([]);
 
   // Set "Bakery Status" tab on mount
   useEffect(() => {
@@ -232,16 +243,18 @@ const BDonationStatus = () => {
           const accepted = (data || []).filter((d) => d.status === "accepted");
           const pending = (data || []).filter((d) => d.status === "pending");
 
-          const acceptedNorm = accepted.map((d) => ({
-            ...d,
-            tracking_status: (d.tracking_status || d.status || "").toLowerCase(),
-          }));
-          const pendingNorm = pending.map((d) => ({
-            ...d,
-            tracking_status: "pending",
-          }));
-
-          setReceivedDonations([...acceptedNorm, ...pendingNorm]);
+          setAcceptedNorm(
+            accepted.map((d) => ({
+              ...d,
+              tracking_status: (d.tracking_status || d.status || "").toLowerCase(),
+            }))
+          );
+          setPendingNorm(
+            pending.map((d) => ({
+              ...d,
+              tracking_status: "pending",
+            }))
+          );
         })
         .catch((err) =>
           console.error("Failed to fetch requests/received:", err)
@@ -255,12 +268,13 @@ const BDonationStatus = () => {
             headers: { Authorization: `Bearer ${token}` },
           });
           const data = await resp.json();
-          const mapped = (data || []).map((d) => ({
-            ...d,
-            tracking_status:
-              (d.btracking_status || d.tracking_status || d.status || "pending").toLowerCase(),
-          }));
-          setDirectDonations(mapped);
+          setMapped(
+            (data || []).map((d) => ({
+              ...d,
+              tracking_status:
+                (d.btracking_status || d.tracking_status || d.status || "pending").toLowerCase(),
+            }))
+          );
         } catch (e) {
           console.error("Failed to fetch direct donations:", e);
         }
@@ -284,6 +298,52 @@ const BDonationStatus = () => {
     return () =>
       window.removeEventListener("highlight_received_donation", handler);
   }, []);
+
+  const fetchEmployees = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const opts = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+      const res = await axios.get(`${API}/employees`, opts);
+      setEmployees(res.data || []);
+    } catch (e) {
+      console.error("Failed to fetch employees:", e);
+    }
+  };
+    
+      useEffect(() => {
+        fetchEmployees();
+      }, []);
+  
+   // Fetch status if verified.
+      useEffect(() => {
+        if (verified) setReceivedDonations([...acceptedNorm, ...pendingNorm]); setDirectDonations(mapped);
+      }, [verified]);
+
+   // Employee verification.
+    const handleVerify = () => {
+    const found = employees.find(
+      (emp) => emp.name.toLowerCase() === employeeName.trim().toLowerCase()
+    );
+
+    if (found) {
+      setVerified(true);
+      setEmployeeRole(found.role || "");
+      Swal.fire({
+        title: "Access Granted",
+        text: `Welcome, ${found.name}! Role: ${found.role}`,
+        icon: "success",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } else {
+      Swal.fire({
+        title: "Employee Not Found",
+        text: "Please enter a valid employee name.",
+        icon: "error",
+      });
+    }
+  };
+
 
   // Section shell
   const Section = ({ title, count, children }) => (
@@ -366,15 +426,20 @@ const BDonationStatus = () => {
             )}
           </div>
 
-          <div className="mt-4">
-            <p className="text-[12px] font-semibold text-[#7b5836] mb-1">
-              Donation For
-            </p>
-            <div className="flex items-center gap-2">
-              {avatar ? (
+<div className="mt-4">
+  {d.status === "pending" ? (
+    <>
+      <p className="text-[12px] font-semibold text-[#7b5836] mb-1">
+        Requested By:
+      </p>
+      {Array.isArray(d.requested_by) && d.requested_by.length > 0 ? (
+        <div className="space-y-2">
+          {d.requested_by.map((req, i) => (
+            <div key={i} className="flex items-center gap-2">
+              {req.profile_picture ? (
                 <img
-                  src={`${API}/${avatar}`}
-                  alt={displayName || "Requester"}
+                  src={`${API}/${req.profile_picture}`}
+                  alt={req.name}
                   className="w-8 h-8 rounded-full object-cover"
                 />
               ) : (
@@ -382,9 +447,40 @@ const BDonationStatus = () => {
                   ?
                 </div>
               )}
-              <span className="text-sm font-medium">{displayName || "—"}</span>
+              <span className="text-sm font-medium text-[#4A2F17]">
+                {req.name}
+              </span>
             </div>
+          ))}
+        </div>
+      ) : (
+        <span className="text-sm text-gray-500">No requests yet</span>
+      )}
+    </>
+  ) : (
+    <>
+      <p className="text-[12px] font-semibold text-[#7b5836] mb-1">
+        Donation For:
+      </p>
+      <div className="flex items-center gap-2">
+        {d.charity_profile_picture ? (
+          <img
+            src={`${API}/${d.charity_profile_picture}`}
+            alt={d.charity_name || "Charity"}
+            className="w-8 h-8 rounded-full object-cover"
+          />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-gray-300 grid place-items-center text-gray-600">
+            ?
           </div>
+        )}
+        <span className="text-sm font-medium text-[#4A2F17]">
+          {d.charity_name || "—"}
+        </span>
+      </div>
+    </>
+  )}
+</div>
 
           {d.description && (
             <p className="mt-3 text-sm text-[#7b5836] line-clamp-2">
@@ -409,9 +505,51 @@ const BDonationStatus = () => {
     </div>
   );
 
+const sectionHeader = "border-b border-[#eadfce] bg-[#FFF6E9] px-4 py-2";
+const labelTone = "block text-sm font-medium text-[#6b4b2b]";
+const inputTone = "w-full border border-[#eadfce] rounded-md p-2 outline-none focus:ring-2 focus:ring-[#E49A52]";
+const pillSolid = "bg-[#E49A52] text-white px-4 py-2 rounded-full hover:bg-[#d0833f] transition";
+
+
   // Main render
   return (
     <div className="relative mx-auto max-w-[1280px] px-6 py-8">
+      {/* Verification Modal, only shows if employees exist */}
+      {!verified && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-transparent bg-opacity-40">
+          <div className="bg-white rounded-2xl shadow-2xl ring-1 overflow-hidden max-w-md w-full">
+            <div className={sectionHeader}>
+              <h2 className="text-xl font-semibold text-[#6b4b2b] text-center">
+                Verify Access
+              </h2>
+            </div>
+            <div className="p-5 sm:p-6">
+              <div className="space-y-3">
+                <label className={labelTone} htmlFor="verify_name">
+                  Employee Name
+                </label>
+                <input
+                  id="verify_name"
+                  type="text"
+                  placeholder="Enter employee name"
+                  value={employeeName}
+                  onChange={(e) => setEmployeeName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleVerify()}
+                  className={inputTone}
+                />
+                <p className="text-xs text-gray-500">
+                  Type your name exactly as saved by HR to continue.
+                </p>
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <button onClick={handleVerify} className={pillSolid}>
+                  Enter Employee
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-3xl sm:text-4xl font-extrabold text-[#4A2F17]">
           Donation Status
@@ -433,7 +571,7 @@ const BDonationStatus = () => {
                     <Card key={`req-p-${d.id}`} d={d} onClick={() => setSelectedDonation(d)} />
                   )}
                 />
-                <ScrollColumn
+                <ScrollColumn 
                   title={`Preparing (${preparing.length})`}
                   items={prioritySort(preparing)}
                   emptyText="No preparing items."
@@ -635,7 +773,7 @@ const BDonationStatus = () => {
 
               {/* CTA */}
               {(selectedDonation.tracking_status === "preparing" ||
-                selectedDonation.tracking_status === "ready_for_pickup") && (
+                selectedDonation.tracking_status === "ready_for_pickup") &&  canModify &&(
                 <button
                   onClick={() =>
                     handleUpdateTracking(
@@ -653,6 +791,7 @@ const BDonationStatus = () => {
                     ? "Mark as Ready for Pickup"
                     : "Mark as In Transit"}
                 </button>
+                
               )}
             </div>
           </div>

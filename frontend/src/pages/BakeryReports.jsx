@@ -1389,7 +1389,7 @@ export default function BakeryReports() {
   const printReport = async (bakery) => {
     if (!reportData) return;
 
-    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+    const API_URL = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
     const headerHTML = getBakeryHeaderHTML(bakery, activeReport);
     const formatHeader = (h) => h.replace(/_/g, " ").toUpperCase();
     const normalizePath = (p) => p.replace(/\\/g, "/");

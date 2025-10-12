@@ -808,8 +808,8 @@ def update_user_badges(db: Session, user_id: int):
     direct_charities = {d.charity_id for d in direct_donations if d.charity_id}
     charities = request_charities.union(direct_charities)
 
-    # Estimate people served based on quantity (assume 1 item serves 2 people)
-    total_people_served = total_items * 2
+    # Estimate people served based on quantity (assume 1 item serves 1 person)
+    total_people_served = total_items
 
     impact_badges = [
         (9, len(charities) >= 3),         # Community Helper

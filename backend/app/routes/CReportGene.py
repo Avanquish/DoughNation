@@ -207,23 +207,26 @@ def weekly_summary(
     # --- Direct Donations (completed this week) ---
     direct_donations = (
         db.query(func.coalesce(func.sum(models.DirectDonation.quantity), 0))
-        .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
-        .filter(models.BakeryInventory.bakery_id == current_user.id)
-        .filter(models.DirectDonation.btracking_status == "complete")
-        .filter(models.DirectDonation.btracking_completed_at != None)
-        .filter(models.DirectDonation.btracking_completed_at >= week_start,
-                models.DirectDonation.btracking_completed_at < week_end_inclusive)
+        .filter(
+            models.DirectDonation.charity_id == current_user.id,
+            models.DirectDonation.btracking_status == "complete",
+            models.DirectDonation.btracking_completed_at != None,
+            models.DirectDonation.btracking_completed_at >= week_start,
+            models.DirectDonation.btracking_completed_at < week_end_inclusive
+        )
         .scalar()
     )
 
     # --- Donation Requests (completed this week) ---
     request_donations = (
         db.query(func.coalesce(func.sum(models.DonationRequest.donation_quantity), 0))
-        .filter(models.DonationRequest.bakery_id == current_user.id)
-        .filter(models.DonationRequest.tracking_status == "complete")
-        .filter(models.DonationRequest.tracking_completed_at != None)
-        .filter(models.DonationRequest.tracking_completed_at >= week_start,
-                models.DonationRequest.tracking_completed_at < week_end_inclusive)
+        .filter(
+            models.DonationRequest.charity_id == current_user.id,
+            models.DonationRequest.tracking_status == "complete",
+            models.DonationRequest.tracking_completed_at != None,
+            models.DonationRequest.tracking_completed_at >= week_start,
+            models.DonationRequest.tracking_completed_at < week_end_inclusive
+        )
         .scalar()
     )
 
@@ -253,23 +256,26 @@ def weekly_summary(
             models.DonationRequest.donation_name.label("product_name"),
             func.sum(models.DonationRequest.donation_quantity).label("quantity"),
         )
-        .filter(models.DonationRequest.bakery_id == current_user.id)
-        .filter(models.DonationRequest.tracking_status == "complete")
-        .filter(models.DonationRequest.tracking_completed_at != None)
-        .filter(models.DonationRequest.tracking_completed_at >= week_start,
-                models.DonationRequest.tracking_completed_at < week_end_inclusive)
+        .filter(
+            models.DonationRequest.charity_id == current_user.id,
+            models.DonationRequest.tracking_status == "complete",
+            models.DonationRequest.tracking_completed_at != None,
+            models.DonationRequest.tracking_completed_at >= week_start,
+            models.DonationRequest.tracking_completed_at < week_end_inclusive
+        )
         .group_by(models.DonationRequest.donation_name)
         .union_all(
             db.query(
                 models.DirectDonation.name.label("product_name"),
                 func.sum(models.DirectDonation.quantity).label("quantity"),
             )
-            .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
-            .filter(models.BakeryInventory.bakery_id == current_user.id)
-            .filter(models.DirectDonation.btracking_status == "complete")
-            .filter(models.DirectDonation.btracking_completed_at != None)
-            .filter(models.DirectDonation.btracking_completed_at >= week_start,
-                    models.DirectDonation.btracking_completed_at < week_end_inclusive)
+            .filter(
+                models.DirectDonation.charity_id == current_user.id,
+                models.DirectDonation.btracking_status == "complete",
+                models.DirectDonation.btracking_completed_at != None,
+                models.DirectDonation.btracking_completed_at >= week_start,
+                models.DirectDonation.btracking_completed_at < week_end_inclusive
+            )
             .group_by(models.DirectDonation.name)
         )
         .all()
@@ -326,23 +332,26 @@ def monthly_summary(
     # --- Direct Donations (completed this month) ---
     direct_donations = (
         db.query(func.coalesce(func.sum(models.DirectDonation.quantity), 0))
-        .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
-        .filter(models.BakeryInventory.bakery_id == current_user.id)
-        .filter(models.DirectDonation.btracking_status == "complete")
-        .filter(models.DirectDonation.btracking_completed_at != None)
-        .filter(models.DirectDonation.btracking_completed_at >= start_date,
-                models.DirectDonation.btracking_completed_at < end_date_inclusive)
+        .filter(
+            models.DirectDonation.charity_id == current_user.id,
+            models.DirectDonation.btracking_status == "complete",
+            models.DirectDonation.btracking_completed_at != None,
+            models.DirectDonation.btracking_completed_at >= start_date,
+            models.DirectDonation.btracking_completed_at < end_date_inclusive
+        )
         .scalar()
     )
 
     # --- Donation Requests (completed this month) ---
     request_donations = (
         db.query(func.coalesce(func.sum(models.DonationRequest.donation_quantity), 0))
-        .filter(models.DonationRequest.bakery_id == current_user.id)
-        .filter(models.DonationRequest.tracking_status == "complete")
-        .filter(models.DonationRequest.tracking_completed_at != None)
-        .filter(models.DonationRequest.tracking_completed_at >= start_date,
-                models.DonationRequest.tracking_completed_at < end_date_inclusive)
+        .filter(
+            models.DonationRequest.charity_id == current_user.id,
+            models.DonationRequest.tracking_status == "complete",
+            models.DonationRequest.tracking_completed_at != None,
+            models.DonationRequest.tracking_completed_at >= start_date,
+            models.DonationRequest.tracking_completed_at < end_date_inclusive
+        )
         .scalar()
     )
 

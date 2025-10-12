@@ -68,8 +68,27 @@ const AchievementBadges = () => {
   // Helpers to get progress details
   const getProgress = (badgeId) => {
     const p = badgeProgress.find((x) => x.badge_id === badgeId);
-    if (p) return { current: p.progress, target: p.target, percent: p.percent };
-    return { current: 0, target: 100, percent: 0 };
+    if (p) {
+      const calculatedPercent = Math.min(100, Math.round((p.progress / p.target) * 100));
+      return {
+        percent: calculatedPercent,
+        isNearCompletion: calculatedPercent >= 75  // Flag for badges near completion (75% or more)
+      };
+    }
+    
+    // Default progress based on badge category
+    const badge = allBadges.find(b => b.id === badgeId);
+    if (badge) {
+      return { 
+        percent: 0,
+        isNearCompletion: false
+      };
+    }
+    
+    return { 
+      percent: 0,
+      isNearCompletion: false 
+    };
   };
 
   // Show modal if a new badge is unlocked
@@ -174,16 +193,35 @@ const AchievementBadges = () => {
                 {/* Progress Bar */}
                 <div className="w-full mt-1">
                   <Progress
-                    value={progress.percent}
-                    className="h-3 rounded-full"
-                    style={{ backgroundColor: TRACK_BG }}
+                    value={unlocked ? 100 : progress.percent}
+                    className={`h-3 rounded-full transition-all duration-500 ${
+                      unlocked ? "bg-[#E49A52]" : progress.isNearCompletion ? "bg-[#F7B977]" : ""
+                    }`}
+                    style={{
+                      backgroundColor: TRACK_BG,
+                      "--progress-fill": unlocked 
+                        ? "#E49A52" 
+                        : progress.isNearCompletion 
+                        ? "#F7B977" 
+                        : "#8B5E3C"
+                    }}
                   />
-                  <p
-                    className="text-[11px] text-center mt-1"
-                    style={{ color: "#7b5836" }}
-                  >
-                    {progress.current}/{progress.target}
-                  </p>
+                  <div className="flex justify-center items-center mt-1">
+                    <p
+                      className={`text-[11px] text-center font-medium transition-colors duration-300 ${
+                        progress.isNearCompletion ? "text-[#E49A52]" : ""
+                      }`}
+                      style={{ 
+                        color: unlocked 
+                          ? "#E49A52" 
+                          : progress.isNearCompletion 
+                          ? "#C17B35" 
+                          : "#7b5836" 
+                      }}
+                    >
+                      {unlocked ? "Complete!" : `${progress.percent}%`}
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>

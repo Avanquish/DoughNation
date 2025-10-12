@@ -41,8 +41,17 @@ def get_user_badge_progress(user_id: int, db: Session = Depends(get_db)):
     for badge in badges:
         bp = progress_dict.get(badge.id)
 
-        # Determine target from badge threshold or default to 1
-        target = getattr(badge, "target", 1)
+        # Determine target based on badge category and name
+        target = 1  # default target
+        if badge.category == "Quantity-Based":
+            if badge.name == "Bread Saver":
+                target = 10
+            elif badge.name == "Basket Filler":
+                target = 50
+            elif badge.name == "Loaf Legend":
+                target = 100
+            elif badge.name == "Ton of Goodness":
+                target = 500
 
         result.append(
             schemas.BadgeProgressResponse(
@@ -105,7 +114,17 @@ def update_badge_progress(
     if not badge:
         raise HTTPException(status_code=404, detail="Badge not found")
 
-    target = getattr(badge, "target", 1)  # Make sure your badges have a target column
+    # Set target based on badge category and name
+    target = 1  # default target
+    if badge.category == "Quantity-Based":
+        if badge.name == "Bread Saver":
+            target = 10
+        elif badge.name == "Basket Filler":
+            target = 50
+        elif badge.name == "Loaf Legend":
+            target = 100
+        elif badge.name == "Ton of Goodness":
+            target = 500
 
     # Fetch existing progress
     badge_progress = db.query(models.BadgeProgress).filter_by(user_id=user_id, badge_id=badge_id).first()

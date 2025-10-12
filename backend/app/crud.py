@@ -521,12 +521,37 @@ def get_user_badges(db: Session, user_id: int):
         )
 
 # -------- Badge Progress --------
-def update_progress(db: Session, user_id: int, badge_id: int, increment: int = 1):
+def update_progress(db: Session, user_id: int, badge_id: int, increment: int = 1, total_quantity: int = None):
     progress = db.query(models.BadgeProgress).filter_by(user_id=user_id, badge_id=badge_id).first()
+    
+    # Get badge info for quantity-based targets
+    badge = db.query(models.Badge).filter_by(id=badge_id).first()
+    
+    # Set target based on badge type
+    target = 1  # default target
+    if badge and badge.category == "Quantity-Based":
+        if badge.name == "Bread Saver":
+            target = 10
+        elif badge.name == "Basket Filler":
+            target = 50
+        elif badge.name == "Loaf Legend":
+            target = 100
+        elif badge.name == "Ton of Goodness":
+            target = 500
+            
     if not progress:
-        progress = models.BadgeProgress(user_id=user_id, badge_id=badge_id, progress=0, target=1)
+        progress = models.BadgeProgress(user_id=user_id, badge_id=badge_id, progress=0, target=target)
         db.add(progress)
-    progress.progress += increment
+    
+    # Update progress based on donation quantity or increment
+    if total_quantity is not None:
+        progress.progress = total_quantity  # Set absolute progress for quantity badges
+    else:
+        progress.progress += increment
+        
+    # Ensure we update the target
+    progress.target = target
+    
     db.commit()
     db.refresh(progress)
 
@@ -770,6 +795,10 @@ def update_user_badges(db: Session, user_id: int):
         (8, 500),   # Ton of Goodness
     ]
     for badge_id, threshold in quantity_badges:
+        # Update progress for each quantity badge
+        update_progress(db, user_id, badge_id, total_quantity=total_items)
+        
+        # If threshold reached, add badge if not already present
         if total_items >= threshold and not has_badge(badge_id):
             db.add(models.UserBadge(user_id=user_id, badge_id=badge_id))
 

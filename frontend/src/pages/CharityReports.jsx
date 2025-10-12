@@ -491,7 +491,7 @@ export default function BakeryReports() {
           headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: "bold" }
         });
     
-          doc.save("Charity_List_Report.pdf");
+          doc.save("Bakery_List_Report.pdf");
           Swal.close();
         }
 

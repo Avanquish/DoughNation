@@ -308,7 +308,7 @@ useEffect(() => {
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4">
             <Button onClick={handleLogout} variant="destructive">
-              Log Out
+              Back to Home Page
             </Button>
           </CardContent>
         </Card>

@@ -303,10 +303,21 @@ const BDonationStatus = () => {
     try {
       const token = localStorage.getItem("token");
       const opts = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+      console.log("Fetching employees from:", `${API}/employees`);
       const res = await axios.get(`${API}/employees`, opts);
+      console.log("Employees response:", res.data);
+      if (!res.data || res.data.length === 0) {
+        console.warn("No employees data received");
+      }
       setEmployees(res.data || []);
     } catch (e) {
       console.error("Failed to fetch employees:", e);
+      console.error("Error details:", {
+        message: e.message,
+        response: e.response?.data,
+        status: e.response?.status,
+        API_URL: API
+      });
     }
   };
     
@@ -321,11 +332,15 @@ const BDonationStatus = () => {
 
    // Employee verification.
     const handleVerify = () => {
+    console.log("Verifying employee. Current employees list:", employees);
+    console.log("Attempting to verify name:", employeeName);
+    
     const found = employees.find(
       (emp) => emp.name.toLowerCase() === employeeName.trim().toLowerCase()
     );
 
     if (found) {
+      console.log("Employee found:", found);
       setVerified(true);
       setEmployeeRole(found.role || "");
       Swal.fire({
@@ -336,6 +351,8 @@ const BDonationStatus = () => {
         showConfirmButton: false,
       });
     } else {
+      console.warn("Employee not found. Current employees:", employees);
+      console.warn("Searched name:", employeeName.trim().toLowerCase());
       Swal.fire({
         title: "Employee Not Found",
         text: "Please enter a valid employee name.",

@@ -648,18 +648,55 @@ def update_user_badges(db: Session, user_id: int):
 
     # ---------------- Fetch all donations ----------------
     if user.role.lower() == "bakery":
-        # For bakeries, get donations they've made
-        donation_requests = db.query(models.DonationRequest).filter_by(bakery_id=user_id).all()
-        direct_donations = db.query(models.DirectDonation).filter(
-            models.DirectDonation.bakery_inventory_id.in_(
-                db.query(models.BakeryInventory.id).filter_by(bakery_id=user_id)
+        # For bakeries, get completed donations they've made
+        donation_requests = (
+            db.query(models.DonationRequest)
+            .filter(
+                models.DonationRequest.bakery_id == user_id,
+                models.DonationRequest.tracking_status.ilike("complete")
             )
-        ).all()
-        all_quantity_donations = db.query(models.Donation).filter_by(bakery_id=user_id).all()
+            .all()
+        )
+
+        # Get all completed direct donations
+        direct_donations = (
+            db.query(models.DirectDonation)
+            .join(
+                models.BakeryInventory,
+                models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id
+            )
+            .filter(
+                models.BakeryInventory.bakery_id == user_id,
+                models.DirectDonation.btracking_status.ilike("complete")
+            )
+            .all()
+        )
+
+        # Get all donation items (for quantity tracking)
+        all_quantity_donations = (
+            db.query(models.Donation)
+            .filter(models.Donation.bakery_id == user_id)
+            .all()
+        )
     else:
         # For charities, get donations they've received
-        donation_requests = db.query(models.DonationRequest).filter_by(charity_id=user_id).all()
-        direct_donations = db.query(models.DirectDonation).filter_by(charity_id=user_id).all()
+        donation_requests = (
+            db.query(models.DonationRequest)
+            .filter(
+                models.DonationRequest.charity_id == user_id,
+                models.DonationRequest.tracking_status.ilike("complete")
+            )
+            .all()
+        )
+        
+        direct_donations = (
+            db.query(models.DirectDonation)
+            .filter(
+                models.DirectDonation.charity_id == user_id,
+                models.DirectDonation.btracking_status.ilike("complete")
+            )
+            .all()
+        )
         all_quantity_donations = []
 
     donations = donation_requests + direct_donations
@@ -668,36 +705,64 @@ def update_user_badges(db: Session, user_id: int):
         return db.query(models.UserBadge).filter_by(user_id=user_id, badge_id=badge_id).first()
 
     # ---------------- 1. Donation Frequency Badges ----------------
-    if donations and not has_badge(1):  # First Loaf
+    # First Loaf - Awarded for first completed donation
+    completed_donations = [d for d in donations if (
+        hasattr(d, 'tracking_status') and d.tracking_status.lower() == 'complete'
+    ) or (
+        hasattr(d, 'btracking_status') and d.btracking_status.lower() == 'complete'
+    )]
+    
+    if completed_donations and not has_badge(1):
         db.add(models.UserBadge(user_id=user_id, badge_id=1))
 
     # Weekly Giver (donated at least once per week for last 4 weeks)
     one_month_ago = datetime.utcnow() - timedelta(days=30)
-    weekly_donations = [d for d in donations if donation_date(d) >= one_month_ago]
-    weeks_donated = len(set(donation_date(d).isocalendar()[1] for d in weekly_donations))
-    if weeks_donated >= 4 and not has_badge(2):
+    weekly_donations = [d for d in completed_donations if donation_date(d) >= one_month_ago]
+    donation_weeks = set()
+    
+    for donation in weekly_donations:
+        donation_date_val = donation_date(donation)
+        year, week, _ = donation_date_val.isocalendar()
+        donation_weeks.add((year, week))
+    
+    if len(donation_weeks) >= 4 and not has_badge(2):
         db.add(models.UserBadge(user_id=user_id, badge_id=2))
 
     # Monthly Habit - donated every month for last 3 months
-    recent_months = set((donation_date(d).year, donation_date(d).month) for d in donations
-                        if donation_date(d) >= datetime.utcnow() - timedelta(days=90))
-    if len(recent_months) >= 3 and not has_badge(3):
+    three_months_ago = datetime.utcnow() - timedelta(days=90)
+    monthly_donations = [d for d in completed_donations if donation_date(d) >= three_months_ago]
+    donation_months = set()
+    
+    for donation in monthly_donations:
+        donation_date_val = donation_date(donation)
+        donation_months.add((donation_date_val.year, donation_date_val.month))
+    
+    if len(donation_months) >= 3 and not has_badge(3):
         db.add(models.UserBadge(user_id=user_id, badge_id=3))
 
     # Donation Streaker - 7 days in a row
-    donation_dates = sorted(set(donation_date(d).date() for d in donations))
-    streak = 1
+    donation_dates = sorted(set(donation_date(d).date() for d in completed_donations))
+    max_streak = 1
+    current_streak = 1
+    
     for i in range(1, len(donation_dates)):
         if (donation_dates[i] - donation_dates[i-1]).days == 1:
-            streak += 1
-            if streak >= 7 and not has_badge(4):
-                db.add(models.UserBadge(user_id=user_id, badge_id=4))
-                break
+            current_streak += 1
+            max_streak = max(max_streak, current_streak)
         else:
-            streak = 1
+            current_streak = 1
+            
+    if max_streak >= 7 and not has_badge(4):
+        db.add(models.UserBadge(user_id=user_id, badge_id=4))
 
     # ---------------- 2. Quantity-Based Badges ----------------
-    total_items = sum(d.quantity for d in all_quantity_donations)
+    # Calculate total items from both direct donations and donation requests
+    total_items = (
+        sum(d.quantity for d in all_quantity_donations if d.quantity)
+        + sum(d.donation_quantity or 0 for d in donation_requests)
+        + sum(d.quantity or 0 for d in direct_donations)
+    )
+
     quantity_badges = [
         (5, 10),    # Bread Saver
         (6, 50),    # Basket Filler
@@ -709,8 +774,13 @@ def update_user_badges(db: Session, user_id: int):
             db.add(models.UserBadge(user_id=user_id, badge_id=badge_id))
 
     # ---------------- 3. Impact Badges ----------------
-    charities = set(getattr(d, "charity_id", None) for d in donations)
-    total_people_served = sum(getattr(d, "people_served", 0) for d in donations)
+    # Get unique charities from both types of donations
+    request_charities = {d.charity_id for d in donation_requests if d.charity_id}
+    direct_charities = {d.charity_id for d in direct_donations if d.charity_id}
+    charities = request_charities.union(direct_charities)
+
+    # Estimate people served based on quantity (assume 1 item serves 2 people)
+    total_people_served = total_items * 2
 
     impact_badges = [
         (9, len(charities) >= 3),         # Community Helper

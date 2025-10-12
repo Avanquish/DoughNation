@@ -14,7 +14,7 @@ import {
 import axios from "axios";
 
 /* ==== Config & helpers ==== */
-const API_URL = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const fileUrl = (path) => {
   if (!path) return "";
@@ -491,19 +491,12 @@ useEffect(() => {
     let reconnectTimerId;
 
     const connectWS = () => {
-      // Determine WebSocket protocol based on current protocol
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      // Extract hostname and port from API_URL
-      const apiUrl = new URL(API_URL);
-      const wsURL = `${wsProtocol}//${apiUrl.host}`;
-      
-      console.log('[WS] Connecting to:', `${wsURL}/ws/messages/${currentUser.id}`);
-      
-      const ws = new WebSocket(`${wsURL}/ws/messages/${currentUser.id}`);
+      const ws = new WebSocket(
+        `${API_URL.replace(/^http/, "ws")}/ws/messages/${currentUser.id}`
+      );
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('[WS] Connection established successfully');
         ws.send(JSON.stringify({ type: "get_active_chats" }));
       };
 
@@ -638,17 +631,8 @@ useEffect(() => {
         }
       };
 
-      ws.onerror = (error) => {
-        console.error('[WS] Connection error:', error);
-      };
-
-      ws.onclose = (event) => {
-        console.log('[WS] Connection closed. Code:', event.code, 'Reason:', event.reason);
-        // Don't reconnect if the closure was clean
-        if (event.code !== 1000) {
-          console.log('[WS] Attempting to reconnect in 2 seconds...');
-          reconnectTimerId = setTimeout(connectWS, 2000);
-        }
+      ws.onclose = () => {
+        reconnectTimerId = setTimeout(connectWS, 2000);
       };
     };
 

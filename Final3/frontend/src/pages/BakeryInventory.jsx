@@ -30,7 +30,7 @@ const rowTone = (s) =>
     ? "bg-amber-200 hover:bg-amber-100/70"
     : "bg-green-200 hover:bg-green-100/70";
 
-// Product ID Generator (BUT IFIFIX NI PAUL)
+// Product ID Generator
 const productCode = (name) => {
   const base = (name || "")
     .trim()
@@ -96,24 +96,25 @@ function SlideOver({ open, onClose, children, width = 620 }) {
   );
 }
 
+//  DonationStatus
 function DonationStatus({ status }) {
   const key = String(status || "available").toLowerCase();
   const styles =
     key === "requested"
-      ? { label: "Requested", dot: "bg-blue-500", text: "text-blue-800" }
+      ? { label: "Requested", dot: "bg-blue-500", text: "text-blue-700" }
       : key === "donated"
-      ? { label: "Donated", dot: "bg-orange-500", text: "text-orange-800" }
+      ? { label: "Donated", dot: "bg-amber-500", text: "text-amber-700" }
       : key === "unavailable"
-      ? { label: "Unavailable", dot: "bg-red-500", text: "text-red-800" }
-      : { label: "Available", dot: "bg-green-600", text: "text-green-800" };
+      ? { label: "Unavailable", dot: "bg-red-500", text: "text-red-700" }
+      : { label: "Available", dot: "bg-green-600", text: "text-green-700" };
 
   return (
-    <span className={`inline-flex items-center gap-1.5 ${styles.text}`}>
+    <span className={`inline-flex items-center gap-2 ${styles.text}`}>
       <span
         className={`h-2.5 w-2.5 rounded-full ${styles.dot}`}
         aria-hidden="true"
       />
-      <span className="leading-none">{styles.label}</span>
+      <span className="font-medium leading-none">{styles.label}</span>
     </span>
   );
 }
@@ -142,7 +143,7 @@ export default function BakeryInventory() {
   });
 
   const [showDirectDonation, setShowDirectDonation] = useState(false);
- 
+
   // Filters
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all"); // 'all' | 'fresh' | 'soon' | 'expired'
@@ -184,7 +185,7 @@ export default function BakeryInventory() {
     fetchEmployees();
   }, []);
 
-   // Fetch inventory if verified.
+  // Fetch inventory if verified.
   useEffect(() => {
     if (verified) fetchInventory();
   }, [verified]);
@@ -231,7 +232,6 @@ export default function BakeryInventory() {
       const tryFind = () => {
         attempts += 1;
 
-        // find in the current inventory list
         let item = null;
         if (wantedId) item = inventory.find((it) => Number(it.id) === wantedId);
         if (!item && wantedName)
@@ -240,11 +240,9 @@ export default function BakeryInventory() {
           );
 
         if (item) {
-          // open your existing details UI
           setSelectedItem(item);
           setIsEditing(false);
 
-          // scroll + highlight the row
           requestAnimationFrame(() => {
             const row = document.querySelector(`tr[data-item-id="${item.id}"]`);
             if (row) {
@@ -307,6 +305,7 @@ export default function BakeryInventory() {
   // CRUD
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (!canModify) {
       Swal.fire("Permission Denied", "You are not allowed to add products.", "error");
         return;
@@ -343,7 +342,7 @@ export default function BakeryInventory() {
 
   const handleDelete = async (id) => {
 
-     if (!canModify) {
+    if (!canModify) {
       Swal.fire("Permission Denied", "You are not allowed to delete products.", "error");
         return;
     }
@@ -373,7 +372,7 @@ export default function BakeryInventory() {
   const handleUpdate = async (e) => {
     e.preventDefault();
 
-     if (!canModify) {
+    if (!canModify) {
       Swal.fire("Permission Denied", "You are not allowed to edit products.", "error");
         return;
     }
@@ -506,7 +505,7 @@ export default function BakeryInventory() {
 
   return (
     <div className="p-6 relative">
-      {/* Header row */}
+      {/* Header */}
       <div className="flex items-center justify-between gap-4 mb-4">
         <h1 className="text-2xl font-bold text-[#6b4b2b]">Bakery Inventory</h1>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
@@ -568,10 +567,10 @@ export default function BakeryInventory() {
             )}
           </div>
            {canModify && (
-              <button onClick={() => setShowForm(true)} className={pillSolid}>
-                + Add Product
-              </button>
-            )}
+          <button onClick={() => setShowForm(true)} className={pillSolid}>
+            + Add Product
+          </button>
+           )}
         </div>
       </div>
 
@@ -603,7 +602,7 @@ export default function BakeryInventory() {
         )}
       </div>
 
-       {/* Verification Modal*/}
+      {/* Verification Modal*/}
       {employees.length > 0 && !verified && (
         <div className="fixed inset-35 z-50 flex items-center justify-center bg-transparent bg-opacity-40">
           <div className="bg-white rounded-2xl shadow-2xl ring-1 overflow-hidden max-w-md w-full">
@@ -676,7 +675,7 @@ export default function BakeryInventory() {
                   <tr
                     key={item.id}
                     data-item-id={item.id}
-                    className={`border-t cursor-pointer transition-colors ${rowTone(
+                    className={`group border-t cursor-pointer transition-colors ${rowTone(
                       st
                     )}`}
                     onClick={() => {
@@ -698,10 +697,15 @@ export default function BakeryInventory() {
 
                     <td className="p-3">
                       <span title="Same name = same ID">
-                        {productCode(item.name)}
+                        {item.product_id ?? item.id ?? "—"}
                       </span>
                     </td>
-                    <td className="p-3">{item.name}</td>
+
+                    {/* Product name bold */}
+                    <td className="p-3 font-semibold text-[#4A2F17]">
+                      {item.name}
+                    </td>
+
                     <td className="p-3">
                       {item.image ? (
                         <img
@@ -720,7 +724,9 @@ export default function BakeryInventory() {
                     <td className="p-3">{item.threshold}</td>
                     <td className="p-3">{item.uploaded || "System"}</td>
                     <td className="p-3">{item.description}</td>
-                    <td className="p-3">
+
+                    {/* Donation Status */}
+                    <td className="p-3 bg-[#FFF6EC] transition-colors group-hover:bg-transparent">
                       <DonationStatus status={item.status} />
                     </td>
                   </tr>
@@ -766,7 +772,7 @@ export default function BakeryInventory() {
                     required
                   />
                   <p className="mt-1 text-xs text-gray-500">
-                    Product ID: <code>{productCode(form.item_name)}</code>
+                    Product ID: <code>{form.product_id ?? "—"}</code>
                   </p>
                 </div>
 
@@ -869,7 +875,7 @@ export default function BakeryInventory() {
                   />
                 </div>
 
-                <div>
+                 <div>
                   <label htmlFor="prod_uploader" className={labelTone}>
                     Uploaded By
                   </label>
@@ -919,7 +925,7 @@ export default function BakeryInventory() {
             <div className="p-5 space-y-2 text-sm overflow-auto">
               <p>
                 <strong className="text-[#6b4b2b]">Product ID:</strong>{" "}
-                {productCode(selectedItem.name)}
+                {selectedItem.product_id ?? selectedItem.id ?? "—"}
               </p>
               <p>
                 <strong className="text-[#6b4b2b]">Name:</strong>{" "}
@@ -992,7 +998,8 @@ export default function BakeryInventory() {
             </div>
             <div className="p-5 space-y-3 overflow-auto">
               <div className="text-xs text-gray-500">
-                Product ID: <code>{productCode(selectedItem.name)}</code>
+                Product ID:{" "}
+                <code>{selectedItem.product_id ?? selectedItem.id ?? "—"}</code>
               </div>
 
               <input
@@ -1038,7 +1045,7 @@ export default function BakeryInventory() {
                 }
                 required
               />
-             <div>
+              <div>
                 <label htmlFor="prod_uploader" className={labelTone}>
                 </label>
                 <input

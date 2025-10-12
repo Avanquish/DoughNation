@@ -3,7 +3,7 @@ import axios from "axios";
 import {
   Card, CardContent, CardHeader, CardTitle, CardDescription,
 } from "@/components/ui/card";
-import { ChevronLeft, HeartHandshake } from "lucide-react";
+import { ChevronLeft, HeartHandshake, MessageSquare } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 
@@ -178,6 +178,37 @@ export default function ShowSearchedProfile({ id, onBack }) {
               <div>
                 <h1 className="ink text-2xl font-semibold">{profile.name}</h1>
                 <p className="text-muted-foreground">Welcome Visitors! Hope You Enjoy!</p>
+                <button
+                  onClick={() => {
+                    // Store the user info for the Messages component
+                    localStorage.setItem('open_chat_with', JSON.stringify({
+                      id: profile.id,
+                      name: profile.name,
+                      profile_picture: profile.profile_picture,
+                      role: profile.role
+                    }));
+                    // Trigger the chat open event
+                    window.dispatchEvent(new Event('open_chat'));
+                  }}
+                  className="mt-3 flex items-center gap-2 px-4 py-2 rounded-full text-white font-semibold transition-all duration-200 hover:scale-105 hover:shadow-lg"
+                  style={{
+                    background: 'linear-gradient(90deg, var(--brand1), var(--brand2), var(--brand3))',
+                    boxShadow: '0 6px 16px rgba(201,124,44,.22)',
+                    transform: 'translateY(0)',
+                    willChange: 'transform, box-shadow'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 8px 20px rgba(201,124,44,.28)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(201,124,44,.22)';
+                  }}
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  Message
+                </button>
               </div>
             </div>
           </div>

@@ -174,7 +174,7 @@ const AchievementBadges = () => {
                 <img
                   src={
                     badge.icon_url
-                      ? `http://localhost:8000/${badge.icon_url}`
+                      ? `https://api.doughnationhq.cloud/${badge.icon_url}`
                       : "/placeholder-badge.png"
                   }
                   alt={badge.name}

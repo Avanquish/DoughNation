@@ -121,7 +121,7 @@ const BDonationStatus = () => {
   const [employeeName, setEmployeeName] = useState("");
   const [employeeRole, setEmployeeRole] = useState("");
   const [employees, setEmployees] = useState([]);
-  const canModify = ["Manager", "Full Time Staff"].includes(employeeRole);
+  const canModify = ["Manager", "Full Time Staff", "Manager/Owner"].includes(employeeRole);
 
   const [acceptedNorm, setAcceptedNorm] = useState([]);
   const [pendingNorm, setPendingNorm] = useState([]);

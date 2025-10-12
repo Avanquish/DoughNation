@@ -129,7 +129,7 @@ export default function BakeryInventory() {
   const [verified, setVerified] = useState(false); // Access control
   const [employeeName, setEmployeeName] = useState("");
   const [employeeRole, setEmployeeRole] = useState("");
-  const canModify = ["Manager", "Full Time Staff"].includes(employeeRole);
+  const canModify = ["Manager", "Full Time Staff", "Manager/Owner"].includes(employeeRole);
 
   const [form, setForm] = useState({
     item_name: "",

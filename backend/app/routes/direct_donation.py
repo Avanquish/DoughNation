@@ -4,6 +4,7 @@ from datetime import datetime, date
 
 from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.database import get_db
 from app.auth import get_current_user
@@ -204,55 +205,66 @@ def get_donation_requests(
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Fetch all requests for this bakery
-    requests = db.query(models.DonationRequest).filter(
-        models.DonationRequest.bakery_id == current_user.id
-    ).all()
+    requests = (
+        db.query(models.DonationRequest)
+        .filter(models.DonationRequest.bakery_id == current_user.id)
+        .all()
+    )
 
-    # Fetch all bakery_inventory_ids that already have an accepted request
+    # Fetch all inventory IDs that already have accepted requests
     accepted_inventory_ids = {
         r.bakery_inventory_id
-        for r in db.query(models.DonationRequest).filter(
-            models.DonationRequest.status == "accepted"
-        ).all()
+        for r in db.query(models.DonationRequest)
+        .filter(models.DonationRequest.status == "accepted")
+        .all()
     }
 
-    # Build result
-    result = []
+    grouped = {}
+
     for r in requests:
-        charity_user = r.charity 
+        charity_user = r.charity
+        bakery_inv_id = r.bakery_inventory_id
+
+        # ACCEPTED requests (show individually)
         if r.status == "accepted":
-            # Always show accepted
-            result.append({
+            grouped_key = f"accepted_{r.id}"
+            grouped[grouped_key] = {
                 "id": r.id,
                 "donation_id": r.donation_id,
                 "status": r.status,
                 "tracking_status": r.tracking_status,
-                "tracking_completed_at":  r.tracking_completed_at,
-                "charity_id": r.charity_id,
-                "charity_name": getattr(r, "charity_name", None),   # if you store it
+                "tracking_completed_at": r.tracking_completed_at,
                 "name": r.donation_name,
                 "image": r.donation_image,
                 "quantity": r.donation_quantity,
                 "expiration_date": r.donation_expiration,
+                # explicitly include these
+                "charity_id": r.charity_id,
                 "charity_name": charity_user.name if charity_user else None,
                 "charity_profile_picture": charity_user.profile_picture if charity_user else None,
-            })
-        elif r.status == "pending" and r.bakery_inventory_id not in accepted_inventory_ids:
-            # Show pending if no one accepted yet
-            result.append({
-                "id": r.id,
-                "donation_id": r.donation_id,
-                "status": r.status,
-                "charity_id": r.charity_id,
-                "charity_name": getattr(r, "charity_name", None),
-                "name": r.donation_name,
-                "image": r.donation_image,
-                "quantity": r.donation_quantity,
-                "expiration_date": r.donation_expiration,
-            })
-        # Ignore canceled
+            }
 
-    return result
+        # PENDING requests (group by bakery_inventory_id)
+        elif r.status == "pending" and bakery_inv_id not in accepted_inventory_ids:
+            if bakery_inv_id not in grouped:
+                grouped[bakery_inv_id] = {
+                    "bakery_inventory_id": bakery_inv_id,
+                    "donation_id": r.donation_id,
+                    "status": "pending",
+                    "name": r.donation_name,
+                    "image": r.donation_image,
+                    "quantity": r.donation_quantity,
+                    "expiration_date": r.donation_expiration,
+                    "requested_by": [],
+                }
+
+            if charity_user:
+                grouped[bakery_inv_id]["requested_by"].append({
+                    "name": charity_user.name,
+                    "profile_picture": charity_user.profile_picture
+                })
+
+    return list(grouped.values())
 
 @router.post("/donation/tracking/{request_id}")
 def update_tracking_status(
@@ -280,3 +292,87 @@ def update_tracking_status(
         update_user_badges(db, current_user.id)
     
     return donation_request
+
+@router.get("/charities/recommended")
+def get_recommended_charities(
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """
+    Recommend charities for a bakery based on transaction activity.
+    - Recommended: Charities with <5 total transactions (direct + accepted requests)
+    - If all have >=5, recommended = 3 least active ones
+    - Always include all charities (so frontend can show 'Other Charities')
+    """
+    if current_user.role.lower() != "bakery":
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Count accepted donation requests per charity
+    request_counts = (
+        db.query(
+            models.DonationRequest.charity_id,
+            func.count(models.DonationRequest.id).label("count")
+        )
+        .filter(
+            models.DonationRequest.bakery_id == current_user.id,
+            models.DonationRequest.status == "accepted"
+        )
+        .group_by(models.DonationRequest.charity_id)
+        .all()
+    )
+
+    # Count direct donations per charity
+    direct_counts = (
+        db.query(
+            models.DirectDonation.charity_id,
+            func.count(models.DirectDonation.id).label("count")
+        )
+        .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
+        .filter(models.BakeryInventory.bakery_id == current_user.id)
+        .group_by(models.DirectDonation.charity_id)
+        .all()
+    )
+
+    # Merge counts into total_counts
+    total_counts = {}
+    for row in request_counts:
+        total_counts[row.charity_id] = total_counts.get(row.charity_id, 0) + row.count
+    for row in direct_counts:
+        total_counts[row.charity_id] = total_counts.get(row.charity_id, 0) + row.count
+
+    # Fetch all active charities
+    charities = db.query(models.User).filter(models.User.role.ilike("charity")).all()
+
+    # Determine which are recommended
+    all_have_5plus = all(total_counts.get(c.id, 0) >= 5 for c in charities) if charities else False
+
+    if all_have_5plus:
+        # All have high activity → pick 3 least active
+        sorted_charities = sorted(charities, key=lambda c: total_counts.get(c.id, 0))
+        recommended = sorted_charities[:3]
+    else:
+        # Recommended are those with <5 transactions
+        recommended = [c for c in charities if total_counts.get(c.id, 0) < 5]
+
+    # The rest (non-recommended)
+    recommended_ids = {c.id for c in recommended}
+    rest = [c for c in charities if c.id not in recommended_ids]
+
+    # Response format
+    def charity_data(c):
+        return {
+            "id": c.id,
+            "name": c.name,
+            "email": c.email,
+            "contact_person": c.contact_person,
+            "contact_number": c.contact_number,
+            "address": c.address,
+            "profile_picture": c.profile_picture,
+            "transaction_count": total_counts.get(c.id, 0)
+        }
+
+    return {
+        "recommended": [charity_data(c) for c in recommended],
+        "rest": [charity_data(c) for c in rest],
+        "all": [charity_data(c) for c in charities]  # Optional: full list
+    }

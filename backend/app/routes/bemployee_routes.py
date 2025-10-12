@@ -75,7 +75,21 @@ def get_employees(
     if current_user.role.lower() != "bakery":
         raise HTTPException(status_code=403, detail="Only bakeries can view employees")
 
+    # Check if this bakery has any employees
     employees = db.query(models.Employee).filter(models.Employee.bakery_id == current_user.id).all()
+    
+    # If no employees exist, automatically register the contact person as the first employee
+    if not employees and current_user.role.lower() == "bakery":
+        first_employee = models.Employee(
+            bakery_id=current_user.id,
+            name=current_user.contact_person,
+            role="Manager/Owner",
+            start_date=current_user.created_at
+        )
+        db.add(first_employee)
+        db.commit()
+        db.refresh(first_employee)
+        employees = [first_employee]
 
     # ✅ attach full URL for each
     for emp in employees:

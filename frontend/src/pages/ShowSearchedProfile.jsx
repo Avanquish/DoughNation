@@ -5,20 +5,15 @@ import {
 } from "@/components/ui/card";
 import { ChevronLeft, HeartHandshake } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import RecentDonations from "./RecentDonations";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 
 const API = "https://api.doughnationhq.cloud";
 
-
-// Show a searched profile by ID, with back button
 export default function ShowSearchedProfile({ id, onBack }) {
   const [profile, setProfile] = useState(null);
-  const [inventory, setInventory] = useState([]);
   const [badges, setBadges] = useState([]);
   const [activeSubTab, setActiveSubTab] = useState("about");
 
-  // Styles
   const Styles = () => (
     <style>{`
       :root{
@@ -30,7 +25,6 @@ export default function ShowSearchedProfile({ id, onBack }) {
         --shadow:0 10px 24px rgba(201,124,44,.16);
       }
 
-      /* Background */
       .page-bg{position:fixed; inset:0; z-index:-10; overflow:hidden; pointer-events:none;}
       .page-bg::before, .page-bg::after{content:""; position:absolute; inset:0}
       .page-bg::before{
@@ -47,7 +41,6 @@ export default function ShowSearchedProfile({ id, onBack }) {
       .blob.a{left:-120px; top:30%; background:radial-gradient(circle at 35% 35%, #ffd9aa, transparent 60%);}
       .blob.b{right:-140px; top:6%;  background:radial-gradient(circle at 60% 40%, #ffc985, transparent 58%);}
 
-      /* Header */
       .head{position:sticky; top:0; z-index:40; border-bottom:1px solid var(--border); backdrop-filter: blur(10px);}
       .head-bg{position:absolute; inset:0; z-index:-1; opacity:.92;
         background: linear-gradient(110deg, #ffffff 0%, #fff8ec 28%, #ffeccd 55%, #ffd7a6 100%);
@@ -68,7 +61,6 @@ export default function ShowSearchedProfile({ id, onBack }) {
         color:var(--ink); background:linear-gradient(180deg,#FFE7C5,#F7C489); border:1px solid #fff3e0; font-weight:800;
       }
 
-      /* Back pill + ring */
       .icon-btn{
         display:inline-flex; align-items:center; justify-content:center;
         width:40px; height:40px; border-radius:9999px; background:rgba(255,255,255,.94);
@@ -81,9 +73,7 @@ export default function ShowSearchedProfile({ id, onBack }) {
       @keyframes spin360 { to { transform: rotate(360deg); } }
       .logo-spin{ animation: spin360 8s linear infinite; transform-origin:center; }
       .logo-spin:hover{ animation-play-state: paused; }
-      @media (prefers-reduced-motion: reduce){ .logo-spin{ animation:none; } }
 
-      /* Cards + segmented tabs */
       .glass-card{ border-radius:16px; background:var(--paper); border:1px solid var(--border); box-shadow:var(--shadow) }
       .card-soft{ background:rgba(255,255,255,.94); border:1px solid var(--border); }
 
@@ -112,10 +102,7 @@ export default function ShowSearchedProfile({ id, onBack }) {
         const res = await axios.get(`${API}/user/${id}`);
         setProfile(res.data);
 
-        // keep bakery-only fetching exactly as before
         if (res.data.role?.toLowerCase() === "bakery") {
-          const invRes = await axios.get(`${API}/inventory?bakery_id=${id}`);
-          setInventory(invRes.data || []);
           const badgeRes = await axios.get(`${API}/badges/user/${id}`);
           setBadges(badgeRes.data || []);
         }
@@ -125,30 +112,6 @@ export default function ShowSearchedProfile({ id, onBack }) {
     };
     fetchProfile();
   }, [id]);
-
-  const statusOf = (item) => {
-    if (!item.expiration_date) return "fresh";
-    const today = new Date();
-    const exp = new Date(item.expiration_date);
-    const threshold = Number(item.threshold) || 0;
-    const diff = Math.ceil((exp - today) / (1000 * 60 * 60 * 24));
-    if (diff < 0) return "expired";
-    if (diff <= threshold) return "soon";
-    return "fresh";
-  };
-
-  const statusCounts = useMemo(() => {
-    const expired = inventory.filter((i) => statusOf(i) === "expired").length;
-    const soon = inventory.filter((i) => statusOf(i) === "soon").length;
-    const fresh = inventory.filter((i) => statusOf(i) === "fresh").length;
-    return { expired, soon, fresh, total: inventory.length };
-  }, [inventory]);
-
-  const statusPie = [
-    { name: "Fresh", value: statusCounts.fresh },
-    { name: "Soon", value: statusCounts.soon },
-    { name: "Expired", value: statusCounts.expired },
-  ];
 
   if (!profile) return <div>Loading...</div>;
   const role = (profile.role || "").toLowerCase() === "bakery" ? "bakery" : "charity";
@@ -166,14 +129,12 @@ export default function ShowSearchedProfile({ id, onBack }) {
         <span className="blob b" />
       </div>
 
-      {/* Header */}
       <header className="head">
         <div className="head-bg" />
         <div className="head-inner">
           <div className="flex items-start justify-between gap-4">
-            {/* Back beside the logo */}
             <div className="flex items-center gap-2">
-              <button className="icon-btn" aria-label="Back to results" title="Back to results" onClick={handleBack}>
+              <button className="icon-btn" onClick={handleBack}>
                 <ChevronLeft className="h-[18px] w-[18px] ink" />
               </button>
 
@@ -181,7 +142,6 @@ export default function ShowSearchedProfile({ id, onBack }) {
                 <div className="ring">
                   <div>
                     {role === "bakery" ? (
-                      // Bread icon 
                       <svg width="26" height="26" viewBox="0 0 64 48" aria-hidden="true" className="logo-spin">
                         <rect x="4" y="12" rx="12" ry="12" width="56" height="28" fill="#E8B06A" />
                         <path d="M18 24c0-3 3-5 7-5s7 2 7 5m4 0c0-3 3-5 7-5s7 2 7 5"
@@ -199,15 +159,12 @@ export default function ShowSearchedProfile({ id, onBack }) {
                 </div>
               </div>
             </div>
-            <div />
           </div>
         </div>
       </header>
 
-      {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7">
         <div className="glass-card p-6 sm:p-8">
-          {/* Avatar + details */}
           <div className="flex flex-col md:flex-row md:items-end gap-6">
             <div className="flex items-center gap-4">
               <div className="w-28 h-28 rounded-full border border-[var(--border)] overflow-hidden bg-white">
@@ -220,30 +177,15 @@ export default function ShowSearchedProfile({ id, onBack }) {
               <div>
                 <h1 className="ink text-2xl font-semibold">{profile.name}</h1>
                 <p className="text-muted-foreground">Welcome Visitors! Hope You Enjoy!</p>
-                <button
-                  onClick={() => {
-                    const peer = { id: profile.id, name: profile.name, profile_picture: profile.profile_picture || null };
-                    localStorage.setItem("open_chat_with", JSON.stringify(peer));
-                    window.dispatchEvent(new Event("open_chat"));
-                  }}
-                  className="mt-3 px-4 py-2 rounded-md text-white font-medium text-sm"
-                  style={{ background: "var(--brand2)" }}
-                  onMouseOver={(e)=>e.currentTarget.style.background="var(--brand3)"}
-                  onMouseOut={(e)=>e.currentTarget.style.background="var(--brand2)"}
-                >
-                  Message
-                </button>
               </div>
             </div>
           </div>
 
-          {/* Tabs*/}
+          {/* Only About Tab with Badges */}
           <div className="mt-6 tabwrap">
             <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
               <TabsList className="tabbar bg-transparent p-0">
                 <TabsTrigger value="about">About</TabsTrigger>
-                <TabsTrigger value="history">Donation History</TabsTrigger>
-                {role === "bakery" && <TabsTrigger value="analytics">Analytics & Badges</TabsTrigger>}
               </TabsList>
 
               <TabsContent value="about">
@@ -256,120 +198,34 @@ export default function ShowSearchedProfile({ id, onBack }) {
                         : "This charity receives donations and supports communities."}
                     </CardDescription>
                   </CardHeader>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="history">
-                <Card className="card-soft">
-                  <CardContent className="pt-6">
-                    <RecentDonations userId={id} role={role} />
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              {role === "bakery" && (
-                <TabsContent value="analytics" className="space-y-6">
-                  <Card className="card-soft">
-                    <CardHeader><CardTitle className="ink">Badges</CardTitle></CardHeader>
-                    <CardContent className="flex flex-wrap gap-4">
-                      {badges && badges.length > 0 ? (
-                        badges.map((userBadge) => (
-                          <div key={userBadge.id} className="flex flex-col items-center">
-                            <img
-                              src={userBadge.badge?.icon_url ? `${API}/${userBadge.badge.icon_url}` : "/placeholder-badge.png"}
-                              alt={userBadge.badge?.name}
-                              title={userBadge.badge?.name}
-                              className="w-12 h-12 hover:scale-110 transition-transform"
-                            />
-                            <span className="text-xs mt-1 ink">
-                              {userBadge.badge_name && userBadge.badge_name.trim() !== ""
-                                ? userBadge.badge_name
-                                : userBadge.badge?.name}
-                            </span>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-muted-foreground text-sm">No badges unlocked yet.</p>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  <Card className="glass-card">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="ink">Data Visualization</CardTitle>
-                      <CardDescription className="text-muted-foreground">Inventory status at a glance</CardDescription>
-                    </CardHeader>
-                    <CardContent className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                      <div className="p-4 rounded-lg border border-[var(--border)] bg-white/90">
-                        <div className="text-sm text-muted-foreground mb-2">Total</div>
-                        <div className="h-56">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie data={statusPie} dataKey="value" nameKey="name" innerRadius={58} outerRadius={78} paddingAngle={2}>
-                                {statusPie.map((_, i) => (
-                                  <Cell key={i} fill={["#58a85a", "#e2b046", "#d25151"][i % 3]} />
-                                ))}
-                              </Pie>
-                              <Tooltip />
-                              <Legend />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </div>
-                      </div>
-
-                      <div className="p-4 rounded-lg border border-[var(--border)] bg-white/90">
-                        <div className="text-sm text-muted-foreground mb-2">Fresh vs Soon</div>
-                        <div className="h-56">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie
-                                data={[
-                                  { name: "Fresh", value: statusCounts.fresh },
-                                  { name: "Soon", value: statusCounts.soon },
-                                ]}
-                                dataKey="value"
-                                nameKey="name"
-                                innerRadius={50}
-                                outerRadius={74}
-                              >
-                                <Cell fill="#58a85a" />
-                                <Cell fill="#e2b046" />
-                              </Pie>
-                              <Tooltip />
-                              <Legend />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </div>
-                      </div>
-
-                      <div className="p-4 rounded-lg border border-[var(--border)] bg-white/90">
-                        <div className="text-sm text-muted-foreground mb-2">Expired</div>
-                        <div className="h-56">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie
-                                data={[
-                                  { name: "Expired", value: statusCounts.expired },
-                                  { name: "Fresh+Soon", value: statusCounts.fresh + statusCounts.soon },
-                                ]}
-                                dataKey="value"
-                                nameKey="name"
-                                innerRadius={50}
-                                outerRadius={74}
-                              >
-                                <Cell fill="#d25151" />
-                                <Cell fill="#bdbdbd" />
-                              </Pie>
-                              <Tooltip />
-                              <Legend />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </div>
+                  {role === "bakery" && (
+                    <CardContent>
+                      <h3 className="ink text-lg font-semibold mb-2">Badges</h3>
+                      <div className="flex flex-wrap gap-4">
+                        {badges && badges.length > 0 ? (
+                          badges.map((userBadge) => (
+                            <div key={userBadge.id} className="flex flex-col items-center">
+                              <img
+                                src={userBadge.badge?.icon_url ? `${API}/${userBadge.badge.icon_url}` : "/placeholder-badge.png"}
+                                alt={userBadge.badge?.name}
+                                title={userBadge.badge?.name}
+                                className="w-12 h-12 hover:scale-110 transition-transform"
+                              />
+                              <span className="text-xs mt-1 ink">
+                                {userBadge.badge_name && userBadge.badge_name.trim() !== ""
+                                  ? userBadge.badge_name
+                                  : userBadge.badge?.name}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-muted-foreground text-sm">No badges unlocked yet.</p>
+                        )}
                       </div>
                     </CardContent>
-                  </Card>
-                </TabsContent>
-              )}
+                  )}
+                </Card>
+              </TabsContent>
             </Tabs>
           </div>
         </div>

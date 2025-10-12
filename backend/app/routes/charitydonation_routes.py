@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile, Body
 from sqlalchemy.orm import Session, joinedload
 from datetime import date, datetime
 from typing import List, Optional
@@ -6,10 +6,13 @@ from app.database import get_db
 from app import models, schemas, database, auth
 from app.auth import ensure_verified_user
 from app.schemas import DonationRequestCreate
+from app.models import DonationCardChecking
 
 import os
 
 from app.routes.binventory_routes import check_threshold_and_create_donation
+from app.routes.cnotification import haversine
+from app.crud import update_user_badges
 
 router = APIRouter()
 UPLOAD_DIR = "uploads/feedback"
@@ -58,7 +61,17 @@ def get_available_donations(
         donation_dict["bakery_name"] = bakery.name
         donation_dict["bakery_profile_picture"] = bakery.profile_picture 
         if donation_dict.get("image"):
-            donation_dict["image"] = donation_dict["image"]  
+            donation_dict["image"] = donation_dict["image"]
+
+        # Calculate distance if both coordinates exist
+        distance_km = None
+        if (
+            current_user.latitude is not None and current_user.longitude is not None
+            and bakery.latitude is not None and bakery.longitude is not None
+        ):
+            distance_km = round(haversine(bakery.latitude, bakery.longitude, current_user.latitude, current_user.longitude), 1)
+        donation_dict["distance_km"] = distance_km
+
         donation_list.append(schemas.DonationRead(**donation_dict))
 
     return donation_list
@@ -172,48 +185,62 @@ def my_requests(
 @router.post("/donation/accept/{donation_id}")
 def accept_donation(
     donation_id: int,
+    payload: dict = Body(...),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(ensure_verified_user)
 ):
-    # Find the pending request that the bakery wants to accept
+    charity_id = payload.get("charity_id")
+    if not charity_id:
+        raise HTTPException(status_code=400, detail="charity_id required")
+
+    # Find the correct pending donation request
     donation_request = db.query(models.DonationRequest).filter(
         models.DonationRequest.donation_id == donation_id,
         models.DonationRequest.bakery_id == current_user.id,
+        models.DonationRequest.charity_id == charity_id,
         models.DonationRequest.status == "pending"
     ).first()
-    
+
     if not donation_request:
         raise HTTPException(status_code=404, detail="Pending donation request not found")
-    
-    # Accept this request
+
+    # ✅ Accept the request
     donation_request.status = "accepted"
-    db.commit()
-    
-    # Automatically cancel all other pending requests for the same bakery_inventory_id
+
+    # ✅ Save record to DonationsCardChecking
+    new_check = models.DonationCardChecking(
+        donor_id=donation_request.bakery_id,
+        recipient_id=donation_request.charity_id,
+        donation_request_id=donation_request.id,
+        status="accepted"
+    )
+    db.add(new_check)
+
+    # ❌ Cancel all other requests for same product
     other_requests = db.query(models.DonationRequest).filter(
         models.DonationRequest.bakery_inventory_id == donation_request.bakery_inventory_id,
         models.DonationRequest.id != donation_request.id,
         models.DonationRequest.status == "pending"
     ).all()
-    
+    canceled_charity_ids = []
     for r in other_requests:
         r.status = "canceled"
-    
-    db.commit()
-    
-    # Update inventory status
-    update_inventory_status(db, donation_request.bakery_inventory_id)
-    
-    # Check threshold and create donation
-    check_threshold_and_create_donation(db)
-    
-    return {"message": "Donation accepted and other pending requests canceled",
-        "accepted_request_id": donation_request.id,  # send back the id
-        "donation_id": donation_id,
-        "charity_id": donation_request.charity_id,
-        "bakery_inventory_id": donation_request.bakery_inventory_id
-        }
+        canceled_charity_ids.append(r.charity_id)
 
+    # ✅ Commit everything once
+    db.commit()
+
+    # 🔄 Update inventory
+    update_inventory_status(db, donation_request.bakery_inventory_id)
+    check_threshold_and_create_donation(db)
+
+    return {
+        "message": "Donation accepted and others canceled",
+        "accepted_charity_id": donation_request.charity_id,
+        "canceled_charities": canceled_charity_ids,
+        "donation_id": donation_id,
+        "donation_name": donation_request.donation_name
+    }
 
 @router.get("/donation/received")
 def received_donations(
@@ -333,6 +360,8 @@ async def submit_feedback(
         request_obj.tracking_completed_at = date.today()
     db.commit()
     db.refresh(request_obj)
+
+    update_user_badges(db, request_obj.bakery_id)
 
     return {"message": "Feedback submitted and donation marked complete"}
 
@@ -465,5 +494,39 @@ async def submit_direct_feedback(
     db.commit()
     db.refresh(donation)
 
+    update_user_badges(db, donation.bakery_inventory.bakery_id)
+
     return {"message": "Feedback submitted successfully"}
 
+#===============================================================
+
+@router.get("/donation/accepted")
+def get_accepted_donations(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(ensure_verified_user)
+):
+    query = db.query(models.DonationRequest).filter(
+        models.DonationRequest.status.in_(["canceled", "accepted"])
+    )
+
+    if current_user.role.lower() == "charity":
+        query = query.filter(models.DonationRequest.charity_id == current_user.id)
+    elif current_user.role.lower() == "bakery":
+        query = query.filter(models.DonationRequest.bakery_id == current_user.id)
+    else:
+        raise HTTPException(status_code=403, detail="Invalid user role")
+
+    requests = query.all()
+
+    return [
+        {
+            "id": r.id,
+            "donation_id": r.donation_id,
+            "status": r.status,
+            "bakery_inventory_id": r.bakery_inventory_id,
+            "charity_id": r.charity_id,
+            "donation_name": r.donation_name,
+            "donation_image": r.donation_image,
+        }
+        for r in requests
+    ]

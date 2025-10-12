@@ -80,7 +80,7 @@ export default function NotificationBell() {
       // Build "Received" rows based on real status 
       const nextStatusMap = {};
 
-      // track previous status to detect changes
+      // Use backend "type" field to decide message
       const mapped = (rDons || []).map((d) => {
         let message;
         switch (d.type) {
@@ -162,9 +162,12 @@ export default function NotificationBell() {
     path ? `${API}/${path}` : fallback;
 
 
-  // Click handlers
+  // --- Click Handlers ---
 const handleNormalDonationClick = (d) => {
+  // remove it from the state
   setDonations((prev) => prev.filter((don) => don.id !== d.id));
+
+  // still navigate + mark read
   localStorage.setItem("highlight_donation", d.donation_id || d.id);
   window.dispatchEvent(new CustomEvent("switch_to_donation_tab"));
   setTimeout(() => window.dispatchEvent(new Event("highlight_donation")), 100);
@@ -174,6 +177,7 @@ const handleNormalDonationClick = (d) => {
 
 const handlePriorityDonationClick = (d) => {
   if (d.status === "pending") {
+    // remove if pending
     setPriorityDonations((prev) => prev.filter((don) => don.id !== d.id));
   }
 
@@ -283,8 +287,9 @@ const handlePriorityDonationClick = (d) => {
                                 }`}
                               >
                                 <strong>{d.bakery_name}</strong>: {d.name} ({d.quantity}){" "}
-                                <span className="ml-1 text-xs text-gray-500">
-                                  Exp: {new Date(d.expiration_date).toLocaleDateString()}
+                               <span className="ml-1 text-xs text-gray-500">
+                                  Exp: {new Date(d.expiration_date).toLocaleDateString()}{" "}
+                                  {d.distance_km != null && `• Approx ${d.distance_km} km`} 
                                 </span>
                               </p>
                             </div>
@@ -334,9 +339,14 @@ const handlePriorityDonationClick = (d) => {
                                 }`}
                               >
                                 <strong>{d.bakery_name}</strong>: {d.name} ({d.quantity})
+                                  {d.distance_km != null && (
+                                    <span className="ml-1 text-xs text-gray-400">
+                                      • Approx {d.distance_km} km 
+                                    </span>
+                                  )}
                               </p>
                             </div>
-                            <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "#8b6b48" }} />
+                            <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "#8b6b48" }} /> 
                           </button>
                         ))}
                       </div>
@@ -344,8 +354,6 @@ const handlePriorityDonationClick = (d) => {
                   </div>
                 </div>
               )}
-
-
 
                 {/* Received Donations */}
                 {tab === "receivedDonations" && (
@@ -450,4 +458,4 @@ const handlePriorityDonationClick = (d) => {
       )}
     </div>
   );
-}
+} 

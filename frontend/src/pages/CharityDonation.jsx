@@ -362,11 +362,16 @@ export default function CharityDonation() {
                       </div>
 
                       {/* description */}
+                    <div className="flex justify-between text-sm mt-1">
                       {donation.description && (
                         <p className="mt-3 text-sm" style={{ color: "#7b5836" }}>
                           {donation.description}
                         </p>
                       )}
+                      {donation.distance_km !== null && (
+                        <span className="text-gray-400">Approx: {donation.distance_km} km</span>
+                      )}
+                    </div>
 
                       {/* actions (logic unchanged) */}
                       <div className="mt-4 space-y-2">

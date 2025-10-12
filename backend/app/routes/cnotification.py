@@ -143,6 +143,14 @@ def get_message_notifications(
         bakery = db.query(models.User).filter(models.User.id == donation.bakery_id).first()
         # Only for this user: if this donation hasn't been marked as read yet
         if donation.id not in read_ids:
+            # Calculate distance
+            distance_km = None
+            if bakery and current_user and bakery.latitude and bakery.longitude and current_user.latitude and current_user.longitude:
+                distance_km = round(haversine(
+                    bakery.latitude, bakery.longitude,
+                    current_user.latitude, current_user.longitude
+                ), 1)
+                
             donations.append({
                 "id": f"donation-{donation.id}-to-{user_id}",
                 "donation_id": donation.id,
@@ -151,7 +159,8 @@ def get_message_notifications(
                 "timestamp": donation.creation_date.isoformat(),
                 "read": False,
                 "bakery_name": bakery.name if bakery else "Unknown bakery",
-                "bakery_profile_picture": bakery.profile_picture if bakery else None
+                "bakery_profile_picture": bakery.profile_picture if bakery else None,
+                "distance_km": distance_km  #distance 
             })
         else:
             # Already read
@@ -163,9 +172,10 @@ def get_message_notifications(
                 "timestamp": donation.creation_date.isoformat(),
                 "read": True,
                 "bakery_name": bakery.name if bakery else "Unknown bakery",
-                "bakery_profile_picture": bakery.profile_picture if bakery else None
+                "bakery_profile_picture": bakery.profile_picture if bakery else None,
+                "distance_km": None  # Already read
             })
-            
+
     # --- Direct/Received Donations ---
     received_donations = []
 
@@ -238,6 +248,15 @@ def get_message_notifications(
                 continue
 
             bakery = db.query(models.User).filter_by(id=donation.bakery_id).first()
+            charity = db.query(models.User).filter_by(id=int(charity_id)).first()
+
+             # Calculate distance
+            distance_km = None
+            if bakery and charity and bakery.latitude and bakery.longitude and charity.latitude and charity.longitude:
+                distance_km = round(haversine(
+                    bakery.latitude, bakery.longitude,
+                    charity.latitude, charity.longitude
+                ), 1)  # rounded to 1 decimal
 
             geofence_notifs.append({
                 "id": entry.notif_id,
@@ -248,6 +267,7 @@ def get_message_notifications(
                 "bakery_name": bakery.name if bakery else "Unknown bakery",
                 "bakery_profile_picture": bakery.profile_picture if bakery else None,
                 "read": entry.read_at is not None,
+                "distance_km": distance_km
             })
         except Exception as e:
             print("[Geofence] Parse error:", e)
@@ -403,7 +423,7 @@ def process_geofence_notifications(db: Session, bakery_id: int):
                     continue
 
             elif donation.expiration_date == one_day_from_now:
-                # Second wave → 10 km, remove old 5km notifications first
+                # Second wave → 10 km, remove old 10km notifications first
                 db.query(NotificationRead).filter(
                     NotificationRead.notif_id == f"geofence-{donation.id}-to-{charity.id}"
                 ).delete()

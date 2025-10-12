@@ -3,7 +3,7 @@ import ReactDOM from "react-dom";
 import axios from "axios";
 import Swal from "sweetalert2";
 
-const API = "https://api.doughnationhq.cloud";
+const API = "http://localhost:8000";
 
 // Helpers
 const parseDate = (s) => (s ? new Date(s) : null);
@@ -139,7 +139,7 @@ export default function BakeryInventory() {
     description: "",
     image_file: null,
     threshold: 1,
-    uploaded: "",
+    uploaded: employeeName || "", // Initialize with employee name if available
   });
 
   const [showDirectDonation, setShowDirectDonation] = useState(false);
@@ -200,6 +200,7 @@ export default function BakeryInventory() {
   if (found) {
     setVerified(true);
     setEmployeeRole(found.role || ""); // store role
+    setEmployeeName(found.name); // Store the verified employee name
     setForm((prev) => ({ ...prev, uploaded: found.name }));
     Swal.fire({
       title: "Access Granted",
@@ -317,7 +318,7 @@ export default function BakeryInventory() {
     fd.append("creation_date", form.creation_date);
     fd.append("expiration_date", form.expiration_date);
     fd.append("threshold", form.threshold);
-    fd.append("uploaded", form.uploaded);
+    fd.append("uploaded", employeeName || form.uploaded);
     fd.append("description", form.description);
     if (form.image_file) fd.append("image", form.image_file);
 

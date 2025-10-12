@@ -39,6 +39,7 @@ export default function BakeryReports() {
 
   const reportTypes = [
     { key: "donation_history", label: "Donation History" },
+    { key: "bakery_list", label: "Bakery List" },
     { key: "weekly", label: "Weekly Summary" },
     { key: "monthly", label: "Monthly Summary" },
   ];

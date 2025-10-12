@@ -50,7 +50,7 @@ export default function BakeryReports() {
   const canModify = ["Manager", "Full Time Staff"].includes(employeeRole);
 
   const reportTypes = [
-    { key: "donation_activity", label: "Donation Activity" },
+    { key: "donation_history", label: "Donation History" },
     { key: "expiry_loss", label: "Expiry Loss" },
     { key: "top_items", label: "Top Donated Items" },
     { key: "charity_list", label: "Charity List" },

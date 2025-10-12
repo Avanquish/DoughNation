@@ -17,7 +17,7 @@ def check_bakery(current_user: models.User = Depends(auth.get_current_user)):
 
 from sqlalchemy.orm import joinedload
 
-@router.get("/donation_activity")
+@router.get("/donation_history")
 def donation_history(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(check_bakery),  # restrict to bakeries
@@ -53,7 +53,7 @@ def donation_history(
         results.append({
             "id": d.id,
             "type": "request",
-            "completed_at": d.tracking_completed_at,
+            "completed_at": d.tracking_completed_at.strftime("%m-%d-%Y") if d.tracking_completed_at else None,
             "product_name": (
                 d.donation_name or (d.inventory_item.name if d.inventory_item else "Unknown")
             ),
@@ -66,7 +66,7 @@ def donation_history(
         results.append({
             "id": d.id,
             "type": "direct",
-            "completed_at": d.btracking_completed_at,
+            "completed_at": d.btracking_completed_at.strftime("%m-%d-%Y") if d.btracking_completed_at else None,
             "product_name": d.name or "Unknown",
             "quantity": d.quantity or 0,
             "charity_name": d.charity.name if d.charity else "Unknown",

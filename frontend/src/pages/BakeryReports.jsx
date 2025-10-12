@@ -22,7 +22,6 @@ import {
 } from "recharts";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import html2canvas from "html2canvas";
 
 export default function BakeryReports() {
   const [reportData, setReportData] = useState(null);
@@ -42,7 +41,7 @@ export default function BakeryReports() {
   const [employeeName, setEmployeeName] = useState("");
   const [employeeRole, setEmployeeRole] = useState("");
   const [employees, setEmployees] = useState([]);
-  const canModify = ["Manager", "Full Time Staff"].includes(employeeRole);
+  const canModify = ["Manager", "Manager/Owner"].includes(employeeRole);
 
   const reportTypes = [
     { key: "donation_history", label: "Donation History" },
@@ -211,6 +210,15 @@ export default function BakeryReports() {
       title: "Employee Not Found",
       text: "Please enter a valid employee name.",
       icon: "error",
+    });
+    return;
+  }
+
+  if (!["Manager", "Manager/Owner"].includes(found.role)) {
+    Swal.fire({
+      title: "Access Denied",
+      text: "Only Managers and Owner can access the reports generation.",
+      icon: "error"
     });
     return;
   }

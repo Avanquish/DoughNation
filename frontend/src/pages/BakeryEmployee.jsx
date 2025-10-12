@@ -35,6 +35,8 @@ const BakeryEmployee = () => {
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [verified, setVerified] = useState(false);
   const [employeeName, setEmployeeName] = useState("");
+  const [employeeRole, setEmployeeRole] = useState("");
+  const canModify = ["Manager", "Full Time Staff", "Manager/Owner"].includes(employeeRole);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -55,6 +57,7 @@ const BakeryEmployee = () => {
     "p-4 sm:p-5 border-b bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]";
   const primaryBtn =
     "rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 font-semibold shadow-[0_10px_26px_rgba(201,124,44,.25)] ring-1 ring-white/60 transition-transform hover:-translate-y-0.5 active:scale-95 disabled:opacity-60";
+  const pillSolid = "bg-[#E49A52] text-white px-4 py-2 rounded-full hover:bg-[#d0833f] transition";
 
   // Action button styles
   const actionBtnBase =
@@ -117,27 +120,29 @@ const BakeryEmployee = () => {
     setIsDialogOpen(true);
   };
 
-  // Handle verification
-  const handleVerify = () => {
-    const found = employees.find(
-      (emp) => emp.name.toLowerCase() === employeeName.trim().toLowerCase()
-    );
-    if (found) {
-      Swal.fire({
-        title: "Access Granted",
-        text: `Welcome, ${found.name}!`,
-        icon: "success",
-        timer: 1400,
-        showConfirmButton: false,
-      });
-      setVerified(true);
-    } else {
-      Swal.fire({
-        title: "Employee Not Found",
-        text: "Please enter a valid employee name.",
-        icon: "error",
-      });
-    }
+  // Employee verification.
+      const handleVerify = () => {
+      const found = employees.find(
+        (emp) => emp.name.toLowerCase() === employeeName.trim().toLowerCase()
+      );
+  
+      if (found) {
+        setVerified(true);
+        setEmployeeRole(found.role || "");
+        Swal.fire({
+          title: "Access Granted",
+          text: `Welcome, ${found.name}! Role: ${found.role}`,
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+      } else {
+        Swal.fire({
+          title: "Employee Not Found",
+          text: "Please enter a valid employee name.",
+          icon: "error",
+        });
+      }
   };
 
   // Save (add or edit)
@@ -255,7 +260,7 @@ const BakeryEmployee = () => {
               {employees.length}{" "}
               {employees.length === 1 ? "Employee" : "Employees"}
             </span>
-
+          {(canModify || employees.length === 0) &&( 
             <Button
               onClick={openAdd}
               disabled={employees.length > 0 && !verified}
@@ -264,40 +269,40 @@ const BakeryEmployee = () => {
               <Plus className="h-4 w-4 mr-2" />
               Add Employee
             </Button>
+          )}
           </div>
         </div>
       </div>
 
       {/* Verification Overlay */}
       {employees.length > 0 && !verified && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-white/60 backdrop-blur-md pt-20 sm:pt-24">
-          <div className="bg-white rounded-2xl shadow-2xl ring-1 ring-black/5 overflow-hidden max-w-md w-full">
-            <div className="p-4 sm:p-5 border-b bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
-              <h2 className="text-xl font-semibold text-[#4A2F17] text-center">
+        <div className="fixed inset-0 z-50 flex items-start mt-[20vh] justify-center bg-transparent bg-opacity-40">
+          <div className="bg-white rounded-2xl shadow-2xl ring-1 overflow-hidden max-w-md w-full">
+            <div className={sectionHeader}>
+              <h2 className="text-xl font-semibold text-[#6b4b2b] text-center">
                 Verify Access
               </h2>
             </div>
-            <div className="p-6">
-              <label
-                className="block text-sm font-semibold text-[#6b4b2b]"
-                htmlFor="verify_name"
-              >
-                Employee Name
-              </label>
-              <input
-                id="verify_name"
-                type="text"
-                placeholder="e.g., Lisa"
-                value={employeeName}
-                onChange={(e) => setEmployeeName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleVerify()}
-                className="w-full rounded-md border border-[#f2d4b5] bg-white p-2 outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] mt-1"
-              />
-              <div className="mt-5 flex justify-end">
-                <button
-                  onClick={handleVerify}
-                  className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 font-semibold shadow-[0_10px_26px_rgba(201,124,44,.25)] ring-1 ring-white/60 transition-transform hover:-translate-y-0.5 active:scale-95"
-                >
+            <div className="p-5 sm:p-6">
+              <div className="space-y-3">
+                <label className={labelTone} htmlFor="verify_name">
+                  Employee Name
+                </label>
+                <input
+                  id="verify_name"
+                  type="text"
+                  placeholder="Enter employee name"
+                  value={employeeName}
+                  onChange={(e) => setEmployeeName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleVerify()}
+                  className={inputTone}
+                />
+                <p className="text-xs text-gray-500">
+                  Type your name exactly as saved by HR to continue.
+                </p>
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <button onClick={handleVerify} className={pillSolid}>
                   Enter Employee
                 </button>
               </div>
@@ -305,7 +310,6 @@ const BakeryEmployee = () => {
           </div>
         </div>
       )}
-
       {/* Employee Cards */}
       {verified && (
         <div className="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
@@ -351,6 +355,7 @@ const BakeryEmployee = () => {
                         </div>
                       </div>
 
+                      {canModify &&(
                       <div className="flex gap-3">
                         <button
                           aria-label="Edit employee"
@@ -375,6 +380,7 @@ const BakeryEmployee = () => {
                           />
                         </button>
                       </div>
+                      )}
                     </div>
 
                     {emp.access_rights && (

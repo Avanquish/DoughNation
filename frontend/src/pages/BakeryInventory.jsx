@@ -604,7 +604,7 @@ export default function BakeryInventory() {
 
       {/* Verification Modal*/}
       {employees.length > 0 && !verified && (
-        <div className="fixed inset-35 z-50 flex items-center justify-center bg-transparent bg-opacity-40">
+        <div className="fixed inset-0 z-50 flex items-start mt-[20vh] justify-center bg-transparent bg-opacity-40">
           <div className="bg-white rounded-2xl shadow-2xl ring-1 overflow-hidden max-w-md w-full">
             <div className={sectionHeader}>
               <h2 className="text-xl font-semibold text-[#6b4b2b] text-center">

@@ -31,19 +31,35 @@ const AchievementBadges = () => {
   const decoded = token ? jwtDecode(token) : null;
   const userId = decoded?.id || decoded?.user_id || decoded?.sub;
 
-  // Fetch all badges for the current user
-  useEffect(() => {
+  // Function to fetch all badge data
+  const fetchBadgeData = React.useCallback(async () => {
     if (!userId) return;
-    axios
-      .get("http://localhost:8000/badges/")
-      .then((res) => setAllBadges(res.data));
-    axios
-      .get(`http://localhost:8000/badges/user/${userId}`)
-      .then((res) => setUserBadges(res.data));
-    axios
-      .get(`http://localhost:8000/badges/progress/${userId}`)
-      .then((res) => setBadgeProgress(res.data));
+    try {
+      const [badgesRes, userBadgesRes, progressRes] = await Promise.all([
+        axios.get("http://localhost:8000/badges/"),
+        axios.get(`http://localhost:8000/badges/user/${userId}`),
+        axios.get(`http://localhost:8000/badges/progress/${userId}`)
+      ]);
+
+      setAllBadges(badgesRes.data);
+      setUserBadges(userBadgesRes.data);
+      setBadgeProgress(progressRes.data);
+    } catch (error) {
+      console.error("Error fetching badge data:", error);
+    }
   }, [userId]);
+
+  // Initial fetch and refresh setup
+  useEffect(() => {
+    // Initial fetch
+    fetchBadgeData();
+
+    // Set up auto-refresh interval
+    const interval = setInterval(fetchBadgeData, 30000);
+    
+    // Cleanup interval on unmount
+    return () => clearInterval(interval);
+  }, [fetchBadgeData]);
 
   // Helpers to check if badge is unlocked and get progress
   const isUnlocked = (badgeId) =>

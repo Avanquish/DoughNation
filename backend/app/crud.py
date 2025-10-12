@@ -647,9 +647,20 @@ def update_user_badges(db: Session, user_id: int):
         return
 
     # ---------------- Fetch all donations ----------------
-    donation_requests = db.query(models.DonationRequest).filter_by(charity_id=user_id).all()
-    direct_donations = db.query(models.DirectDonation).filter_by(charity_id=user_id).all()
-    all_quantity_donations = db.query(models.Donation).filter_by(bakery_id=user_id).all()
+    if user.role.lower() == "bakery":
+        # For bakeries, get donations they've made
+        donation_requests = db.query(models.DonationRequest).filter_by(bakery_id=user_id).all()
+        direct_donations = db.query(models.DirectDonation).filter(
+            models.DirectDonation.bakery_inventory_id.in_(
+                db.query(models.BakeryInventory.id).filter_by(bakery_id=user_id)
+            )
+        ).all()
+        all_quantity_donations = db.query(models.Donation).filter_by(bakery_id=user_id).all()
+    else:
+        # For charities, get donations they've received
+        donation_requests = db.query(models.DonationRequest).filter_by(charity_id=user_id).all()
+        direct_donations = db.query(models.DirectDonation).filter_by(charity_id=user_id).all()
+        all_quantity_donations = []
 
     donations = donation_requests + direct_donations
 

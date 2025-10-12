@@ -2094,7 +2094,7 @@ const pillSolid = "bg-[#E49A52] text-white px-4 py-2 rounded-full hover:bg-[#d08
                               ) : (
                                 <tr>
                                   <td colSpan={2} className="px-4 py-2 border text-center">
-                                    No top items for this week.
+                                    No top items for this month.
                                   </td>
                                 </tr>
                               )}

@@ -27,7 +27,7 @@ export default function BakeryReports() {
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeReport, setActiveReport] = useState("donation");
-  const [bakeryInfo, setBakeryInfo] = useState(null);
+  const [charityInfo, setCharityInfo] = useState(null);
   const [weekStart, setWeekStart] = useState("");
   const [weekEnd, setWeekEnd] = useState("");
   const [savedWeekStart, setSavedWeekStart] = useState(null);
@@ -163,7 +163,7 @@ export default function BakeryReports() {
       const bakeryRes = await axios.get(`${API_URL}/report/charity-info`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setBakeryInfo(bakeryRes.data);
+      setCharityInfo(bakeryRes.data);
     } catch (err) {
       Swal.fire({
         icon: "error",
@@ -218,6 +218,56 @@ export default function BakeryReports() {
       const dataToExport = Array.isArray(reportData)
         ? reportData
         : [reportData];
+
+          // Handle Bakery List (new)
+          if (activeReport === "bakery_list" && reportData?.bakeries) {
+            const bakeries = reportData.bakeries;
+            if (bakeries.length === 0) {
+              Swal.close();
+              Swal.fire("No data", "No bakery data available to export.", "info");
+              return;
+            }
+      
+            const headers = [
+              "ID",
+              "Profile Image",
+              "Bakery Name",
+              "Direct Donations",
+              "Request Donations",
+              "Direct Donation Quantity",
+              "Request Donation Quantity",
+              "Total Donated Quantity",
+              "Total Transactions",
+            ];
+      
+            const csvRows = [headers.join(",")];
+      
+            for (const c of bakeries) {
+              csvRows.push([
+                `"${c.id || ""}"`,
+                `"${c.bakery_profile || ""}"`,
+                `"${c.bakery_name || ""}"`,
+                `"${c.direct_count || 0}"`,
+                `"${c.request_count || 0}"`,
+                `"${c.direct_qty || 0}"`,
+                `"${c.request_qty || 0}"`,
+                `"${c.total_received_qty || 0}"`,
+                `"${c.total_transactions || 0}"`,
+              ].join(","));
+            }
+      
+            const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+            const url = URL.createObjectURL(blob);
+      
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `${activeReport}_report.csv`;
+            link.click();
+            URL.revokeObjectURL(url);
+      
+            Swal.close();
+            return; // stop here so generic logic won't run
+          }
 
       // Flatten top_items if exists
       let flatData = dataToExport.map((row) => {
@@ -274,14 +324,14 @@ export default function BakeryReports() {
 
       //  HEADER
       const logoSize = 40;
-      if (bakeryInfo?.profile) {
+      if (charityInfo?.profile) {
         const logo = await new Promise((resolve) => {
           const img = new Image();
           img.crossOrigin = "anonymous";
           img.onload = () => resolve(img);
           img.onerror = () => resolve(null);
           img.src = `${API_URL}/${normalizePath(
-            bakeryInfo.profile
+            charityInfo.profile
           )}?t=${Date.now()}`;
         });
 
@@ -318,7 +368,7 @@ export default function BakeryReports() {
       // Bakery Name
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
-      doc.text(bakeryInfo?.name || "Bakery Name", pageWidth / 2, currentY, {
+      doc.text(charityInfo?.name || "Charity Name", pageWidth / 2, currentY, {
         align: "center",
       });
       currentY += 14;
@@ -326,13 +376,13 @@ export default function BakeryReports() {
       // Address & Contact
       doc.setFontSize(8);
       doc.setFont("helvetica", "normal");
-      doc.text(bakeryInfo?.address || "", pageWidth / 2, currentY, {
+      doc.text(charityInfo?.address || "", pageWidth / 2, currentY, {
         align: "center",
       });
       currentY += 10;
       doc.text(
-        `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${
-          bakeryInfo?.email || "N/A"
+        `Contact: ${charityInfo?.contact_number || "N/A"} | Email: ${
+          charityInfo?.email || "N/A"
         }`,
         pageWidth / 2,
         currentY,
@@ -470,11 +520,8 @@ export default function BakeryReports() {
       // Pie images
       const pieStatusImg = drawSimplePie(
         [
-          { name: "Available", value: reportData.available_products || 0 },
-          { name: "Donated", value: reportData.total_donations || 0 },
-          { name: "Expired", value: reportData.expired_products || 0 },
         ],
-        ["#28a745", "#007bff", "#dc3545"],
+        [],
         120
       );
 
@@ -499,7 +546,7 @@ export default function BakeryReports() {
       // Titles above pies
       doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
-      doc.text("Inventory Status", boxX + 180, boxY + 15, { align: "center" });
+      doc.text("Donation Count", boxX + 180, boxY + 15, { align: "center" });
       doc.text("Donation Type", boxX + 540, boxY + 15, { align: "center" });
 
       // Add pies
@@ -549,9 +596,6 @@ export default function BakeryReports() {
       const pie2CenterX = boxX + 550; // Donation pie
 
       drawLegend(pie1CenterX, boxY + 160, [
-        { text: "Available", color: "#28a745" },
-        { text: "Donated", color: "#007bff" },
-        { text: "Expired", color: "#dc3545" },
       ]);
 
       drawLegend(pie2CenterX, boxY + 160, [
@@ -577,14 +621,14 @@ export default function BakeryReports() {
 
       //  HEADER
       const logoSize = 40;
-      if (bakeryInfo?.profile) {
+      if (charityInfo?.profile) {
         const logo = await new Promise((resolve) => {
           const img = new Image();
           img.crossOrigin = "anonymous";
           img.onload = () => resolve(img);
           img.onerror = () => resolve(null);
           img.src = `${API_URL}/${normalizePath(
-            bakeryInfo.profile
+            charityInfo.profile
           )}?t=${Date.now()}`;
         });
 
@@ -621,7 +665,7 @@ export default function BakeryReports() {
       // Bakery Name
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
-      doc.text(bakeryInfo?.name || "Bakery Name", pageWidth / 2, currentY, {
+      doc.text(charityInfo?.name || "Charity Name", pageWidth / 2, currentY, {
         align: "center",
       });
       currentY += 14;
@@ -629,13 +673,13 @@ export default function BakeryReports() {
       // Address & Contact
       doc.setFontSize(8);
       doc.setFont("helvetica", "normal");
-      doc.text(bakeryInfo?.address || "", pageWidth / 2, currentY, {
+      doc.text(charityInfo?.address || "", pageWidth / 2, currentY, {
         align: "center",
       });
       currentY += 10;
       doc.text(
-        `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${
-          bakeryInfo?.email || "N/A"
+        `Contact: ${charityInfo?.contact_number || "N/A"} | Email: ${
+          charityInfo?.email || "N/A"
         }`,
         pageWidth / 2,
         currentY,
@@ -771,11 +815,8 @@ export default function BakeryReports() {
       // Pie images
       const pieStatusImg = drawSimplePie(
         [
-          { name: "Available", value: reportData.available_products || 0 },
-          { name: "Donated", value: reportData.total_donations || 0 },
-          { name: "Expired", value: reportData.expired_products || 0 },
         ],
-        ["#28a745", "#007bff", "#dc3545"],
+        [],
         120
       );
 
@@ -800,7 +841,7 @@ export default function BakeryReports() {
       // Titles above pies
       doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
-      doc.text("Inventory Status", boxX + 180, boxY + 15, { align: "center" });
+      doc.text("Donation Count", boxX + 180, boxY + 15, { align: "center" });
       doc.text("Donation Type", boxX + 540, boxY + 15, { align: "center" });
 
       // Add pies
@@ -850,9 +891,6 @@ export default function BakeryReports() {
       const pie2CenterX = boxX + 550; // Donation pie
 
       drawLegend(pie1CenterX, boxY + 160, [
-        { text: "Available", color: "#28a745" },
-        { text: "Donated", color: "#007bff" },
-        { text: "Expired", color: "#dc3545" },
       ]);
 
       drawLegend(pie2CenterX, boxY + 160, [
@@ -876,14 +914,14 @@ export default function BakeryReports() {
 
     // HEADER
     const logoSize = 40;
-    if (bakeryInfo?.profile) {
+    if (charityInfo?.profile) {
       const logo = await new Promise((resolve) => {
         const img = new Image();
         img.crossOrigin = "anonymous";
         img.onload = () => resolve(img);
         img.onerror = () => resolve(null);
         img.src = `${API_URL}/${normalizePath(
-          bakeryInfo.profile
+          charityInfo.profile
         )}?t=${Date.now()}`;
       });
 
@@ -920,7 +958,7 @@ export default function BakeryReports() {
     // Bakery Name
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.text(bakeryInfo?.name || "Bakery Name", pageWidth / 2, currentY, {
+    doc.text(charityInfo?.name || "Charity Name", pageWidth / 2, currentY, {
       align: "center",
     });
     currentY += 14;
@@ -928,13 +966,13 @@ export default function BakeryReports() {
     // Address & Contact
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
-    doc.text(bakeryInfo?.address || "", pageWidth / 2, currentY, {
+    doc.text(charityInfo?.address || "", pageWidth / 2, currentY, {
       align: "center",
     });
     currentY += 10;
     doc.text(
-      `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${
-        bakeryInfo?.email || "N/A"
+      `Contact: ${charityInfo?.contact_number || "N/A"} | Email: ${
+        charityInfo?.email || "N/A"
       }`,
       pageWidth / 2,
       currentY,
@@ -1205,11 +1243,9 @@ export default function BakeryReports() {
       // Draw pie charts
       const pieStatusImg = await drawPieChartWithPercent(
         [
-          { name: "Available", value: reportData.available_products || 0 },
-          { name: "Donated", value: reportData.total_donations || 0 },
-          { name: "Expired", value: reportData.expired_products || 0 },
+
         ],
-        ["#28a745", "#007bff", "#dc3545"]
+        []
       );
 
       const pieTypeImg = await drawPieChartWithPercent(
@@ -1231,12 +1267,9 @@ export default function BakeryReports() {
       ">
         <div style="display: flex; justify-content: center; gap: 40px; margin-top: 20px;">
           <div style="flex: 0 0 auto; text-align: center; width: 450px; font-size: 15px; font-weight: bold">
-            <p>Inventory Status</p>
+            <p>Donation Count</p>
              <img src="${pieStatusImg}" style="width: 100%; height: auto; max-width: 250px; max-height: 250px;"/>
             <div style="margin-top:10px;">
-              <span style="color:#28a745; font-weight:bold; font-size:14px;">Available</span>
-              <span style="color:#007bff; font-weight:bold; font-size:14px; margin-left:10px;">Donated</span>
-              <span style="color:#dc3545; font-weight:bold; font-size:14px; margin-left:10px;">Expired</span>
             </div>
           </div>
           <div style="flex: 0 0 auto; text-align: center; width: 450px; font-size: 15px; font-weight: bold">
@@ -1360,11 +1393,9 @@ export default function BakeryReports() {
       // Draw pie charts
       const pieStatusImg = await drawPieChartWithPercent(
         [
-          { name: "Available", value: reportData.available_products || 0 },
-          { name: "Donated", value: reportData.total_donations || 0 },
-          { name: "Expired", value: reportData.expired_products || 0 },
+          
         ],
-        ["#28a745", "#007bff", "#dc3545"]
+        []
       );
 
       const pieTypeImg = await drawPieChartWithPercent(
@@ -1386,12 +1417,9 @@ export default function BakeryReports() {
       ">
         <div style="display: flex; justify-content: center; gap: 40px; margin-top: 20px;">
           <div style="flex: 0 0 auto; text-align: center; width: 450px; font-size: 15px; font-weight: bold">
-            <p>Inventory Status</p>
+            <p>Donation Count</p>
              <img src="${pieStatusImg}" style="width: 100%; height: auto; max-width: 250px; max-height: 250px;"/>
             <div style="margin-top:10px;">
-              <span style="color:#28a745; font-weight:bold; font-size:14px;">Available</span>
-              <span style="color:#007bff; font-weight:bold; font-size:14px; margin-left:10px;">Donated</span>
-              <span style="color:#dc3545; font-weight:bold; font-size:14px; margin-left:10px;">Expired</span>
             </div>
           </div>
           <div style="flex: 0 0 auto; text-align: center; width: 450px; font-size: 15px; font-weight: bold">
@@ -1553,7 +1581,7 @@ export default function BakeryReports() {
   return (
     <div className="p-6 relative">
       <h1 className="text-3xl font-bold text-[#6b4b2b] mb-4">
-        Bakery Report Generation
+        Charity Report Generation
       </h1>
 
       {/* Controlled Tabs */}
@@ -1764,7 +1792,7 @@ export default function BakeryReports() {
                             <Card className="rounded-xl ring-1 ring-black/10 bg-white/80 shadow-md">
                               <CardHeader className="p-4 bg-[#FFF3E6]">
                                 <CardTitle className="text-[#6b4b2b]">
-                                  Inventory Status
+                                  Donation Count
                                 </CardTitle>
                               </CardHeader>
                               <CardContent className="p-4">
@@ -1772,21 +1800,6 @@ export default function BakeryReports() {
                                   <PieChart>
                                     <Pie
                                       data={[
-                                        {
-                                          name: "Available",
-                                          value:
-                                            reportData.available_products || 0,
-                                        },
-                                        {
-                                          name: "Donated",
-                                          value:
-                                            reportData.total_donations || 0,
-                                        },
-                                        {
-                                          name: "Expired",
-                                          value:
-                                            reportData.expired_products || 0,
-                                        },
                                       ]}
                                       dataKey="value"
                                       nameKey="name"
@@ -1948,7 +1961,7 @@ export default function BakeryReports() {
                                       colSpan={2}
                                       className="px-4 py-4 text-[#6b4b2b]/70 border-t border-[#f2d4b5]"
                                     >
-                                      No top items for this week.
+                                      No top items for this month.
                                     </td>
                                   </tr>
                                 )}
@@ -1963,7 +1976,7 @@ export default function BakeryReports() {
                             <Card className="rounded-xl ring-1 ring-black/10 bg-white/80 shadow-md">
                               <CardHeader className="p-4 bg-[#FFF3E6]">
                                 <CardTitle className="text-[#6b4b2b]">
-                                  Inventory Status
+                                  Donation Count
                                 </CardTitle>
                               </CardHeader>
                               <CardContent className="p-4">
@@ -1971,21 +1984,6 @@ export default function BakeryReports() {
                                   <PieChart>
                                     <Pie
                                       data={[
-                                        {
-                                          name: "Available",
-                                          value:
-                                            reportData.available_products || 0,
-                                        },
-                                        {
-                                          name: "Donated",
-                                          value:
-                                            reportData.total_donations || 0,
-                                        },
-                                        {
-                                          name: "Expired",
-                                          value:
-                                            reportData.expired_products || 0,
-                                        },
                                       ]}
                                       dataKey="value"
                                       nameKey="name"
@@ -2079,13 +2077,13 @@ export default function BakeryReports() {
                         <Download size={16} /> Download CSV
                       </Button>
                       <Button
-                        onClick={() => downloadReportPDF(bakeryInfo)}
+                        onClick={() => downloadReportPDF(charityInfo)}
                         className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
                       >
                         <Download size={16} /> Download PDF
                       </Button>
                       <Button
-                        onClick={() => printReport(bakeryInfo)}
+                        onClick={() => printReport(charityInfo)}
                         className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
                       >
                         <Printer size={16} /> Print

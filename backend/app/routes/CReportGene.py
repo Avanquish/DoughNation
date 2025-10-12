@@ -103,15 +103,15 @@ def donation_history(
     return results
 
 @router.get("/bakery_list")
-def charity_list_report(
+def bakery_list_report(
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(check_charity)
 ):
     from collections import defaultdict
 
-    charities = defaultdict(lambda: {
-        "charity_name": None,
-        "charity_profile": None,
+    bakeries = defaultdict(lambda: {
+        "bakery_name": None,
+        "bakery_profile": None,
         "direct_count": 0,
         "request_count": 0,
         "direct_qty": 0,
@@ -123,65 +123,65 @@ def charity_list_report(
     # Accepted donation requests
     donation_requests = (
         db.query(models.DonationRequest)
-        .join(models.User, models.DonationRequest.charity_id == models.User.id)
+        .join(models.User, models.DonationRequest.bakery_id == models.User.id)
         .filter(
-            models.DonationRequest.bakery_id == current_user.id,
+            models.DonationRequest.charity_id == current_user.id,
             models.DonationRequest.tracking_status == "complete"
         )
-        .options(joinedload(models.DonationRequest.charity))
+        .options(joinedload(models.DonationRequest.bakery))
         .all()
     )
 
     for req in donation_requests:
-        if not req.charity:
+        if not req.bakery:
             continue
-        cid = req.charity.id
-        charities[cid]["charity_name"] = req.charity.name
-        charities[cid]["charity_profile"] = req.charity.profile_picture
-        charities[cid]["request_count"] += 1
-        #Use correct field name
-        charities[cid]["request_qty"] += req.donation_quantity or 0
+        bid = req.bakery.id
+        bakeries[bid]["bakery_name"] = req.bakery.name
+        bakeries[bid]["bakery_profile"] = req.bakery.profile_picture
+        bakeries[bid]["request_count"] += 1
+        bakeries[bid]["request_qty"] += req.donation_quantity or 0
 
     # Direct donations
     direct_donations = (
         db.query(models.DirectDonation)
-        .join(models.User, models.DirectDonation.charity_id == models.User.id)
         .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
-        .filter(models.BakeryInventory.bakery_id == current_user.id,
-                models.DirectDonation.btracking_status == "complete"
+        .join(models.User, models.BakeryInventory.bakery_id == models.User.id)
+        .filter(
+            models.DirectDonation.charity_id == current_user.id,
+            models.DirectDonation.btracking_status == "complete"
         )
-         
-        .options(joinedload(models.DirectDonation.charity))
+        .options(joinedload(models.DirectDonation.bakery_inventory))
         .all()
     )
 
     for d in direct_donations:
-        if not d.charity:
+        if not d.bakery_inventory or not d.bakery_inventory.bakery:
             continue
-        cid = d.charity.id
-        charities[cid]["charity_name"] = d.charity.name
-        charities[cid]["charity_profile"] = d.charity.profile_picture
-        charities[cid]["direct_count"] += 1
-        charities[cid]["direct_qty"] += d.quantity or 0
+        bakery = d.bakery_inventory.bakery
+        bid = bakery.id
+        bakeries[bid]["bakery_name"] = bakery.name
+        bakeries[bid]["bakery_profile"] = bakery.profile_picture
+        bakeries[bid]["direct_count"] += 1
+        bakeries[bid]["direct_qty"] += d.quantity or 0
 
-    #Totals per charity
-    for c in charities.values():
-        c["total_received_qty"] = c["direct_qty"] + c["request_qty"]
-        c["total_transactions"] = c["direct_count"] + c["request_count"]
+    # Totals per bakery
+    for b in bakeries.values():
+        b["total_received_qty"] = b["direct_qty"] + b["request_qty"]
+        b["total_transactions"] = b["direct_count"] + b["request_count"]
 
-    #Grand totals
+    # Grand totals
     grand_totals = {
-        "total_direct_count": sum(c["direct_count"] for c in charities.values()),
-        "total_request_count": sum(c["request_count"] for c in charities.values()),
-        "total_direct_qty": sum(c["direct_qty"] for c in charities.values()),
-        "total_request_qty": sum(c["request_qty"] for c in charities.values()),
-        "total_received_qty": sum(c["total_received_qty"] for c in charities.values()),
-        "total_transactions": sum(c["total_transactions"] for c in charities.values()),
+        "total_direct_count": sum(b["direct_count"] for b in bakeries.values()),
+        "total_request_count": sum(b["request_count"] for b in bakeries.values()),
+        "total_direct_qty": sum(b["direct_qty"] for b in bakeries.values()),
+        "total_request_qty": sum(b["request_qty"] for b in bakeries.values()),
+        "total_received_qty": sum(b["total_received_qty"] for b in bakeries.values()),
+        "total_transactions": sum(b["total_transactions"] for b in bakeries.values()),
     }
 
     result = {
-        "charities": sorted(
-            charities.values(),
+        "bakeries": sorted(
+            bakeries.values(),
             key=lambda x: x["total_transactions"],
             reverse=True
         ),

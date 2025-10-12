@@ -302,28 +302,81 @@ const BDonationStatus = () => {
   const fetchEmployees = async () => {
     try {
       const token = localStorage.getItem("token");
-      const opts = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
-      console.log("Fetching employees from:", `${API}/employees`);
-      const res = await axios.get(`${API}/employees`, opts);
-      console.log("Employees response:", res.data);
-      if (!res.data || res.data.length === 0) {
-        console.warn("No employees data received");
+      if (!token) {
+        console.error("No token found in localStorage");
+        return;
       }
-      setEmployees(res.data || []);
+
+      // Ensure we're using the correct API URL
+      console.log("Current API URL:", API);
+      
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+
+      // First, verify that our token is valid
+      try {
+        const verifyResponse = await axios.get(`${API}/verify-token`, { headers });
+        console.log("Token verification:", verifyResponse.data);
+      } catch (verifyError) {
+        console.error("Token verification failed:", verifyError);
+        localStorage.removeItem("token"); // Clear invalid token
+        return;
+      }
+
+      // Now fetch employees
+      const res = await axios.get(`${API}/employees`, { headers });
+      
+      if (!res.data || !Array.isArray(res.data)) {
+        console.error("Invalid employees data format:", res.data);
+        return;
+      }
+
+      if (res.data.length === 0) {
+        console.warn("Employees list is empty");
+        return;
+      }
+
+      console.log("Successfully fetched employees:", res.data);
+      setEmployees(res.data);
+
     } catch (e) {
-      console.error("Failed to fetch employees:", e);
-      console.error("Error details:", {
+      console.error("Failed to fetch employees:", {
         message: e.message,
         response: e.response?.data,
         status: e.response?.status,
         API_URL: API
       });
+      
+      // If we get a 401 or 403, the token might be invalid
+      if (e.response?.status === 401 || e.response?.status === 403) {
+        localStorage.removeItem("token");
+        Swal.fire({
+          title: "Session Expired",
+          text: "Please log in again",
+          icon: "error"
+        });
+      }
     }
   };
     
       useEffect(() => {
-        fetchEmployees();
-      }, []);
+        const loadEmployees = async () => {
+          // Try to fetch employees
+          await fetchEmployees();
+          
+          // If we still don't have employees after 1 second, try again
+          setTimeout(async () => {
+            if (employees.length === 0) {
+              console.log("Retrying employee fetch...");
+              await fetchEmployees();
+            }
+          }, 1000);
+        };
+        
+        loadEmployees();
+    }, []);
   
    // Fetch status if verified.
       useEffect(() => {

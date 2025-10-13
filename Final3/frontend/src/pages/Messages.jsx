@@ -14,7 +14,7 @@ import {
 import axios from "axios";
 
 /* ==== Config & helpers ==== */
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import { API_URL, WS_URL } from "../config"; 
 
 const fileUrl = (path) => {
   if (!path) return "";
@@ -491,12 +491,11 @@ useEffect(() => {
     let reconnectTimerId;
 
     const connectWS = () => {
-      const ws = new WebSocket(
-        `${API_URL.replace(/^http/, "ws")}/ws/messages/${currentUser.id}`
-      );
+        const ws = new WebSocket(`${WS_URL}/messages/${currentUser.id}`);
       wsRef.current = ws;
 
       ws.onopen = () => {
+        console.log("✅ WebSocket connected");
         ws.send(JSON.stringify({ type: "get_active_chats" }));
       };
 

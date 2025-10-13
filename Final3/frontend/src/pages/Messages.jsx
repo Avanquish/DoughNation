@@ -767,7 +767,11 @@ useEffect(() => {
       const donation = p?.donation;
       const inventoryId = donation?.bakery_inventory_id;
 
-      return p?.type === "donation_card" && !m.accepted && !removedDonations.has(donationId) && !acceptedDonations.has(donationId) &&  !removedProducts.has(inventoryId);
+      return p?.type === "donation_card" && 
+      !m.accepted && 
+      !removedDonations.has(donationId) && 
+      !acceptedDonations.has(donationId) &&  
+      !removedProducts.has(inventoryId);
     } catch {
       return false;
     }
@@ -1056,22 +1060,15 @@ const renderMessageBody = (m) => {
     allDonationRequests,
   });
 
- const isProductAcceptedOrCancelled = allDonationRequests.some(
-  req =>
-    req.bakery_inventory_id === d.id &&
-    (req.status === "accepted" || req.status === "canceled")
+const requestsForDonation = allDonationRequests.filter(
+  req => req.bakery_inventory_id === d.id
 );
 
-  console.log("🎯 Hide check", {
-  d_id: d.id,
-  matched: allDonationRequests.filter(
-     req =>
-    req.bakery_inventory_id === d.id &&
-    (req.status === "accepted" || req.status === "canceled")
-  ),
-});
+const hideButtons = requestsForDonation.length > 0 
+  && requestsForDonation.every(
+      req => req.status === "accepted" || req.status === "canceled"
+    );
 
-  const hideButtons = isProductAcceptedOrCancelled;
   const isTaken = acceptedDonations.has(d.bakery_inventory_id);
 
   return {

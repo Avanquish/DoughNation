@@ -102,7 +102,7 @@ def request_donation(
     if total_not_complete >= 3:
         raise HTTPException(
             status_code=400,
-            detail=f"You have {total_not_complete} donations not complete. Please complete."
+            detail=f"You have {total_not_complete} donations not complete. Please complete them before requesting more."
         )
     
     donation = db.query(models.Donation).filter(models.Donation.id == payload.donation_id).first()
@@ -512,7 +512,7 @@ def get_accepted_donations(
     current_user: models.User = Depends(ensure_verified_user)
 ):
     query = db.query(models.DonationRequest).filter(
-        models.DonationRequest.status.in_(["canceled", "accepted"])
+        models.DonationRequest.status.in_(["accepted"])
     )
 
     if current_user.role.lower() == "charity":
@@ -525,7 +525,7 @@ def get_accepted_donations(
     requests = query.all()
 
     return [
-        {
+        { 
             "id": r.id,
             "donation_id": r.donation_id,
             "status": r.status,

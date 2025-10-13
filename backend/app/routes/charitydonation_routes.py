@@ -83,7 +83,7 @@ def request_donation(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(ensure_verified_user)
 ):
-    # Check if charity has 3+ donations without feedback
+    # Count donations in process (accepted but not completed)
     pending_feedback_normal = db.query(models.DonationRequest).filter(
         models.DonationRequest.charity_id == current_user.id,
         models.DonationRequest.status == "accepted",
@@ -93,7 +93,7 @@ def request_donation(
 
     pending_feedback_direct = db.query(models.DirectDonation).filter(
         models.DirectDonation.charity_id == current_user.id,
-        models.DirectDonation.btracking_status != "complete",   # make sure column name matches!
+        models.DirectDonation.btracking_status != "complete",
         models.DirectDonation.feedback_submitted.is_(False)
     ).count()
 
@@ -102,7 +102,7 @@ def request_donation(
     if total_not_complete >= 3:
         raise HTTPException(
             status_code=400,
-            detail=f"You have {total_not_complete} donations not complete. Please complete :)"
+            detail=f"You have {total_not_complete} donations not complete. Please complete."
         )
     
     donation = db.query(models.Donation).filter(models.Donation.id == payload.donation_id).first()
@@ -111,19 +111,28 @@ def request_donation(
     if donation.quantity <= 0:
         raise HTTPException(status_code=400, detail="Donation not available")
 
+    # Check if a request already exists (including canceled)
     existing_request = db.query(models.DonationRequest).filter(
         models.DonationRequest.charity_id == current_user.id,
-        models.DonationRequest.donation_id == payload.donation_id,
-        models.DonationRequest.status == "pending"
+        models.DonationRequest.donation_id == payload.donation_id
     ).first()
+
     if existing_request:
-        raise HTTPException(status_code=400, detail="You have already requested this donation")
+        if existing_request.status == "pending":
+            raise HTTPException(status_code=400, detail="You already requested this donation")
+        elif existing_request.status == "accepted":
+            raise HTTPException(status_code=400, detail="Donation already accepted")
+        elif existing_request.status == "canceled":
+            # Re-request by updating status
+            existing_request.status = "pending"
+            existing_request.timestamp = datetime.utcnow()
+            db.commit()
+            db.refresh(existing_request)
+            update_inventory_status(db, donation.bakery_inventory_id)
+            return {"message": "Donation re-requested", "request_id": existing_request.id}
 
-    # Fetch bakery info
+    # Create a new request if none exists
     bakery = db.query(models.User).filter(models.User.id == payload.bakery_id).first()
-    if not bakery:
-        raise HTTPException(status_code=404, detail="Bakery not found")
-
     new_request = models.DonationRequest(
         donation_id=payload.donation_id,
         charity_id=current_user.id,
@@ -131,7 +140,6 @@ def request_donation(
         bakery_inventory_id=donation.bakery_inventory_id,
         timestamp=datetime.utcnow(),
         status="pending",
-        # New fields to store extra info
         bakery_name=bakery.name,
         bakery_profile_picture=bakery.profile_picture,
         donation_name=donation.name,
@@ -142,8 +150,6 @@ def request_donation(
     db.add(new_request)
     db.commit()
     db.refresh(new_request)
-
-    # Update inventory status
     update_inventory_status(db, donation.bakery_inventory_id)
 
     return {"message": "Donation request sent", "request_id": new_request.id}
@@ -204,10 +210,10 @@ def accept_donation(
     if not donation_request:
         raise HTTPException(status_code=404, detail="Pending donation request not found")
 
-    # ✅ Accept the request
+    # Accept the request
     donation_request.status = "accepted"
 
-    # ✅ Save record to DonationsCardChecking
+    # Save record to DonationsCardChecking
     new_check = models.DonationCardChecking(
         donor_id=donation_request.bakery_id,
         recipient_id=donation_request.charity_id,
@@ -216,7 +222,7 @@ def accept_donation(
     )
     db.add(new_check)
 
-    # ❌ Cancel all other requests for same product
+    #  Cancel all other requests for same product
     other_requests = db.query(models.DonationRequest).filter(
         models.DonationRequest.bakery_inventory_id == donation_request.bakery_inventory_id,
         models.DonationRequest.id != donation_request.id,
@@ -227,10 +233,10 @@ def accept_donation(
         r.status = "canceled"
         canceled_charity_ids.append(r.charity_id)
 
-    # ✅ Commit everything once
+    #  Commit everything once
     db.commit()
 
-    # 🔄 Update inventory
+    #  Update inventory
     update_inventory_status(db, donation_request.bakery_inventory_id)
     check_threshold_and_create_donation(db)
 
@@ -506,7 +512,7 @@ def get_accepted_donations(
     current_user: models.User = Depends(ensure_verified_user)
 ):
     query = db.query(models.DonationRequest).filter(
-        models.DonationRequest.status.in_(["canceled", "accepted"])
+        models.DonationRequest.status.in_(["accepted"])
     )
 
     if current_user.role.lower() == "charity":
@@ -528,5 +534,5 @@ def get_accepted_donations(
             "donation_name": r.donation_name,
             "donation_image": r.donation_image,
         }
-        for r in requests
+        for r in requests 
     ]

@@ -416,6 +416,27 @@ export default function BakeryProfile() {
       .icon-btn:hover{transform:translateY(-1px); box-shadow:0 10px 22px rgba(201,124,44,.20)}
 
       /* Buttons */
+.btn-logout{
+  position:relative; overflow:hidden;
+  border-radius:9999px; padding:.58rem .95rem; gap:.5rem;
+  background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3));
+  color:#fff; border:1px solid rgba(255,255,255,.6);
+  box-shadow:0 8px 26px rgba(201,124,44,.25);
+  transition:transform .18s ease, box-shadow .18s ease, filter .18s ease;
+}
+.btn-logout:before{
+  content:""; position:absolute; top:-40%; bottom:-40%; left:-70%; width:60%;
+  transform:rotate(10deg);
+  background:linear-gradient(90deg, rgba(255,255,255,.26), rgba(255,255,255,0) 55%);
+  animation: shine 3.2s linear infinite;
+}
+@keyframes shine { from{ left:-70% } to{ left:120% } }
+.btn-logout:hover{
+  transform:translateY(-1px) scale(1.02);
+  box-shadow:0 12px 34px rgba(201,124,44,.32);
+  filter:saturate(1.05);
+}
+
       .btn-pill{
         position:relative; overflow:hidden; border-radius:9999px; padding:.65rem 1.05rem;
         background:linear-gradient(135deg,#F6C17C,#BF7327); color:#fff; font-weight:700;
@@ -558,7 +579,7 @@ export default function BakeryProfile() {
               <BakeryNotification />
               <Button
                 onClick={handleLogout}
-                className="btn-pill flex items-center"
+                className="btn-logout flex items-center"
               >
                 <LogOut className="h-4 w-4" />
                 <span>Log Out</span>

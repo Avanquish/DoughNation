@@ -1,12 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  Card, CardContent, CardDescription, CardHeader, CardTitle,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  UserCog, Building2, HelpingHand, ShieldCheck,
-  LogOut, Bell,
+  UserCog,
+  Building2,
+  HelpingHand,
+  ShieldCheck,
+  LogOut,
+  Bell,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import axios from "../api/axios";
@@ -52,7 +60,8 @@ const AdminDashboard = () => {
       if (fromUrl && ADMIN_ALLOWED_TABS.includes(fromUrl)) return fromUrl;
 
       const fromStorage = localStorage.getItem(ADMIN_TAB_KEY);
-      if (fromStorage && ADMIN_ALLOWED_TABS.includes(fromStorage)) return fromStorage;
+      if (fromStorage && ADMIN_ALLOWED_TABS.includes(fromStorage))
+        return fromStorage;
     } catch {}
     return "dashboard";
   });
@@ -66,7 +75,9 @@ const AdminDashboard = () => {
       const params = new URLSearchParams(window.location.search);
       if (params.get("tab") !== activeTab) {
         params.set("tab", activeTab);
-        const next = `${window.location.pathname}?${params.toString()}${window.location.hash}`;
+        const next = `${window.location.pathname}?${params.toString()}${
+          window.location.hash
+        }`;
         window.history.replaceState({}, "", next);
       }
     } catch {}
@@ -80,10 +91,10 @@ const AdminDashboard = () => {
     pendingUsersCount: 0,
   });
   const [pendingUsers, setPendingUsers] = useState([]);
-  const [feedbacks, setFeedbacks] = useState([]); 
+  const [feedbacks, setFeedbacks] = useState([]);
   const [complaints, setComplaints] = useState([]);
 
-  // Notifications 
+  // Notifications
   const [notifOpen, setNotifOpen] = useState(false);
   const [readNotifs, setReadNotifs] = useState(new Set());
   const [notifTab, setNotifTab] = useState("verifications"); // "verifications" | "complaints" | "reports"
@@ -138,7 +149,7 @@ const AdminDashboard = () => {
     })();
   }, []);
 
-  // Feedback / reports 
+  // Feedback / reports
   useEffect(() => {
     (async () => {
       const token = localStorage.getItem("token");
@@ -177,11 +188,18 @@ const AdminDashboard = () => {
   const handleVerify = async (id) => {
     try {
       const token = localStorage.getItem("token");
-      await axios.post(`/verify-user/${id}`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await axios.post(
+        `/verify-user/${id}`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       setPendingUsers((p) => p.filter((u) => u.id !== id));
-      setStats((p) => ({ ...p, pendingUsersCount: Math.max(0, p.pendingUsersCount - 1) }));
+      setStats((p) => ({
+        ...p,
+        pendingUsersCount: Math.max(0, p.pendingUsersCount - 1),
+      }));
     } catch (e) {
       console.error(e);
     }
@@ -190,11 +208,18 @@ const AdminDashboard = () => {
   const handleReject = async (id) => {
     try {
       const token = localStorage.getItem("token");
-      await axios.post(`/reject-user/${id}`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await axios.post(
+        `/reject-user/${id}`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       setPendingUsers((p) => p.filter((u) => u.id !== id));
-      setStats((p) => ({ ...p, pendingUsersCount: Math.max(0, p.pendingUsersCount - 1) }));
+      setStats((p) => ({
+        ...p,
+        pendingUsersCount: Math.max(0, p.pendingUsersCount - 1),
+      }));
     } catch (e) {
       console.error(e);
     }
@@ -205,11 +230,12 @@ const AdminDashboard = () => {
     navigate("/");
   };
 
-  // Close dropdown on outside click 
+  // Close dropdown on outside click
   useEffect(() => {
     if (!notifOpen) return;
     const onDown = (e) => {
-      const inDrop = dropdownRef.current && dropdownRef.current.contains(e.target);
+      const inDrop =
+        dropdownRef.current && dropdownRef.current.contains(e.target);
       const inBell = bellRef.current && bellRef.current.contains(e.target);
       if (!inDrop && !inBell) setNotifOpen(false);
     };
@@ -224,14 +250,18 @@ const AdminDashboard = () => {
       id: `reg-${u.id}`,
       at: u.created_at || null,
       title: `New ${u.role} registration`,
-      subtitle: `${u.name} · ${u.email}`,
+      subtitle: `${u.name} \u00B7 ${u.email}`,
     }));
     const fbs = feedbacks.map((f) => ({
-      kind: "feedback", 
+      kind: "feedback",
       id: `fb-${f.id}`,
       at: f.created_at || f.date || null,
-      title: f.type ? `${f.type} from ${f.charity_name}` : `New report from ${f.charity_name || "Charity"}`,
-      subtitle: (f.summary || f.message || f.subject || "").toString().slice(0, 120),
+      title: f.type
+        ? `${f.type} from ${f.charity_name}`
+        : `New report from ${f.charity_name || "Charity"}`,
+      subtitle: (f.summary || f.message || f.subject || "")
+        .toString()
+        .slice(0, 120),
     }));
     const complaintsNotifs = complaints.map((c) => ({
       kind: "complaint",
@@ -252,9 +282,13 @@ const AdminDashboard = () => {
   const markAsRead = async (notifId) => {
     try {
       const token = localStorage.getItem("token");
-      await axios.post(`/notifications/mark-read/${notifId}`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await axios.post(
+        `/notifications/mark-read/${notifId}`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       setReadNotifs((prev) => new Set(prev).add(notifId));
     } catch (e) {
       console.error("Failed to mark notification as read:", e);
@@ -268,7 +302,7 @@ const AdminDashboard = () => {
         const res = await axios.get("/notifications/read", {
           headers: { Authorization: `Bearer ${token}` },
         });
-        setReadNotifs(new Set(res.data || [])); 
+        setReadNotifs(new Set(res.data || []));
       } catch (e) {
         console.error("Failed to load read notifications:", e);
       }
@@ -294,13 +328,15 @@ const AdminDashboard = () => {
   }, [activeTab]);
 
   // Categorized lists & unread counts
-  const verificationList = notifications.filter((n) => n.kind === "registration");
-  const complaintsList  = notifications.filter((n) => n.kind === "complaint");
-  const reportsList     = notifications.filter((n) => n.kind === "feedback");
+  const verificationList = notifications.filter(
+    (n) => n.kind === "registration"
+  );
+  const complaintsList = notifications.filter((n) => n.kind === "complaint");
+  const reportsList = notifications.filter((n) => n.kind === "feedback");
 
   const unreadVerifications = verificationList.filter((n) => !n.isRead).length;
-  const unreadComplaints    = complaintsList.filter((n) => !n.isRead).length;
-  const unreadReports       = reportsList.filter((n) => !n.isRead).length;
+  const unreadComplaints = complaintsList.filter((n) => !n.isRead).length;
+  const unreadReports = reportsList.filter((n) => !n.isRead).length;
 
   return (
     <div className="min-h-screen relative">
@@ -382,18 +418,18 @@ const AdminDashboard = () => {
         .r1{animation-delay:.05s}.r2{animation-delay:.1s}.r3{animation-delay:.15s}.r4{animation-delay:.2s}
         @keyframes rise{to{opacity:1; transform:translateY(0) scale(1)}}
 
-        .bell-icon { color:#6B4B2B; transition: transform .18s ease; }
-        .icon-btn:hover .bell-icon { transform: translateY(-1px); }
-
+        /* (Original) had bounce on hover; keep it here but override below */
+        .bell-icon { transition: transform .18s ease; }
+        .icon-btn:hover svg { animation: bell-bounce .8s cubic-bezier(.22,1,.36,1) 1; }
         @keyframes bell-bounce {
-          0%, 100% { transform: translateY(0); }
-          30% { transform: translateY(-2px); }
-          60% { transform: translateY(0); }
+          0%   { transform: translateY(0); }
+          30%  { transform: translateY(-3px); }
+          60%  { transform: translateY(0); }
+          80%  { transform: translateY(-1.5px); }
+          100% { transform: translateY(0); }
         }
-        
         .bell-anim { animation: bell-bounce 1.2s cubic-bezier(.22,1,.36,1) infinite; }
 
-        
         .stat { position: relative; border-radius: 16px; padding: 1px; will-change: transform; }
         .stat::before { content: ""; position: absolute; inset: 0; border-radius: 16px;
           background: linear-gradient(135deg, rgba(247,199,137,.9), rgba(201,124,44,.45)); opacity: .9; filter: saturate(1.02); }
@@ -409,6 +445,26 @@ const AdminDashboard = () => {
           box-shadow: 0 10px 24px rgba(201,124,44,.20), inset 0 1px 0 rgba(255,255,255,.8);
           border: 1px solid rgba(255,255,255,.8); }
         .stat-ico svg{ width: 22px; height: 22px; color: #8a5a25; }
+
+        /* ---------- Bakery-style icon button + NO BOUNCE (OVERRIDES) ---------- */
+        .icon-btn{
+          position:relative; display:inline-flex; align-items:center; justify-content:center;
+          width:42px; height:42px; border-radius:9999px;
+          background:rgba(255,255,255,.9);
+          border:1px solid rgba(0,0,0,.06);
+          box-shadow:0 6px 16px rgba(201,124,44,.14);
+          transition:transform .18s ease, box-shadow .18s ease;
+        }
+        .icon-btn:hover{
+          transform: translateY(-1px);
+          box-shadow:0 10px 22px rgba(201,124,44,.20);
+        }
+        /* Force-disable any bell animation even if earlier rules exist */
+        .icon-btn:hover svg,
+        .icon-btn .bell-icon{
+          animation: none !important;
+          transform: none !important;
+        }
       `}</style>
 
       <div className="page-bg">
@@ -430,7 +486,9 @@ const AdminDashboard = () => {
                 </div>
 
                 <div className="min-w-0">
-                  <h1 className="title-ink text-2xl sm:text-[26px] truncate">{name}</h1>
+                  <h1 className="title-ink text-2xl sm:text-[26px] truncate">
+                    {name}
+                  </h1>
                   <span className="status-chip">{statusText}</span>
                 </div>
               </div>
@@ -439,15 +497,16 @@ const AdminDashboard = () => {
             {/* Notifications */}
             <div className="pt-1 flex items-center gap-3 relative">
               <button
-                ref={bellRef}
-                className="icon-btn relative inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/90 hover:bg-white border border-[#C97C2C] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C97C2C]/30"
+                className="icon-btn relative inline-flex h-[42px] w-[42px] items-center justify-center rounded-full
+ bg-white border border-black/10 shadow-md
+ hover:shadow-lg transition
+ focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
                 aria-label="Notifications"
                 onClick={() => setNotifOpen((v) => !v)}
                 title="Notifications"
               >
-                <Bell
-                  className={`bell-icon w-[18px] h-[18px] ${notifCount > 0 ? "bell-anim" : ""}`}
-                />
+                {/* Add bell-icon so overrides apply */}
+                <Bell className="w-[18px] h-[18px] text-black bell-icon" />
                 {notifCount > 0 && (
                   <span
                     className="absolute -top-1.5 -right-1.5 text-[10px] font-extrabold leading-none px-[6px] py-[3px] rounded-full text-white"
@@ -474,9 +533,21 @@ const AdminDashboard = () => {
                       {/* Tabs header */}
                       <div className="flex items-center">
                         {[
-                          { key: "verifications", label: "Verifications", count: unreadVerifications },
-                          { key: "complaints",    label: "Complaints",    count: unreadComplaints },
-                          { key: "reports",       label: "Reports",       count: unreadReports },
+                          {
+                            key: "verifications",
+                            label: "Verifications",
+                            count: unreadVerifications,
+                          },
+                          {
+                            key: "complaints",
+                            label: "Complaints",
+                            count: unreadComplaints,
+                          },
+                          {
+                            key: "reports",
+                            label: "Reports",
+                            count: unreadReports,
+                          },
                         ].map((t) => (
                           <button
                             key={t.key}
@@ -499,7 +570,10 @@ const AdminDashboard = () => {
                             {t.count > 0 && (
                               <span
                                 className="ml-1 text-[11px] font-extrabold"
-                                style={{ color: notifTab === t.key ? "#fff" : "#BF7327" }}
+                                style={{
+                                  color:
+                                    notifTab === t.key ? "#fff" : "#BF7327",
+                                }}
                               >
                                 ({t.count})
                               </span>
@@ -514,7 +588,9 @@ const AdminDashboard = () => {
                         {notifTab === "verifications" && (
                           <div>
                             {verificationList.length === 0 ? (
-                              <div className="p-4 text-sm text-gray-500">No verification alerts</div>
+                              <div className="p-4 text-sm text-gray-500">
+                                No verification alerts
+                              </div>
                             ) : (
                               verificationList.map((n) => (
                                 <button
@@ -525,22 +601,32 @@ const AdminDashboard = () => {
                                     setActiveTab("users");
                                   }}
                                   className={`w-full p-3 focus:outline-none transition-colors flex items-center ${
-                                    n.isRead ? "bg-white hover:bg-[#fff6ec]" : "bg-[rgba(255,246,236,1)]"
+                                    n.isRead
+                                      ? "bg-white hover:bg-[#fff6ec]"
+                                      : "bg-[rgba(255,246,236,1)]"
                                   }`}
                                 >
                                   <UnreadCircle read={n.isRead} />
                                   <div className="text-left flex-1">
-                                    <p className={`text-[13px] ${
-                                      n.isRead ? "text-[#6b4b2b]" : "text-[#4f371f] font-semibold"
-                                    }`}>
+                                    <p
+                                      className={`text-[13px] ${
+                                        n.isRead
+                                          ? "text-[#6b4b2b]"
+                                          : "text-[#4f371f] font-semibold"
+                                      }`}
+                                    >
                                       {n.title}
                                     </p>
                                     {n.subtitle && (
-                                      <p className="text-[12px] text-[#6b4b2b]">{n.subtitle}</p>
+                                      <p className="text-[12px] text-[#6b4b2b]">
+                                        {n.subtitle}
+                                      </p>
                                     )}
                                   </div>
                                   <span className="text-[10px] text-muted-foreground shrink-0">
-                                    {n.at ? new Date(n.at).toLocaleDateString() : ""}
+                                    {n.at
+                                      ? new Date(n.at).toLocaleDateString()
+                                      : ""}
                                   </span>
                                 </button>
                               ))
@@ -552,7 +638,9 @@ const AdminDashboard = () => {
                         {notifTab === "complaints" && (
                           <div>
                             {complaintsList.length === 0 ? (
-                              <div className="p-4 text-sm text-gray-500">No complaints</div>
+                              <div className="p-4 text-sm text-gray-500">
+                                No complaints
+                              </div>
                             ) : (
                               complaintsList.map((n) => (
                                 <button
@@ -563,22 +651,32 @@ const AdminDashboard = () => {
                                     setActiveTab("complaints");
                                   }}
                                   className={`w-full p-3 focus:outline-none transition-colors flex items-center ${
-                                    n.isRead ? "bg-white hover:bg-[#fff6ec]" : "bg-[rgba(255,246,236,1)]"
+                                    n.isRead
+                                      ? "bg-white hover:bg-[#fff6ec]"
+                                      : "bg-[rgba(255,246,236,1)]"
                                   }`}
                                 >
                                   <UnreadCircle read={n.isRead} />
                                   <div className="text-left flex-1">
-                                    <p className={`text-[13px] ${
-                                      n.isRead ? "text-[#6b4b2b]" : "text-[#4f371f] font-semibold"
-                                    }`}>
+                                    <p
+                                      className={`text-[13px] ${
+                                        n.isRead
+                                          ? "text-[#6b4b2b]"
+                                          : "text-[#4f371f] font-semibold"
+                                      }`}
+                                    >
                                       {n.title}
                                     </p>
                                     {n.subtitle && (
-                                      <p className="text-[12px] text-[#6b4b2b]">{n.subtitle}</p>
+                                      <p className="text-[12px] text-[#6b4b2b]">
+                                        {n.subtitle}
+                                      </p>
                                     )}
                                   </div>
                                   <span className="text-[10px] text-muted-foreground shrink-0">
-                                    {n.at ? new Date(n.at).toLocaleDateString() : ""}
+                                    {n.at
+                                      ? new Date(n.at).toLocaleDateString()
+                                      : ""}
                                   </span>
                                 </button>
                               ))
@@ -590,7 +688,9 @@ const AdminDashboard = () => {
                         {notifTab === "reports" && (
                           <div>
                             {reportsList.length === 0 ? (
-                              <div className="p-4 text-sm text-gray-500">No reports</div>
+                              <div className="p-4 text-sm text-gray-500">
+                                No reports
+                              </div>
                             ) : (
                               reportsList.map((n) => (
                                 <button
@@ -601,22 +701,32 @@ const AdminDashboard = () => {
                                     setActiveTab("reports");
                                   }}
                                   className={`w-full p-3 focus:outline-none transition-colors flex items-center ${
-                                    n.isRead ? "bg-white hover:bg-[#fff6ec]" : "bg-[rgba(255,246,236,1)]"
+                                    n.isRead
+                                      ? "bg-white hover:bg-[#fff6ec]"
+                                      : "bg-[rgba(255,246,236,1)]"
                                   }`}
                                 >
                                   <UnreadCircle read={n.isRead} />
                                   <div className="text-left flex-1">
-                                    <p className={`text-[13px] ${
-                                      n.isRead ? "text-[#6b4b2b]" : "text-[#4f371f] font-semibold"
-                                    }`}>
+                                    <p
+                                      className={`text-[13px] ${
+                                        n.isRead
+                                          ? "text-[#6b4b2b]"
+                                          : "text-[#4f371f] font-semibold"
+                                      }`}
+                                    >
                                       {n.title}
                                     </p>
                                     {n.subtitle && (
-                                      <p className="text-[12px] text-[#6b4b2b]">{n.subtitle}</p>
+                                      <p className="text-[12px] text-[#6b4b2b]">
+                                        {n.subtitle}
+                                      </p>
                                     )}
                                   </div>
                                   <span className="text-[10px] text-muted-foreground shrink-0">
-                                    {n.at ? new Date(n.at).toLocaleDateString() : ""}
+                                    {n.at
+                                      ? new Date(n.at).toLocaleDateString()
+                                      : ""}
                                   </span>
                                 </button>
                               ))
@@ -634,7 +744,10 @@ const AdminDashboard = () => {
                 </div>
               )}
 
-              <Button onClick={handleLogout} className="btn-logout flex items-center">
+              <Button
+                onClick={handleLogout}
+                className="btn-logout flex items-center"
+              >
                 <LogOut className="h-4 w-4" />
                 <span>Log Out</span>
               </Button>
@@ -773,7 +886,9 @@ const AdminDashboard = () => {
                   <CardTitle className="text-3xl font-extrabold text-[#6b4b2b]">
                     Manage Complaints
                   </CardTitle>
-                  <CardDescription>Review and respond to user complaints</CardDescription>
+                  <CardDescription>
+                    Review and respond to user complaints
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <AdminComplaint />

@@ -92,39 +92,6 @@ const PrivacyTerms = () => {
   /* Title gradient */
   .title-grad{background:linear-gradient(90deg,#f1b66f,#c97c2c); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; color:transparent}
 
-  /* ======= MEDIA QUERIES ======= */
-
-  /* Phones */
-  @media screen and (min-width:300px) and (max-width:574px){
-    .hdr-pad{ padding-top:.5rem; padding-bottom:.5rem; }
-    .title-grad{ font-size: 26px !important; }
-    .glass{ border-radius: 18px !important; }
-    .pg-pad{ padding-top: 1.25rem !important; padding-bottom: 1.25rem !important; }
-    .card-pad{ padding: 1rem !important; }
-  }
-
-  /* Small tablets */
-  @media screen and (min-width:575px) and (max-width:767px){
-    .title-grad{ font-size: 30px !important; }
-    .card-pad{ padding: 1.25rem !important; }
-  }
-
-  /* Large tablets */
-  @media screen and (min-width:768px) and (max-width:959px){
-    .title-grad{ font-size: 34px !important; }
-  }
-
-  /* Small desktops */
-  @media screen and (min-width:1368px) and (max-width:1920px){
-    .title-grad{ font-size: 36px !important; }
-    .card-pad{ padding: 1.35rem !important; }
-  }
-
-  /* Large desktops */
-  @media screen and (min-width:1921px) and (max-width:4096px){
-    .title-grad{ font-size: 40px !important; }
-    .card-pad{ padding: 1.5rem !important; }
-  }
 `}</style>
 
       {/* Background layers to match the home vibe */}

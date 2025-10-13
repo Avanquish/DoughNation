@@ -19,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Heart, Store, MapPin } from "lucide-react";
+import { Heart, Store, MapPin, Eye, EyeOff } from "lucide-react";
 
 // Default map center (Manila as a friendly starting point)
 const defaultCenter = { lat: 14.5995, lng: 120.9842 };
@@ -46,17 +46,16 @@ const LocationSelector = ({ setLocation, setFormData }) => {
       }
     },
   });
-
   return null;
 };
 
 export default function Register() {
   const navigate = useNavigate();
 
- // Form fields
+  // Form fields
   const [formData, setFormData] = useState({
     name: "",
-    role: "bakery", // "bakery" or "charity" (admin pre-defined in the backend)
+    role: "bakery",
     email: "",
     contact_person: "",
     contact_number: "",
@@ -64,6 +63,33 @@ export default function Register() {
     password: "",
     confirm_password: "",
   });
+
+  // show/hide + strength (visual only)
+  const [showPwd, setShowPwd] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const passStrength = (() => {
+    const p = formData.password;
+    let s = 0;
+    if (p.length >= 8) s++;
+    if (/[A-Z]/.test(p)) s++;
+    if (/[0-9]/.test(p)) s++;
+    if (/[^A-Za-z0-9]/.test(p)) s++;
+    return s;
+  })();
+
+  const matchRatio =
+    formData.password.length > 0
+      ? Math.min(formData.confirm_password.length / formData.password.length, 1)
+      : 0;
+
+  const confirmMeterColor =
+    formData.confirm_password.length === 0
+      ? "#FFE1BE" // neutral
+      : formData.confirm_password === formData.password
+      ? "#22c55e" // green when match
+      : matchRatio < 0.5
+      ? "#f87171" // red if far
+      : "#f59e0b"; // amber if close
 
   // File uploads
   const [profilePicture, setProfilePicture] = useState(null);
@@ -76,14 +102,12 @@ export default function Register() {
   const [emailAvailable, setEmailAvailable] = useState(true);
   const [emailChecking, setEmailChecking] = useState(false);
 
-  // One-liner to update any single form field by key
-  const handleInputChange = (field, value) => {
+  // One-liner to update form field
+  const handleInputChange = (field, value) =>
     setFormData({ ...formData, [field]: value });
-  };
-
 
   const checkEmailAvailability = async (email) => {
-    if (!email || !email.includes("@")) return; // skip clearly invalid input
+    if (!email || !email.includes("@")) return;
     setEmailChecking(true);
     try {
       const res = await axios.get("http://localhost:8000/check-email", {
@@ -98,13 +122,11 @@ export default function Register() {
     }
   };
 
-  // Form submission
+  // Submit
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     const { role, email, password, confirm_password } = formData;
 
-    // Simple email validation by role
     const domain = email.split("@")[1];
     const allowedDomains = {
       bakery: "bakery.com",
@@ -119,7 +141,6 @@ export default function Register() {
         text: `Email must end with @${allowedDomains[role]} for ${role} users.`,
       });
     }
-
     if (password !== confirm_password) {
       return Swal.fire({
         icon: "error",
@@ -127,7 +148,6 @@ export default function Register() {
         text: "Please ensure both passwords match.",
       });
     }
-
     if (!emailAvailable) {
       return Swal.fire({
         icon: "error",
@@ -137,9 +157,9 @@ export default function Register() {
     }
 
     const submitData = new FormData();
-    Object.entries(formData).forEach(([key, value]) => {
-      submitData.append(key, value);
-    });
+    Object.entries(formData).forEach(([key, value]) =>
+      submitData.append(key, value)
+    );
     if (profilePicture) submitData.append("profile_picture", profilePicture);
     if (proofOfValidity)
       submitData.append("proof_of_validity", proofOfValidity);
@@ -149,36 +169,32 @@ export default function Register() {
     }
 
     try {
-    await axios.post("http://localhost:8000/register", submitData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-
-    // ✅ First success alert
-    Swal.fire({
-      icon: "success",
-      title: "Registration Successful",
-      text: "You have successfully registered.",
-    }).then(() => {
-      // ✅ Second alert with your note
-      Swal.fire({
-        icon: "info",
-        title: "Important Reminder",
-        text: "Take note of the date of your registration, it will be used to reset your password sooner or later.",
-        confirmButtonText: "Got it",
-      }).then(() => {
-        navigate("/"); // go to homepage after user closes the second alert
+      await axios.post("http://localhost:8000/register", submitData, {
+        headers: { "Content-Type": "multipart/form-data" },
       });
-    });
-  } catch (error) {
-    console.error(error);
-    Swal.fire({
-      icon: "error",
-      title: "Registration Failed",
-      text: error?.response?.data?.detail || "Something went wrong.",
-    });
-  }
-};
+      Swal.fire({
+        icon: "success",
+        title: "Registration Successful",
+        text: "You have successfully registered.",
+      }).then(() => {
+        Swal.fire({
+          icon: "info",
+          title: "Important Reminder",
+          text: "Take note of the date of your registration, it will be used to reset your password sooner or later.",
+          confirmButtonText: "Got it",
+        }).then(() => navigate("/"));
+      });
+    } catch (error) {
+      console.error(error);
+      Swal.fire({
+        icon: "error",
+        title: "Registration Failed",
+        text: error?.response?.data?.detail || "Something went wrong.",
+      });
+    }
+  };
 
+  // Parallax (unchanged)
   const bgRef = useRef(null);
   const rafRef = useRef(0);
   const targetRef = useRef({ x: 0, y: 0 });
@@ -191,7 +207,6 @@ export default function Register() {
     !window.matchMedia("(pointer: coarse)").matches;
 
   const lerp = (a, b, t) => a + (b - a) * t;
-
   const loop = () => {
     const max = 22;
     currentRef.current.x = lerp(
@@ -223,10 +238,9 @@ export default function Register() {
     const ny = (e.clientY / h - 0.5) * -1;
     targetRef.current = { x: nx, y: ny };
   };
-  const onMouseLeave = () => {
-    targetRef.current = { x: 0, y: 0 };
-  };
+  const onMouseLeave = () => (targetRef.current = { x: 0, y: 0 });
 
+  // Tabs indicator
   const tabsListRef = useRef(null);
   const triggerRefs = useRef([]);
   const [indicator, setIndicator] = useState({ left: 0, width: 0 });
@@ -253,7 +267,6 @@ export default function Register() {
       window.removeEventListener("resize", onResize);
     };
   }, []);
-
   useEffect(() => {
     const id = requestAnimationFrame(recalcIndicator);
     return () => cancelAnimationFrame(id);
@@ -287,6 +300,15 @@ export default function Register() {
                                 55% { opacity:1; transform:translateY(-6px) scale(1.04);}
                                100% { opacity:1; transform:translateY(0) scale(1);} }
         @keyframes subFade { 0% { opacity:0; transform:translateY(8px);} 100% { opacity:1; transform:translateY(0);} }
+
+        /* HIDE native password reveal/clear so only our eye shows */
+        input[type="password"]::-ms-reveal,
+        input[type="password"]::-ms-clear { display: none; }
+        input[type="password"]::-webkit-credentials-auto-fill-button,
+        input[type="password"]::-webkit-textfield-decoration-container,
+        input[type="password"]::-webkit-clear-button {
+          display: none !important; visibility: hidden; pointer-events: none;
+        }
       `}</style>
 
       {/* Main card */}
@@ -295,7 +317,6 @@ export default function Register() {
           className="relative rounded-[22px] backdrop-blur-2xl bg-white/45 border-white/50 shadow-[0_16px_56px_rgba(0,0,0,0.16)]"
           style={{ animation: "fadeUp 480ms ease-out both" }}
         >
-
           <div className="absolute inset-0 pointer-events-none rounded-[22px] bg-gradient-to-b from-[#FFF8F0]/45 via-transparent to-[#FFF8F0]/35" />
 
           {/* Header */}
@@ -392,7 +413,6 @@ export default function Register() {
                   })}
                 </TabsList>
 
-                {/* Bakery-only */}
                 <TabsContent value="bakery" className="space-y-4 mt-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="name" className="text-[#8f642a]">
@@ -410,7 +430,6 @@ export default function Register() {
                   </div>
                 </TabsContent>
 
-                {/* Charity-only */}
                 <TabsContent value="charity" className="space-y-4 mt-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="name" className="text-[#8f642a]">
@@ -481,7 +500,7 @@ export default function Register() {
               {/* Address */}
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-2 text-[#8f642a]">
-                  <MapPin wclassName="h-4 w-4" /> Address
+                  <MapPin className="h-4 w-4" /> Address
                 </Label>
                 <Input
                   value={formData.address}
@@ -491,7 +510,7 @@ export default function Register() {
                 />
               </div>
 
-              {/* Click the map to place a marker and auto-fill address via reverse geocoding */}
+              {/* Map */}
               <div className="rounded-xl overflow-hidden border border-[#FFE1BE]/70 shadow-sm">
                 <MapContainer
                   center={[defaultCenter.lat, defaultCenter.lng]}
@@ -514,31 +533,99 @@ export default function Register() {
                 </MapContainer>
               </div>
 
-              {/* Password + confirm */}
+              {/* Password + confirm (with show/hide + meter) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-[#8f642a]">Password</Label>
-                  <Input
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) =>
-                      handleInputChange("password", e.target.value)
-                    }
-                    required
-                    className="h-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] focus-visible:ring-[#E3B57E]"
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showPwd ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) =>
+                        handleInputChange("password", e.target.value)
+                      }
+                      required
+                      placeholder="At least 8 characters"
+                      className="appearance-none h-11 pr-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPwd((s) => !s)}
+                      aria-label={showPwd ? "Hide password" : "Show password"}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A66B2E] hover:text-[#81531f]"
+                    >
+                      {showPwd ? (
+                        <EyeOff className="h-5 w-5" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
+                    </button>
+                  </div>
+                  {/* strength meter */}
+                  <div className="mt-2 h-2 w-full bg-[#FFE1BE]/70 rounded-full overflow-hidden">
+                    <div
+                      className="h-full transition-all"
+                      style={{
+                        width: `${(passStrength / 4) * 100}%`,
+                        background:
+                          passStrength < 2
+                            ? "#f87171"
+                            : passStrength < 3
+                            ? "#f59e0b"
+                            : passStrength < 4
+                            ? "#fbbf24"
+                            : "#22c55e",
+                      }}
+                    />
+                  </div>
                 </div>
+
                 <div className="space-y-1.5">
                   <Label className="text-[#8f642a]">Confirm Password</Label>
-                  <Input
-                    type="password"
-                    value={formData.confirm_password}
-                    onChange={(e) =>
-                      handleInputChange("confirm_password", e.target.value)
-                    }
-                    required
-                    className="h-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] focus-visible:ring-[#E3B57E]"
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showConfirm ? "text" : "password"}
+                      value={formData.confirm_password}
+                      onChange={(e) =>
+                        handleInputChange("confirm_password", e.target.value)
+                      }
+                      required
+                      placeholder="Re-enter password"
+                      className="appearance-none h-11 pr-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirm((s) => !s)}
+                      aria-label={
+                        showConfirm ? "Hide password" : "Show password"
+                      }
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A66B2E] hover:text-[#81531f]"
+                    >
+                      {showConfirm ? (
+                        <EyeOff className="h-5 w-5" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* confirm meter */}
+                  <div className="mt-2 h-2 w-full bg-[#FFE1BE]/70 rounded-full overflow-hidden">
+                    <div
+                      className="h-full transition-all"
+                      style={{
+                        width: `${matchRatio * 100}%`,
+                        background: confirmMeterColor,
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-[#a47134]/80">
+                    {formData.password.length === 0
+                      ? "Enter a password first."
+                      : formData.confirm_password === formData.password
+                      ? "Passwords match"
+                      : "Re-type the same password"}
+                  </p>
                 </div>
               </div>
 

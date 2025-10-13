@@ -142,7 +142,10 @@ const AdminUser = () => {
     setProofOpen(false);
   };
 
-  const proofUrl = useMemo(() => (proofFor ? getProofUrl(proofFor) : null), [proofFor]);
+  const proofUrl = useMemo(
+    () => (proofFor ? getProofUrl(proofFor) : null),
+    [proofFor]
+  );
 
   return (
     <div className="p-0">
@@ -150,7 +153,9 @@ const AdminUser = () => {
         {/* 🔸 Pending Verification */}
         <div className="rounded-3xl border border-[#eadfce] bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9] shadow-[0_2px_8px_rgba(93,64,28,.06)] p-6 mb-8">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#6b4b2b]">Pending Verification</h2>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#6b4b2b]">
+              Pending Verification
+            </h2>
             <span className="text-xs font-semibold px-2 py-1 rounded-full border bg-white/80 border-[#f2e3cf] text-[#6b4b2b]">
               {pendingUsers.length} item{pendingUsers.length === 1 ? "" : "s"}
             </span>
@@ -174,7 +179,10 @@ const AdminUser = () => {
                       const url = getProofUrl(u);
                       const reviewed = reviewedProof.has(u.id);
                       return (
-                        <tr key={u.id} className="odd:bg-white even:bg-white/80 hover:bg-[#fff6ec] transition-colors">
+                        <tr
+                          key={u.id}
+                          className="odd:bg-white even:bg-white/80 hover:bg-[#fff6ec] transition-colors"
+                        >
                           <td className="p-3 text-[#3b2a18]">{u.name}</td>
                           <td className="p-3 text-[#3b2a18]">{u.email}</td>
                           <td className="p-3 text-[#3b2a18]">{u.role}</td>
@@ -261,7 +269,24 @@ const AdminUser = () => {
         {/* 🔸 Verified Users */}
         <div className="rounded-3xl border border-[#eadfce] bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9] shadow-[0_2px_8px_rgba(93,64,28,.06)] p-6">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#6b4b2b]">✅ Verified Users</h2>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#6b4b2b] flex items-center gap-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                className="h-6 w-6 text-[#8a5a25]"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M20 6L9 17l-5-5"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span>Verified Users</span>
+            </h2>
             <span className="text-xs font-semibold px-2 py-1 rounded-full border bg-white/80 border-[#f2e3cf] text-[#6b4b2b]">
               {users.length} item{users.length === 1 ? "" : "s"}
             </span>
@@ -281,7 +306,10 @@ const AdminUser = () => {
                   </thead>
                   <tbody className="divide-y divide-[#f2d4b5]">
                     {users.map((u) => (
-                      <tr key={u.id} className="odd:bg-white even:bg-white/80 hover:bg-[#fff6ec] transition-colors">
+                      <tr
+                        key={u.id}
+                        className="odd:bg-white even:bg-white/80 hover:bg-[#fff6ec] transition-colors"
+                      >
                         <td className="p-3 text-[#3b2a18]">{u.name}</td>
                         <td className="p-3 text-[#3b2a18]">{u.email}</td>
                         <td className="p-3 text-[#3b2a18]">{u.role}</td>
@@ -308,13 +336,18 @@ const AdminUser = () => {
       {/* ===== Proof Viewer Modal (UI only) ===== */}
       {proofOpen && proofFor && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setProofOpen(false)} />
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setProofOpen(false)}
+          />
           <div className="relative z-10 w-full max-w-2xl rounded-2xl bg-white shadow-2xl ring-1 ring-[#e9d7c3] overflow-hidden">
             <div className="px-5 py-4 border-b border-[#f2e3cf] bg-[#FFF7ED]">
               <h3 className="text-lg font-extrabold text-[#6b4b2b]">
                 Proof – {proofFor.name}
               </h3>
-              <p className="text-xs text-[#7b5836] truncate">{proofFor.email}</p>
+              <p className="text-xs text-[#7b5836] truncate">
+                {proofFor.email}
+              </p>
             </div>
 
             <div className="p-5 max-h-[70vh] overflow-auto bg-white">

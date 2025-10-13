@@ -116,7 +116,7 @@ const BakeryDashboard = () => {
 
       const params = new URLSearchParams(window.location.search);
 
-      // For "dashboard", we remove the tab param for a cleaner URL
+      // For "dashboard"
       if (activeTab === "dashboard") {
         if (params.has("tab")) {
           params.delete("tab");
@@ -769,12 +769,13 @@ const BakeryDashboard = () => {
                       Your donation milestones
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="min-h-[404px] flex flex-wrap gap-3">
+                  <CardContent className="min-h-[404px] grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 auto-rows-[72px] gap-x-3 gap-y-2">
+                    {" "}
                     {badges && badges.length > 0 ? (
                       badges.map((userBadge) => (
                         <div
                           key={userBadge.id}
-                          className="flex flex-col items-center"
+                          className="h-[72px] flex flex-col items-center justify-start"
                         >
                           <img
                             src={
@@ -786,10 +787,7 @@ const BakeryDashboard = () => {
                             title={userBadge.badge?.name}
                             className="w-12 h-12 hover:scale-110 transition-transform"
                           />
-                          <span
-                            className="text-xs mt-1"
-                            style={{ color: "#6B4B2B" }}
-                          >
+                          <span className="text-xs mt-1 leading-tight text-center truncate w-[110px]">
                             {userBadge.badge_name &&
                             userBadge.badge_name.trim() !== ""
                               ? userBadge.badge_name
@@ -811,7 +809,7 @@ const BakeryDashboard = () => {
               <Card className="glass-card shadow-none">
                 <CardHeader className="pb-2">
                   <CardTitle style={{ color: "#6B4B2B" }}>Analytics</CardTitle>
-                  <BakeryAnalytics />
+                  <BakeryAnalytics currentUser={currentUser} />{" "}
                 </CardHeader>
                 <CardContent className="min-h-[120px]" />
               </Card>

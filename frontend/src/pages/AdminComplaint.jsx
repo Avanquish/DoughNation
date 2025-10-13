@@ -14,10 +14,12 @@ export default function AdminComplaints() {
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Auth token for API requests
   const token = localStorage.getItem("token");
 
-  // Fetch all complaints 
+  // Fetch all complaints
   const fetchComplaints = async () => {
+    //
     try {
       setLoading(true);
       const res = await axios.get("http://127.0.0.1:8000/complaints/", {
@@ -31,7 +33,7 @@ export default function AdminComplaints() {
     }
   };
 
-  // Update complaint status 
+  // Update complaint status
   const updateStatus = async (id, newStatus) => {
     try {
       await axios.put(
@@ -157,19 +159,27 @@ export default function AdminComplaints() {
                             <SelectContent className="bg-white shadow-lg rounded-md ring-1 ring-[#f2e3cf]">
                               <SelectItem
                                 value="Pending"
-                                className="[&>[data-state=checked]]:hidden"
+                                className="relative pl-8 pr-8 py-2 text-sm rounded-sm cursor-default select-none outline-none
+               data-[highlighted]:bg-[#fff6ec] data-[highlighted]:text-[#6b4b2b]
+               data-[state=checked]:font-semibold"
                               >
                                 Pending
                               </SelectItem>
+
                               <SelectItem
                                 value="In Review"
-                                className="[&>[data-state=checked]]:hidden"
+                                className="relative pl-8 pr-8 py-2 text-sm rounded-sm cursor-default select-none outline-none
+               data-[highlighted]:bg-[#fff6ec] data-[highlighted]:text-[#6b4b2b]
+               data-[state=checked]:font-semibold"
                               >
                                 In Review
                               </SelectItem>
+
                               <SelectItem
                                 value="Resolved"
-                                className="[&>[data-state=checked]]:hidden"
+                                className="relative pl-8 pr-8 py-2 text-sm rounded-sm cursor-default select-none outline-none
+               data-[highlighted]:bg-[#fff6ec] data-[highlighted]:text-[#6b4b2b]
+               data-[state=checked]:font-semibold"
                               >
                                 Resolved
                               </SelectItem>

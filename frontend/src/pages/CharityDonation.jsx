@@ -113,7 +113,7 @@ export default function CharityDonation() {
   const [donations, setDonations] = useState([]);
   const [requestedDonations, setRequestedDonations] = useState({}); // donation_id -> request_id
 
-// Fetching data
+  // Fetching data
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -307,7 +307,10 @@ export default function CharityDonation() {
                           >
                             {donation.bakery_name}
                           </div>
-                          <div className="text-[11px]" style={{ color: "#7b5836" }}>
+                          <div
+                            className="text-[11px]"
+                            style={{ color: "#7b5836" }}
+                          >
                             Donor
                           </div>
                         </div>
@@ -347,7 +350,9 @@ export default function CharityDonation() {
                           <div className="font-semibold">Created</div>
                           <div>
                             {donation.creation_date
-                              ? new Date(donation.creation_date).toLocaleDateString()
+                              ? new Date(
+                                  donation.creation_date
+                                ).toLocaleDateString()
                               : "—"}
                           </div>
                         </div>
@@ -355,32 +360,38 @@ export default function CharityDonation() {
                           <div className="font-semibold">Expires</div>
                           <div>
                             {donation.expiration_date
-                              ? new Date(donation.expiration_date).toLocaleDateString()
+                              ? new Date(
+                                  donation.expiration_date
+                                ).toLocaleDateString()
                               : "—"}
                           </div>
                         </div>
                       </div>
 
                       {/* description */}
-                    <div className="flex justify-between text-sm mt-1">
                       {donation.description && (
-                        <p className="mt-3 text-sm" style={{ color: "#7b5836" }}>
+                        <p
+                          className="mt-3 text-sm"
+                          style={{ color: "#7b5836" }}
+                        >
                           {donation.description}
                         </p>
                       )}
                       {donation.distance_km !== null && (
-                        <span className="text-gray-400">Approx: {donation.distance_km} km</span>
+                        <span className="text-gray-400">
+                          Approx: {donation.distance_km} km
+                        </span>
                       )}
-                    </div>
 
                       {/* actions (logic unchanged) */}
                       <div className="mt-4 space-y-2">
                         <button
                           className={`w-full rounded-full px-4 py-2 font-semibold transition
                                       ring-1 ring-white/60 shadow-[0_10px_26px_rgba(201,124,44,.18)]
-                                      ${isRequested
-                                        ? "bg-gradient-to-r from-[#D9D9D9] to-[#BDBDBD] text-white cursor-not-allowed"
-                                        : "bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white hover:-translate-y-0.5 active:scale-95"
+                                      ${
+                                        isRequested
+                                          ? "bg-gradient-to-r from-[#D9D9D9] to-[#BDBDBD] text-white cursor-not-allowed"
+                                          : "bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white hover:-translate-y-0.5 active:scale-95"
                                       }`}
                           disabled={isRequested}
                           onClick={() => requestDonation(donation)}

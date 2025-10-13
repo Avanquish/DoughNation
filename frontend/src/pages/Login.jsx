@@ -16,7 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Heart, Store, Building2 } from "lucide-react";
+import { Heart, Store, Building2, Eye, EyeOff, Lock } from "lucide-react";
 
 // Role tabs config
 const ROLES = [
@@ -32,6 +32,9 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("Bakery");
+
+  // NEW: show/hide password
+  const [showPass, setShowPass] = useState(false);
 
   // Parallax
   const bgRef = useRef(null);
@@ -131,7 +134,6 @@ const Login = () => {
 
       const { sub, role: actualRole } = JSON.parse(atob(token.split(".")[1]));
       if (actualRole !== role) {
-        // SweetAlert2 for unauthorized role
         Swal.fire({
           icon: "error",
           title: "Unauthorized",
@@ -149,14 +151,20 @@ const Login = () => {
         error.response?.data?.detail ||
         "Login failed. Please check your credentials.";
 
-      // SweetAlert2 for login failure
-      Swal.fire({
-        icon: "error",
-        title: "Login Failed",
-        text: detail,
-      });
+      Swal.fire({ icon: "error", title: "Login Failed", text: detail });
     }
   };
+
+  // NEW: password strength (visual only)
+  const passStrength = (() => {
+    const p = password;
+    let s = 0;
+    if (p.length >= 8) s++;
+    if (/[A-Z]/.test(p)) s++;
+    if (/[0-9]/.test(p)) s++;
+    if (/[^A-Za-z0-9]/.test(p)) s++;
+    return s; // 0..4
+  })();
 
   return (
     <div
@@ -194,7 +202,6 @@ const Login = () => {
           55%{ opacity:1; transform: translateY(-4px) scale(1.03); }
           100%{ opacity:1; transform: translateY(0) scale(1); }
         }
-
         .left-hero-surface{
           background: linear-gradient(180deg,#fff9f2 0%,#fff4e8 40%,#ffe7cd 100%);
           border-right: 1px solid rgba(255,255,255,0.65);
@@ -213,57 +220,15 @@ const Login = () => {
           z-index: 1;
         }
 
-        /* ========== Phones ========== */
-        @media screen and (min-width:300px) and (max-width:574px){
-          .left-hero-surface{ border-right: none; }
-          .brand-head{ font-size: 32px !important; line-height: 1.08 !important; }
-          .left-copy-padding{ padding-bottom: clamp(120px, 30vw, 200px) !important; }
-          .give-illu{ right: max(10px, 3vw); bottom: max(10px, 3vh); width: clamp(88px, 36vw, 140px); }
-          .login-card{ max-width: 520px; border-radius: 22px; }
-          .login-card .shrink-pad{ padding-left: 14px; padding-right: 14px; }
-          .login-tabs{ height: 44px !important; }
-          .login-tabs button{ font-size: 13px !important; }
-          .login-card input[type="email"],
-          .login-card input[type="password"]{ height: 44px !important; }
-          .login-card .login-btn{ height: 44px !important; }
+        /* Hide native reveal/clear so only our eye shows */
+        input[type="password"]::-ms-reveal,
+        input[type="password"]::-ms-clear { display: none; }
+        input[type="password"]::-webkit-credentials-auto-fill-button,
+        input[type="password"]::-webkit-textfield-decoration-container,
+        input[type="password"]::-webkit-clear-button {
+          display: none !important; visibility: hidden; pointer-events: none;
         }
 
-        /* ========== Small tablets ========== */
-        @media screen and (min-width:575px) and (max-width:767px){
-          .brand-head{ font-size: 44px !important; }
-          .login-card{ max-width: 580px; border-radius: 24px; }
-          .login-tabs{ height: 48px !important; }
-          .login-tabs button{ font-size: 14px !important; }
-          .login-card input[type="email"],
-          .login-card input[type="password"]{ height: 48px !important; }
-          .login-card .login-btn{ height: 48px !important; }
-          .give-illu{ width: clamp(130px, 32vw, 180px); }
-        }
-
-        /* ========== Large tablets ========== */
-        @media screen and (min-width:768px) and (max-width:959px){
-          .brand-head{ font-size: 52px !important; }
-          .login-card{ max-width: 640px; }
-          .login-tabs{ height: 50px !important; }
-          .login-card input[type="email"],
-          .login-card input[type="password"]{ height: 50px !important; }
-          .login-card .login-btn{ height: 50px !important; }
-          .give-illu{ width: clamp(150px, 28vw, 210px); }
-        }
-
-        /* ========== Small desktops ========== */
-        @media screen and (min-width:1368px) and (max-width:1920px){
-          .brand-head{ font-size: 58px !important; }
-          .login-card{ max-width: 660px; }
-          .give-illu{ width: clamp(170px, 24vw, 240px); }
-        }
-
-        /* ========== Large desktops========== */
-        @media screen and (min-width:1921px) and (max-width:4096px){
-          .brand-head{ font-size: 60px !important; }
-          .login-card{ max-width: 680px; }
-          .give-illu{ width: clamp(190px, 22vw, 260px); }
-        }
       `}</style>
 
       {/* Layout */}
@@ -304,7 +269,7 @@ const Login = () => {
               </CardTitle>
 
               <CardDescription
-                className="relative z-10 text-[14px] sm:text-[16px]
+                className="relative z-10 text-[14px] sm:text[16px]
                            bg-gradient-to-r from-[#C17B2A] via-[#AD6A21] to-[#8E5216]
                            bg-clip-text text-transparent"
                 style={{
@@ -368,7 +333,7 @@ const Login = () => {
                   />
                 </div>
 
-                {/* Password */}
+                {/* Password with show/hide + strength */}
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="password"
@@ -376,15 +341,48 @@ const Login = () => {
                   >
                     Password
                   </Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className="h-11 md:h-12 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E] focus-visible:ring-offset-0"
-                  />
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#E3B57E]" />
+                    <Input
+                      id="password"
+                      type={showPass ? "text" : "password"}
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      className="appearance-none pl-11 pr-11 h-11 md:h-12 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E] focus-visible:ring-offset-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass((s) => !s)}
+                      aria-label={showPass ? "Hide password" : "Show password"}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A66B2E] hover:text-[#81531f]"
+                    >
+                      {showPass ? (
+                        <EyeOff className="h-5 w-5" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Strength bar (visual only) */}
+                  <div className="mt-2 h-2 w-full bg-[#FFE1BE]/70 rounded-full overflow-hidden">
+                    <div
+                      className="h-full transition-all"
+                      style={{
+                        width: `${(passStrength / 4) * 100}%`,
+                        background:
+                          passStrength < 2
+                            ? "#f87171"
+                            : passStrength < 3
+                            ? "#f59e0b"
+                            : passStrength < 4
+                            ? "#fbbf24"
+                            : "#22c55e",
+                      }}
+                    />
+                  </div>
                 </div>
 
                 {/* Remember + Forgot */}
@@ -474,9 +472,8 @@ const Login = () => {
             </div>
           </div>
 
-          {/* Illustration */}
           <img
-            src="/images/GivingDonation.png"
+            src="/images/givingdonation.png"
             alt="Giving donation"
             className="give-illu"
           />

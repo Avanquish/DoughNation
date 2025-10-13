@@ -173,14 +173,16 @@ def get_bakery_analytics(
     ).all()
 
     # Maps for tracking totals
-    charity_transaction_map = {}  
-    charity_given_map = {}        
+    charity_transaction_map = {}  # counts how many donations
+    charity_given_map = {}        # sums total quantity
 
-    #Requested donations (quantity per charity)
-    charity_request_sums = (
+   
+    #Requested donations (complete)
+    charity_request_data = (
         db.query(
             models.DonationRequest.charity_id,
-            func.coalesce(func.sum(models.DonationRequest.donation_quantity), 0)
+            func.count(models.DonationRequest.id).label("transaction_count"),
+            func.coalesce(func.sum(models.DonationRequest.donation_quantity), 0).label("total_quantity")
         )
         .filter(
             models.DonationRequest.bakery_id == bakery_id,
@@ -190,15 +192,17 @@ def get_bakery_analytics(
         .all()
     )
 
-    for cid, qty in charity_request_sums:
-        charity_transaction_map[cid] = qty
+    for cid, count, qty in charity_request_data:
+        charity_transaction_map[cid] = count
         charity_given_map[cid] = qty
 
-    #Direct donations (quantity per charity)
-    direct_donation_sums = (
+   
+    # Direct donations (complete)
+    charity_direct_data = (
         db.query(
             models.DirectDonation.charity_id,
-            func.coalesce(func.sum(models.DirectDonation.quantity), 0)
+            func.count(models.DirectDonation.id).label("transaction_count"),
+            func.coalesce(func.sum(models.DirectDonation.quantity), 0).label("total_quantity")
         )
         .join(models.BakeryInventory)
         .filter(
@@ -209,11 +213,12 @@ def get_bakery_analytics(
         .all()
     )
 
-    for cid, qty in direct_donation_sums:
-        charity_transaction_map[cid] = charity_transaction_map.get(cid, 0) + qty
+    for cid, count, qty in charity_direct_data:
+        charity_transaction_map[cid] = charity_transaction_map.get(cid, 0) + count
         charity_given_map[cid] = charity_given_map.get(cid, 0) + qty
 
-    #Build final combined list
+   
+    # Build final output
     charity_donations_list = [
         {
             "name": c.name,
@@ -222,6 +227,7 @@ def get_bakery_analytics(
         }
         for c in all_charities
     ]
+
     # Debugging on terminal
     print(f"Analytics Debug → Uploaded: {uploaded_count}, Donated: {donated_count}")
     print(f"Inventory Debug → Fresh: {fresh}, Soon: {soon}, Expired: {expired}")

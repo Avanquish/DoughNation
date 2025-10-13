@@ -22,6 +22,7 @@ import {
 } from "recharts";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import html2canvas from "html2canvas";
 
 export default function BakeryReports() {
   const [reportData, setReportData] = useState(null);
@@ -37,11 +38,11 @@ export default function BakeryReports() {
   const COLORS_STATUS = ["#28a745", "#007bff", "#dc3545"]; // Green, Blue, Red
   const COLORS_TYPE = ["#17a2b8", "#ffc107"]; // Direct vs Request
 
-  const [verified, setVerified] = useState(false); // Access control 
+  const [verified, setVerified] = useState(false); // Access control
   const [employeeName, setEmployeeName] = useState("");
   const [employeeRole, setEmployeeRole] = useState("");
   const [employees, setEmployees] = useState([]);
-  const canModify = ["Manager", "Manager/Owner"].includes(employeeRole);
+  const canModify = ["Manager", "Full Time Staff", "Manager/Owner"].includes(employeeRole);
 
   const reportTypes = [
     { key: "donation_history", label: "Donation History" },
@@ -163,8 +164,7 @@ export default function BakeryReports() {
       const res = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      console.log("data", res.data)
-      setReportData(res.data)
+      setReportData(res.data);
 
       localStorage.setItem("lastReportType", type);
       localStorage.setItem("lastReportData", JSON.stringify(res.data));
@@ -187,7 +187,9 @@ export default function BakeryReports() {
   const fetchEmployees = async () => {
     try {
       const token = localStorage.getItem("token");
-      const opts = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+      const opts = token
+        ? { headers: { Authorization: `Bearer ${token}` } }
+        : {};
       const res = await axios.get(`${API_URL}/employees`, opts);
       setEmployees(res.data || []);
     } catch (e) {
@@ -199,82 +201,69 @@ export default function BakeryReports() {
     fetchEmployees();
   }, []);
 
-     // Employee verification.
-   const handleVerify = () => {
-  const found = employees.find(
-    (emp) => emp.name.toLowerCase() === employeeName.trim().toLowerCase()
-  );
+  // Employee verification.
+  const handleVerify = () => {
+    const found = employees.find(
+      (emp) => emp.name.toLowerCase() === employeeName.trim().toLowerCase()
+    );
 
-  if (!found) {
+    if (!found) {
+      Swal.fire({
+        title: "Employee Not Found",
+        text: "Please enter a valid employee name.",
+        icon: "error",
+      });
+      return;
+    }
+
+    const wasVerified = verified;
+
+    setVerified(true);
+    setEmployeeRole(found.role || "");
+
     Swal.fire({
-      title: "Employee Not Found",
-      text: "Please enter a valid employee name.",
-      icon: "error",
+      title: "Access Granted",
+      text: `Welcome, ${found.name}! Role: ${found.role}`,
+      icon: "success",
+      timer: 1500,
+      showConfirmButton: false,
     });
-    return;
-  }
 
-  if (!["Manager", "Manager/Owner"].includes(found.role)) {
-    Swal.fire({
-      title: "Access Denied",
-      text: "Only Managers and Owner can access the reports generation.",
-      icon: "error"
-    });
-    return;
-  }
+    const savedType = localStorage.getItem("lastReportType");
+    const validReport = reportTypes.find((r) => r.key === savedType);
 
-  const wasVerified = verified;
-
-  setVerified(true);
-  setEmployeeRole(found.role || "");
-
-  Swal.fire({
-    title: "Access Granted",
-    text: `Welcome, ${found.name}! Role: ${found.role}`,
-    icon: "success",
-    timer: 1500,
-    showConfirmButton: false,
-  });
-
-  // Restore last active report from localStorage if available
-  const savedType = localStorage.getItem("lastReportType");
-  const validReport = reportTypes.find(r => r.key === savedType);
-
-  if (!wasVerified) {
-    generateReport(validReport ? validReport.key : "donation_activity"); 
-    // fallback to a valid report if nothing saved
-    setActiveReport(validReport ? validReport.key : "donation_activity");
-  }
-};
+    if (!wasVerified) {
+      generateReport(validReport ? validReport.key : "donation_history");
+      setActiveReport(validReport ? validReport.key : "donation_history");
+    }
+  };
 
   useEffect(() => {
-  if (!verified) return; // only restore after verified
+    if (!verified) return;
 
-  const savedType = localStorage.getItem("lastReportType");
-  const savedData = localStorage.getItem("lastReportData");
-  const savedStart = localStorage.getItem("lastWeekStart");
-  const savedEnd = localStorage.getItem("lastWeekEnd");
-  const savedMonth = localStorage.getItem("lastMonth");
+    const savedType = localStorage.getItem("lastReportType");
+    const savedData = localStorage.getItem("lastReportData");
+    const savedStart = localStorage.getItem("lastWeekStart");
+    const savedEnd = localStorage.getItem("lastWeekEnd");
+    const savedMonthLocal = localStorage.getItem("lastMonth");
 
-  // Only restore if savedType is valid
-  const validReport = reportTypes.find(r => r.key === savedType);
-  if (!validReport) return;
+    const validReport = reportTypes.find((r) => r.key === savedType);
+    if (!validReport) return;
 
-  setActiveReport(savedType);
+    setActiveReport(savedType);
+    if (savedData) setReportData(JSON.parse(savedData));
 
-  if (savedData) setReportData(JSON.parse(savedData));
+    if (savedType === "weekly" && savedStart && savedEnd) {
+      setSavedWeekStart(savedStart);
+      setSavedWeekEnd(savedEnd);
+      generateReport("weekly", { start: savedStart, end: savedEnd });
+    }
 
-  if (savedType === "weekly" && savedStart && savedEnd) {
-    setSavedWeekStart(savedStart);
-    setSavedWeekEnd(savedEnd);
-    generateReport("weekly", { start: savedStart, end: savedEnd });
-  }
-
-  if (savedType === "monthly" && savedMonth) {
-    setSavedMonth(savedMonth);
-    generateReport("monthly", { month: savedMonth });
-  }
-}, [verified]);
+    if (savedType === "monthly" && savedMonthLocal) {
+      setSavedMonth(savedMonthLocal);
+      generateReport("monthly", { month: savedMonthLocal });
+    }
+  }, [verified]);
 
   const downloadReportCSV = () => {
     if (!reportData) return;
@@ -286,62 +275,62 @@ export default function BakeryReports() {
     });
 
     setTimeout(() => {
-      // Wrap reportData in array if it is an object (weekly/monthly)
       const dataToExport = Array.isArray(reportData)
         ? reportData
         : [reportData];
 
-      // Handle Charity List (new)
-    if (activeReport === "charity_list" && reportData?.charities) {
-      const charities = reportData.charities;
-      if (charities.length === 0) {
+      // Charity List export
+      if (activeReport === "charity_list" && reportData?.charities) {
+        const charities = reportData.charities;
+        if (charities.length === 0) {
+          Swal.close();
+          Swal.fire("No data", "No charity data available to export.", "info");
+          return;
+        }
+
+        const headers = [
+          "ID",
+          "Profile Image",
+          "Cahrity Name",
+          "Direct Donations",
+          "Request Donations",
+          "Direct Donation Quantity",
+          "Request Donation Quantity",
+          "Total Donated Quantity",
+          "Total Transactions",
+        ];
+
+        const csvRows = [headers.join(",")];
+
+        for (const c of charities) {
+          csvRows.push(
+            [
+              `"${c.id || ""}"`,
+              `"${c.charity_profile || ""}"`,
+              `"${c.charity_name || ""}"`,
+              `"${c.direct_count || 0}"`,
+              `"${c.request_count || 0}"`,
+              `"${c.direct_qty || 0}"`,
+              `"${c.request_qty || 0}"`,
+              `"${c.total_received_qty || 0}"`,
+              `"${c.total_transactions || 0}"`,
+            ].join(",")
+          );
+        }
+
+        const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${activeReport}_report.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+
         Swal.close();
-        Swal.fire("No data", "No charity data available to export.", "info");
         return;
       }
 
-      const headers = [
-        "ID",
-        "Profile Image",
-        "Cahrity Name",
-        "Direct Donations",
-        "Request Donations",
-        "Direct Donation Quantity",
-        "Request Donation Quantity",
-        "Total Donated Quantity",
-        "Total Transactions",
-      ];
-
-      const csvRows = [headers.join(",")];
-
-      for (const c of charities) {
-        csvRows.push([
-          `"${c.id || ""}"`,
-          `"${c.charity_profile || ""}"`,
-          `"${c.charity_name || ""}"`,
-          `"${c.direct_count || 0}"`,
-          `"${c.request_count || 0}"`,
-          `"${c.direct_qty || 0}"`,
-          `"${c.request_qty || 0}"`,
-          `"${c.total_received_qty || 0}"`,
-          `"${c.total_transactions || 0}"`,
-        ].join(","));
-      }
-
-      const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${activeReport}_report.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
-
-      Swal.close();
-      return; // stop here so generic logic won't run
-    }
-
-      // Flatten top_items if exists
       let flatData = dataToExport.map((row) => {
         const newRow = { ...row };
         if (row.top_items && Array.isArray(row.top_items)) {
@@ -697,7 +686,7 @@ export default function BakeryReports() {
       const pageWidth = doc.internal.pageSize.getWidth();
       let currentY = 40;
 
-    // HEADER 
+      // HEADER
       const logoSize = 40;
       if (bakeryInfo?.profile) {
         const logo = await new Promise((resolve) => {
@@ -705,7 +694,9 @@ export default function BakeryReports() {
           img.crossOrigin = "anonymous";
           img.onload = () => resolve(img);
           img.onerror = () => resolve(null);
-          img.src = `${API_URL}/${normalizePath(bakeryInfo.profile)}?t=${Date.now()}`;
+          img.src = `${API_URL}/${normalizePath(
+            bakeryInfo.profile
+          )}?t=${Date.now()}`;
         });
 
         if (logo) {
@@ -726,7 +717,14 @@ export default function BakeryReports() {
           ctx.restore();
 
           const imgData = canvas.toDataURL("image/png");
-          doc.addImage(imgData, "PNG", pageWidth / 2 - logoSize / 2, currentY, logoSize, logoSize);
+          doc.addImage(
+            imgData,
+            "PNG",
+            pageWidth / 2 - logoSize / 2,
+            currentY,
+            logoSize,
+            logoSize
+          );
           currentY += logoSize + 5;
         }
       }
@@ -734,16 +732,22 @@ export default function BakeryReports() {
       // Bakery Name
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
-      doc.text(bakeryInfo?.name || "Bakery Name", pageWidth / 2, currentY, { align: "center" });
+      doc.text(bakeryInfo?.name || "Bakery Name", pageWidth / 2, currentY, {
+        align: "center",
+      });
       currentY += 14;
 
       // Address & Contact
       doc.setFontSize(8);
       doc.setFont("helvetica", "normal");
-      doc.text(bakeryInfo?.address || "", pageWidth / 2, currentY, { align: "center" });
+      doc.text(bakeryInfo?.address || "", pageWidth / 2, currentY, {
+        align: "center",
+      });
       currentY += 10;
       doc.text(
-        `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${bakeryInfo?.email || "N/A"}`,
+        `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${
+          bakeryInfo?.email || "N/A"
+        }`,
         pageWidth / 2,
         currentY,
         { align: "center" }
@@ -753,13 +757,25 @@ export default function BakeryReports() {
       // Report Title & Date
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
-      doc.text(`${activeReport.replace(/_/g, " ").toUpperCase()} REPORT`, pageWidth / 2, currentY, { align: "center" });
+      doc.text(
+        `${activeReport.replace(/_/g, " ").toUpperCase()} REPORT`,
+        pageWidth / 2,
+        currentY,
+        { align: "center" }
+      );
       currentY += 14;
       doc.setFontSize(7);
       doc.setFont("helvetica", "normal");
-      doc.text(`Generated By: ${employeeName}`, pageWidth / 2, currentY, { align: "center" }); 
+      doc.text(`Generated By: ${employeeName}`, pageWidth / 2, currentY, {
+        align: "center",
+      });
       currentY += 8;
-      doc.text(`Date and Time ${new Date().toLocaleString()}`, pageWidth / 2, currentY, { align: "center" });
+      doc.text(
+        `Date and Time ${new Date().toLocaleString()}`,
+        pageWidth / 2,
+        currentY,
+        { align: "center" }
+      );
       currentY += 20;
 
       // ===== Charity Table =====
@@ -767,44 +783,54 @@ export default function BakeryReports() {
       if (!charities.length) return alert("No charity data available.");
 
       const tableHeaders = [
-        "Profile", "Charity Name", "Direct Donations",
-        "Requests", "Direct Qty", "Request Qty",
-        "Received Qty", "Total Transactions"
+        "Profile",
+        "Charity Name",
+        "Direct Donations",
+        "Requests",
+        "Direct Qty",
+        "Request Qty",
+        "Received Qty",
+        "Total Transactions",
       ];
 
       const IMG_SIZE = 36; // image width/height
       const ROW_HEIGHT = 40; // row height to fit image nicely
 
       // Preload all charity profile images to base64
-      const toBase64 = (url) => new Promise((resolve) => {
-      if (!url) return resolve(null);
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => {
-        const SCALE = 3; // <-- higher resolution factor
-        const canvas = document.createElement("canvas");
-        canvas.width = IMG_SIZE * SCALE;
-        canvas.height = IMG_SIZE * SCALE;
-        const ctx = canvas.getContext("2d");
+      const toBase64 = (url) =>
+        new Promise((resolve) => {
+          if (!url) return resolve(null);
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.onload = () => {
+            const SCALE = 3; // <-- higher resolution factor
+            const canvas = document.createElement("canvas");
+            canvas.width = IMG_SIZE * SCALE;
+            canvas.height = IMG_SIZE * SCALE;
+            const ctx = canvas.getContext("2d");
 
-        // Optional: smooth scaling
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "high";
+            // Optional: smooth scaling
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = "high";
 
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("PNG"));
-      };
-      img.onerror = () => resolve(null);
-      img.src = url + "?t=" + Date.now();
-    });
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL("PNG"));
+          };
+          img.onerror = () => resolve(null);
+          img.src = url + "?t=" + Date.now();
+        });
 
       // Convert all profiles to base64 in parallel
       const charityProfiles = await Promise.all(
-        charities.map(c => c.charity_profile ? toBase64(`${API_URL}/${normalizePath(c.charity_profile)}`) : null)
+        charities.map((c) =>
+          c.charity_profile
+            ? toBase64(`${API_URL}/${normalizePath(c.charity_profile)}`)
+            : null
+        )
       );
 
       // Prepare table body (use raw charity name for text, image will be drawn later)
-      const tableBody = charities.map(c => [
+      const tableBody = charities.map((c) => [
         c.charity_name, // placeholder for profile column
         c.charity_name,
         c.direct_count,
@@ -812,7 +838,7 @@ export default function BakeryReports() {
         c.direct_qty,
         c.request_qty,
         c.total_received_qty,
-        c.total_transactions
+        c.total_transactions,
       ]);
 
       // Draw table with images
@@ -820,11 +846,21 @@ export default function BakeryReports() {
         head: [tableHeaders],
         body: tableBody,
         startY: currentY,
-        styles: { fontSize: 8, halign: "center", valign: "middle", cellPadding: 4 },
-        columnStyles: {
-          0: { cellWidth: IMG_SIZE + 4, halign: "center", valign: "middle", minCellHeight: ROW_HEIGHT }
+        styles: {
+          fontSize: 8,
+          halign: "center",
+          valign: "middle",
+          cellPadding: 4,
         },
-        rowPageBreak: 'auto',
+        columnStyles: {
+          0: {
+            cellWidth: IMG_SIZE + 4,
+            halign: "center",
+            valign: "middle",
+            minCellHeight: ROW_HEIGHT,
+          },
+        },
+        rowPageBreak: "auto",
         didDrawCell: (data) => {
           if (data.column.index === 0 && data.cell.section === "body") {
             const imgData = charityProfiles[data.row.index];
@@ -836,36 +872,47 @@ export default function BakeryReports() {
               // fallback initials
               const cx = data.cell.x + data.cell.width / 2;
               const cy = data.cell.y + data.cell.height / 2;
-              const initials = (data.cell.raw || "?").split(" ").map(w => w[0]).join("").toUpperCase();
+              const initials = (data.cell.raw || "?")
+                .split(" ")
+                .map((w) => w[0])
+                .join("")
+                .toUpperCase();
               doc.setFillColor(52, 152, 219);
               doc.circle(cx, cy, IMG_SIZE / 2, "F");
               doc.setTextColor(255);
               doc.setFont("helvetica", "bold");
               doc.setFontSize(16);
-              doc.text(initials, cx, cy + 6, { align: "center", baseline: "middle" });
+              doc.text(initials, cx, cy + 6, {
+                align: "center",
+                baseline: "middle",
+              });
             }
           }
         },
       });
 
-    currentY = doc.lastAutoTable.finalY + 10;
+      currentY = doc.lastAutoTable.finalY + 10;
 
-    // ===== Grand Totals =====
-    const totals = reportData.grand_totals || {};
-    autoTable(doc, {
-      head: [["Total Type", "Value"]],
-      body: [
-        ["Total Direct Donations", totals.total_direct_count || 0],
-        ["Total Requests", totals.total_request_count || 0],
-        ["Total Direct Qty", totals.total_direct_qty || 0],
-        ["Total Request Qty", totals.total_request_qty || 0],
-        ["Total Received Qty", totals.total_received_qty || 0],
-        ["Total Transactions", totals.total_transactions || 0]
-      ],
-      startY: currentY,
-      styles: { fontSize: 8, halign: "center", valign: "middle" },
-      headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: "bold" }
-    });
+      // ===== Grand Totals =====
+      const totals = reportData.grand_totals || {};
+      autoTable(doc, {
+        head: [["Total Type", "Value"]],
+        body: [
+          ["Total Direct Donations", totals.total_direct_count || 0],
+          ["Total Requests", totals.total_request_count || 0],
+          ["Total Direct Qty", totals.total_direct_qty || 0],
+          ["Total Request Qty", totals.total_request_qty || 0],
+          ["Total Received Qty", totals.total_received_qty || 0],
+          ["Total Transactions", totals.total_transactions || 0],
+        ],
+        startY: currentY,
+        styles: { fontSize: 8, halign: "center", valign: "middle" },
+        headStyles: {
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontStyle: "bold",
+        },
+      });
 
       doc.save("Charity_List_Report.pdf");
       Swal.close();
@@ -1710,15 +1757,15 @@ export default function BakeryReports() {
 
       reportBodyHTML = `${weekTable}${topItemsHTML}${pieChartsHTML}`;
     } else if (activeReport === "charity_list") {
-    const charities = reportData.charities || [];
-    const totals = reportData.grand_totals || {};
+      const charities = reportData.charities || [];
+      const totals = reportData.grand_totals || {};
 
-    if (charities.length === 0) {
-      alert("No charity data available to print.");
-      return;
-    }
+      if (charities.length === 0) {
+        alert("No charity data available to print.");
+        return;
+      }
 
-    const tableHTMLContent = `
+      const tableHTMLContent = `
       <h3>Charity List Summary</h3>
       <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; text-align: center;">
         <thead>
@@ -1740,7 +1787,11 @@ export default function BakeryReports() {
               <tr>
                 <td>
                   <img 
-                    src="${c.charity_profile ? `${API_URL}/${normalizePath(c.charity_profile)}` : "/default_profile.png"}"
+                    src="${
+                      c.charity_profile
+                        ? `${API_URL}/${normalizePath(c.charity_profile)}`
+                        : "/default_profile.png"
+                    }"
                     alt="${c.charity_name}" 
                     style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;"
                   />
@@ -1762,18 +1813,30 @@ export default function BakeryReports() {
       <h3>Grand Totals</h3>
       <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; text-align: center;">
         <tbody>
-          <tr><td><b>Total Direct Donations</b></td><td>${totals.total_direct_count}</td></tr>
-          <tr><td><b>Total Requests</b></td><td>${totals.total_request_count}</td></tr>
-          <tr><td><b>Total Direct Qty</b></td><td>${totals.total_direct_qty}</td></tr>
-          <tr><td><b>Total Request Qty</b></td><td>${totals.total_request_qty}</td></tr>
-          <tr><td><b>Total Received Qty</b></td><td>${totals.total_received_qty}</td></tr>
-          <tr><td><b>Total Transactions</b></td><td><strong>${totals.total_transactions}</strong></td></tr>
+          <tr><td><b>Total Direct Donations</b></td><td>${
+            totals.total_direct_count
+          }</td></tr>
+          <tr><td><b>Total Requests</b></td><td>${
+            totals.total_request_count
+          }</td></tr>
+          <tr><td><b>Total Direct Qty</b></td><td>${
+            totals.total_direct_qty
+          }</td></tr>
+          <tr><td><b>Total Request Qty</b></td><td>${
+            totals.total_request_qty
+          }</td></tr>
+          <tr><td><b>Total Received Qty</b></td><td>${
+            totals.total_received_qty
+          }</td></tr>
+          <tr><td><b>Total Transactions</b></td><td><strong>${
+            totals.total_transactions
+          }</strong></td></tr>
         </tbody>
       </table>
     `;
 
-    reportBodyHTML = tableHTMLContent;
-  } else {
+      reportBodyHTML = tableHTMLContent;
+    } else {
       // Other tabs (daily, monthly, etc.)
       if (!Array.isArray(reportData) || reportData.length === 0) return;
 
@@ -1876,75 +1939,86 @@ export default function BakeryReports() {
   };
 
   const renderTable = (data) => {
-      if (!data) return <p className="text-gray-500">No data available</p>;
+    if (!data) return <p className="text-gray-500">No data available</p>;
 
-  //charity list report
-  if (data.charities && Array.isArray(data.charities)) {
-  const charities = data.charities;
-  const totals = data.grand_totals || {};
+    //charity list report
+    if (data.charities && Array.isArray(data.charities)) {
+      const charities = data.charities;
+      const totals = data.grand_totals || {};
 
-  if (charities.length === 0)
-    return <p className="text-gray-500">No charities found</p>;
+      if (charities.length === 0)
+        return <p className="text-gray-500">No charities found</p>;
 
-  return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full border-collapse text-center">
-        <thead className="bg-gray-200">
-          <tr>
-            <th className="px-4 py-2">Profile</th>
-            <th className="px-4 py-2">Charity Name</th>
-            <th className="px-4 py-2">Direct Donations</th>
-            <th className="px-4 py-2">Requests Donations</th>
-            <th className="px-4 py-2">Direct Donation Qty</th>
-            <th className="px-4 py-2">Request Donation Qty</th>
-            <th className="px-4 py-2">Total Donated Qty</th>
-            <th className="px-4 py-2">Total Transactions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {charities.map((c, i) => (
-            <tr key={i} className="border-b border-gray-300">
-              <td className="px-4 py-2">
-                <img
-                  src={
-                    c.charity_profile
-                      ? `${API_URL}/${c.charity_profile}`
-                      : "/default_profile.png"
-                  }
-                  alt={c.charity_name}
-                  className="w-14 h-14 rounded-full object-cover mx-auto"
-                />
-              </td>
-              <td className="px-4 py-2 font-semibold">{c.charity_name}</td>
-              <td className="px-4 py-2">{c.direct_count}</td>
-              <td className="px-4 py-2">{c.request_count}</td>
-              <td className="px-4 py-2">{c.direct_qty}</td>
-              <td className="px-4 py-2">{c.request_qty}</td>
-              <td className="px-4 py-2 font-medium">{c.total_received_qty}</td>
-              <td className="px-4 py-2 font-bold text-gray-800">
-                {c.total_transactions}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      return (
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse text-center">
+            <thead className="bg-gray-200">
+              <tr>
+                <th className="px-4 py-2">Profile</th>
+                <th className="px-4 py-2">Charity Name</th>
+                <th className="px-4 py-2">Direct Donations</th>
+                <th className="px-4 py-2">Requests Donations</th>
+                <th className="px-4 py-2">Direct Donation Qty</th>
+                <th className="px-4 py-2">Request Donation Qty</th>
+                <th className="px-4 py-2">Total Donated Qty</th>
+                <th className="px-4 py-2">Total Transactions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {charities.map((c, i) => (
+                <tr key={i} className="border-b border-gray-300">
+                  <td className="px-4 py-2">
+                    <img
+                      src={
+                        c.charity_profile
+                          ? `${API_URL}/${c.charity_profile}`
+                          : "/default_profile.png"
+                      }
+                      alt={c.charity_name}
+                      className="w-14 h-14 rounded-full object-cover mx-auto"
+                    />
+                  </td>
+                  <td className="px-4 py-2 font-semibold">{c.charity_name}</td>
+                  <td className="px-4 py-2">{c.direct_count}</td>
+                  <td className="px-4 py-2">{c.request_count}</td>
+                  <td className="px-4 py-2">{c.direct_qty}</td>
+                  <td className="px-4 py-2">{c.request_qty}</td>
+                  <td className="px-4 py-2 font-medium">
+                    {c.total_received_qty}
+                  </td>
+                  <td className="px-4 py-2 font-bold text-gray-800">
+                    {c.total_transactions}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-      {/*Grand Totals */}
-      <div className="mt-4 border-t pt-3 text-right text-gray-800">
-        <p>Total Transaction of Direct Donations: {totals.total_direct_count}</p>
-        <p>Total Transaction of Requests Donations: {totals.total_request_count}</p>
-        <p>Total Donated Qty (Direct Donations): {totals.total_direct_qty}</p>
-        <p>Total donated qty (Request Donations): {totals.total_request_qty}</p>
-        <p>Total Received Qty: {totals.total_received_qty}</p>
-        <p className="font-bold text-lg">
-          Total Transactions: {totals.total_transactions}
-        </p>
-      </div>
-    </div>
-  );
-}
+          {/*Grand Totals */}
+          <div className="mt-4 border-t pt-3 text-right text-gray-800">
+            <p>
+              Total Transaction of Direct Donations: {totals.total_direct_count}
+            </p>
+            <p>
+              Total Transaction of Requests Donations:{" "}
+              {totals.total_request_count}
+            </p>
+            <p>
+              Total Donated Qty (Direct Donations): {totals.total_direct_qty}
+            </p>
+            <p>
+              Total donated qty (Request Donations): {totals.total_request_qty}
+            </p>
+            <p>Total Received Qty: {totals.total_received_qty}</p>
+            <p className="font-bold text-lg">
+              Total Transactions: {totals.total_transactions}
+            </p>
+          </div>
+        </div>
+      );
+    }
 
-  //Default fallback (for other reports like donation, expiry, etc.)
+    //Default fallback (for other reports like donation, expiry, etc.)
     if (!Array.isArray(data) || data.length === 0)
       return <p className="text-gray-500">No data available</p>;
 
@@ -1985,49 +2059,93 @@ export default function BakeryReports() {
     );
   };
 
-const sectionHeader = "border-b border-[#eadfce] bg-[#FFF6E9] px-4 py-2";
-const labelTone = "block text-sm font-medium text-[#6b4b2b]";
-const inputTone = "w-full border border-[#eadfce] rounded-md p-2 outline-none focus:ring-2 focus:ring-[#E49A52]";
-const pillSolid = "bg-[#E49A52] text-white px-4 py-2 rounded-full hover:bg-[#d0833f] transition";
+  const sectionHeader = "border-b border-[#eadfce] bg-[#FFF6E9] px-4 py-2";
+  const labelTone = "block text-sm font-medium text-[#6b4b2b]";
+  const inputTone =
+    "w-full border border-[#eadfce] rounded-md p-2 outline-none focus:ring-2 focus:ring-[#E49A52]";
+  const primaryBtn =
+    "rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 font-semibold shadow-[0_10px_26px_rgba(201,124,44,.25)] ring-1 ring-white/60 transition-transform hover:-translate-y-0.5 active:scale-95 disabled:opacity-60";
+
+  const pillSolid =
+    "rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 transition-transform hover:-translate-y-0.5 active:scale-95 hover:brightness-95";
 
   return (
     <div className="p-6 relative">
-      {/* Verification Modal, only shows if employees exist */}
+      {/* Verification Overlay — lowered so navbar/tabs remain visible */}
       {!verified && (
-        <div className="fixed inset-35 z-50 flex items-center justify-center bg-transparent bg-opacity-40">
-          <div className="bg-white rounded-2xl shadow-2xl ring-1 overflow-hidden max-w-md w-full">
-            <div className={sectionHeader}>
-              <h2 className="text-xl font-semibold text-[#6b4b2b] text-center">
-                Verify Access
-              </h2>
-            </div>
-            <div className="p-5 sm:p-6">
-              <div className="space-y-3">
-                <label className={labelTone} htmlFor="verify_name">
-                  Employee Name
-                </label>
-                <input
-                  id="verify_name"
-                  type="text"
-                  placeholder="Enter employee name"
-                  value={employeeName}
-                  onChange={(e) => setEmployeeName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleVerify()}
-                  className={inputTone}
-                />
-                <p className="text-xs text-gray-500">
-                  Type your name exactly as saved by HR to continue.
-                </p>
+        <div className="fixed inset-0 z-[200]">
+          {/* blur + dim like inventory */}
+          <div
+            className="
+              absolute inset-0
+              bg-[#FFF1E3]/85
+              [backdrop-filter:blur(42px)_saturate(85%)_contrast(65%)]
+              md:[backdrop-filter:blur(56px)_saturate(85%)_contrast(65%)]
+            "
+          />
+          {/* warm wash */}
+          <div
+            className="
+              absolute inset-0 pointer-events-none mix-blend-multiply opacity-25
+              bg-gradient-to-br from-[#FDE3C1] via-transparent to-[#FAD1A1]
+            "
+          />
+          {/* subtle radial/light bokeh */}
+          <div
+            className="
+              absolute inset-0 pointer-events-none
+              bg-[radial-gradient(120%_80%_at_50%_40%,rgba(255,241,227,0.95),rgba(255,241,227,0.82)_60%,rgba(255,241,227,0.78)_85%,transparent)]
+            "
+          />
+
+          {/* Modal lowered: add padding-top and align to start */}
+          <div className="relative h-full w-full flex items-start justify-center p-4 pt-28 sm:pt-32">
+            <div
+              role="dialog"
+              aria-modal="true"
+              className="bg-white rounded-3xl shadow-2xl ring-1 ring-black/10 overflow-hidden max-w-md w-full"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-b from-[#FCE7D3] to-[#FBE1C5] py-4 text-center border-b border-[#EAD3B8]">
+                <h2 className="text-xl font-semibold text-[#6b4b2b]">
+                  Verify Access
+                </h2>
               </div>
-              <div className="mt-5 flex justify-end gap-2">
-                <button onClick={handleVerify} className={pillSolid}>
-                  Enter Employee
-                </button>
+
+              {/* Body */}
+              <div className="p-5 sm:p-6">
+                <div className="space-y-3">
+                  <label
+                    className="block text-sm font-semibold text-[#6b4b2b]"
+                    htmlFor="verify_name_reports"
+                  >
+                    Employee Name
+                  </label>
+                  <input
+                    id="verify_name_reports"
+                    type="text"
+                    placeholder="Enter employee name"
+                    value={employeeName}
+                    onChange={(e) => setEmployeeName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleVerify()}
+                    className="w-full rounded-md border border-[#f2d4b5] bg-white p-2 outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52]"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Type your name exactly as saved by HR to continue.
+                  </p>
+                </div>
+
+                <div className="mt-5 flex justify-end">
+                  <button onClick={handleVerify} className={pillSolid}>
+                    Enter Employee
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
       )}
+
       <h1 className="text-3xl font-bold text-[#6b4b2b] mb-4">
         Bakery Report Generation
       </h1>
@@ -2037,11 +2155,10 @@ const pillSolid = "bg-[#E49A52] text-white px-4 py-2 rounded-full hover:bg-[#d08
         value={activeReport}
         onValueChange={(val) => {
           setActiveReport(val);
-          if (!verified) return; // do nothing if not verified
-          generateReport(val);    // fetch new report data
+          if (!verified) return;
+          generateReport(val);
         }}
       >
-
         {/* Pills */}
         <TabsList className="flex flex-wrap gap-2 bg-white/70 ring-1 ring-black/5 rounded-full px-2 py-1 shadow-sm">
           {reportTypes.map((r) => (
@@ -2541,27 +2658,27 @@ const pillSolid = "bg-[#E49A52] text-white px-4 py-2 rounded-full hover:bg-[#d08
                     )}
 
                     {/* Actions */}
-                    {canModify &&(
-                    <div className="flex flex-wrap gap-3 mt-5">
-                      <Button
-                        onClick={downloadReportCSV}
-                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
-                      >
-                        <Download size={16} /> Download CSV
-                      </Button>
-                      <Button
-                        onClick={() => downloadReportPDF(bakeryInfo)}
-                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
-                      >
-                        <Download size={16} /> Download PDF
-                      </Button>
-                      <Button
-                        onClick={() => printReport(bakeryInfo)}
-                        className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
-                      >
-                        <Printer size={16} /> Print
-                      </Button>
-                    </div>
+                    {canModify && (
+                      <div className="flex flex-wrap gap-3 mt-5">
+                        <Button
+                          onClick={downloadReportCSV}
+                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                        >
+                          <Download size={16} /> Download CSV
+                        </Button>
+                        <Button
+                          onClick={() => downloadReportPDF(bakeryInfo)}
+                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                        >
+                          <Download size={16} /> Download PDF
+                        </Button>
+                        <Button
+                          onClick={() => printReport(bakeryInfo)}
+                          className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
+                        >
+                          <Printer size={16} /> Print
+                        </Button>
+                      </div>
                     )}
                   </div>
                 ) : (

@@ -38,7 +38,7 @@ const AchievementBadges = () => {
       const [badgesRes, userBadgesRes, progressRes] = await Promise.all([
         axios.get("https://api.doughnationhq.cloud/badges/"),
         axios.get(`https://api.doughnationhq.cloud/badges/user/${userId}`),
-        axios.get(`https://api.doughnationhq.cloud/badges/progress/${userId}`)
+        axios.get(`https://api.doughnationhq.cloud/badges/progress/${userId}`),
       ]);
 
       setAllBadges(badgesRes.data);
@@ -51,12 +51,11 @@ const AchievementBadges = () => {
 
   // Initial fetch and refresh setup
   useEffect(() => {
-    // Initial fetch
     fetchBadgeData();
 
     // Set up auto-refresh interval
     const interval = setInterval(fetchBadgeData, 30000);
-    
+
     // Cleanup interval on unmount
     return () => clearInterval(interval);
   }, [fetchBadgeData]);
@@ -69,25 +68,28 @@ const AchievementBadges = () => {
   const getProgress = (badgeId) => {
     const p = badgeProgress.find((x) => x.badge_id === badgeId);
     if (p) {
-      const calculatedPercent = Math.min(100, Math.round((p.progress / p.target) * 100));
+      const calculatedPercent = Math.min(
+        100,
+        Math.round((p.progress / p.target) * 100)
+      );
       return {
         percent: calculatedPercent,
-        isNearCompletion: calculatedPercent >= 75  // Flag for badges near completion (75% or more)
+        isNearCompletion: calculatedPercent >= 75, // Flag for badges near completion (75% or more)
       };
     }
-    
+
     // Default progress based on badge category
-    const badge = allBadges.find(b => b.id === badgeId);
+    const badge = allBadges.find((b) => b.id === badgeId);
     if (badge) {
-      return { 
+      return {
         percent: 0,
-        isNearCompletion: false
+        isNearCompletion: false,
       };
     }
-    
-    return { 
+
+    return {
       percent: 0,
-      isNearCompletion: false 
+      isNearCompletion: false,
     };
   };
 
@@ -120,7 +122,7 @@ const AchievementBadges = () => {
       </h1>
 
       {/* Badge Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-2">
         {allBadges.map((badge) => {
           const unlocked = isUnlocked(badge.id);
           const progress = getProgress(badge.id);
@@ -163,14 +165,15 @@ const AchievementBadges = () => {
             >
               <CardHeader className="pb-2">
                 <CardTitle
-                  className="text-base font-semibold text-center"
+                  className="text-base font-semibold text-center leading-tight whitespace-nowrap overflow-hidden text-ellipsis max-w-[120px] mx-auto"
                   style={{ color: TITLE_COLOR }}
+                  title={badge.name} // keeps full title in tooltip
                 >
                   {badge.name}
                 </CardTitle>
               </CardHeader>
 
-              <CardContent className="flex flex-col items-center gap-2 pb-6">
+              <CardContent className="flex flex-col items-center gap-2 pb-4">
                 <img
                   src={
                     badge.icon_url
@@ -184,8 +187,9 @@ const AchievementBadges = () => {
                 />
                 {/* Description */}
                 <p
-                  className="text-xs text-center mb-1"
+                  className="text-xs text-center mb-1 h-4 whitespace-nowrap overflow-hidden text-ellipsis"
                   style={{ color: SUBTEXT_COLOR }}
+                  title={badge.description}
                 >
                   {badge.description}
                 </p>
@@ -195,15 +199,19 @@ const AchievementBadges = () => {
                   <Progress
                     value={unlocked ? 100 : progress.percent}
                     className={`h-3 rounded-full transition-all duration-500 ${
-                      unlocked ? "bg-[#E49A52]" : progress.isNearCompletion ? "bg-[#F7B977]" : ""
+                      unlocked
+                        ? "bg-[#E49A52]"
+                        : progress.isNearCompletion
+                        ? "bg-[#F7B977]"
+                        : ""
                     }`}
                     style={{
                       backgroundColor: TRACK_BG,
-                      "--progress-fill": unlocked 
-                        ? "#E49A52" 
-                        : progress.isNearCompletion 
-                        ? "#F7B977" 
-                        : "#8B5E3C"
+                      "--progress-fill": unlocked
+                        ? "#E49A52"
+                        : progress.isNearCompletion
+                        ? "#F7B977"
+                        : "#8B5E3C",
                     }}
                   />
                   <div className="flex justify-center items-center mt-1">
@@ -211,12 +219,12 @@ const AchievementBadges = () => {
                       className={`text-[11px] text-center font-medium transition-colors duration-300 ${
                         progress.isNearCompletion ? "text-[#E49A52]" : ""
                       }`}
-                      style={{ 
-                        color: unlocked 
-                          ? "#E49A52" 
-                          : progress.isNearCompletion 
-                          ? "#C17B35" 
-                          : "#7b5836" 
+                      style={{
+                        color: unlocked
+                          ? "#E49A52"
+                          : progress.isNearCompletion
+                          ? "#C17B35"
+                          : "#7b5836",
                       }}
                     >
                       {unlocked ? "Complete!" : `${progress.percent}%`}

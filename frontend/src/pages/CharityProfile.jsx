@@ -57,7 +57,7 @@ export default function CharityProfile() {
   const [profilePic, setProfilePic] = useState(null);
   const navigate = useNavigate();
 
-  // Keep URL + storage in sync with the current sub-tab 
+  // Keep URL + storage in sync with the current sub-tab
   useEffect(() => {
     try {
       if (!activeSubTab) return;
@@ -163,7 +163,7 @@ export default function CharityProfile() {
     }
   };
 
-  // Change password 
+  // Change password
   const handleChangePassword = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem("token");
@@ -232,11 +232,12 @@ export default function CharityProfile() {
     fetchUser();
   }, []);
 
-  // Styles + JSX
+  // Styles (match BakeryProfile)
   const Styles = () => (
     <style>{`
       :root{
         --ink:#7a4f1c;
+        --grad1:#FFFCF6; --grad2:#FFF3E3; --grad3:#FFE9CF; --grad4:#F9D9AE;
         --brand1:#F6C17C; --brand2:#E49A52; --brand3:#BF7327;
       }
 
@@ -244,52 +245,84 @@ export default function CharityProfile() {
       .page-bg::before,.page-bg::after{content:""; position:absolute; inset:0}
       .page-bg::before{
         background:
-          radial-gradient(1200px 520px at 12% -10%, #FFFCF6 0%, #FFF3E3 45%, transparent 70%),
+          radial-gradient(1200px 520px at 12% -10%, var(--grad1) 0%, var(--grad2) 45%, transparent 70%),
           radial-gradient(900px 420px at 110% 18%, rgba(255,208,153,.28), transparent 70%),
           linear-gradient(135deg, #FFFEFB 0%, #FFF8ED 60%, #FFEFD9 100%);
+        animation: drift 26s ease-in-out infinite alternate;
       }
       .page-bg::after{
         background: repeating-linear-gradient(-35deg, rgba(201,124,44,.045) 0 8px, rgba(201,124,44,0) 8px 18px);
-        mix-blend-mode:multiply; opacity:.10;
+        mix-blend-mode:multiply; opacity:.10; animation: pan 40s linear infinite;
       }
       .blob{position:absolute; width:420px; height:420px; border-radius:50%; filter:blur(36px); mix-blend-mode:multiply; opacity:.14}
-      .blob.a{left:-120px; top:30%; background:radial-gradient(circle at 35% 35%, #ffd9aa, transparent 60%);}
-      .blob.b{right:-140px; top:6%; background:radial-gradient(circle at 60% 40%, #ffc985, transparent 58%);}
+      .blob.a{left:-120px; top:30%; background:radial-gradient(circle at 35% 35%, #ffd9aa, transparent 60%); animation: blob 18s ease-in-out infinite alternate;}
+      .blob.b{right:-140px; top:6%; background:radial-gradient(circle at 60% 40%, #ffc985, transparent 58%); animation: blob 20s 2s ease-in-out infinite alternate;}
+      @keyframes drift{from{transform:translate3d(0,0,0)}to{transform:translate3d(0,-18px,0)}}
+      @keyframes pan{from{transform:translate3d(0,0,0)}to{transform:translate3d(-6%,-6%,0)}}
+      @keyframes blob{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(24px,-20px,0) scale(1.04)}}
 
       /* Header */
       .head{position:sticky; top:0; z-index:40; border-bottom:1px solid rgba(0,0,0,.06); backdrop-filter: blur(10px);}
       .head-bg{position:absolute; inset:0; z-index:-1; opacity:.96;
         background: linear-gradient(110deg, #ffffff 0%, #fff9f1 28%, #ffefd9 55%, #ffe5c2 100%);
+        background-size: 220% 100%;
+        animation: headerSlide 18s linear infinite;
       }
+      @keyframes headerSlide{0%{background-position:0% 50%}100%{background-position:100% 50%}}
       .head-inner{max-width:80rem; margin:0 auto; padding:.9rem 1rem;}
-      .title-ink{font-weight:800; letter-spacing:.2px;
-        background:linear-gradient(90deg,#F3B56F,#E59B50,#C97C2C);
-        -webkit-background-clip:text; background-clip:text; color:transparent}
-      .status-chip{display:inline-flex; align-items:center; gap:.5rem; margin-top:.15rem;
-        padding:.30rem .72rem; font-size:.82rem; border-radius:9999px;
-        color:#7a4f1c; background:linear-gradient(180deg,#FFE7C5,#F7C489); border:1px solid #fff3e0; font-weight:800;}
-      .ring{width:48px; height:48px; border-radius:9999px; padding:2px;
-        background:conic-gradient(from 210deg, #F7C789, #E8A765, #C97C2C, #E8A765, #F7C789)}
-      .ring > div{width:100%; height:100%; border-radius:9999px; background:#fff;
-        display:flex; align-items:center; justify-content:center}
-      @keyframes spin360 { to { transform: rotate(360deg); } }
-      .logo-spin { animation: spin360 8s linear infinite; transform-origin: center; }
-      .logo-spin:hover { animation-play-state: paused; }
-      @media (prefers-reduced-motion: reduce) { .logo-spin { animation: none; } }
+      .title-ink{font-weight:800; letter-spacing:.2px; background:linear-gradient(90deg,#F3B56F,#E59B50,#C97C2C); -webkit-background-clip:text; background-clip:text; color:transparent}
+      .status-chip{display:inline-flex; align-items:center; gap:.5rem; margin-top:.15rem; padding:.30rem .72rem; font-size:.82rem; border-radius:9999px; color:#7a4f1c; background:linear-gradient(180deg,#FFE7C5,#F7C489); border:1px solid #fff3e0; font-weight:800;}
 
+      /* Spinning ring + floating inner icon (same as bakeryprofile) */
+      .ring{
+        width:48px; height:48px; border-radius:9999px; padding:2px;
+        background:conic-gradient(from 210deg,#F7C789,#E8A765,#C97C2C,#E8A765,#F7C789);
+        animation: spin 10s linear infinite; box-shadow:0 10px 24px rgba(201,124,44,.16);
+        will-change: transform;
+      }
+      .ring > div{
+        width:100%; height:100%; border-radius:9999px; background:#fff;
+        display:flex; align-items:center; justify-content:center
+      }
+      @keyframes spin{to{transform:rotate(360deg)}}
+
+      .charity-float{transform-origin:50% 60%; animation: float 6s ease-in-out infinite}
+      @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+
+      /* Right controls */
       .iconbar{display:flex; align-items:center; gap:.5rem}
-      .icon-btn{position:relative; display:inline-flex; align-items:center; justify-content:center;
-        width:40px; height:40px; border-radius:9999px; background:rgba(255,255,255,.92);
-        border:1px solid rgba(0,0,0,.06); box-shadow:0 6px 16px rgba(201,124,44,.14)}
-      .btn-pill{position:relative; overflow:hidden; border-radius:9999px; padding:.65rem 1.05rem;
-        background:linear-gradient(135deg,#F6C17C,#BF7327); color:#fff; font-weight:700;
-        border:1px solid rgba(255,255,255,.65); box-shadow:0 10px 28px rgba(201,124,44,.28)}
+      .icon-btn{position:relative; display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:9999px; background:rgba(255,255,255,.92); border:1px solid rgba(0,0,0,.06); box-shadow:0 6px 16px rgba(201,124,44,.14); transition:transform .18s ease, box-shadow .18s ease}
+      .icon-btn:hover{transform:translateY(-1px); box-shadow:0 10px 22px rgba(201,124,44,.20)}
+
+      .btn-pill{position:relative; overflow:hidden; border-radius:9999px; padding:.65rem 1.05rem; background:linear-gradient(135deg,#F6C17C,#BF7327); color:#fff; font-weight:700; border:1px solid rgba(255,255,255,.65); box-shadow:0 10px 28px rgba(201,124,44,.28); transition:transform .18s ease, box-shadow .18s ease;}
+      .btn-pill:hover{ transform:translateY(-1px) scale(1.02); box-shadow:0 14px 36px rgba(201,124,44,.34); }
+
+.btn-logout{
+  position:relative; overflow:hidden;
+  border-radius:9999px; padding:.58rem .95rem; gap:.5rem;
+  background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3));
+  color:#fff; border:1px solid rgba(255,255,255,.6);
+  box-shadow:0 8px 26px rgba(201,124,44,.25);
+  transition:transform .18s ease, box-shadow .18s ease, filter .18s ease;
+}
+.btn-logout:before{
+  content:""; position:absolute; top:-40%; bottom:-40%; left:-70%; width:60%;
+  transform:rotate(10deg);
+  background:linear-gradient(90deg, rgba(255,255,255,.26), rgba(255,255,255,0) 55%);
+  animation: shine 3.2s linear infinite;
+}
+@keyframes shine { from{ left:-70% } to{ left:120% } }
+.btn-logout:hover{
+  transform:translateY(-1px) scale(1.02);
+  box-shadow:0 12px 34px rgba(201,124,44,.32);
+  filter:saturate(1.05);
+}
 
       /* Cards / wrappers */
-      .gwrap{position:relative; border-radius:16px; padding:1px; background:linear-gradient(135deg, rgba(247,199,137,.9), rgba(201,124,44,.55))}
+      .gwrap{position:relative; border-radius:16px; padding:1px; background:linear-gradient(135deg, rgba(247,199,137,.9), rgba(201,124,44,.55)); background-size:200% 200%; animation:borderShift 8s ease-in-out infinite}
+      @keyframes borderShift{0%{background-position:0% 0%}50%{background-position:100% 100%}100%{background-position:0% 0%}}
       .glass-card{border-radius:15px; background:rgba(255,255,255,.94); backdrop-filter:blur(8px)}
-      .chip{width:46px; height:46px; display:flex; align-items:center; justify-content:center; border-radius:9999px;
-        background:linear-gradient(180deg,#FFE7C5,#F7C489); color:#8a5a25; border:1px solid #fff3e0; box-shadow:0 6px 18px rgba(201,124,44,.18)}
+      .chip{width:46px; height:46px; display:flex; align-items:center; justify-content:center; border-radius:9999px; background:linear-gradient(180deg,#FFE7C5,#F7C489); color:#8a5a25; border:1px solid #fff3e0; box-shadow:0 6px 18px rgba(201,124,44,.18)}
 
       /* Overlay + modals */
       .overlay-root{position:fixed; inset:0; z-index:50;}
@@ -309,7 +342,7 @@ export default function CharityProfile() {
       /* Subtabs */
       .subseg{display:flex; gap:.4rem; background:rgba(255,255,255,.94); border:1px solid rgba(0,0,0,.07); border-radius:12px; padding:.3rem; box-shadow:0 8px 24px rgba(201,124,44,.08); width:fit-content}
       .subseg [role="tab"]{border-radius:10px; padding:.48rem .95rem; color:#6b4b2b; font-weight:700}
-      .subseg [role="tab"][data-state="active"]{color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3))}
+      .subseg [role="tab"][data-state="active"]{color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); box-shadow:0 8px 18px rgba(201,124,44,.28)}
     `}</style>
   );
 
@@ -337,13 +370,13 @@ export default function CharityProfile() {
                     navigate(`/charity-dashboard/${id}?tab=donation`)
                   }
                 >
-                  <ChevronLeft className="h-[18px] w-[18px] " />
+                  <ChevronLeft className="h-[18px] w-[18px]" />
                 </button>
 
-                {/* Rotating ring + glyph */}
+                {/* Rotating ring + floating glyph (same as bakeryprofile) */}
                 <div className="ring">
                   <div>
-                    <HeartHandshake className="h-6 w-6 text-amber-700 logo-spin" />
+                    <HeartHandshake className="h-6 w-6 text-amber-700 charity-float" />
                   </div>
                 </div>
 
@@ -364,7 +397,7 @@ export default function CharityProfile() {
               </span>
               <Button
                 onClick={handleLogout}
-                className="btn-pill flex items-center"
+                className="btn-logout flex items-center"
               >
                 <LogOut className="h-4 w-4" />
                 <span>Log Out</span>
@@ -529,7 +562,7 @@ export default function CharityProfile() {
                     <CardContent>
                       <form className="space-y-3" onSubmit={handleEditSubmit}>
                         <div className="flex flex-col">
-                          <p style={{ color: "#7a4f1c" }}>Bakery Name</p>
+                          <p style={{ color: "#7a4f1c" }}>Charity Name</p>
                           <input
                             type="text"
                             name="name"

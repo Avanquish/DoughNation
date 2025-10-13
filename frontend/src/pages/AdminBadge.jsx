@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 
-// Globally attach token to every request
+// Adds auth token to all requests
 axios.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
@@ -14,15 +14,16 @@ axios.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Admin interface to assign badges to bakery users
 const AdminBadge = () => {
   const [users, setUsers] = useState([]);
   const [badges, setBadges] = useState([]);
   const [selectedUser, setSelectedUser] = useState("");
   const [selectedBadge, setSelectedBadge] = useState(null);
-  const [badgeName, setBadgeName] = useState(""); 
+  const [badgeName, setBadgeName] = useState("");
   const [description, setDescription] = useState("");
 
-  // Fetch bakery users 
+  // Fetch bakery users
   useEffect(() => {
     axios
       .get("https://api.doughnationhq.cloud/badges/bakery-users")
@@ -34,7 +35,9 @@ const AdminBadge = () => {
   useEffect(() => {
     axios
       .get("https://api.doughnationhq.cloud/badges/admin-badge")
-      .then((res) => setBadges(Array.isArray(res.data) ? res.data.slice(0, 4) : []))
+      .then((res) =>
+        setBadges(Array.isArray(res.data) ? res.data.slice(0, 4) : [])
+      )
       .catch((err) => console.error("Error fetching badges:", err));
   }, []);
 
@@ -79,7 +82,8 @@ const AdminBadge = () => {
             Assign Badge to Bakery User
           </h2>
           <p className="mt-1 text-sm text-[#7b5836]">
-            Choose a user, select a badge, and optionally customize its name and description.
+            Choose a user, select a badge, and optionally customize its name and
+            description.
           </p>
         </div>
 
@@ -181,7 +185,9 @@ const AdminBadge = () => {
                           />
                         ) : (
                           <div className="w-12 h-12 rounded-md grid place-items-center bg-[#FFEFD9] border border-[#f3ddc0] text-[#6b4b2b] text-sm font-bold">
-                            {badge?.name ? badge.name.charAt(0).toUpperCase() : "B"}
+                            {badge?.name
+                              ? badge.name.charAt(0).toUpperCase()
+                              : "B"}
                           </div>
                         )}
                         <div className="min-w-0">

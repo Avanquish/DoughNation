@@ -89,7 +89,7 @@ export default function MyFeedback() {
         console.error("Failed to fetch feedback:", err);
       }
     })();
-  }, []); 
+  }, []);
 
   useEffect(() => {
     const container = rootRef.current?.parentElement;
@@ -361,23 +361,11 @@ export default function MyFeedback() {
 
                         {/* Bakery Reply */}
                         {replyText && (
-                          <div className="mt-4 rounded-xl border px-4 py-3 flex items-start gap-3 bg-emerald-50 border-emerald-200">
-                            <span className="mt-0.5 inline-block h-5 w-1.5 rounded-full bg-emerald-400/90"></span>
-                            <div className="min-w-0">
-                              <div className="text-xs font-semibold tracking-wide text-emerald-800">
-                                Bakery Reply
-                                {repliedAt && (
-                                  <span className="ml-2 font-normal text-emerald-700/80">
-                                    • {new Date(repliedAt).toLocaleString()}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="mt-0.5 text-sm leading-relaxed text-emerald-900">
-                                {replyText}
-                              </p>
-                            </div>
+                          <div className="mt-4 rounded-xl bg-[#e9f9ef] border border-[#c7ecd5] px-3.5 py-2 text-[13px] text-[#1b5c30]">
+                            <span className="font-semibold">Bakery Reply:</span>{" "}
+                            {replyText}
                           </div>
-                        )} 
+                        )}
 
                         {/* Edit button */}
                         <div className="mt-4 flex justify-end">

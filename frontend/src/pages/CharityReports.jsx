@@ -219,55 +219,57 @@ export default function BakeryReports() {
         ? reportData
         : [reportData];
 
-          // Handle Bakery List (new)
-          if (activeReport === "bakery_list" && reportData?.bakeries) {
-            const bakeries = reportData.bakeries;
-            if (bakeries.length === 0) {
-              Swal.close();
-              Swal.fire("No data", "No charity data available to export.", "info");
-              return;
-            }
-      
-            const headers = [
-              "ID",
-              "Profile Image",
-              "Bakery Name",
-              "Direct Donations",
-              "Request Donations",
-              "Direct Donation Quantity",
-              "Request Donation Quantity",
-              "Total Donated Quantity",
-              "Total Transactions",
-            ];
-      
-            const csvRows = [headers.join(",")];
-      
-            for (const c of bakeries) {
-              csvRows.push([
-                `"${c.id || ""}"`,
-                `"${c.charity_profile || ""}"`,
-                `"${c.charity_name || ""}"`,
-                `"${c.direct_count || 0}"`,
-                `"${c.request_count || 0}"`,
-                `"${c.direct_qty || 0}"`,
-                `"${c.request_qty || 0}"`,
-                `"${c.total_received_qty || 0}"`,
-                `"${c.total_transactions || 0}"`,
-              ].join(","));
-            }
-      
-            const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
-            const url = URL.createObjectURL(blob);
-      
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = `${activeReport}_report.csv`;
-            link.click();
-            URL.revokeObjectURL(url);
-      
-            Swal.close();
-            return; // stop here so generic logic won't run
-          }
+      // Handle Bakery List (new)
+      if (activeReport === "bakery_list" && reportData?.bakeries) {
+        const bakeries = reportData.bakeries;
+        if (bakeries.length === 0) {
+          Swal.close();
+          Swal.fire("No data", "No charity data available to export.", "info");
+          return;
+        }
+
+        const headers = [
+          "ID",
+          "Profile Image",
+          "Bakery Name",
+          "Direct Donations",
+          "Request Donations",
+          "Direct Donation Quantity",
+          "Request Donation Quantity",
+          "Total Donated Quantity",
+          "Total Transactions",
+        ];
+
+        const csvRows = [headers.join(",")];
+
+        for (const c of bakeries) {
+          csvRows.push(
+            [
+              `"${c.id || ""}"`,
+              `"${c.charity_profile || ""}"`,
+              `"${c.charity_name || ""}"`,
+              `"${c.direct_count || 0}"`,
+              `"${c.request_count || 0}"`,
+              `"${c.direct_qty || 0}"`,
+              `"${c.request_qty || 0}"`,
+              `"${c.total_received_qty || 0}"`,
+              `"${c.total_transactions || 0}"`,
+            ].join(",")
+          );
+        }
+
+        const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${activeReport}_report.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+
+        Swal.close();
+        return; // stop here so generic logic won't run
+      }
 
       // Flatten top_items if exists
       let flatData = dataToExport.map((row) => {
@@ -316,91 +318,122 @@ export default function BakeryReports() {
       didOpen: () => Swal.showLoading(),
     });
 
-        // Generate pdf for charity list
-        if (activeReport === "bakery_list") {
-          const doc = new jsPDF("landscape", "pt", "a4");
-          const pageWidth = doc.internal.pageSize.getWidth();
-          let currentY = 40;
-    
-        // HEADER 
-          const logoSize = 40;
-          if (charityInfo?.profile) {
-            const logo = await new Promise((resolve) => {
-              const img = new Image();
-              img.crossOrigin = "anonymous";
-              img.onload = () => resolve(img);
-              img.onerror = () => resolve(null);
-              img.src = `${API_URL}/${normalizePath(charityInfo.profile)}?t=${Date.now()}`;
-            });
-    
-            if (logo) {
-              const canvas = document.createElement("canvas");
-              canvas.width = logoSize;
-              canvas.height = logoSize;
-              const ctx = canvas.getContext("2d");
-    
-              // Draw rounded logo
-              const radius = logoSize / 2;
-              ctx.clearRect(0, 0, logoSize, logoSize);
-              ctx.save();
-              ctx.beginPath();
-              ctx.arc(radius, radius, radius, 0, Math.PI * 2);
-              ctx.closePath();
-              ctx.clip();
-              ctx.drawImage(logo, 0, 0, logoSize, logoSize);
-              ctx.restore();
-    
-              const imgData = canvas.toDataURL("image/png");
-              doc.addImage(imgData, "PNG", pageWidth / 2 - logoSize / 2, currentY, logoSize, logoSize);
-              currentY += logoSize + 5;
-            }
-          }
-    
-          // Bakery Name
-          doc.setFontSize(14);
-          doc.setFont("helvetica", "bold");
-          doc.text(charityInfo?.name || "Charity Name", pageWidth / 2, currentY, { align: "center" });
-          currentY += 14;
-    
-          // Address & Contact
-          doc.setFontSize(8);
-          doc.setFont("helvetica", "normal");
-          doc.text(charityInfo?.address || "", pageWidth / 2, currentY, { align: "center" });
-          currentY += 10;
-          doc.text(
-            `Contact: ${charityInfo?.contact_number || "N/A"} | Email: ${charityInfo?.email || "N/A"}`,
-            pageWidth / 2,
+    // Generate pdf for charity list
+    if (activeReport === "bakery_list") {
+      const doc = new jsPDF("landscape", "pt", "a4");
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let currentY = 40;
+
+      // HEADER
+      const logoSize = 40;
+      if (charityInfo?.profile) {
+        const logo = await new Promise((resolve) => {
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.onload = () => resolve(img);
+          img.onerror = () => resolve(null);
+          img.src = `${API_URL}/${normalizePath(
+            charityInfo.profile
+          )}?t=${Date.now()}`;
+        });
+
+        if (logo) {
+          const canvas = document.createElement("canvas");
+          canvas.width = logoSize;
+          canvas.height = logoSize;
+          const ctx = canvas.getContext("2d");
+
+          // Draw rounded logo
+          const radius = logoSize / 2;
+          ctx.clearRect(0, 0, logoSize, logoSize);
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(radius, radius, radius, 0, Math.PI * 2);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(logo, 0, 0, logoSize, logoSize);
+          ctx.restore();
+
+          const imgData = canvas.toDataURL("image/png");
+          doc.addImage(
+            imgData,
+            "PNG",
+            pageWidth / 2 - logoSize / 2,
             currentY,
-            { align: "center" }
+            logoSize,
+            logoSize
           );
-          currentY += 18;
-    
-          // Report Title & Date
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "bold");
-          doc.text(`${activeReport.replace(/_/g, " ").toUpperCase()} REPORT`, pageWidth / 2, currentY, { align: "center" });
-          currentY += 14;
-          doc.setFontSize(7);
-          doc.setFont("helvetica", "normal");
-          currentY += 8;
-          doc.text(`Date and Time ${new Date().toLocaleString()}`, pageWidth / 2, currentY, { align: "center" });
-          currentY += 20;
+          currentY += logoSize + 5;
+        }
+      }
 
-          // ===== Bakery Table =====
-          const bakeries = reportData.bakeries || [];
-          if (!bakeries.length) return alert("No bakery data available.");
+      // Bakery Name
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text(charityInfo?.name || "Charity Name", pageWidth / 2, currentY, {
+        align: "center",
+      });
+      currentY += 14;
 
-          const tableHeaders = [
-            "Profile", "Bakery Name", "Direct Donations",
-            "Requests", "Direct Qty", "Request Qty",
-            "Received Qty", "Total Transactions"
-          ];
-    
-          const IMG_SIZE = 36; // image width/height
-          const ROW_HEIGHT = 40; // row height to fit image nicely
-    
-          // Preload all bakery profile images to base64
-          const toBase64 = (url) => new Promise((resolve) => {
+      // Address & Contact
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.text(charityInfo?.address || "", pageWidth / 2, currentY, {
+        align: "center",
+      });
+      currentY += 10;
+      doc.text(
+        `Contact: ${charityInfo?.contact_number || "N/A"} | Email: ${
+          charityInfo?.email || "N/A"
+        }`,
+        pageWidth / 2,
+        currentY,
+        { align: "center" }
+      );
+      currentY += 18;
+
+      // Report Title & Date
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text(
+        `${activeReport.replace(/_/g, " ").toUpperCase()} REPORT`,
+        pageWidth / 2,
+        currentY,
+        { align: "center" }
+      );
+      currentY += 14;
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      currentY += 8;
+      doc.text(
+        `Date and Time ${new Date().toLocaleString()}`,
+        pageWidth / 2,
+        currentY,
+        { align: "center" }
+      );
+      currentY += 20;
+
+      // ===== Bakery Table =====
+      const bakeries = reportData.bakeries || [];
+      if (!bakeries.length) return alert("No bakery data available.");
+
+      const tableHeaders = [
+        "Profile",
+        "Bakery Name",
+        "Direct Donations",
+        "Requests",
+        "Direct Qty",
+        "Request Qty",
+        "Received Qty",
+        "Total Transactions",
+      ];
+
+      const IMG_SIZE = 36; // image width/height
+      const ROW_HEIGHT = 40; // row height to fit image nicely
+
+      // Preload all bakery profile images to base64
+      const toBase64 = (url) =>
+        new Promise((resolve) => {
           if (!url) return resolve(null);
           const img = new Image();
           img.crossOrigin = "anonymous";
@@ -410,90 +443,115 @@ export default function BakeryReports() {
             canvas.width = IMG_SIZE * SCALE;
             canvas.height = IMG_SIZE * SCALE;
             const ctx = canvas.getContext("2d");
-    
+
             // Optional: smooth scaling
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = "high";
-    
+
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
             resolve(canvas.toDataURL("PNG"));
           };
           img.onerror = () => resolve(null);
           img.src = url + "?t=" + Date.now();
         });
-    
-          // Convert all profiles to base64 in parallel
-          const bakeryProfiles = await Promise.all(
-            bakeries.map(b => b.bakery_profile ? toBase64(`${API_URL}/${normalizePath(b.bakery_profile)}`) : null)
-          );
 
-          // Prepare table body (use raw bakery name for text, image will be drawn later)
-          const tableBody = bakeries.map(b => [
-            b.bakery_name, // placeholder for profile column
-            b.bakery_name,
-            b.direct_count,
-            b.request_count,
-            b.direct_qty,
-            b.request_qty,
-            b.total_received_qty,
-            b.total_transactions
-          ]);
-    
-          // Draw table with images
-          autoTable(doc, {
-            head: [tableHeaders],
-            body: tableBody,
-            startY: currentY,
-            styles: { fontSize: 8, halign: "center", valign: "middle", cellPadding: 4 },
-            columnStyles: {
-              0: { cellWidth: IMG_SIZE + 4, halign: "center", valign: "middle", minCellHeight: ROW_HEIGHT }
-            },
-            rowPageBreak: 'auto',
-            didDrawCell: (data) => {
-              if (data.column.index === 0 && data.cell.section === "body") {
-                const imgData = bakeryProfiles[data.row.index];
-                if (imgData) {
-                  const x = data.cell.x + (data.cell.width - IMG_SIZE) / 2;
-                  const y = data.cell.y + (data.cell.height - IMG_SIZE) / 2;
-                  doc.addImage(imgData, "PNG", x, y, IMG_SIZE, IMG_SIZE);
-                } else {
-                  // fallback initials
-                  const cx = data.cell.x + data.cell.width / 2;
-                  const cy = data.cell.y + data.cell.height / 2;
-                  const initials = (data.cell.raw || "?").split(" ").map(w => w[0]).join("").toUpperCase();
-                  doc.setFillColor(52, 152, 219);
-                  doc.circle(cx, cy, IMG_SIZE / 2, "F");
-                  doc.setTextColor(255);
-                  doc.setFont("helvetica", "bold");
-                  doc.setFontSize(16);
-                  doc.text(initials, cx, cy + 6, { align: "center", baseline: "middle" });
-                }
-              }
-            },
-          });
-    
-        currentY = doc.lastAutoTable.finalY + 10;
-    
-        // ===== Grand Totals =====
-        const totals = reportData.grand_totals || {};
-        autoTable(doc, {
-          head: [["Total Type", "Value"]],
-          body: [
-            ["Total Direct Donations", totals.total_direct_count || 0],
-            ["Total Requests", totals.total_request_count || 0],
-            ["Total Direct Qty", totals.total_direct_qty || 0],
-            ["Total Request Qty", totals.total_request_qty || 0],
-            ["Total Received Qty", totals.total_received_qty || 0],
-            ["Total Transactions", totals.total_transactions || 0]
-          ],
-          startY: currentY,
-          styles: { fontSize: 8, halign: "center", valign: "middle" },
-          headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: "bold" }
-        });
-    
-          doc.save("Bakery_List_Report.pdf");
-          Swal.close();
-        }
+      // Convert all profiles to base64 in parallel
+      const bakeryProfiles = await Promise.all(
+        bakeries.map((b) =>
+          b.bakery_profile
+            ? toBase64(`${API_URL}/${normalizePath(b.bakery_profile)}`)
+            : null
+        )
+      );
+
+      // Prepare table body (use raw bakery name for text, image will be drawn later)
+      const tableBody = bakeries.map((b) => [
+        b.bakery_name, // placeholder for profile column
+        b.bakery_name,
+        b.direct_count,
+        b.request_count,
+        b.direct_qty,
+        b.request_qty,
+        b.total_received_qty,
+        b.total_transactions,
+      ]);
+
+      // Draw table with images
+      autoTable(doc, {
+        head: [tableHeaders],
+        body: tableBody,
+        startY: currentY,
+        styles: {
+          fontSize: 8,
+          halign: "center",
+          valign: "middle",
+          cellPadding: 4,
+        },
+        columnStyles: {
+          0: {
+            cellWidth: IMG_SIZE + 4,
+            halign: "center",
+            valign: "middle",
+            minCellHeight: ROW_HEIGHT,
+          },
+        },
+        rowPageBreak: "auto",
+        didDrawCell: (data) => {
+          if (data.column.index === 0 && data.cell.section === "body") {
+            const imgData = bakeryProfiles[data.row.index];
+            if (imgData) {
+              const x = data.cell.x + (data.cell.width - IMG_SIZE) / 2;
+              const y = data.cell.y + (data.cell.height - IMG_SIZE) / 2;
+              doc.addImage(imgData, "PNG", x, y, IMG_SIZE, IMG_SIZE);
+            } else {
+              // fallback initials
+              const cx = data.cell.x + data.cell.width / 2;
+              const cy = data.cell.y + data.cell.height / 2;
+              const initials = (data.cell.raw || "?")
+                .split(" ")
+                .map((w) => w[0])
+                .join("")
+                .toUpperCase();
+              doc.setFillColor(52, 152, 219);
+              doc.circle(cx, cy, IMG_SIZE / 2, "F");
+              doc.setTextColor(255);
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(16);
+              doc.text(initials, cx, cy + 6, {
+                align: "center",
+                baseline: "middle",
+              });
+            }
+          }
+        },
+      });
+
+      currentY = doc.lastAutoTable.finalY + 10;
+
+      // ===== Grand Totals =====
+      const totals = reportData.grand_totals || {};
+      autoTable(doc, {
+        head: [["Total Type", "Value"]],
+        body: [
+          ["Total Direct Donations", totals.total_direct_count || 0],
+          ["Total Requests", totals.total_request_count || 0],
+          ["Total Direct Qty", totals.total_direct_qty || 0],
+          ["Total Request Qty", totals.total_request_qty || 0],
+          ["Total Received Qty", totals.total_received_qty || 0],
+          ["Total Transactions", totals.total_transactions || 0],
+        ],
+        startY: currentY,
+        styles: { fontSize: 8, halign: "center", valign: "middle" },
+        headStyles: {
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontStyle: "bold",
+        },
+      });
+
+      doc.save("Bakery_List_Report.pdf");
+      Swal.close();
+    }
 
     // Weekly UI snapshot
     if (activeReport === "weekly") {
@@ -697,12 +755,7 @@ export default function BakeryReports() {
       };
 
       // Pie images
-      const pieStatusImg = drawSimplePie(
-        [
-        ],
-        [],
-        120
-      );
+      const pieStatusImg = drawSimplePie([], [], 120);
 
       const pieTypeImg = drawSimplePie(
         [
@@ -774,8 +827,7 @@ export default function BakeryReports() {
       const pie1CenterX = boxX + 180; // Inventory pie
       const pie2CenterX = boxX + 550; // Donation pie
 
-      drawLegend(pie1CenterX, boxY + 160, [
-      ]);
+      drawLegend(pie1CenterX, boxY + 160, []);
 
       drawLegend(pie2CenterX, boxY + 160, [
         { text: "Direct", color: "#4CAF50" },
@@ -992,12 +1044,7 @@ export default function BakeryReports() {
       };
 
       // Pie images
-      const pieStatusImg = drawSimplePie(
-        [
-        ],
-        [],
-        120
-      );
+      const pieStatusImg = drawSimplePie([], [], 120);
 
       const pieTypeImg = drawSimplePie(
         [
@@ -1069,8 +1116,7 @@ export default function BakeryReports() {
       const pie1CenterX = boxX + 180; // Inventory pie
       const pie2CenterX = boxX + 550; // Donation pie
 
-      drawLegend(pie1CenterX, boxY + 160, [
-      ]);
+      drawLegend(pie1CenterX, boxY + 160, []);
 
       drawLegend(pie2CenterX, boxY + 160, [
         { text: "Direct", color: "#4CAF50" },
@@ -1420,12 +1466,7 @@ export default function BakeryReports() {
         });
 
       // Draw pie charts
-      const pieStatusImg = await drawPieChartWithPercent(
-        [
-
-        ],
-        []
-      );
+      const pieStatusImg = await drawPieChartWithPercent([], []);
 
       const pieTypeImg = await drawPieChartWithPercent(
         [
@@ -1570,12 +1611,7 @@ export default function BakeryReports() {
         });
 
       // Draw pie charts
-      const pieStatusImg = await drawPieChartWithPercent(
-        [
-          
-        ],
-        []
-      );
+      const pieStatusImg = await drawPieChartWithPercent([], []);
 
       const pieTypeImg = await drawPieChartWithPercent(
         [
@@ -1615,15 +1651,15 @@ export default function BakeryReports() {
 
       reportBodyHTML = `${weekTable}${topItemsHTML}${pieChartsHTML}`;
     } else if (activeReport === "bakery_list") {
-    const bakeries = reportData.bakeries || [];
-    const totals = reportData.grand_totals || {};
+      const bakeries = reportData.bakeries || [];
+      const totals = reportData.grand_totals || {};
 
-    if (bakeries.length === 0) {
-      alert("No bakery data available to print.");
-      return;
-    }
+      if (bakeries.length === 0) {
+        alert("No bakery data available to print.");
+        return;
+      }
 
-    const tableHTMLContent = `
+      const tableHTMLContent = `
       <h3>Bakery List Summary</h3>
       <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; text-align: center;">
         <thead>
@@ -1645,7 +1681,11 @@ export default function BakeryReports() {
               <tr>
                 <td>
                   <img 
-                    src="${c.bakery_profile ? `${API_URL}/${normalizePath(c.bakery_profile)}` : "/default_profile.png"}"
+                    src="${
+                      c.bakery_profile
+                        ? `${API_URL}/${normalizePath(c.bakery_profile)}`
+                        : "/default_profile.png"
+                    }"
                     alt="${c.bakery_name}" 
                     style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;"
                   />
@@ -1667,18 +1707,30 @@ export default function BakeryReports() {
       <h3>Grand Totals</h3>
       <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; text-align: center;">
         <tbody>
-          <tr><td><b>Total Direct Donations</b></td><td>${totals.total_direct_count}</td></tr>
-          <tr><td><b>Total Requests</b></td><td>${totals.total_request_count}</td></tr>
-          <tr><td><b>Total Direct Qty</b></td><td>${totals.total_direct_qty}</td></tr>
-          <tr><td><b>Total Request Qty</b></td><td>${totals.total_request_qty}</td></tr>
-          <tr><td><b>Total Received Qty</b></td><td>${totals.total_received_qty}</td></tr>
-          <tr><td><b>Total Transactions</b></td><td><strong>${totals.total_transactions}</strong></td></tr>
+          <tr><td><b>Total Direct Donations</b></td><td>${
+            totals.total_direct_count
+          }</td></tr>
+          <tr><td><b>Total Requests</b></td><td>${
+            totals.total_request_count
+          }</td></tr>
+          <tr><td><b>Total Direct Qty</b></td><td>${
+            totals.total_direct_qty
+          }</td></tr>
+          <tr><td><b>Total Request Qty</b></td><td>${
+            totals.total_request_qty
+          }</td></tr>
+          <tr><td><b>Total Received Qty</b></td><td>${
+            totals.total_received_qty
+          }</td></tr>
+          <tr><td><b>Total Transactions</b></td><td><strong>${
+            totals.total_transactions
+          }</strong></td></tr>
         </tbody>
       </table>
     `;
 
-    reportBodyHTML = tableHTMLContent;
-  } else {
+      reportBodyHTML = tableHTMLContent;
+    } else {
       // Other tabs (daily, monthly, etc.)
       if (!Array.isArray(reportData) || reportData.length === 0) return;
 
@@ -1782,71 +1834,82 @@ export default function BakeryReports() {
 
   const renderTable = (data) => {
     if (!data) return <p className="text-gray-500">No data available</p>;
-      // bakery list report
-      if (data.bakeries && Array.isArray(data.bakeries)) {
-        const bakeries = data.bakeries;
-        const totals = data.grand_totals || {};
+    // bakery list report
+    if (data.bakeries && Array.isArray(data.bakeries)) {
+      const bakeries = data.bakeries;
+      const totals = data.grand_totals || {};
 
-        if (bakeries.length === 0)
-          return <p className="text-gray-500">No bakeries found</p>;
+      if (bakeries.length === 0)
+        return <p className="text-gray-500">No bakeries found</p>;
 
-        return (
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse text-center">
-              <thead className="bg-gray-200">
-                <tr>
-                  <th className="px-4 py-2">Profile</th>
-                  <th className="px-4 py-2">Bakery Name</th>
-                  <th className="px-4 py-2">Direct Donations</th>
-                  <th className="px-4 py-2">Requests Donations</th>
-                  <th className="px-4 py-2">Direct Donation Qty</th>
-                  <th className="px-4 py-2">Request Donation Qty</th>
-                  <th className="px-4 py-2">Total Donated Qty</th>
-                  <th className="px-4 py-2">Total Transactions</th>
+      return (
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse text-center">
+            <thead className="bg-gray-200">
+              <tr>
+                <th className="px-4 py-2">Profile</th>
+                <th className="px-4 py-2">Bakery Name</th>
+                <th className="px-4 py-2">Direct Donations</th>
+                <th className="px-4 py-2">Requests Donations</th>
+                <th className="px-4 py-2">Direct Donation Qty</th>
+                <th className="px-4 py-2">Request Donation Qty</th>
+                <th className="px-4 py-2">Total Donated Qty</th>
+                <th className="px-4 py-2">Total Transactions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bakeries.map((b, i) => (
+                <tr key={i} className="border-b border-gray-300">
+                  <td className="px-4 py-2">
+                    <img
+                      src={
+                        b.bakery_profile
+                          ? `${API_URL}/${b.bakery_profile}`
+                          : "/default_profile.png"
+                      }
+                      alt={b.bakery_name}
+                      className="w-14 h-14 rounded-full object-cover mx-auto"
+                    />
+                  </td>
+                  <td className="px-4 py-2 font-semibold">{b.bakery_name}</td>
+                  <td className="px-4 py-2">{b.direct_count}</td>
+                  <td className="px-4 py-2">{b.request_count}</td>
+                  <td className="px-4 py-2">{b.direct_qty}</td>
+                  <td className="px-4 py-2">{b.request_qty}</td>
+                  <td className="px-4 py-2 font-medium">
+                    {b.total_donated_qty}
+                  </td>
+                  <td className="px-4 py-2 font-bold text-gray-800">
+                    {b.total_transactions}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {bakeries.map((b, i) => (
-                  <tr key={i} className="border-b border-gray-300">
-                    <td className="px-4 py-2">
-                      <img
-                        src={
-                          b.bakery_profile
-                            ? `${API_URL}/${b.bakery_profile}`
-                            : "/default_profile.png"
-                        }
-                        alt={b.bakery_name}
-                        className="w-14 h-14 rounded-full object-cover mx-auto"
-                      />
-                    </td>
-                    <td className="px-4 py-2 font-semibold">{b.bakery_name}</td>
-                    <td className="px-4 py-2">{b.direct_count}</td>
-                    <td className="px-4 py-2">{b.request_count}</td>
-                    <td className="px-4 py-2">{b.direct_qty}</td>
-                    <td className="px-4 py-2">{b.request_qty}</td>
-                    <td className="px-4 py-2 font-medium">{b.total_donated_qty}</td>
-                    <td className="px-4 py-2 font-bold text-gray-800">
-                      {b.total_transactions}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              ))}
+            </tbody>
+          </table>
 
-            {/* Grand Totals */}
-            <div className="mt-4 border-t pt-3 text-right text-gray-800">
-              <p>Total Transaction of Direct Donations: {totals.total_direct_count}</p>
-              <p>Total Transaction of Requests Donations: {totals.total_request_count}</p>
-              <p>Total Donated Qty (Direct Donations): {totals.total_direct_qty}</p>
-              <p>Total Donated Qty (Request Donations): {totals.total_request_qty}</p>
-              <p>Total Donated Qty Overall: {totals.total_donated_qty}</p>
-              <p className="font-bold text-lg">
-                Total Transactions: {totals.total_transactions}
-              </p>
-            </div>
+          {/* Grand Totals */}
+          <div className="mt-4 border-t pt-3 text-right text-gray-800">
+            <p>
+              Total Transaction of Direct Donations: {totals.total_direct_count}
+            </p>
+            <p>
+              Total Transaction of Requests Donations:{" "}
+              {totals.total_request_count}
+            </p>
+            <p>
+              Total Donated Qty (Direct Donations): {totals.total_direct_qty}
+            </p>
+            <p>
+              Total Donated Qty (Request Donations): {totals.total_request_qty}
+            </p>
+            <p>Total Donated Qty Overall: {totals.total_donated_qty}</p>
+            <p className="font-bold text-lg">
+              Total Transactions: {totals.total_transactions}
+            </p>
           </div>
-        );
-      }
+        </div>
+      );
+    }
 
     //Default fallback (for other reports like donation, expiry, etc.)
     if (!Array.isArray(data) || data.length === 0)
@@ -2110,8 +2173,7 @@ export default function BakeryReports() {
                                 <ResponsiveContainer width="100%" height={280}>
                                   <PieChart>
                                     <Pie
-                                      data={[
-                                      ]}
+                                      data={[]}
                                       dataKey="value"
                                       nameKey="name"
                                       cx="50%"
@@ -2294,8 +2356,7 @@ export default function BakeryReports() {
                                 <ResponsiveContainer width="100%" height={280}>
                                   <PieChart>
                                     <Pie
-                                      data={[
-                                      ]}
+                                      data={[]}
                                       dataKey="value"
                                       nameKey="name"
                                       cx="50%"

@@ -52,7 +52,7 @@ const Badge = ({ children }) => (
   </span>
 );
 
-// Helpers 
+// Helpers
 const avatar = (path, fallback = `${API}/uploads/placeholder.png`) =>
   path ? `${API}/${path}` : fallback;
 

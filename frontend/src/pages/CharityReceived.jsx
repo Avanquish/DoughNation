@@ -55,7 +55,7 @@ const CharityReceived = () => {
   const [directDonations, setDirectDonations] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
 
-  // Load current user 
+  // Load current user
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
@@ -73,7 +73,7 @@ const CharityReceived = () => {
     }
   }, []);
 
-  // Fetch bakery normal donations 
+  // Fetch bakery normal donations
   useEffect(() => {
     if (!currentUser || currentUser.role !== "charity") return;
 
@@ -97,7 +97,7 @@ const CharityReceived = () => {
     fetchReceivedDonations();
   }, [currentUser]);
 
-  // Fetch direct donation 
+  // Fetch direct donation
   useEffect(() => {
     if (!currentUser || currentUser.role !== "charity") return;
 
@@ -283,6 +283,13 @@ const CharityReceived = () => {
       <div className="mb-4">
         <h2 className="text-3xl sm:text-4xl font-extrabold" style={{ color: "#6B4B2B" }}>
           Received Donations
+        </h2>
+      </div>
+
+      {/* NEW: Requested Donations subtitle (matches Direct Donations styling) */}
+      <div className="mb-4">
+        <h2 className="text-2xl font-bold" style={{ color: "#6B4B2B" }}>
+          Requested Donations
         </h2>
       </div>
 

@@ -14,7 +14,7 @@ import {
 import axios from "axios";
 
 /* ==== Config & helpers ==== */
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import { API_URL, WS_URL } from "../config"; 
 
 const fileUrl = (path) => {
   if (!path) return "";
@@ -491,12 +491,11 @@ useEffect(() => {
     let reconnectTimerId;
 
     const connectWS = () => {
-      const ws = new WebSocket(
-        `${API_URL.replace(/^http/, "ws")}/ws/messages/${currentUser.id}`
-      );
+        const ws = new WebSocket(`${WS_URL}/messages/${currentUser.id}`);
       wsRef.current = ws;
 
       ws.onopen = () => {
+        console.log("✅ WebSocket connected");
         ws.send(JSON.stringify({ type: "get_active_chats" }));
       };
 
@@ -767,7 +766,11 @@ useEffect(() => {
       const donation = p?.donation;
       const inventoryId = donation?.bakery_inventory_id;
 
-      return p?.type === "donation_card" && !m.accepted && !removedDonations.has(donationId) && !acceptedDonations.has(donationId) &&  !removedProducts.has(inventoryId);
+      return p?.type === "donation_card" && 
+      !m.accepted && 
+      !removedDonations.has(donationId) && 
+      !acceptedDonations.has(donationId) &&  
+      !removedProducts.has(inventoryId);
     } catch {
       return false;
     }
@@ -1056,22 +1059,15 @@ const renderMessageBody = (m) => {
     allDonationRequests,
   });
 
- const isProductAcceptedOrCancelled = allDonationRequests.some(
-  req =>
-    req.bakery_inventory_id === d.id &&
-    (req.status === "accepted" || req.status === "canceled")
+const requestsForDonation = allDonationRequests.filter(
+  req => req.bakery_inventory_id === d.id
 );
 
-  console.log("🎯 Hide check", {
-  d_id: d.id,
-  matched: allDonationRequests.filter(
-     req =>
-    req.bakery_inventory_id === d.id &&
-    (req.status === "accepted" || req.status === "canceled")
-  ),
-});
+const hideButtons = requestsForDonation.length > 0 
+  && requestsForDonation.every(
+      req => req.status === "accepted" || req.status === "canceled"
+    );
 
-  const hideButtons = isProductAcceptedOrCancelled;
   const isTaken = acceptedDonations.has(d.bakery_inventory_id);
 
   return {

@@ -4,7 +4,6 @@ import { Link } from "react-router-dom";
 const Home = () => {
   const [showTop, setShowTop] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => {
@@ -78,63 +77,18 @@ const Home = () => {
   }, []);
 
   const coreFeatures = [
-    {
-      n: 1,
-      icon: "⏰",
-      title: "Smart notifications",
-      text: "Automatically alert bakeries when items near expiration, and ping nearby charities the moment donations go live.",
-    },
-    {
-      n: 2,
-      icon: "💬",
-      title: "Real-time messages",
-      text: "Direct chat between bakeries and charities for acceptance, timing, and packaging. Everything in one thread once a donation is accepted.",
-    },
-    {
-      n: 3,
-      icon: "📍",
-      title: "Geolocation & geofencing",
-      text: "Use a geolocation API to show nearby partners and set dynamic geofences. Automatic offers trigger to users within range for faster pickups.",
-    },
-    {
-      n: 4,
-      icon: "🏅",
-      title: "Badges, leaderboard & analytics",
-      text: "Visual dashboards for donation frequency and quantity. Motivate bakeries with badges, plus a weekly leaderboard.",
-    },
-    {
-      n: 5,
-      icon: "🧾",
-      title: "Complete donation history",
-      text: "End-to-end logs for transparency and traceability, such as listings, claims, handoffs, receipts, and exports for audits and reporting.",
-    },
-    {
-      n: 6,
-      icon: "📈",
-      title: "Performance & feedback",
-      text: "Measure usability and reliability with donation rates, response times, and satisfaction surveys.",
-    },
+    { n: 1, icon: "⏰", title: "Smart notifications", text: "Automatically alert bakeries when items near expiration, and ping nearby charities the moment donations go live." },
+    { n: 2, icon: "💬", title: "Real-time messages", text: "Direct chat between bakeries and charities for acceptance, timing, and packaging. Everything in one thread once a donation is accepted." },
+    { n: 3, icon: "📍", title: "Geolocation & geofencing", text: "Use a geolocation API to show nearby partners and set dynamic geofences. Automatic offers trigger to users within range for faster pickups." },
+    { n: 4, icon: "🏅", title: "Badges, leaderboard & analytics", text: "Visual dashboards for donation frequency and quantity. Motivate bakeries with badges, plus a weekly leaderboard." },
+    { n: 5, icon: "🧾", title: "Complete donation history", text: "End-to-end logs for transparency and traceability, such as listings, claims, handoffs, receipts, and exports for audits and reporting." },
+    { n: 6, icon: "📈", title: "Performance & feedback", text: "Measure usability and reliability with donation rates, response times, and satisfaction surveys." },
   ];
 
   const partners = [
-    {
-      name: "R Bakery St. Scholastic Branch",
-      logo: "/logos/r-bakery.png",
-      emoji: "🍞",
-      url: "https://www.facebook.com/rbakery.bls",
-    },
-    {
-      name: "Scholars of Sustenance (SOS)",
-      logo: "/logos/sos.png",
-      emoji: "🤝",
-      url: "https://www.facebook.com/SOSPHFoodRescue",
-    },
-    {
-      name: "Arnold John Kalinga Foundation",
-      logo: "/logos/kalinga.png",
-      emoji: "🎗️",
-      url: "https://www.facebook.com/ajkalinga",
-    },
+    { name: "R Bakery St. Scholastic Branch", logo: "/logos/r-bakery.png", emoji: "🍞", url: "https://www.facebook.com/rbakery.bls" },
+    { name: "Scholars of Sustenance (SOS)", logo: "/logos/sos.png", emoji: "🤝", url: "https://www.facebook.com/SOSPHFoodRescue" },
+    { name: "Arnold John Kalinga Foundation", logo: "/logos/kalinga.png", emoji: "🎗️", url: "https://www.facebook.com/ajkalinga" },
   ];
 
   const tagline = [
@@ -196,43 +150,6 @@ const Home = () => {
 
   .glass{backdrop-filter: blur(12px); background: linear-gradient(180deg, rgba(255,255,255,.72), rgba(255,255,255,.52)); border:1px solid rgba(255,255,255,.7)}
   .glass-soft{backdrop-filter: blur(10px); background: linear-gradient(180deg, rgba(255,255,255,.66), rgba(255,255,255,.46)); border:1px solid rgba(255,255,255,.65)}
-
-  /* === Mobile menu panel === */
-  .mobile-menu-panel{
-    backdrop-filter: blur(8px);
-    background:
-      linear-gradient(180deg,
-        rgba(255,233,203,0.95) 0%,
-        rgba(252,220,186,0.95) 55%,
-        rgba(243,197,143,0.95) 100%);
-    box-shadow:
-      0 16px 34px rgba(201,124,44,.18),
-      inset 0 1px 0 rgba(255,255,255,.55),
-      inset 0 -10px 24px rgba(201,124,44,.08);
-    border: 1px solid rgba(201,124,44,.18);
-  }
-  .mobile-menu-item{
-    color:#5b4631;
-    border-radius:.75rem;
-    transition: background .18s ease, box-shadow .18s ease;
-  }
-  .mobile-menu-item:hover{
-    background: rgba(255,255,255,.42);
-    box-shadow: inset 0 0 0 1px rgba(201,124,44,.12);
-  }
-  .mobile-menu-item:active{
-    background: rgba(255,255,255,.55);
-  }
-  .mobile-menu-item:focus-visible{
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(201,124,44,.28);
-  }
-
-  .mobile-scrim{
-    position:fixed; inset:0; z-index:70;
-    background: rgba(0,0,0,.06);
-    backdrop-filter: blur(1px);
-  }
 
   .header-skin{position:relative}
   .header-skin.glass-soft{background:none !important; border-color: rgba(201,124,44,.18)}
@@ -329,55 +246,6 @@ const Home = () => {
 
   .partner-pill{display:inline-flex; align-items:center; gap:.6rem; padding:.65rem 1rem; border-radius:9999px; background:linear-gradient(180deg,#fff,#fffaf5); border:1px solid rgba(0,0,0,.06); box-shadow:0 8px 22px rgba(201,124,44,.10); text-decoration:none}
   .partner-logo{width:34px;height:34px;border-radius:9999px;display:flex;align-items:center;justify-content:center; background:linear-gradient(180deg,#FFE7C5,#F7C489); color:#7a4f1c; font-size:18px; flex-shrink:0; border:1px solid #fff3e0}
-
-  /* ====== MEDIA QUERIES  ====== */
-  /* ===== Phones ===== */
-  @media screen and (min-width:300px) and (max-width:574px){
-    .hdr-pad{padding-top:.5rem; padding-bottom:.5rem}
-    .mobile-menu{position:absolute; left:0; right:0; top:100%; margin-top:6px}
-    .hero-fig{ width: clamp(56px, 22vw, 84px); top: 54%; opacity:.98; }
-    .hero-fig.left{ left: max(6px, 3vw); }
-    .hero-fig.right{ right: max(6px, 3vw); }
-    .hero-cta{ flex-direction:column; gap:.6rem !important; }
-    .section-pad{ padding-top: 2.25rem !important; padding-bottom: 2.25rem !important; }
-    .gallery-card{ height: clamp(180px, 48vw, 240px) !important; }
-  }
-
-  /* ===== Small tablets ===== */
-  @media screen and (min-width:575px) and (max-width:767px){
-    .hero-fig{ width: clamp(64px, 18vw, 96px); top: 52%; }
-    .hero-fig.left{ left: max(10px, 5vw); }
-    .hero-fig.right{ right: max(10px, 5vw); }
-    .hero-cta{ flex-wrap:wrap; gap:.8rem; }
-    .gallery-card{ height: clamp(220px, 42vw, 280px) !important; }
-  }
-
-  /* ===== Large tablets ===== */
-  @media screen and (min-width:768px) and (max-width:959px){
-    .gallery-card{ height: clamp(240px, 36vw, 300px) !important; }
-  }
-
-  /* ===== Small desktops ===== */
-  @media screen and (min-width:1368px) and (max-width:1920px){
-    .hero-fig{ width: clamp(90px, 9vw, 120px); }
-    .heroTitle{ font-size: clamp(44px, 4.6vw, 84px); }
-  }
-
-  /* ===== Large Desktops ===== */
-  @media screen and (min-width:1921px) and (max-width:4096px){
-    .hero-fig{ width: clamp(110px, 8vw, 160px); }
-    .heroTitle{ font-size: clamp(56px, 4.2vw, 96px); }
-  }
-
-  /* ====== ADDED EMPTY LOGIN BREAKPOINTS ====== */
-  /* 768–1023 to mirror login md */
-  @media screen and (min-width:768px) and (max-width:1023px){}
-  /* 1024–1279 to mirror lg */
-  @media screen and (min-width:1024px) and (max-width:1279px){}
-  /* 1280–1535 to mirror xl */
-  @media screen and (min-width:1280px) and (max-width:1535px){}
-  /* 1536–1920 to mirror 2xl range */
-  @media screen and (min-width:1536px) and (max-width:1920px){}
 `}</style>
 
       <div className="bg-orbit" />
@@ -392,14 +260,6 @@ const Home = () => {
         />
       </div>
 
-      {mobileOpen && (
-        <button
-          aria-label="Close menu"
-          className="mobile-scrim"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-
       {/* ===== Header ===== */}
       <header className="fixed top-0 left-0 right-0 z-[80]">
         <div
@@ -407,7 +267,7 @@ const Home = () => {
             scrolled ? "is-scrolled" : ""
           }`}
         >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 hdr-pad flex items-center justify-between relative">
+          <div className="max-w-7xl mx-auto px-4 py-3 hdr-pad flex items-center justify-between relative">
             <Link to="/" className="flex items-center gap-3">
               <img
                 src="/images/DoughNationLogo.png"
@@ -419,7 +279,8 @@ const Home = () => {
               </span>
             </Link>
 
-            <nav className="hidden md:flex items-center gap-7 text-[15px]">
+            {/* Always-visible nav (no mobile hamburger) */}
+            <nav className="flex items-center gap-7 text-[15px]">
               <a
                 href="/"
                 className="nav-link text-[#5b4631] hover:text-[#8b5f28] transition-colors"
@@ -445,53 +306,12 @@ const Home = () => {
                 Register
               </Link>
             </nav>
-
-            <button
-              aria-label="Open menu"
-              className="md:hidden rounded-full p-2 hover:bg-white/60 glass-soft"
-              onClick={() => setMobileOpen((o) => !o)}
-            >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M4 6h16M4 12h16M4 18h16"
-                  stroke="#7a4f1c"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
-
-            <div
-              className={`md:hidden ${
-                mobileOpen ? "block" : "hidden"
-              } mobile-menu`}
-            >
-              <div className="mobile-menu-panel rounded-2xl mx-4 p-3 shadow-xl">
-                <a href="/" className="mobile-menu-item block px-3 py-2">
-                  Home
-                </a>
-                <a
-                  href="#features"
-                  className="mobile-menu-item block px-3 py-2"
-                >
-                  About
-                </a>
-                <Link to="/login" className="mobile-menu-item block px-3 py-2">
-                  Login
-                </Link>
-                <Link
-                  to="/register"
-                  className="mt-2 block text-center rounded-full px-4 py-2 text-white font-semibold btn-shimmer"
-                >
-                  Register
-                </Link>
-              </div>
-            </div>
           </div>
         </div>
       </header>
 
-      <div aria-hidden="true" className="h-[64px] md:h-[68px]" />
+      {/* Single fixed-height spacer (no responsive sizes) */}
+      <div aria-hidden="true" className="h-[68px]" />
 
       {/* ===== Hero ===== */}
       <section className="relative overflow-hidden hero-surface section-pad">
@@ -508,7 +328,7 @@ const Home = () => {
           className="hero-fig right"
         />
 
-        <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-16 text-center">
+        <div className="relative z-10 max-w-6xl mx-auto px-4 py-16 text-center">
           <h1
             className="heroTitle hasGradient tracking-tight"
             aria-label="Welcome to DoughNation"
@@ -525,19 +345,19 @@ const Home = () => {
           <div className="hero-cta mt-8 flex items-center justify-center gap-4 ctaFloat">
             <Link
               to="/login"
-              className="rounded-full px-6 sm:px-7 py-3 text-white font-semibold btn-shimmer hover:shadow-lg hover:shadow-amber-300/30 transition-transform active:scale-[.98]"
+              className="rounded-full px-7 py-3 text-white font-semibold btn-shimmer hover:shadow-lg hover:shadow-amber-300/30 transition-transform active:scale-[.98]"
             >
               Get Started
             </Link>
             <a
               href="#how-it-works"
-              className="rounded-full px-5 sm:px-6 py-3 font-semibold text-[#8a5a25] bg-white/80 hover:bg-white transition-colors glass"
+              className="rounded-full px-6 py-3 font-semibold text-[#8a5a25] bg-white/80 hover:bg-white transition-colors glass"
             >
               Learn More
             </a>
           </div>
 
-          <p className="max-w-3xl mx-auto mt-6 text-lg sm:text-xl text-[#6b4b2b] reveal-words">
+          <p className="max-w-3xl mx-auto mt-6 text-xl text-[#6b4b2b] reveal-words">
             {tagline.map((w, i) => (
               <span key={i} style={{ animationDelay: `${i * 90}ms` }}>
                 {w}&nbsp;
@@ -548,19 +368,16 @@ const Home = () => {
       </section>
 
       {/* ===== How it works ===== */}
-      <section
-        id="how-it-works"
-        className="py-12 sm:py-16 bg-white wave-top section-pad"
-      >
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+      <section id="how-it-works" className="py-16 bg-white wave-top section-pad">
+        <div className="max-w-6xl mx-auto px-4">
           <h2
-            className="text-3xl sm:text-4xl font-extrabold text-center bg-gradient-to-r from-[#f1b66f] to-[#c97c2c] bg-clip-text text-transparent"
+            className="text-4xl font-extrabold text-center bg-gradient-to-r from-[#f1b66f] to-[#c97c2c] bg-clip-text text-transparent"
             data-reveal
           >
             How DoughNation Works
           </h2>
 
-          <div className="mt-10 grid gap-6 md:grid-cols-3">
+          <div className="mt-10 grid gap-6 grid-cols-3">
             {[
               {
                 n: 1,
@@ -599,10 +416,10 @@ const Home = () => {
 
       {/* ===== Gallery ===== */}
       <section className="py-16 bg-[#fff7ec] wave-bottom section-pad">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="max-w-6xl mx-auto px-4">
           <div className="flex items-center justify-between gap-4">
             <h2
-              className="text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-[#f1b66f] to-[#c97c2c] bg-clip-text text-transparent"
+              className="text-3xl font-extrabold bg-gradient-to-r from-[#f1b66f] to-[#c97c2c] bg-clip-text text-transparent"
               data-reveal
             >
               Community Gallery
@@ -612,7 +429,7 @@ const Home = () => {
             </span>
           </div>
 
-          <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="mt-8 grid grid-cols-2 gap-6">
             {pair.map((img, i) => (
               <div
                 key={img.src + i}
@@ -633,15 +450,15 @@ const Home = () => {
 
       {/* ===== Core Features ===== */}
       <section id="features" className="py-16 bg-white section-pad">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="max-w-6xl mx-auto px-4">
           <h2
-            className="text-2xl sm:text-3xl font-extrabold text-center bg-gradient-to-r from-[#f1b66f] to-[#c97c2c] bg-clip-text text-transparent"
+            className="text-3xl font-extrabold text-center bg-gradient-to-r from-[#f1b66f] to-[#c97c2c] bg-clip-text text-transparent"
             data-reveal
           >
             DoughNation Core Features
           </h2>
 
-          <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-8 grid gap-6 grid-cols-3">
             {coreFeatures.map((f, i) => (
               <div
                 key={f.n}
@@ -668,7 +485,7 @@ const Home = () => {
 
       {/* ===== Partners ===== */}
       <section className="py-14 bg-[#fff7ec] section-pad">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="max-w-6xl mx-auto px-4">
           <h2
             className="text-xl font-semibold text-center text-[#8a5a25]"
             data-reveal
@@ -677,7 +494,7 @@ const Home = () => {
           </h2>
         </div>
 
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4 place-items-center">
+        <div className="max-w-3xl mx-auto px-4 mt-6 grid grid-cols-3 gap-4 place-items-center">
           {partners.map((p, i) => (
             <a
               key={p.name}
@@ -701,7 +518,7 @@ const Home = () => {
       </section>
 
       {/* ===== CTA ===== */}
-      <section className="relative py-16 sm:py-20 overflow-hidden section-pad">
+      <section className="relative py-20 overflow-hidden section-pad">
         <div
           className="absolute inset-0"
           style={{
@@ -709,8 +526,8 @@ const Home = () => {
               "radial-gradient(900px 400px at 80% 120%,#ffe7c8 0%,transparent 60%)",
           }}
         />
-        <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 text-center glass rounded-3xl py-10 shadow-[0_20px_60px_rgba(201,124,44,.18)]">
-          <h3 className="text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-[#f3b56f] to-[#c97c2c] bg-clip-text text-transparent">
+        <div className="relative z-10 max-w-6xl mx-auto px-4 text-center glass rounded-3xl py-10 shadow-[0_20px_60px_rgba(201,124,44,.18)]">
+          <h3 className="text-3xl font-extrabold bg-gradient-to-r from-[#f3b56f] to-[#c97c2c] bg-clip-text text-transparent">
             Inventory in. Donation out.
           </h3>
           <p className="mt-2 text-[#6b4d2e]">
@@ -720,7 +537,7 @@ const Home = () => {
           <div className="mt-6">
             <Link
               to="/register"
-              className="inline-block rounded-full px-6 sm:px-7 py-3 text-white font-semibold btn-shimmer hover:shadow-lg hover:shadow-amber-300/30 transition-transform active:scale-[.98]"
+              className="inline-block rounded-full px-7 py-3 text-white font-semibold btn-shimmer hover:shadow-lg hover:shadow-amber-300/30 transition-transform active:scale-[.98]"
             >
               Create an Account
             </Link>
@@ -743,8 +560,8 @@ const Home = () => {
         </svg>
 
         <div className="bg-[#fff3e6]">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 grid gap-8 md:grid-cols-3 items-start text-center md:text-left">
-            <div className="flex flex-nowrap items-center md:items-start justify-center md:justify-start gap-3">
+          <div className="max-w-7xl mx-auto px-4 py-10 grid gap-8 grid-cols-3 items-start text-left">
+            <div className="flex flex-nowrap items-start justify-start gap-3">
               <img
                 src="/images/DoughNationLogo.png"
                 alt="DoughNation logo"
@@ -760,7 +577,7 @@ const Home = () => {
               </div>
             </div>
 
-            <div className="md:justify-self-center">
+            <div className="justify-self-center">
               <img
                 src="/images/DonationHand.png"
                 alt="Donation handshake"
@@ -770,11 +587,11 @@ const Home = () => {
           </div>
 
           <div className="border-t border-white/70">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 flex flex-col md:flex-row items-center justify-between text-sm text-[#6b4d2e]">
+            <div className="max-w-7xl mx-auto px-4 py-5 flex items-center justify-between text-sm text-[#6b4d2e]">
               <p>
                 © {new Date().getFullYear()} DoughNation. All rights reserved.
               </p>
-              <p className="mt-2 md:mt-0">
+              <p>
                 <Link to="/privacy-terms" className="hover:underline">
                   Privacy &amp; Terms
                 </Link>
@@ -786,11 +603,8 @@ const Home = () => {
 
       <button
         aria-label="Back to top"
-        onClick={() => {
-          setMobileOpen(false);
-          scrollTop();
-        }}
-        className={`fixed right-4 bottom-4 sm:right-6 sm:bottom-6 rounded-full p-3 shadow-lg transition-all active:scale-95 ${
+        onClick={scrollTop}
+        className={`fixed right-6 bottom-6 rounded-full p-3 shadow-lg transition-all active:scale-95 ${
           showTop
             ? "opacity-100 translate-y-0"
             : "opacity-0 translate-y-3 pointer-events-none"

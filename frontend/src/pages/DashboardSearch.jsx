@@ -7,15 +7,33 @@ import ShowSearchedProfile from "./ShowSearchedProfile";
 const API = "https://api.doughnationhq.cloud";
 
 const SIZES = {
-  sm: { h: "h-10", inputPad: "pl-9 pr-3", btnPx: "px-3", icon: "w-4 h-4", width: "w-[240px]" },
-  md: { h: "h-11", inputPad: "pl-9 pr-4", btnPx: "px-4", icon: "w-4 h-4", width: "w-[260px]" },
-  lg: { h: "h-12", inputPad: "pl-10 pr-4", btnPx: "px-5", icon: "w-5 h-5", width: "w-[300px]" },
+  sm: {
+    h: "h-10",
+    inputPad: "pl-9 pr-3",
+    btnPx: "px-3",
+    icon: "w-4 h-4",
+    width: "w-[240px]",
+  },
+  md: {
+    h: "h-11",
+    inputPad: "pl-9 pr-4",
+    btnPx: "px-4",
+    icon: "w-4 h-4",
+    width: "w-[260px]",
+  },
+  lg: {
+    h: "h-12",
+    inputPad: "pl-10 pr-4",
+    btnPx: "px-5",
+    icon: "w-5 h-5",
+    width: "w-[300px]",
+  },
 };
 
 export default function DashboardSearch({
   searchType = "all",
   className = "",
-  size = "sm", 
+  size = "sm",
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
@@ -87,11 +105,17 @@ export default function DashboardSearch({
     open && query.trim().length > 0 && (loading || results.length > 0);
 
   return (
-    <div className={`relative ${className}`} ref={boxRef} onSubmit={(e) => e.preventDefault()}>
+    <div
+      className={`relative ${className}`}
+      ref={boxRef}
+      onSubmit={(e) => e.preventDefault()}
+    >
       {/* Search control */}
       <div className="flex items-center gap-2">
         <div className="relative">
-          <div className={`${sz.h} ${sz.width} ${sz.inputPad} flex items-center rounded-full border border-black/70 bg-white`}>
+          <div
+            className={`${sz.h} ${sz.width} ${sz.inputPad} flex items-center rounded-full border border-black/70 bg-white`}
+          >
             {/* INPUT — borderless/ringless (prevents “box inside box”) */}
             <input
               ref={inputRef}
@@ -106,7 +130,9 @@ export default function DashboardSearch({
               style={{ boxShadow: "none" }}
             />
           </div>
-          <Search className={`${sz.icon} text-gray-600 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none`} />
+          <Search
+            className={`${sz.icon} text-gray-600 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none`}
+          />
         </div>
 
         {/* Brown-gradient pill button with hover zoom */}
@@ -151,7 +177,9 @@ export default function DashboardSearch({
                   <li
                     key={item.id}
                     className="flex items-center gap-2 px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 cursor-pointer"
-                    onClick={() => setSelectedUser({ id: item.id, type: item.type })}
+                    onClick={() =>
+                      setSelectedUser({ id: item.id, type: item.type })
+                    }
                   >
                     {item.profile_picture ? (
                       <img
@@ -179,7 +207,10 @@ export default function DashboardSearch({
       {selectedUser &&
         createPortal(
           <div className="fixed inset-0 z-50 bg-white overflow-auto">
-            <ShowSearchedProfile id={selectedUser.id} onBack={() => setSelectedUser(null)} />
+            <ShowSearchedProfile
+              id={selectedUser.id}
+              onBack={() => setSelectedUser(null)}
+            />
           </div>,
           document.body
         )}

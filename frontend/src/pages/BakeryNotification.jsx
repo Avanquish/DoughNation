@@ -106,6 +106,8 @@ export default function BakeryNotification() {
       const r = await axios.get(`${API}/get_product/${pid}`, opts);
       const product = r.data?.product || null;
       setSelectedProduct(product);
+
+      // anchor next to clicked row
       const rect = target.getBoundingClientRect();
       const centerY = rect.top + rect.height / 2 + window.scrollY;
 
@@ -203,17 +205,44 @@ export default function BakeryNotification() {
     setOpen(false);
   };
 
+  // === ONLY CHANGE: make CTA open the right dashboard tab & bypass verify once
   const jumpToInventory = (product) => {
     const detail = {
       id: Number(product?.id ?? product?.product_id ?? product?.productId ?? 0),
       name: (product?.name || product?.product_name || "").trim(),
     };
 
+    // close any open UI
     setOpen(false);
     setSelectedProduct(null);
     setAnchor(null);
 
-    window.dispatchEvent(new CustomEvent("inventory:open", { detail }));
+    // Let inventory know what to spotlight (if it listens)
+    window.dispatchEvent(new CustomEvent("inventory:focus", { detail }));
+
+    // One-time bypass so the Inventory screen won't ask to verify again
+    sessionStorage.setItem("inventory:bypassVerifyOnce", "1");
+    sessionStorage.setItem("inventory:focusDetail", JSON.stringify(detail));
+
+    // Build the correct target: /bakery-dashboard/:id?tab=inventory
+    const current = new URL(window.location.href);
+    const pathMatch = current.pathname.match(/\/bakery-dashboard\/([^/]+)/);
+    const hashMatch = current.hash.match(/#\/bakery-dashboard\/([^/?#]+)/);
+    const bakeryId =
+      (pathMatch && pathMatch[1]) || (hashMatch && hashMatch[1]) || "1";
+    const targetPath = `/bakery-dashboard/${bakeryId}?tab=inventory`;
+
+    if (pathMatch) {
+      // BrowserRouter style
+      window.location.assign(`${current.origin}${targetPath}`);
+    } else if (hashMatch || current.hash.startsWith("#")) {
+      // HashRouter style
+      current.hash = `#${targetPath}`;
+      window.location.assign(current.toString());
+    } else {
+      // Fallback
+      window.location.assign(`${current.origin}${targetPath}`);
+    }
   };
 
   useEffect(() => {
@@ -272,8 +301,8 @@ export default function BakeryNotification() {
             style={{
               background:
                 "linear-gradient(90deg, var(--brand2, #E49A52), var(--brand3, #BF7327))",
-              boxShadow: "0 6px 16px rgba(201,124,44,.35)",
-              border: "1px solid rgba(255,255,255,.65)",
+              boxShadow: "0 6px 16px rgba(201,124,44,35)",
+              border: "1px solid rgba(255,255,255,65)",
             }}
           >
             {totalUnread}
@@ -440,8 +469,8 @@ export default function BakeryNotification() {
                 className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rotate-45"
                 style={{
                   background: "white",
-                  borderLeft: "1px solid rgba(0,0,0,.06)",
-                  borderTop: "1px solid rgba(0,0,0,.06)",
+                  borderLeft: "1px solid rgba(0,0,0,06)",
+                  borderTop: "1px solid rgba(0,0,0,06)",
                   right: anchor.side === "left" ? "-6px" : "auto",
                   left: anchor.side === "right" ? "-6px" : "auto",
                 }}
@@ -504,8 +533,8 @@ export default function BakeryNotification() {
                   style={{
                     background:
                       "linear-gradient(90deg, var(--brand1,#F6C17C), var(--brand2,#E49A52), var(--brand3,#BF7327))",
-                    boxShadow: "0 6px 16px rgba(201,124,44,.25)",
-                    border: "1px solid rgba(255,255,255,.6)",
+                    boxShadow: "0 6px 16px rgba(201,124,44,25)",
+                    border: "1px solid rgba(255,255,255,6)",
                   }}
                 >
                   <ExternalLink className="w-3.5 h-3.5" /> View in Inventory

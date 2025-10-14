@@ -495,6 +495,12 @@ useEffect(() => {
         const ws = new WebSocket(`${WS_URL}/messages/${currentUser.id}`);
       wsRef.current = ws;
 
+      ws.onerror = (err) => console.error("[WS-DEBUG] WebSocket error:", err);
+      ws.onclose = (evt) =>
+        console.warn(
+          `[WS-DEBUG] WebSocket closed: code=${evt.code}, reason="${evt.reason}", wasClean=${evt.wasClean}`
+        );
+
       ws.onopen = () => {
         console.log("✅ WebSocket connected");
         ws.send(JSON.stringify({ type: "get_active_chats" }));

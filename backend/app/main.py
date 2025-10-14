@@ -111,11 +111,3 @@ scheduler.start()
 @app.on_event("shutdown")
 def shutdown_event():
     scheduler.shutdown()
-    
-@app.on_event("startup")
-async def debug_routes():
-    print("=" * 50)
-    print("REGISTERED ROUTES:")
-    for route in app.routes:
-        print(f"  {route.path} - {route.methods if hasattr(route, 'methods') else 'WebSocket'}")
-    print("=" * 50)

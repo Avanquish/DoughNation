@@ -226,7 +226,7 @@ export default function Messages({ currentUser: currentUserProp }) {
   const [disabledDonations, setDisabledDonations] = useState(new Set());
   const [allDonationRequests, setAllDonationRequests] = useState([]);
   const [removedProducts, setRemovedProducts] = useState(new Set());
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [messages, setMessages] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("chat_messages")) || [];
@@ -491,7 +491,7 @@ useEffect(() => {
     let reconnectTimerId;
 
     const connectWS = () => {
-        const ws = new WebSocket(`${WS_URL}/messages/${currentUser.id}`);
+        const ws = new WebSocket(`wss://api.doughnationhq.cloud/ws/messages/${currentUser.id}`);
       wsRef.current = ws;
 
       ws.onopen = () => {

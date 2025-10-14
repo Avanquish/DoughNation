@@ -11,20 +11,11 @@ let WS_URL;
 if (isLocalhost) {
   // 🔹 Local development
   API_URL = `http://127.0.0.1:8000${BACKEND_PREFIX}`;
-  WS_URL = `ws://127.0.0.1:8000`;
+  WS_URL = `ws://127.0.0.1:8000/ws`;
 } else {
   // 🔹 Production (always use the backend subdomain)
-  const apiHost = 'api.doughnationhq.cloud';
-  API_URL = `https://${apiHost}${BACKEND_PREFIX}`;
-  WS_URL = `wss://${apiHost}`;
-  
-  // Log configuration for debugging
-  console.log('[Config] Production URLs:', {
-    API_URL,
-    WS_URL,
-    hostname,
-    BACKEND_PREFIX
-  });
+  API_URL = `https://api.doughnationhq.cloud${BACKEND_PREFIX}`;
+  WS_URL = `wss://api.doughnationhq.cloud/ws`;
 }
 
 export { API_URL, WS_URL };

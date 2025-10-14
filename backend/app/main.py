@@ -30,14 +30,31 @@ app = FastAPI()
 scheduler = BackgroundScheduler()
 
 
-origins = ["https://doughnationhq.cloud"]
+origins = [
+    "https://doughnationhq.cloud",
+    "https://www.doughnationhq.cloud",
+    "http://localhost:5173",
+    "http://localhost:3000"
+]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "Accept",
+        "Origin",
+        "Referer",
+        "User-Agent",
+        "Sec-Fetch-Dest",
+        "Sec-Fetch-Mode",
+        "Sec-Fetch-Site"
+    ],
+    expose_headers=["*"],
+    max_age=3600
 )
 
 app.include_router(auth_routes.router)

@@ -491,7 +491,7 @@ useEffect(() => {
     let reconnectTimerId;
 
     const connectWS = () => {
-        const ws = new WebSocket(`wss://api.doughnationhq.cloud/ws/messages/${currentUser.id}`);
+        const ws = new WebSocket(`${WS_URL}/messages/${currentUser.id}`);
       wsRef.current = ws;
 
       ws.onopen = () => {

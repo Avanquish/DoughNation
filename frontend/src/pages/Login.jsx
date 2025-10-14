@@ -474,7 +474,7 @@ const Login = () => {
 
           <img
             src="/images/givingdonation.png"
-            alt="Giving donation"
+            alt="Giving Donation"
             className="give-illu"
           />
         </section>

@@ -781,11 +781,10 @@ def update_user_badges(db: Session, user_id: int):
         db.add(models.UserBadge(user_id=user_id, badge_id=4))
 
     # ---------------- 2. Quantity-Based Badges ----------------
-    # Calculate total items from both direct donations and donation requests
+    # Calculate total items only from completed donations
     total_items = (
-        sum(d.quantity for d in all_quantity_donations if d.quantity)
-        + sum(d.donation_quantity or 0 for d in donation_requests)
-        + sum(d.quantity or 0 for d in direct_donations)
+        sum(d.donation_quantity or 0 for d in donation_requests if d.tracking_status.lower() == "complete")
+        + sum(d.quantity or 0 for d in direct_donations if d.btracking_status.lower() == "complete")
     )
 
     quantity_badges = [

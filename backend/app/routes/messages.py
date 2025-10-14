@@ -13,7 +13,7 @@ router = APIRouter()
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-@router.websocket("/messages/{user_id}")
+@router.websocket("/ws/messages/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: int):
     connection_error = None
     try:

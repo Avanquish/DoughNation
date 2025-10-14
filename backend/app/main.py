@@ -2,12 +2,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI
-from app.routes import (auth_routes, admin_routes, binventory_routes, 
-                        bemployee_routes, bakerydashboardstats, admindashboardstats, 
-                        bdonation_routes, bnotification, cnotification, messages, charitydonation_routes,
-                        direct_donation, CFeedback, BFeedback, Compute_TOT_Donations, complaint_routes, BReportGene, 
-                        AdminReportGene, geofence, badges, RecentDonations, DashboardSearch, leaderboards, test_ws
-                        )
+#from app.routes import (auth_routes, admin_routes, binventory_routes, 
+#                        bemployee_routes, bakerydashboardstats, admindashboardstats, 
+#                        bdonation_routes, bnotification, cnotification, messages, charitydonation_routes,
+#                        direct_donation, CFeedback, BFeedback, Compute_TOT_Donations, complaint_routes, BReportGene, 
+#                        AdminReportGene, geofence, badges, RecentDonations, DashboardSearch, leaderboards
+#                        )
+
+from app.routes import (test_ws)
+
 from app.database import engine, SessionLocal
 from app import models, crud, database
 from sqlalchemy.orm import Session
@@ -44,29 +47,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth_routes.router)
-app.include_router(admin_routes.router)
-app.include_router(binventory_routes.router)
-app.include_router(bemployee_routes.router)
-app.include_router(bakerydashboardstats.router)
-app.include_router(admindashboardstats.router)
-app.include_router(bdonation_routes.router)
-app.include_router(bnotification.router)
-app.include_router(cnotification.router)
-app.include_router(charitydonation_routes.router)
-app.include_router(direct_donation.router)
-app.include_router(messages.router)
-app.include_router(CFeedback.router),
-app.include_router(BFeedback.router),
-app.include_router(Compute_TOT_Donations.router)
-app.include_router(complaint_routes.router)
-app.include_router(BReportGene.router)
-app.include_router(AdminReportGene.router)
-app.include_router(geofence.router)
-app.include_router(badges.router)
-app.include_router(RecentDonations.router)
-app.include_router(DashboardSearch.router)
-app.include_router(leaderboards.router)
+#app.include_router(auth_routes.router)
+#app.include_router(admin_routes.router)
+#app.include_router(binventory_routes.router)
+#app.include_router(bemployee_routes.router)
+#app.include_router(bakerydashboardstats.router)
+#app.include_router(admindashboardstats.router)
+#app.include_router(bdonation_routes.router)
+#app.include_router(bnotification.router)
+#app.include_router(cnotification.router)
+#app.include_router(charitydonation_routes.router)
+#app.include_router(direct_donation.router)
+#app.include_router(messages.router)
+#app.include_router(CFeedback.router),
+#app.include_router(BFeedback.router),
+#app.include_router(Compute_TOT_Donations.router)
+#app.include_router(complaint_routes.router)
+#app.include_router(BReportGene.router)
+#app.include_router(AdminReportGene.router)
+#app.include_router(geofence.router)
+#app.include_router(badges.router)
+#app.include_router(RecentDonations.router)
+#app.include_router(DashboardSearch.router)
+#app.include_router(leaderboards.router)
 app.include_router(test_ws.router)
 
 @app.on_event("startup")

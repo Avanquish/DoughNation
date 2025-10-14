@@ -491,6 +491,7 @@ useEffect(() => {
     let reconnectTimerId;
 
     const connectWS = () => {
+        console.log("[WS-DEBUG] connecting to WebSocket:", `${WS_URL}/messages/${currentUser.id}`);
         const ws = new WebSocket(`${WS_URL}/messages/${currentUser.id}`);
       wsRef.current = ws;
 

@@ -18,7 +18,6 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Heart, Store, Building2, Eye, EyeOff, Lock } from "lucide-react";
 
-// Role tabs config
 const ROLES = [
   { value: "Bakery", label: "Bakery", icon: Store },
   { value: "Charity", label: "Charity", icon: Heart },
@@ -32,11 +31,9 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("Bakery");
-
-  // NEW: show/hide password
   const [showPass, setShowPass] = useState(false);
 
-  // Parallax
+ // Parallax background
   const bgRef = useRef(null);
   const rafRef = useRef(0);
   const targetRef = useRef({ x: 0, y: 0 });
@@ -49,7 +46,6 @@ const Login = () => {
     !window.matchMedia("(pointer: coarse)").matches;
 
   const lerp = (a, b, t) => a + (b - a) * t;
-
   const loop = () => {
     const max = 22;
     currentRef.current.x = lerp(
@@ -72,7 +68,6 @@ const Login = () => {
     if (!enableParallax) return;
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enableParallax]);
 
   const onMouseMove = (e) => {
@@ -95,7 +90,6 @@ const Login = () => {
     const i = ROLES.findIndex((r) => r.value === role);
     const btn = triggerRefs.current[i];
     if (!list || !btn) return;
-
     const listBox = list.getBoundingClientRect();
     const btnBox = btn.getBoundingClientRect();
     setIndicator({
@@ -119,7 +113,7 @@ const Login = () => {
     return () => cancelAnimationFrame(raf);
   }, [role]);
 
-  // Submit
+  // Handle login
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
@@ -128,7 +122,6 @@ const Login = () => {
         password,
         role,
       });
-
       const token = res.data.access_token;
       login(token);
 
@@ -150,43 +143,29 @@ const Login = () => {
       const detail =
         error.response?.data?.detail ||
         "Login failed. Please check your credentials.";
-
       Swal.fire({ icon: "error", title: "Login Failed", text: detail });
     }
   };
 
-  // NEW: password strength (visual only)
-  const passStrength = (() => {
-    const p = password;
-    let s = 0;
-    if (p.length >= 8) s++;
-    if (/[A-Z]/.test(p)) s++;
-    if (/[0-9]/.test(p)) s++;
-    if (/[^A-Za-z0-9]/.test(p)) s++;
-    return s; // 0..4
-  })();
-
+  // Render
   return (
     <div
       className="relative min-h-screen overflow-hidden"
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
     >
-      {/* Background */}
-      <div
-        ref={bgRef}
-        aria-hidden="true"
-        className="absolute inset-0 z-0 bg-center bg-cover bg-no-repeat will-change-transform pointer-events-none filter blur-[2px] brightness-90 saturate-95"
-        style={{
-          backgroundImage: "url('/images/bakerylogin.jpg')",
-          transform: "scale(1.06)",
-        }}
-      />
-      <div className="absolute inset-0 z-10 bg-[#FFF8F0]/20" />
-      <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(120%_120%_at_50%_10%,rgba(0,0,0,0)_65%,rgba(0,0,0,0.10)_100%)]" />
-
-      {/* Local styles + MEDIA QUERIES */}
       <style>{`
+        :root{
+          --space-1: clamp(.5rem, 1.2vw, .75rem);
+          --space-2: clamp(.75rem, 1.6vw, 1rem);
+          --space-3: clamp(1rem, 2.2vw, 1.5rem);
+          --space-4: clamp(1.25rem, 3vw, 2rem);
+          --radius: clamp(14px, 2.2vw, 22px);
+          --title-xl: clamp(32px, 2.2rem + 2vw, 42px);
+          --title-md: clamp(16px, .9rem + .8vw, 18px);
+          --text: clamp(.95rem, .9rem + .2vw, 1.05rem);
+        }
+
         @keyframes cardIn {
           0% { opacity: 0; transform: translateY(18px) scale(.96); }
           60%{ opacity: 1; transform: translateY(-6px) scale(1.01); }
@@ -202,25 +181,41 @@ const Login = () => {
           55%{ opacity:1; transform: translateY(-4px) scale(1.03); }
           100%{ opacity:1; transform: translateY(0) scale(1); }
         }
+
         .left-hero-surface{
           background: linear-gradient(180deg,#fff9f2 0%,#fff4e8 40%,#ffe7cd 100%);
           border-right: 1px solid rgba(255,255,255,0.65);
           z-index: 0;
         }
-        .left-content { position: relative; z-index: 2; }
+        .left-wrap{ position:relative; overflow:hidden; }   /* contain absolute illu */
+        .left-content{ position:relative; z-index:2; }      /* copy above image */
+
         .give-illu{
           position:absolute;
           right: clamp(18px, 3vw, 40px);
           bottom: clamp(18px, 4vh, 44px);
-          width: clamp(100px, 38vw, 220px);
+          width: clamp(180px, 28vw, 320px);
           height: auto;
           object-fit: contain;
           filter: drop-shadow(0 10px 24px rgba(0,0,0,.12));
           pointer-events: none;
-          z-index: 1;
+          user-select: none;
+          z-index: 1;                 /* stays UNDER .left-content */
+          opacity: .95;
         }
 
-        /* Hide native reveal/clear so only our eye shows */
+        /* Desktop: reserve space so text never collides with the image */
+        @media (min-width: 1025px){
+          .left-content{ padding-right: clamp(140px, 20vw, 280px); }
+        }
+
+        /* ≤1024px: hide illustration & remove extra right padding */
+        @media (max-width: 1024px){
+          .give-illu{ display:none; }
+          .left-content{ padding-right: 0; }
+        }
+
+        /* hide native reveal/clear so only our eye toggler shows */
         input[type="password"]::-ms-reveal,
         input[type="password"]::-ms-clear { display: none; }
         input[type="password"]::-webkit-credentials-auto-fill-button,
@@ -229,14 +224,31 @@ const Login = () => {
           display: none !important; visibility: hidden; pointer-events: none;
         }
 
+        @media (max-width: 380px){
+          .shrink-pad{padding-left: var(--space-3) !important; padding-right: var(--space-3) !important;}
+          .left-copy-padding{padding-left: var(--space-3) !important; padding-right: var(--space-3) !important;}
+        }
       `}</style>
+
+      {/* Background */}
+      <div
+        ref={bgRef}
+        aria-hidden="true"
+        className="absolute inset-0 z-0 bg-center bg-cover bg-no-repeat will-change-transform pointer-events-none filter blur-[2px] brightness-90 saturate-95"
+        style={{
+          backgroundImage: "url('/images/bakerylogin.jpg')",
+          transform: "scale(1.06)",
+        }}
+      />
+      <div className="absolute inset-0 z-10 bg-[#FFF8F0]/20" />
+      <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(120%_120%_at_50%_10%,rgba(0,0,0,0)_65%,rgba(0,0,0,0.10)_100%)]" />
 
       {/* Layout */}
       <div className="relative z-20 flex flex-col md:flex-row min-h-screen">
         {/* Login card */}
         <section className="order-1 md:order-2 md:basis-[55%] flex items-center justify-center px-6 pt-6 md:pt-0 py-10">
           <Card
-            className="login-card relative w-full max-w-[640px] rounded-[26px] backdrop-blur-2xl bg-white/50 border-white/60 shadow-[0_16px_56px_rgba(0,0,0,0.16)]"
+            className="login-card relative w-full max-w-[680px] rounded-[26px] backdrop-blur-2xl bg-white/55 border-white/60 shadow-[0_16px_56px_rgba(0,0,0,0.16)]"
             style={{ animation: "cardIn 720ms cubic-bezier(.2,.7,.2,1) both" }}
           >
             <div className="absolute inset-0 pointer-events-none rounded-[26px] bg-gradient-to-b from-[#FFF8F0]/50 via-transparent to-[#FFF0E0]/45" />
@@ -249,7 +261,7 @@ const Login = () => {
                   alt="DoughNation"
                   loading="eager"
                   decoding="async"
-                  className="h-14 sm:h-16 md:h-[82px] w-auto max-w-[520px] object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,.06)]"
+                  className="h-[56px] sm:h-[64px] md:h-[82px] w-auto max-w-[520px] object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,.06)]"
                   style={{
                     animation: "headPop 700ms cubic-bezier(.2,.7,.2,1) both",
                   }}
@@ -257,10 +269,9 @@ const Login = () => {
               </div>
 
               <CardTitle
-                className="relative z-10 mt-2 text-[30px] sm:text[36px] md:text-[40px]
-                           bg-gradient-to-r from-[#FFC66E] via-[#E88A1A] to-[#B86A1E]
-                           bg-clip-text text-transparent"
+                className="relative z-10 mt-2 font-extrabold bg-gradient-to-r from-[#FFC66E] via-[#E88A1A] to-[#B86A1E] bg-clip-text text-transparent"
                 style={{
+                  fontSize: "var(--title-xl)",
                   animation:
                     "headBounce 800ms cubic-bezier(.2,.7,.2,1) both 80ms",
                 }}
@@ -269,10 +280,9 @@ const Login = () => {
               </CardTitle>
 
               <CardDescription
-                className="relative z-10 text-[14px] sm:text[16px]
-                           bg-gradient-to-r from-[#C17B2A] via-[#AD6A21] to-[#8E5216]
-                           bg-clip-text text-transparent"
+                className="relative z-10 bg-gradient-to-r from-[#C17B2A] via-[#AD6A21] to-[#8E5216] bg-clip-text text-transparent"
                 style={{
+                  fontSize: "var(--title-md)",
                   animation:
                     "headPop 680ms cubic-bezier(.2,.7,.2,1) both 120ms",
                 }}
@@ -290,8 +300,7 @@ const Login = () => {
                   >
                     <span
                       aria-hidden
-                      className="absolute top-1 bottom-1 left-0 z-0 rounded-full
-                                 bg-[linear-gradient(180deg,#FFE3B8_0%,#F6BE83_100%)] transition-[transform,width] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] pointer-events-none"
+                      className="absolute top-1 bottom-1 left-0 z-0 rounded-full bg-[linear-gradient(180deg,#FFE3B8_0%,#F6BE83_100%)] transition-[transform,width] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] pointer-events-none"
                       style={{
                         transform: `translateX(${indicator.left}px)`,
                         width: indicator.width,
@@ -333,7 +342,7 @@ const Login = () => {
                   />
                 </div>
 
-                {/* Password with show/hide + strength */}
+                {/* Password */}
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="password"
@@ -364,24 +373,6 @@ const Login = () => {
                         <Eye className="h-5 w-5" />
                       )}
                     </button>
-                  </div>
-
-                  {/* Strength bar (visual only) */}
-                  <div className="mt-2 h-2 w-full bg-[#FFE1BE]/70 rounded-full overflow-hidden">
-                    <div
-                      className="h-full transition-all"
-                      style={{
-                        width: `${(passStrength / 4) * 100}%`,
-                        background:
-                          passStrength < 2
-                            ? "#f87171"
-                            : passStrength < 3
-                            ? "#f59e0b"
-                            : passStrength < 4
-                            ? "#fbbf24"
-                            : "#22c55e",
-                      }}
-                    />
                   </div>
                 </div>
 
@@ -436,18 +427,27 @@ const Login = () => {
         {/* DoughNation info */}
         <section className="order-2 md:order-1 left-hero relative md:basis-[45%] min-h-[52vh] md:min-h-screen flex mt-4 md:mt-0">
           <div className="left-hero-surface absolute inset-0" />
-          <div className="relative w-full h-full flex items-center">
+          <div className="left-wrap relative w-full h-full flex items-center">
             <div className="left-content w-full px-6 md:px-8 lg:px-12 py-10 left-copy-padding">
-              <h1 className="brand-head text-[38px] sm:text-[52px] lg:text-[60px] leading-[1.04] font-extrabold bg-gradient-to-r from-[#FFC062] via-[#E88A1A] to-[#B86A1E] bg-clip-text text-transparent">
+              <h1
+                className="leading-[1.04] font-extrabold bg-gradient-to-r from-[#FFC062] via-[#E88A1A] to-[#B86A1E] bg-clip-text text-transparent"
+                style={{ fontSize: "clamp(34px, 6vw, 60px)" }}
+              >
                 DOUGHNATION
               </h1>
 
-              <p className="mt-5 text-[16px] sm:text-[17px] text-[#8f642a] max-w-[52ch]">
+              <p
+                className="mt-5 text-[#8f642a] max-w-[52ch]"
+                style={{ fontSize: "var(--text)" }}
+              >
                 Sign in to manage inventory and move surplus bread to nearby
                 charities.
               </p>
 
-              <ul className="mt-6 space-y-4 text-[#8f642a]">
+              <ul
+                className="mt-6 space-y-4 text-[#8f642a]"
+                style={{ fontSize: "var(--text)" }}
+              >
                 <li className="flex items-start gap-3">
                   <Store className="h-5 w-5 mt-0.5 text-[#ce893b]" />
                   <span>
@@ -472,9 +472,11 @@ const Login = () => {
             </div>
           </div>
 
+          {/* Hide image */}
           <img
             src="/images/GivingDonation.png"
-            alt="Giving donation"
+            alt=""
+            aria-hidden="true"
             className="give-illu"
           />
         </section>

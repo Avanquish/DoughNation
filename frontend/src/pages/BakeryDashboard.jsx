@@ -352,7 +352,7 @@ const BakeryDashboard = () => {
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4">
             <Button onClick={handleLogout} variant="destructive">
-              Log Out
+              Back to Home Page
             </Button>
           </CardContent>
         </Card>
@@ -769,13 +769,23 @@ const BakeryDashboard = () => {
                       Your donation milestones
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="min-h-[404px] grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 auto-rows-[72px] gap-x-3 gap-y-2">
-                    {" "}
+
+                  {/* >>> BADGES GRID — EXACTLY 5 PER ROW + SMALLER ICONS <<< */}
+                  <CardContent
+                    className="
+                      min-h-[404px]
+                      grid
+                      [grid-template-columns:repeat(5,minmax(0,1fr))]
+                      gap-x-[clamp(12px,2.6vw,32px)]
+                      gap-y-[clamp(10px,2vw,24px)]
+                      items-start
+                    "
+                  >
                     {badges && badges.length > 0 ? (
                       badges.map((userBadge) => (
                         <div
                           key={userBadge.id}
-                          className="h-[72px] flex flex-col items-center justify-start"
+                          className="flex flex-col items-center justify-start"
                         >
                           <img
                             src={
@@ -785,9 +795,32 @@ const BakeryDashboard = () => {
                             }
                             alt={userBadge.badge?.name}
                             title={userBadge.badge?.name}
-                            className="w-12 h-12 hover:scale-110 transition-transform"
+                            className="hover:scale-110 transition-transform"
+                            style={{
+                              /* smaller icons */
+                              width: "clamp(44px,5.5vw,64px)",
+                              height: "clamp(44px,5.5vw,64px)",
+                              objectFit: "contain",
+                            }}
                           />
-                          <span className="text-xs mt-1 leading-tight text-center truncate w-[110px]">
+                          {/* Keep label block-level; slightly narrower width to match smaller icon */}
+                          <span
+                            className="
+                              block
+                              text-[11px]
+                              mt-2
+                              leading-tight
+                              text-center
+                              truncate
+                              w-[96px]
+                            "
+                            title={
+                              userBadge.badge_name &&
+                              userBadge.badge_name.trim() !== ""
+                                ? userBadge.badge_name
+                                : userBadge.badge?.name
+                            }
+                          >
                             {userBadge.badge_name &&
                             userBadge.badge_name.trim() !== ""
                               ? userBadge.badge_name

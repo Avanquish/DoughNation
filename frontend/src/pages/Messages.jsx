@@ -226,7 +226,7 @@ export default function Messages({ currentUser: currentUserProp }) {
   const [disabledDonations, setDisabledDonations] = useState(new Set());
   const [allDonationRequests, setAllDonationRequests] = useState([]);
   const [removedProducts, setRemovedProducts] = useState(new Set());
-  const [, setLoading] = useState(true);
+
   const [messages, setMessages] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("chat_messages")) || [];

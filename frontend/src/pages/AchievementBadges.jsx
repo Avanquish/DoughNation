@@ -165,9 +165,9 @@ const AchievementBadges = () => {
             >
               <CardHeader className="pb-2">
                 <CardTitle
-                  className="text-base font-semibold text-center leading-tight whitespace-nowrap overflow-hidden text-ellipsis max-w-[120px] mx-auto"
+                  className="text-base font-semibold text-center leading-tight line-clamp-2 mx-auto max-w-[160px]"
                   style={{ color: TITLE_COLOR }}
-                  title={badge.name} // keeps full title in tooltip
+                  title={badge.name}
                 >
                   {badge.name}
                 </CardTitle>

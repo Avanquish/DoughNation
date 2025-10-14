@@ -265,6 +265,11 @@ const CharityDashboard = () => {
               features.
             </CardDescription>
           </CardHeader>
+          <CardContent className="flex flex-col items-center gap-4">
+            <Button onClick={handleLogout} variant="destructive">
+              Back to Home Page
+            </Button>
+          </CardContent>
         </Card>
       </div>
     );

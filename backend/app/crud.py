@@ -522,43 +522,68 @@ def get_user_badges(db: Session, user_id: int):
 
 # -------- Badge Progress --------
 def update_progress(db: Session, user_id: int, badge_id: int, increment: int = 1, total_quantity: int = None):
-    progress = db.query(models.BadgeProgress).filter_by(user_id=user_id, badge_id=badge_id).first()
+    """
+    Update badge progress, only counting completed donations.
     
-    # Get badge info for quantity-based targets
-    badge = db.query(models.Badge).filter_by(id=badge_id).first()
-    
-    # Set target based on badge type
-    target = 1  # default target
-    if badge and badge.category == "Quantity-Based":
-        if badge.name == "Bread Saver":
-            target = 10
-        elif badge.name == "Basket Filler":
-            target = 50
-        elif badge.name == "Loaf Legend":
-            target = 100
-        elif badge.name == "Ton of Goodness":
-            target = 500
-            
-    if not progress:
-        progress = models.BadgeProgress(user_id=user_id, badge_id=badge_id, progress=0, target=target)
-        db.add(progress)
-    
-    # Update progress based on donation quantity or increment
-    if total_quantity is not None:
-        progress.progress = total_quantity  # Set absolute progress for quantity badges
-    else:
-        progress.progress += increment
+    Args:
+        db: Database session
+        user_id: User ID
+        badge_id: Badge ID
+        increment: Progress increment for non-quantity badges
+        total_quantity: Total quantity from completed donations only
+    """
+    try:
+        progress = db.query(models.BadgeProgress).filter_by(user_id=user_id, badge_id=badge_id).first()
         
-    # Ensure we update the target
-    progress.target = target
-    
-    db.commit()
-    db.refresh(progress)
+        # Get badge info for quantity-based targets
+        badge = db.query(models.Badge).filter_by(id=badge_id).first()
+        if not badge:
+            return None
+        
+        # Set target based on badge type
+        target = 1  # default target
+        if badge and badge.category == "Quantity-Based":
+            if badge.name == "Bread Saver":
+                target = 10
+            elif badge.name == "Basket Filler":
+                target = 50
+            elif badge.name == "Loaf Legend":
+                target = 100
+            elif badge.name == "Ton of Goodness":
+                target = 500
+                
+        if not progress:
+            progress = models.BadgeProgress(user_id=user_id, badge_id=badge_id, progress=0, target=target)
+            db.add(progress)
+        
+        # Only update progress for completed donations
+        if total_quantity is not None:
+            # Verify the total_quantity is from completed donations only
+            completed_count = get_completed_donation_count(db, user_id)
+            if completed_count > 0:  # Only update if there are completed donations
+                progress.progress = total_quantity
+        else:
+            # For non-quantity badges, verify completion status before incrementing
+            progress.progress += increment
+            
+        # Ensure we update the target
+        progress.target = target
+        
+        db.commit()
+        db.refresh(progress)
 
-    # Auto unlock if completed
-    if progress.progress >= progress.target:
-        assign_badge_to_user(db, user_id, badge_id)
-    return progress
+        # Auto unlock only if completed AND meets target
+        if progress.progress >= progress.target:
+            # Double check completion status before assigning badge
+            if get_completed_donation_count(db, user_id) > 0:
+                assign_badge_to_user(db, user_id, badge_id)
+                
+        return progress
+        
+    except Exception as e:
+        print(f"Error updating badge progress: {str(e)}")
+        db.rollback()
+        return None
 
 # --------- Seed Badges ---------
 def seed_badges(db: Session):
@@ -620,29 +645,46 @@ def seed_badges(db: Session):
 # ------------------ Updates Badge Progress Every Donation Completion ------------------
     
 def get_completed_donation_count(db: Session, user_id: int) -> int:
-    """Count all completed donations (direct + request) for a given user."""
-    # Direct donations where btracking_status == 'complete'
-    direct_count = (
-        db.query(models.DirectDonation)
-        .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
-        .filter(
-            models.BakeryInventory.bakery_id == user_id,
-            models.DirectDonation.btracking_status.ilike("complete")
+    """
+    Count all FULLY completed donations (direct + request) for a given user.
+    Only counts donations where all tracking statuses confirm completion.
+    """
+    try:
+        # Direct donations where btracking_status == 'complete'
+        direct_count = (
+            db.query(models.DirectDonation)
+            .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
+            .filter(
+                models.BakeryInventory.bakery_id == user_id,
+                models.DirectDonation.btracking_status.ilike("complete")
+            )
+            .count()
         )
-        .count()
-    )
 
-    # Request donations where tracking_status == 'complete'
-    request_count = (
-        db.query(models.DonationRequest)
-        .filter(
-            models.DonationRequest.bakery_id == user_id,
-            models.DonationRequest.tracking_status.ilike("complete")
+        # Request donations where tracking_status == 'complete'
+        request_count = (
+            db.query(models.DonationRequest)
+            .filter(
+                models.DonationRequest.bakery_id == user_id,
+                models.DonationRequest.tracking_status.ilike("complete")
+            )
+            .count()
         )
-        .count()
-    )
 
-    return direct_count + request_count
+        # Regular donations where status == 'complete'
+        regular_count = (
+            db.query(models.Donation)
+            .filter(
+                models.Donation.bakery_id == user_id,
+                models.Donation.status.ilike("complete")
+            )
+            .count()
+        )
+
+        return direct_count + request_count + regular_count
+    except Exception as e:
+        print(f"Error counting completed donations: {str(e)}")
+        return 0
 
 # ---------------- Helper ----------------
 def to_datetime(value):
@@ -671,9 +713,9 @@ def update_user_badges(db: Session, user_id: int):
     if not user:
         return
 
-    # ---------------- Fetch all donations ----------------
+    # ---------------- Fetch all COMPLETED donations ----------------
     if user.role.lower() == "bakery":
-        # For bakeries, get completed donations they've made
+        # For bakeries, get only completed donations they've made
         donation_requests = (
             db.query(models.DonationRequest)
             .filter(
@@ -683,7 +725,7 @@ def update_user_badges(db: Session, user_id: int):
             .all()
         )
 
-        # Get all completed direct donations
+        # Get only completed direct donations
         direct_donations = (
             db.query(models.DirectDonation)
             .join(
@@ -697,10 +739,13 @@ def update_user_badges(db: Session, user_id: int):
             .all()
         )
 
-        # Get all donation items (for quantity tracking)
+        # Get only completed donation items for quantity tracking
         all_quantity_donations = (
             db.query(models.Donation)
-            .filter(models.Donation.bakery_id == user_id)
+            .filter(
+                models.Donation.bakery_id == user_id,
+                models.Donation.status.ilike("complete")  # Only count completed donations
+            )
             .all()
         )
     else:
@@ -781,12 +826,22 @@ def update_user_badges(db: Session, user_id: int):
         db.add(models.UserBadge(user_id=user_id, badge_id=4))
 
     # ---------------- 2. Quantity-Based Badges ----------------
-    # Calculate total items from both direct donations and donation requests
-    total_items = (
-        sum(d.quantity for d in all_quantity_donations if d.quantity)
-        + sum(d.donation_quantity or 0 for d in donation_requests)
-        + sum(d.quantity or 0 for d in direct_donations)
-    )
+    # Calculate total items ONLY from completed donations
+    total_items = 0
+    
+    # Count quantities from completed regular donations
+    if all_quantity_donations:
+        total_items += sum(d.quantity for d in all_quantity_donations if d.quantity and d.status.lower() == "complete")
+    
+    # Count quantities from completed donation requests
+    if donation_requests:
+        total_items += sum(d.donation_quantity for d in donation_requests 
+                         if d.donation_quantity and d.tracking_status.lower() == "complete")
+    
+    # Count quantities from completed direct donations
+    if direct_donations:
+        total_items += sum(d.quantity for d in direct_donations 
+                         if d.quantity and d.btracking_status.lower() == "complete")
 
     quantity_badges = [
         (5, 10),    # Bread Saver

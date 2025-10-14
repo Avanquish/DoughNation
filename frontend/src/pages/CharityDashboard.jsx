@@ -264,6 +264,11 @@ const CharityDashboard = () => {
               until an admin verifies your account before using the dashboard
               features.
             </CardDescription>
+            <CardContent className="flex flex-col items-center gap-4">
+              <Button onClick={handleLogout} variant="destructive">
+                Back to Home Page
+              </Button>
+            </CardContent>
           </CardHeader>
         </Card>
       </div>

@@ -66,6 +66,36 @@ const combinedData = [
   },
 ];
 
+const XAxisTick = ({ x, y, payload }) => {
+  const value = String(payload?.value ?? "");
+  const words = value.split(" ");
+  const lines = [];
+  let line = "";
+  words.forEach((w) => {
+    const test = line ? `${line} ${w}` : w;
+    if (test.length > 12) {
+      if (line) lines.push(line);
+      line = w;
+    } else {
+      line = test;
+    }
+  });
+  if (line) lines.push(line);
+
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text textAnchor="end" dy={12} fontSize={12} fill="#7c5d3b">
+        {lines.map((l, i) => (
+          <tspan key={i} x="0" dy={i === 0 ? 0 : 12}>
+            {l}
+          </tspan>
+        ))}
+      </text>
+    </g>
+  );
+};
+
+
   return (
     <div className="w-full mx-auto px-6 lg:px-10 py-8 max-w-[1500px]">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -133,7 +163,7 @@ const combinedData = [
             className="text-xl font-semibold mb-5"
             style={{ color: "#7a4f1c" }}
           >
-            Donation Status
+            Donations
           </h3>
           <div className="h-[340px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -193,7 +223,7 @@ const combinedData = [
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={stats.charities || []}
-              margin={{ top: 10, right: 24, left: 0, bottom: 10 }}
+              margin={{ top: 10, right: 24, left: 0, bottom: 40 }}
               barCategoryGap="20%"
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#eadfce" />

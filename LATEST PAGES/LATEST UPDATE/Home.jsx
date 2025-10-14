@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 const Home = () => {
   const [showTop, setShowTop] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false); 
 
   useEffect(() => {
     const onScroll = () => {
@@ -77,18 +78,63 @@ const Home = () => {
   }, []);
 
   const coreFeatures = [
-    { n: 1, icon: "⏰", title: "Smart notifications", text: "Automatically alert bakeries when items near expiration, and ping nearby charities the moment donations go live." },
-    { n: 2, icon: "💬", title: "Real-time messages", text: "Direct chat between bakeries and charities for acceptance, timing, and packaging. Everything in one thread once a donation is accepted." },
-    { n: 3, icon: "📍", title: "Geolocation & geofencing", text: "Use a geolocation API to show nearby partners and set dynamic geofences. Automatic offers trigger to users within range for faster pickups." },
-    { n: 4, icon: "🏅", title: "Badges, leaderboard & analytics", text: "Visual dashboards for donation frequency and quantity. Motivate bakeries with badges, plus a weekly leaderboard." },
-    { n: 5, icon: "🧾", title: "Complete donation history", text: "End-to-end logs for transparency and traceability, such as listings, claims, handoffs, receipts, and exports for audits and reporting." },
-    { n: 6, icon: "📈", title: "Performance & feedback", text: "Measure usability and reliability with donation rates, response times, and satisfaction surveys." },
+    {
+      n: 1,
+      icon: "⏰",
+      title: "Smart notifications",
+      text: "Automatically alert bakeries when items near expiration, and ping nearby charities the moment donations go live.",
+    },
+    {
+      n: 2,
+      icon: "💬",
+      title: "Real-time messages",
+      text: "Direct chat between bakeries and charities for acceptance, timing, and packaging. Everything in one thread once a donation is accepted.",
+    },
+    {
+      n: 3,
+      icon: "📍",
+      title: "Geolocation & geofencing",
+      text: "Use a geolocation API to show nearby partners and set dynamic geofences. Automatic offers trigger to users within range for faster pickups.",
+    },
+    {
+      n: 4,
+      icon: "🏅",
+      title: "Badges, leaderboard & analytics",
+      text: "Visual dashboards for donation frequency and quantity. Motivate bakeries with badges, plus a weekly leaderboard.",
+    },
+    {
+      n: 5,
+      icon: "🧾",
+      title: "Complete donation history",
+      text: "End-to-end logs for transparency and traceability, such as listings, claims, handoffs, receipts, and exports for audits and reporting.",
+    },
+    {
+      n: 6,
+      icon: "📈",
+      title: "Performance & feedback",
+      text: "Measure usability and reliability with donation rates, response times, and satisfaction surveys.",
+    },
   ];
 
   const partners = [
-    { name: "R Bakery St. Scholastic Branch", logo: "/logos/r-bakery.png", emoji: "🍞", url: "https://www.facebook.com/rbakery.bls" },
-    { name: "Scholars of Sustenance (SOS)", logo: "/logos/sos.png", emoji: "🤝", url: "https://www.facebook.com/SOSPHFoodRescue" },
-    { name: "Arnold John Kalinga Foundation", logo: "/logos/kalinga.png", emoji: "🎗️", url: "https://www.facebook.com/ajkalinga" },
+    {
+      name: "R Bakery St. Scholastic Branch",
+      logo: "/logos/r-bakery.png",
+      emoji: "🍞",
+      url: "https://www.facebook.com/rbakery.bls",
+    },
+    {
+      name: "Scholars of Sustenance (SOS)",
+      logo: "/logos/sos.png",
+      emoji: "🤝",
+      url: "https://www.facebook.com/SOSPHFoodRescue",
+    },
+    {
+      name: "Arnold John Kalinga Foundation",
+      logo: "/logos/kalinga.png",
+      emoji: "🎗️",
+      url: "https://www.facebook.com/ajkalinga",
+    },
   ];
 
   const tagline = [
@@ -109,14 +155,29 @@ const Home = () => {
   return (
     <div
       ref={wrapRef}
-      className="relative min-h-screen font-sans text-[#1e2329] bg-[#fffaf3] overflow-x-hidden page-surface"
+      className="relative min-h-screen font-sans overflow-x-hidden page-surface"
+      style={{ color: "#1e2329", backgroundColor: "#fffaf3" }}
     >
       <style>{`
   :root{
     --amber1:#fff7ec; --amber2:#ffe7c8; --amber3:#ffd6a1; --amber4:#f3c27e;
     --amber5:#e59b50; --amber6:#c97c2c; --coffee:#6f4a23; --coffee2:#7a5a34;
     --hdrSoft:#FFEBD5; --hdrMed:#FFE1BE; --hdrDeep:#E3B57E;
+
+    /* Fluid tokens */
+    --space-1: clamp(.5rem, 1.2vw, .75rem);
+    --space-2: clamp(.75rem, 1.6vw, 1rem);
+    --space-3: clamp(1rem, 2.2vw, 1.5rem);
+    --space-4: clamp(1.25rem, 3vw, 2rem);
+    --radius: clamp(12px, 2vw, 18px);
+    --hdr-h: clamp(56px, 8svh, 76px);
+    --title-xl: clamp(30px, 5.2vw, 80px);
+    --title-lg: clamp(1.5rem, 1rem + 1.6vw, 2.2rem);
+    --title-md: clamp(1.35rem, 1rem + 1.4vw, 2rem);
+    --title-sm: clamp(1.1rem, .9rem + .8vw, 1.35rem);
+    --text: clamp(.95rem, .85rem + .25vw, 1.05rem);
   }
+
   html,body,#root{width:100%; overflow-x:hidden}
   img,video{max-width:100%; height:auto}
 
@@ -143,9 +204,9 @@ const Home = () => {
   @keyframes bgPan{from{transform:translate3d(0,0,0)}to{transform:translate3d(-6%,-6%,0)}}
 
   .orb{position:fixed; border-radius:50%; filter:blur(36px); mix-blend-mode:multiply; opacity:.28; z-index:-10; animation:orbFloat 18s ease-in-out infinite;}
-  .orb.one{width:360px;height:360px;background:radial-gradient(circle at 30% 30%,#ffd9aa,transparent 60%);left:-8%;top:18%}
-  .orb.two{width:420px;height:420px;background:radial-gradient(circle at 70% 40%,#ffc985,transparent 55%);right:-10%;top:8%;animation-delay:2s}
-  .orb.three{width:320px;height:320px;background:radial-gradient(circle at 50% 60%,#ffdfb8,transparent 58%);left:6%;bottom:12%;animation-delay:4s}
+  .orb.one{width:min(36vw,360px);height:min(36vw,360px);background:radial-gradient(circle at 30% 30%,#ffd9aa,transparent 60%);left:-8%;top:18%}
+  .orb.two{width:min(42vw,420px);height:min(42vw,420px);background:radial-gradient(circle at 70% 40%,#ffc985,transparent 55%);right:-10%;top:8%;animation-delay:2s}
+  .orb.three{width:min(32vw,320px);height:min(32vw,320px);background:radial-gradient(circle at 50% 60%,#ffdfb8,transparent 58%);left:6%;bottom:12%;animation-delay:4s}
   @keyframes orbFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-28px)}}
 
   .glass{backdrop-filter: blur(12px); background: linear-gradient(180deg, rgba(255,255,255,.72), rgba(255,255,255,.52)); border:1px solid rgba(255,255,255,.7)}
@@ -215,7 +276,7 @@ const Home = () => {
 
   .heroTitle{
     display:block; margin:0 auto; max-width:1100px; text-align:center; font-weight:800; line-height:1.05; letter-spacing:.01em;
-    font-size: clamp(30px, 5.2vw, 80px); color:#8a5a25; text-shadow: 0 2px 0 rgba(255,255,255,.55);
+    font-size: var(--title-xl); color:#8a5a25; text-shadow: 0 2px 0 rgba(255,255,255,.55);
   }
   .heroTitle .line{display:block}
   .heroTitle .w{display:inline-block}
@@ -246,13 +307,20 @@ const Home = () => {
 
   .partner-pill{display:inline-flex; align-items:center; gap:.6rem; padding:.65rem 1rem; border-radius:9999px; background:linear-gradient(180deg,#fff,#fffaf5); border:1px solid rgba(0,0,0,.06); box-shadow:0 8px 22px rgba(201,124,44,.10); text-decoration:none}
   .partner-logo{width:34px;height:34px;border-radius:9999px;display:flex;align-items:center;justify-content:center; background:linear-gradient(180deg,#FFE7C5,#F7C489); color:#7a4f1c; font-size:18px; flex-shrink:0; border:1px solid #fff3e0}
+
+  /* Fluid spacing / rounds */
+  .hdr-pad{ padding-inline: var(--space-3) !important; padding-block: calc(var(--space-2) * .9) !important; }
+  .hdr-spacer{ height: var(--hdr-h) !important; }
+  .card-pad{ padding: var(--space-3) !important; border-radius: var(--radius) !important; }
 `}</style>
 
+      {/* Background */}
       <div className="bg-orbit" />
       <span className="orb one" />
       <span className="orb two" />
       <span className="orb three" />
 
+      {/* Scroll progress bar */}
       <div className="fixed top-0 left-0 right-0 z-[90] h-1 pointer-events-none">
         <div
           className="origin-left h-full bg-gradient-to-r from-[#f6c17c] via-[#e49a52] to-[#bf7327] transition-transform duration-100"
@@ -260,7 +328,7 @@ const Home = () => {
         />
       </div>
 
-      {/* ===== Header ===== */}
+      {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-[80]">
         <div
           className={`glass-soft header-gradient-line header-skin sticky-boost ${
@@ -272,63 +340,172 @@ const Home = () => {
               <img
                 src="/images/DoughNationLogo.png"
                 alt="DoughNation logo"
-                className="w-7 h-7 object-contain logo-bread"
+                className="shrink-0"
+                style={{ width: "28px", height: "28px", objectFit: "contain" }}
               />
-              <span className="text-2xl font-extrabold brand-pop">
+              <span
+                className="font-extrabold brand-pop"
+                style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}
+              >
                 DoughNation
               </span>
             </Link>
 
-            {/* Always-visible nav (no mobile hamburger) */}
-            <nav className="flex items-center gap-7 text-[15px]">
+            {/* Desktop nav */}
+            <nav
+              className="hidden md:flex items-center gap-7"
+              style={{ fontSize: 15 }}
+            >
               <a
                 href="/"
-                className="nav-link text-[#5b4631] hover:text-[#8b5f28] transition-colors"
+                className="nav-link transition-colors"
+                style={{ color: "#5b4631" }}
               >
                 Home
               </a>
               <a
                 href="#features"
-                className="nav-link text-[#5b4631] hover:text-[#8b5f28] transition-colors"
+                className="nav-link transition-colors"
+                style={{ color: "#5b4631" }}
               >
                 About
               </a>
               <Link
                 to="/login"
-                className="nav-link text-[#5b4631] hover:text-[#8b5f28] transition-colors"
+                className="nav-link transition-colors"
+                style={{ color: "#5b4631" }}
               >
                 Login
               </Link>
               <Link
                 to="/register"
-                className="ml-1 rounded-full px-4 py-2 text-white font-semibold btn-shimmer hover:shadow-lg hover:shadow-amber-300/30 transition-transform active:scale-[.98]"
+                className="ml-1 rounded-full text-white font-semibold btn-shimmer hover:shadow-lg hover:shadow-amber-300/30 transition-transform active:scale-[.98]"
+                style={{
+                  padding:
+                    "clamp(.6rem, .4rem + .6vw, .9rem) clamp(1rem, .8rem + 1.2vw, 1.4rem)",
+                  borderRadius: 9999,
+                }}
               >
                 Register
               </Link>
             </nav>
+
+            {/* Mobile hamburger */}
+            <button
+              type="button"
+              className="md:hidden inline-flex items-center justify-center rounded-md p-2 hover:scale-[.98] transition"
+              aria-label="Toggle menu"
+              aria-expanded={mobileOpen ? "true" : "false"}
+              aria-controls="mobile-menu"
+              onClick={() => setMobileOpen((v) => !v)}
+              style={{ color: "#5b4631" }}
+            >
+              {/* bars icon */}
+              <svg
+                className={`h-6 w-6 ${mobileOpen ? "hidden" : "block"}`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+              {/* close icon */}
+              <svg
+                className={`h-6 w-6 ${mobileOpen ? "block" : "hidden"}`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Mobile dropdown panel */}
+          <div
+            id="mobile-menu"
+            className={`md:hidden transition-all duration-200 ease-out ${
+              mobileOpen
+                ? "max-h-96 opacity-100"
+                : "max-h-0 opacity-0 pointer-events-none"
+            } overflow-hidden`}
+          >
+            <div className="px-4 pb-3 pt-1 flex flex-col">
+              <a
+                href="/"
+                className="block py-2 nav-link"
+                style={{ color: "#5b4631" }}
+                onClick={() => setMobileOpen(false)}
+              >
+                Home
+              </a>
+              <a
+                href="#features"
+                className="block py-2 nav-link"
+                style={{ color: "#5b4631" }}
+                onClick={() => setMobileOpen(false)}
+              >
+                About
+              </a>
+              <Link
+                to="/login"
+                className="block py-2 nav-link"
+                style={{ color: "#5b4631" }}
+                onClick={() => setMobileOpen(false)}
+              >
+                Login
+              </Link>
+              <Link
+                to="/register"
+                className="inline-block self-end mt-2 rounded-full text-white font-semibold btn-shimmer hover:shadow-lg hover:shadow-amber-300/30 transition-transform active:scale-[.98]"
+                style={{
+                  padding:
+                    "clamp(.55rem, .4rem + .5vw, .85rem) clamp(.9rem, .7rem + 1vw, 1.3rem)",
+                  borderRadius: 9999,
+                }}
+                onClick={() => setMobileOpen(false)}
+              >
+                Register
+              </Link>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Single fixed-height spacer (no responsive sizes) */}
-      <div aria-hidden="true" className="h-[68px]" />
+      {/* Spacer equal to fluid header height */}
+      <div aria-hidden="true" className="hdr-spacer" />
 
-      {/* ===== Hero ===== */}
-      <section className="relative overflow-hidden hero-surface section-pad">
+      {/* Hero */}
+      <section
+        className="relative overflow-hidden hero-surface"
+        style={{ paddingBlock: "var(--space-4)" }}
+      >
         <img
           src="/images/BakeryGirl.png"
           alt=""
           aria-hidden="true"
-          className="hero-fig left"
+          className="hero-fig left hidden md:block"
         />
         <img
           src="/images/BakeryBoy.png"
           alt=""
           aria-hidden="true"
-          className="hero-fig right"
+          className="hero-fig right hidden md:block"
         />
 
-        <div className="relative z-10 max-w-6xl mx-auto px-4 py-16 text-center">
+        <div
+          className="relative z-10 max-w-6xl mx-auto px-4"
+          style={{ paddingBlock: "clamp(2rem, 6vw, 4rem)" }}
+        >
           <h1
             className="heroTitle hasGradient tracking-tight"
             aria-label="Welcome to DoughNation"
@@ -342,22 +519,37 @@ const Home = () => {
             </span>
           </h1>
 
-          <div className="hero-cta mt-8 flex items-center justify-center gap-4 ctaFloat">
+          <div className="hero-cta mt-6 flex items-center justify-center gap-4 ctaFloat">
             <Link
               to="/login"
-              className="rounded-full px-7 py-3 text-white font-semibold btn-shimmer hover:shadow-lg hover:shadow-amber-300/30 transition-transform active:scale-[.98]"
+              className="rounded-full text-white font-semibold btn-shimmer hover:shadow-lg hover:shadow-amber-300/30 transition-transform active:scale-[.98]"
+              style={{
+                padding:
+                  "clamp(.6rem, .4rem + .6vw, .9rem) clamp(1rem, .8rem + 1.2vw, 1.4rem)",
+                borderRadius: 9999,
+              }}
             >
               Get Started
             </Link>
             <a
               href="#how-it-works"
-              className="rounded-full px-6 py-3 font-semibold text-[#8a5a25] bg-white/80 hover:bg-white transition-colors glass"
+              className="rounded-full font-semibold transition-colors glass"
+              style={{
+                color: "#8a5a25",
+                backgroundColor: "rgba(255,255,255,0.8)",
+                padding:
+                  "clamp(.6rem, .4rem + .6vw, .9rem) clamp(1rem, .8rem + 1.2vw, 1.4rem)",
+                borderRadius: 9999,
+              }}
             >
               Learn More
             </a>
           </div>
 
-          <p className="max-w-3xl mx-auto mt-6 text-xl text-[#6b4b2b] reveal-words">
+          <p
+            className="max-w-3xl mx-auto mt-5 reveal-words"
+            style={{ fontSize: "var(--text)", color: "#6b4b2b" }}
+          >
             {tagline.map((w, i) => (
               <span key={i} style={{ animationDelay: `${i * 90}ms` }}>
                 {w}&nbsp;
@@ -367,17 +559,27 @@ const Home = () => {
         </div>
       </section>
 
-      {/* ===== How it works ===== */}
-      <section id="how-it-works" className="py-16 bg-white wave-top section-pad">
+      {/* How it works section */}
+      <section
+        id="how-it-works"
+        className="bg-white"
+        style={{ paddingBlock: "var(--space-4)" }}
+      >
         <div className="max-w-6xl mx-auto px-4">
           <h2
-            className="text-4xl font-extrabold text-center bg-gradient-to-r from-[#f1b66f] to-[#c97c2c] bg-clip-text text-transparent"
+            className="font-extrabold text-center bg-gradient-to-r from-[#f1b66f] to-[#c97c2c] bg-clip-text text-transparent"
             data-reveal
+            style={{ fontSize: "var(--title-lg)" }}
           >
             How DoughNation Works
           </h2>
 
-          <div className="mt-10 grid gap-6 grid-cols-3">
+          <div
+            className="mt-8 grid gap-6"
+            style={{
+              gridTemplateColumns: "repeat(auto-fit, minmax(16rem, 1fr))",
+            }}
+          >
             {[
               {
                 n: 1,
@@ -397,44 +599,70 @@ const Home = () => {
             ].map((s, i) => (
               <div
                 key={s.n}
-                className="glass rounded-2xl p-6 text-center hover:-translate-y-1 hover:shadow-xl hover:shadow-amber-200/30 transition-all"
+                className="glass rounded-2xl text-center hover:-translate-y-1 hover:shadow-xl hover:shadow-amber-200/30 transition-all"
+                style={{
+                  padding: "var(--space-3)",
+                  borderRadius: "var(--radius)",
+                  transitionDelay: `${i * 80}ms`,
+                }}
                 data-reveal
-                style={{ transitionDelay: `${i * 80}ms` }}
               >
                 <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold bg-gradient-to-r from-[#f3c27e] to-[#c97c2c] mx-auto">
                   {s.n}
                 </div>
-                <h3 className="mt-4 text-xl font-semibold text-[var(--coffee)]">
+                <h3
+                  className="mt-4 font-semibold"
+                  style={{
+                    color: "var(--coffee)",
+                    fontSize: "clamp(1rem, .9rem + .5vw, 1.25rem)",
+                  }}
+                >
                   {s.title}
                 </h3>
-                <p className="mt-2 text-[var(--coffee2)]">{s.text}</p>
+                <p
+                  className="mt-2"
+                  style={{ color: "var(--coffee2)", fontSize: "var(--text)" }}
+                >
+                  {s.text}
+                </p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ===== Gallery ===== */}
-      <section className="py-16 bg-[#fff7ec] wave-bottom section-pad">
+      {/* Gallery */}
+      <section
+        style={{ backgroundColor: "#fff7ec", paddingBlock: "var(--space-4)" }}
+      >
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex items-center justify-between gap-4">
             <h2
-              className="text-3xl font-extrabold bg-gradient-to-r from-[#f1b66f] to-[#c97c2c] bg-clip-text text-transparent"
+              className="font-extrabold bg-gradient-to-r from-[#f1b66f] to-[#c97c2c] bg-clip-text text-transparent"
               data-reveal
+              style={{ fontSize: "var(--title-md)" }}
             >
               Community Gallery
             </h2>
-            <span className="text-sm text-[#7a4f1c] opacity-80">
+            <span
+              className="text-sm"
+              style={{ color: "#7a4f1c", opacity: 0.8 }}
+            >
               Auto-updating highlights
             </span>
           </div>
 
-          <div className="mt-8 grid grid-cols-2 gap-6">
+          <div
+            className="mt-6 grid gap-6"
+            style={{
+              gridTemplateColumns: "repeat(auto-fit, minmax(14rem, 1fr))",
+            }}
+          >
             {pair.map((img, i) => (
               <div
                 key={img.src + i}
-                className="gallery-card swap glass rounded-2xl overflow-hidden hover:-translate-y-1 hover:shadow-xl transition-all"
-                style={{ height: "clamp(220px, 30vw, 300px)" }}
+                className="swap glass rounded-2xl overflow-hidden hover:-translate-y-1 hover:shadow-xl transition-all"
+                style={{ height: "clamp(220px, 30vw, 320px)" }}
               >
                 <img
                   src={img.src}
@@ -448,33 +676,56 @@ const Home = () => {
         </div>
       </section>
 
-      {/* ===== Core Features ===== */}
-      <section id="features" className="py-16 bg-white section-pad">
+      {/* DoughNation's Core Features */}
+      <section
+        id="features"
+        className="bg-white"
+        style={{ paddingBlock: "var(--space-4)" }}
+      >
         <div className="max-w-6xl mx-auto px-4">
           <h2
-            className="text-3xl font-extrabold text-center bg-gradient-to-r from-[#f1b66f] to-[#c97c2c] bg-clip-text text-transparent"
+            className="text-center font-extrabold bg-gradient-to-r from-[#f1b66f] to-[#c97c2c] bg-clip-text text-transparent"
             data-reveal
+            style={{ fontSize: "var(--title-md)" }}
           >
             DoughNation Core Features
           </h2>
 
-          <div className="mt-8 grid gap-6 grid-cols-3">
+          <div
+            className="mt-6 grid gap-6"
+            style={{
+              gridTemplateColumns: "repeat(auto-fit, minmax(16rem, 1fr))",
+            }}
+          >
             {coreFeatures.map((f, i) => (
               <div
                 key={f.n}
-                className="glass rounded-2xl p-6 hover:-translate-y-1 hover:shadow-xl hover:shadow-amber-200/30 transition-all"
+                className="glass rounded-2xl hover:-translate-y-1 hover:shadow-xl hover:shadow-amber-200/30 transition-all"
+                style={{
+                  padding: "var(--space-3)",
+                  borderRadius: "var(--radius)",
+                  transitionDelay: `${i * 60}ms`,
+                }}
                 data-reveal
-                style={{ transitionDelay: `${i * 60}ms` }}
               >
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold bg-gradient-to-r from-[#f3c27e] to-[#c97c2c]">
                     {f.icon}
                   </div>
-                  <h3 className="text-lg font-semibold text-[var(--coffee)]">
+                  <h3
+                    className="font-semibold"
+                    style={{
+                      color: "var(--coffee)",
+                      fontSize: "clamp(1rem, .9rem + .5vw, 1.25rem)",
+                    }}
+                  >
                     {f.title}
                   </h3>
                 </div>
-                <p className="mt-3 text-sm leading-relaxed text-[var(--coffee2)]">
+                <p
+                  className="mt-3 leading-relaxed"
+                  style={{ color: "var(--coffee2)", fontSize: "var(--text)" }}
+                >
                   {f.text}
                 </p>
               </div>
@@ -483,25 +734,33 @@ const Home = () => {
         </div>
       </section>
 
-      {/* ===== Partners ===== */}
-      <section className="py-14 bg-[#fff7ec] section-pad">
+      {/* Partners */}
+      <section
+        style={{ backgroundColor: "#fff7ec", paddingBlock: "var(--space-4)" }}
+      >
         <div className="max-w-6xl mx-auto px-4">
           <h2
-            className="text-xl font-semibold text-center text-[#8a5a25]"
+            className="text-center font-semibold"
             data-reveal
+            style={{ color: "#8a5a25", fontSize: "var(--title-sm)" }}
           >
             Trusted by local bakeries and charities
           </h2>
         </div>
 
-        <div className="max-w-3xl mx-auto px-4 mt-6 grid grid-cols-3 gap-4 place-items-center">
+        <div
+          className="max-w-3xl mx-auto px-4 mt-5 grid gap-4 place-items-center"
+          style={{
+            gridTemplateColumns: "repeat(auto-fit, minmax(14rem, 1fr))",
+          }}
+        >
           {partners.map((p, i) => (
             <a
               key={p.name}
               href={p.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="partner-pill hover:-translate-y-[2px] hover:shadow-xl transition-all"
+              className="partner-pill hover:-translate-y-0.5 hover:shadow-xl transition-all"
               data-reveal
               style={{ transitionDelay: `${i * 60}ms` }}
               title={p.name}
@@ -509,7 +768,10 @@ const Home = () => {
               <span className="partner-logo" aria-hidden="true">
                 {p.emoji}
               </span>
-              <span className="text-[#7a4f1c] text-sm font-medium text-center">
+              <span
+                className="text-sm font-medium text-center"
+                style={{ color: "#7a4f1c" }}
+              >
                 {p.name}
               </span>
             </a>
@@ -517,8 +779,10 @@ const Home = () => {
         </div>
       </section>
 
-      {/* ===== CTA ===== */}
-      <section className="relative py-20 overflow-hidden section-pad">
+      <section
+        className="relative overflow-hidden"
+        style={{ paddingBlock: "var(--space-4)" }}
+      >
         <div
           className="absolute inset-0"
           style={{
@@ -526,18 +790,32 @@ const Home = () => {
               "radial-gradient(900px 400px at 80% 120%,#ffe7c8 0%,transparent 60%)",
           }}
         />
-        <div className="relative z-10 max-w-6xl mx-auto px-4 text-center glass rounded-3xl py-10 shadow-[0_20px_60px_rgba(201,124,44,.18)]">
-          <h3 className="text-3xl font-extrabold bg-gradient-to-r from-[#f3b56f] to-[#c97c2c] bg-clip-text text-transparent">
+        <div
+          className="relative z-10 max-w-6xl mx-auto px-4 text-center glass rounded-3xl"
+          style={{ padding: "clamp(1.25rem, 3vw, 2rem)" }}
+        >
+          <h3
+            className="font-extrabold bg-gradient-to-r from-[#f3b56f] to-[#c97c2c] bg-clip-text text-transparent"
+            style={{ fontSize: "var(--title-md)" }}
+          >
             Inventory in. Donation out.
           </h3>
-          <p className="mt-2 text-[#6b4d2e]">
+          <p
+            className="mt-2"
+            style={{ color: "#6b4d2e", fontSize: "var(--text)" }}
+          >
             Track today’s product, flag the extras, and post them in the same
             flow.
           </p>
-          <div className="mt-6">
+          <div className="mt-5">
             <Link
               to="/register"
-              className="inline-block rounded-full px-7 py-3 text-white font-semibold btn-shimmer hover:shadow-lg hover:shadow-amber-300/30 transition-transform active:scale-[.98]"
+              className="inline-block rounded-full text-white font-semibold btn-shimmer hover:shadow-lg hover:shadow-amber-300/30 transition-transform active:scale-[.98]"
+              style={{
+                padding:
+                  "clamp(.6rem, .4rem + .6vw, .9rem) clamp(1rem, .8rem + 1.2vw, 1.4rem)",
+                borderRadius: 9999,
+              }}
             >
               Create an Account
             </Link>
@@ -545,13 +823,14 @@ const Home = () => {
         </div>
       </section>
 
-      {/* ===== Footer ===== */}
-      <footer className="relative mt-8">
+      {/* Footer */}
+      <footer className="relative" style={{ marginTop: "var(--space-3)" }}>
         <svg
-          className="block w-full h-8 text-[#fff3e6]"
+          className="block w-full h-8"
           viewBox="0 0 1440 60"
           preserveAspectRatio="none"
           aria-hidden="true"
+          style={{ color: "#fff3e6" }}
         >
           <path
             fill="currentColor"
@@ -559,19 +838,34 @@ const Home = () => {
           />
         </svg>
 
-        <div className="bg-[#fff3e6]">
-          <div className="max-w-7xl mx-auto px-4 py-10 grid gap-8 grid-cols-3 items-start text-left">
+        <div style={{ backgroundColor: "#fff3e6" }}>
+          <div
+            className="max-w-7xl mx-auto px-4 py-10 grid items-start text-left gap-8"
+            style={{
+              gridTemplateColumns: "repeat(auto-fit, minmax(16rem, 1fr))",
+            }}
+          >
             <div className="flex flex-nowrap items-start justify-start gap-3">
               <img
                 src="/images/DoughNationLogo.png"
                 alt="DoughNation logo"
-                className="w-[22px] h-[22px] object-contain logo-bread shrink-0"
+                className="object-contain shrink-0"
+                style={{ width: 22, height: 22 }}
               />
               <div className="text-left">
-                <span className="text-xl font-extrabold text-[#c97c2c]">
+                <span
+                  style={{
+                    color: "#c97c2c",
+                    fontSize: "clamp(1.1rem, .9rem + .8vw, 1.35rem)",
+                    fontWeight: 800,
+                  }}
+                >
                   DoughNation
                 </span>
-                <p className="mt-2 max-w-2xl text-sm text-[#6b4d2e]">
+                <p
+                  className="mt-2 max-w-2xl"
+                  style={{ color: "#6b4d2e", fontSize: "var(--text)" }}
+                >
                   Bakeries and charities, together against baked good surplus.
                 </p>
               </div>
@@ -581,13 +875,20 @@ const Home = () => {
               <img
                 src="/images/DonationHand.png"
                 alt="Donation handshake"
-                className="w-[min(60vw,150px)] mx-auto rounded-md object-contain"
+                className="mx-auto rounded-md object-contain"
+                style={{ width: "min(60vw, 150px)" }}
               />
             </div>
           </div>
 
           <div className="border-t border-white/70">
-            <div className="max-w-7xl mx-auto px-4 py-5 flex items-center justify-between text-sm text-[#6b4d2e]">
+            <div
+              className="max-w-7xl mx-auto px-4 py-5 flex items-center justify-between"
+              style={{
+                fontSize: "clamp(.85rem, .8rem + .2vw, .95rem)",
+                color: "#6b4d2e",
+              }}
+            >
               <p>
                 © {new Date().getFullYear()} DoughNation. All rights reserved.
               </p>
@@ -601,18 +902,21 @@ const Home = () => {
         </div>
       </footer>
 
-      <button
-        aria-label="Back to top"
-        onClick={scrollTop}
-        className={`fixed right-6 bottom-6 rounded-full p-3 shadow-lg transition-all active:scale-95 ${
-          showTop
-            ? "opacity-100 translate-y-0"
-            : "opacity-0 translate-y-3 pointer-events-none"
-        } btn-shimmer text-white`}
-        title="Back to top"
-      >
-        ↑
-      </button>
+      {/* Back to top */}
+      <div className="fixed right-6 bottom-6">
+        <button
+          aria-label="Back to top"
+          onClick={scrollTop}
+          className={`rounded-full p-3 shadow-lg transition-all active:scale-95 ${
+            showTop
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 translate-y-3 pointer-events-none"
+          } btn-shimmer text-white`}
+          title="Back to top"
+        >
+          ↑
+        </button>
+      </div>
     </div>
   );
 };

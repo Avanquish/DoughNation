@@ -495,7 +495,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
             setShowDonate(false);
           }}
         >
-          <div className="relative w-full max-w-4xl rounded-[2rem] overflow-hidden shadow-[0_24px_80px_rgba(191,115,39,.25)] ring-1 ring-[#E49A52]/30 bg-gradient-to-br from-[#FFF9F1] via-white to-[#FFF1E3]">
+          <div className="relative w-full max-w-4xl rounded-[2rem] overflow-visible shadow-[0_24px_80px_rgba(191,115,39,.25)] ring-1 ring-[#E49A52]/30 bg-gradient-to-br from-[#FFF9F1] via-white to-[#FFF1E3]">
             {/* header */}
             <div className="sticky top-0 z-10 p-4 sm:p-5 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199] border-b border-[#eadfce] rounded-t-[2rem]">
               <div className="flex items-center justify-between">

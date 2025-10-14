@@ -5,7 +5,6 @@ from app import models, database
 from datetime import datetime
 from app.chat_manager import manager
 
-
 import base64, os, json
 from uuid import uuid4
 

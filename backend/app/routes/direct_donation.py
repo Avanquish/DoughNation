@@ -4,7 +4,7 @@ from datetime import datetime, date
 
 from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, true
 
 from app.database import get_db
 from app.auth import get_current_user
@@ -341,7 +341,7 @@ def get_recommended_charities(
         total_counts[row.charity_id] = total_counts.get(row.charity_id, 0) + row.count
 
     # Fetch all active charities
-    charities = db.query(models.User).filter(models.User.role.ilike("charity")).all()
+    charities = db.query(models.User).filter(models.User.role.ilike("charity"), models.User.verified==true)
 
     # Determine which are recommended
     all_have_5plus = all(total_counts.get(c.id, 0) >= 5 for c in charities) if charities else False

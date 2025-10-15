@@ -53,18 +53,7 @@ function UnreadCircle({ read }) {
 
 const AdminDashboard = () => {
   const [name, setName] = useState("Admin");
-  const [activeTab, setActiveTab] = useState(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const fromUrl = params.get("tab");
-      if (fromUrl && ADMIN_ALLOWED_TABS.includes(fromUrl)) return fromUrl;
-
-      const fromStorage = localStorage.getItem(ADMIN_TAB_KEY);
-      if (fromStorage && ADMIN_ALLOWED_TABS.includes(fromStorage))
-        return fromStorage;
-    } catch {}
-    return "dashboard";
-  });
+  const [activeTab, setActiveTab] = useState("dashboard");
 
   // Keep tab on reload
   useEffect(() => {

@@ -74,20 +74,7 @@ const BakeryDashboard = () => {
   const [name, setName] = useState("Bakery");
 
   // initialize from URL, localStorage, or default
-  const [activeTab, setActiveTab] = useState(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const fromUrl = params.get("tab");
-      if (fromUrl && ALLOWED_TABS.includes(fromUrl)) return fromUrl;
-
-      const fromStorage = localStorage.getItem(TAB_KEY);
-      if (fromStorage && ALLOWED_TABS.includes(fromStorage)) return fromStorage;
-
-      return "dashboard";
-    } catch {
-      return "dashboard";
-    }
-  });
+const [activeTab, setActiveTab] = useState("dashboard");
 
   const [badges, setBadges] = useState([]);
   const [highlightedDonationId, setHighlightedDonationId] = useState(null);

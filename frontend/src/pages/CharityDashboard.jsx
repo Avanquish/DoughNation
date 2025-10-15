@@ -124,20 +124,7 @@ const CharityDashboard = () => {
   const [name, setName] = useState("");
   const [isVerified, setIsVerified] = useState(false);
 
-  const [activeTab, setActiveTab] = useState(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const fromUrl = params.get("tab");
-      if (fromUrl && ALLOWED_TABS.includes(fromUrl)) return fromUrl;
-
-      const fromStorage = localStorage.getItem(TAB_KEY);
-      if (fromStorage && ALLOWED_TABS.includes(fromStorage)) return fromStorage;
-
-      return "donation";
-    } catch {
-      return "donation";
-    }
-  });
+  const [activeTab, setActiveTab] = useState("donation");
 
   const navigate = useNavigate();
 

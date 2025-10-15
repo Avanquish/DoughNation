@@ -169,7 +169,9 @@ def get_bakery_analytics(
 
     # Fetch all registered charities
     all_charities = db.query(models.User).filter(
-        models.User.role == "Charity"
+        models.User.role == "Charity",
+        models.User.verified == True
+        
     ).all()
 
     # Maps for tracking totals

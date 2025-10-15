@@ -230,14 +230,30 @@ export default function ShowSearchedProfile({ id, onBack }) {
                     <Card className="glass-card shadow-none card-zoom">
                       <CardHeader className="pb-0 sm:pb-1 pt-5 sm:pt-6 px-5 sm:px-7">
                         <CardTitle className="about-title" style={{ color: "#7a4f1c" }}>About</CardTitle>
-                        <CardDescription className="about-body">
-                          {role === "bakery"
-                            ? "This bakery tracks products and donations."
-                            : role === "charity"
-                            ? `This charity receives donations and supports communities. 
-                              For inquiries, contact ${profile.contact_person} at ${profile.contact_number}.`
-                            : ""}
-                        </CardDescription>
+                          <CardDescription className="about-body">
+                            {role === "bakery" ? (
+                              <>
+                                This bakery tracks products and donations.{" "}
+                                {profile.contact_person && profile.contact_number && (
+                                  <>
+                                    For inquiries, contact <strong>{profile.contact_person}</strong> at{" "}
+                                    <strong>{profile.contact_number}</strong>.
+                                  </>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                This charity receives donations and supports communities.{" "}
+                                {profile.contact_person && profile.contact_number && (
+                                  <>
+                                    <br /><br />
+                                    For inquiries, contact <strong>{profile.contact_person}</strong> at{" "}
+                                    <strong>{profile.contact_number}</strong>.
+                                  </>
+                                )}
+                              </>
+                            )}
+                          </CardDescription>
                       </CardHeader>
 
                       {role === "bakery" && (

@@ -84,7 +84,7 @@ const Styles = () => (
     .card-bouncy::before{
       content:"";
       position:absolute;
-      inset:-6px; /* thin border of the background tint */
+      inset:-6px;
       border-radius:inherit;
       background:
         radial-gradient(360px 220px at 88% 18%, rgba(247,193,124,.32), rgba(247,193,124,0) 62%),
@@ -111,7 +111,8 @@ const Styles = () => (
 
 export default function CharityDonation() {
   const [donations, setDonations] = useState([]);
-  const [requestedDonations, setRequestedDonations] = useState({}); // donation_id -> request_id
+  const [requestedDonations, setRequestedDonations] = useState({});
+  const [selectedDonation, setSelectedDonation] = useState(null); // 🔹 Added
 
   // Fetching data
   useEffect(() => {
@@ -119,13 +120,11 @@ export default function CharityDonation() {
       try {
         const token = localStorage.getItem("token");
 
-        // Available donations
         const res = await axios.get(`${API}/available`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setDonations(res.data || []);
 
-        // My pending requests
         const pendingRes = await axios.get(`${API}/donation/my_requests`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -140,11 +139,41 @@ export default function CharityDonation() {
         Swal.fire("Error", "Failed to fetch donations", "error");
       }
     };
-
     fetchData();
   }, []);
 
-  // Request donation
+  // 🔹 Listen for geofence click event
+  useEffect(() => {
+  const openModalListener = (e) => {
+    const donationId = e.detail?.donationId;
+    if (!donationId) return;
+
+    // Wait until donations are loaded
+    const openDonation = () => {
+      const selected = donations.find((d) => d.id === donationId);
+      if (selected) {
+        setSelectedDonation(selected);
+      } else {
+        // Retry for up to 3 seconds in case donations not yet fetched
+        let retries = 0;
+        const interval = setInterval(() => {
+          const d = donations.find((d) => d.id === donationId);
+          if (d || retries >= 6) {
+            clearInterval(interval);
+            if (d) setSelectedDonation(d);
+          }
+          retries++;
+        }, 500);
+      }
+    };
+
+    openDonation();
+  };
+
+  window.addEventListener("open_donation_modal", openModalListener);
+  return () => window.removeEventListener("open_donation_modal", openModalListener);
+}, [donations]);
+
   const requestDonation = async (donation) => {
     try {
       const token = localStorage.getItem("token");
@@ -153,15 +182,12 @@ export default function CharityDonation() {
         { donation_id: donation.id, bakery_id: donation.bakery_id },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
       const requestId = res.data.request_id;
       setRequestedDonations((prev) => {
         const updated = { ...prev, [donation.id]: requestId };
         localStorage.setItem("requestedDonations", JSON.stringify(updated));
         return updated;
       });
-
-      // Handoff to Messenger
       const bakeryInfo = {
         id: donation.bakery_id,
         name: donation.bakery_name,
@@ -170,7 +196,6 @@ export default function CharityDonation() {
       localStorage.setItem("open_chat_with", JSON.stringify(bakeryInfo));
       localStorage.setItem("send_donation", JSON.stringify(donation));
       window.dispatchEvent(new Event("open_chat"));
-
       Swal.fire("Success", "Donation request sent!", "success");
     } catch (err) {
       console.error(err);
@@ -185,7 +210,6 @@ export default function CharityDonation() {
   const cancelRequest = async (donation_id) => {
     const request_id = requestedDonations[donation_id];
     if (!request_id) return;
-
     try {
       const token = localStorage.getItem("token");
       await axios.post(
@@ -193,18 +217,15 @@ export default function CharityDonation() {
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
       setRequestedDonations((prev) => {
         const updated = { ...prev };
         delete updated[donation_id];
         localStorage.setItem("requestedDonations", JSON.stringify(updated));
         return updated;
       });
-
       window.dispatchEvent(
         new CustomEvent("donation_cancelled", { detail: { donation_id } })
       );
-
       Swal.fire("Success", "Donation request canceled", "success");
     } catch (err) {
       console.error(err);
@@ -215,6 +236,44 @@ export default function CharityDonation() {
   return (
     <>
       <Styles />
+
+      {/* 🔹 Modal for selected donation */}
+      {selectedDonation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
+          <div className="bg-white rounded-2xl shadow-xl w-[400px] p-5 relative">
+            <button
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-800"
+              onClick={() => setSelectedDonation(null)}
+            >
+              ✕
+            </button>
+            <img
+              src={`${API}/${selectedDonation.image}`}
+              alt={selectedDonation.name}
+              className="w-full h-40 object-cover rounded-xl mb-4"
+            />
+            <h2 className="text-xl font-bold text-[#4f371f] mb-2">
+              {selectedDonation.name}
+            </h2>
+            <p className="text-sm text-gray-700 mb-3">
+              {selectedDonation.description || "No description available."}
+            </p>
+            <p className="text-sm text-gray-600">
+              Quantity: {selectedDonation.quantity}
+            </p>
+            <p className="text-sm text-gray-600">
+              Expires:{" "}
+              {new Date(selectedDonation.expiration_date).toLocaleDateString()}
+            </p>
+            <button
+              onClick={() => setSelectedDonation(null)}
+              className="mt-4 w-full bg-[#E49A52] hover:bg-[#BF7327] text-white py-2 rounded-full font-semibold transition"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* HEADER + CONTENT PANEL */}
       <div className="space-y-4 p-6">

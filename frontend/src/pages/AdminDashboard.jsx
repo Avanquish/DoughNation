@@ -321,11 +321,9 @@ const AdminDashboard = () => {
     (n) => n.kind === "registration"
   );
   const complaintsList = notifications.filter((n) => n.kind === "complaint");
-  const reportsList = notifications.filter((n) => n.kind === "feedback");
 
   const unreadVerifications = verificationList.filter((n) => !n.isRead).length;
   const unreadComplaints = complaintsList.filter((n) => !n.isRead).length;
-  const unreadReports = reportsList.filter((n) => !n.isRead).length;
 
   return (
     <div className="min-h-screen relative">
@@ -532,11 +530,6 @@ const AdminDashboard = () => {
                             label: "Complaints",
                             count: unreadComplaints,
                           },
-                          {
-                            key: "reports",
-                            label: "Reports",
-                            count: unreadReports,
-                          },
                         ].map((t) => (
                           <button
                             key={t.key}
@@ -638,56 +631,6 @@ const AdminDashboard = () => {
                                     markAsRead(n.id);
                                     setNotifOpen(false);
                                     setActiveTab("complaints");
-                                  }}
-                                  className={`w-full p-3 focus:outline-none transition-colors flex items-center ${
-                                    n.isRead
-                                      ? "bg-white hover:bg-[#fff6ec]"
-                                      : "bg-[rgba(255,246,236,1)]"
-                                  }`}
-                                >
-                                  <UnreadCircle read={n.isRead} />
-                                  <div className="text-left flex-1">
-                                    <p
-                                      className={`text-[13px] ${
-                                        n.isRead
-                                          ? "text-[#6b4b2b]"
-                                          : "text-[#4f371f] font-semibold"
-                                      }`}
-                                    >
-                                      {n.title}
-                                    </p>
-                                    {n.subtitle && (
-                                      <p className="text-[12px] text-[#6b4b2b]">
-                                        {n.subtitle}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <span className="text-[10px] text-muted-foreground shrink-0">
-                                    {n.at
-                                      ? new Date(n.at).toLocaleDateString()
-                                      : ""}
-                                  </span>
-                                </button>
-                              ))
-                            )}
-                          </div>
-                        )}
-
-                        {/* REPORTS */}
-                        {notifTab === "reports" && (
-                          <div>
-                            {reportsList.length === 0 ? (
-                              <div className="p-4 text-sm text-gray-500">
-                                No reports
-                              </div>
-                            ) : (
-                              reportsList.map((n) => (
-                                <button
-                                  key={n.id}
-                                  onClick={() => {
-                                    markAsRead(n.id);
-                                    setNotifOpen(false);
-                                    setActiveTab("reports");
                                   }}
                                   className={`w-full p-3 focus:outline-none transition-colors flex items-center ${
                                     n.isRead

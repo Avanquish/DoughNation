@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from app import models
 from app.database import get_db
 from app.auth import get_current_user
@@ -15,6 +15,7 @@ def get_bakery_leaderboard(
     if current_user.role != "Admin":
         raise HTTPException(status_code=403, detail="Access denied")
 
+
     results = (
         db.query(
             models.User.id.label("bakery_id"),
@@ -22,9 +23,15 @@ def get_bakery_leaderboard(
             func.sum(models.BakeryInventory.quantity).label("total_donated"),
         )
         .join(models.BakeryInventory, models.BakeryInventory.bakery_id == models.User.id)
+        .outerjoin(models.DirectDonation, models.DirectDonation.charity_id == models.User.id)
+        .outerjoin(models.DonationRequest, models.DonationRequest.bakery_id == models.User.id)
         .filter(models.User.role == "Bakery")
-        .filter(models.DirectDonation.btracking_status == "complete")
-        .filter(models.DonationRequest.tracking_status == "complete")
+        .filter(
+            or_(
+                models.DirectDonation.btracking_status == "complete",
+                models.DonationRequest.tracking_status == "complete",
+            )
+        )
         .group_by(models.User.id, models.User.name)
         .order_by(func.sum(models.BakeryInventory.quantity).desc())
         .all()

@@ -76,7 +76,7 @@ const ForgotPassword = () => {
     e.preventDefault();
     try {
       const res = await axios.post(
-        "http://localhost:8000/forgot-password/check-email",
+        "https://api.doughnationhq.cloud/forgot-password/check-email",
         { email }
       );
       if (res.data.valid) {
@@ -102,7 +102,7 @@ const ForgotPassword = () => {
     e.preventDefault();
     try {
       const res = await axios.post(
-        "http://localhost:8000/forgot-password/check-date",
+        "https://api.doughnationhq.cloud/forgot-password/check-date",
         { email, registration_date: registrationDate }
       );
       if (res.data.valid) {
@@ -137,7 +137,7 @@ const ForgotPassword = () => {
     }
     try {
       const res = await axios.post(
-        "http://localhost:8000/forgot-password/reset",
+        "https://api.doughnationhq.cloud/forgot-password/reset",
         {
           email,
           new_password: newPassword,

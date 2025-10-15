@@ -750,7 +750,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                       onChange={(e) =>
                         setForm({ ...form, name: e.target.value })
                       }
-                      required
+                      disabled
                     />
                     <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
                       <svg
@@ -910,9 +910,11 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                                   className="w-full px-4 py-2.5 hover:bg-[#FFF6E9] focus:bg-[#FFF6E9] flex items-center justify-between"
                                 >
                                   <div className="flex items-center gap-2 min-w-0">
-                                    <div className="h-6 w-6 rounded-full grid place-items-center bg-[#FFDCC3] text-[#6b4b2b] text-xs font-bold">
-                                      ❤
-                                    </div>
+                                    <img
+                                      src={c.profile_picture ? `${import.meta.env.VITE_API_URL}/${c.profile_picture}` : "/default-avatar.png"}
+                                      alt={c.name}
+                                      className="h-6 w-6 rounded-full object-cover border border-gray-200"
+                                    />
                                     <span className="truncate">{c.name}</span>
                                   </div>
                                   <span className="inline-flex items-center gap-1.5 px-2.5 py-[3px] text-[11px] font-semibold rounded-full bg-[#FFF6E9] border border-[#f4e6cf] text-[#6b4b2b]">
@@ -941,9 +943,11 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                                   className="w-full px-4 py-2.5 hover:bg-[#FFF6E9] focus:bg-[#FFF6E9] flex items-center justify-between"
                                 >
                                   <div className="flex items-center gap-2 min-w-0">
-                                    <div className="h-6 w-6 rounded-full grid place-items-center bg-[#EDE7DB] text-[#6b4b2b] text-xs font-bold">
-                                      ❤
-                                    </div>
+                                    <img
+                                      src={c.profile_picture ? `${import.meta.env.VITE_API_URL}/${c.profile_picture}` : "/default-avatar.png"}
+                                      alt={c.name}
+                                      className="h-6 w-6 rounded-full object-cover border border-gray-200"
+                                    />
                                     <span className="truncate">{c.name}</span>
                                   </div>
                                   <span className="inline-flex items-center gap-1.5 px-2.5 py-[3px] text-[11px] font-semibold rounded-full bg-[#FFF6E9] border border-[#f4e6cf] text-[#6b4b2b]">

@@ -325,7 +325,6 @@ const AdminDashboard = () => {
 
   const unreadVerifications = verificationList.filter((n) => !n.isRead).length;
   const unreadComplaints = complaintsList.filter((n) => !n.isRead).length;
-  const unreadReports = reportsList.filter((n) => !n.isRead).length;
 
   return (
     <div className="min-h-screen relative">
@@ -531,11 +530,6 @@ const AdminDashboard = () => {
                             key: "complaints",
                             label: "Complaints",
                             count: unreadComplaints,
-                          },
-                          {
-                            key: "reports",
-                            label: "Reports",
-                            count: unreadReports,
                           },
                         ].map((t) => (
                           <button

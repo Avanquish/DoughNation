@@ -26,7 +26,7 @@ import autoTable from "jspdf-autotable";
 export default function BakeryReports() {
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [activeReport, setActiveReport] = useState("donation");
+  const [activeReport, setActiveReport] = useState();
   const [charityInfo, setCharityInfo] = useState(null);
   const [weekStart, setWeekStart] = useState("");
   const [weekEnd, setWeekEnd] = useState("");

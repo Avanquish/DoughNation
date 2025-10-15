@@ -11,7 +11,7 @@ import {
 import { ChevronLeft, HeartHandshake, MessageSquareText } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
-const API = "https://api.doughnationhq.cloud";
+const API = "http://localhost:8000";
 
 export default function ShowSearchedProfile({ id, onBack }) {
   const [profile, setProfile] = useState(null);
@@ -233,7 +233,10 @@ export default function ShowSearchedProfile({ id, onBack }) {
                         <CardDescription className="about-body">
                           {role === "bakery"
                             ? "This bakery tracks products and donations."
-                            : "This charity receives donations and supports communities."}
+                            : role === "charity"
+                            ? `This charity receives donations and supports communities. 
+                              For inquiries, contact ${profile.contact_person} at ${profile.contact_number}.`
+                            : ""}
                         </CardDescription>
                       </CardHeader>
 

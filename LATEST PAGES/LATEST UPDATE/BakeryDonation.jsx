@@ -61,6 +61,29 @@ function Overlay({ onClose, children }) {
   );
 }
 
+<button
+  type="button"
+  className="shrink-0 h-7 px-3 rounded-full border border-[#f2d4b5] bg-white hover:bg-[#FFF6E9] transition shadow-sm"
+  onClick={() =>
+    setForm((f) => {
+      const id = parseInt(f.bakery_inventory_id || 0, 10);
+      const chosen = inventory.find((x) => Number(x.id) === id);
+      if (!chosen) {
+        Swal.fire("Pick an item", "Select an inventory item first.", "warning");
+        return f;
+      }
+      const maxQ = Number(chosen.quantity) || 0;
+      return { ...f, quantity: maxQ };
+    })
+  }
+  aria-label="Set to max quantity"
+  title="Max"
+>
+  <span className="text-[11px] font-semibold tracking-wide text-[#6b4b2b]">
+    MAX
+  </span>
+</button>;
+
 /* ---------- tiny UI helpers ---------- */
 const Pill = ({ tone = "neutral", children }) => {
   const tones = {
@@ -114,7 +137,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
   const [form, setForm] = useState({
     bakery_inventory_id: "",
     name: "",
-    quantity: 1,
+    quantity: 0,
     threshold: 1,
     creation_date: "",
     expiration_date: "",
@@ -562,7 +585,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                   setForm({
                     bakery_inventory_id: "",
                     name: "",
-                    quantity: 1,
+                    quantity: 0,
                     threshold: 1,
                     creation_date: "",
                     expiration_date: "",
@@ -781,7 +804,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                       onClick={() =>
                         setForm((f) => ({
                           ...f,
-                          quantity: Math.max(1, Number(f.quantity) - 1),
+                          quantity: Math.max(0, Number(f.quantity) - 1),
                         }))
                       }
                       aria-label="Decrease quantity"
@@ -792,28 +815,56 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                     </button>
                     <input
                       type="number"
-                      min={1}
+                      min={0}
+                      max={(() => {
+                        const chosen = inventory.find(
+                          (x) => Number(x.id) === +form.bakery_inventory_id
+                        );
+                        return chosen ? Number(chosen.quantity) : 0;
+                      })()}
                       className="w-full rounded-2xl border border-[#f2d4b5] bg-white/95 px-4 py-3.5 text-center text-[15px] outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52] transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      value={form.quantity}
+                      onInput={(e) => {
+                        e.currentTarget.value = e.currentTarget.value.replace(
+                          /^0+(?=\d)/,
+                          ""
+                        );
+                      }}
                       onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          quantity: Math.max(
-                            1,
-                            parseInt(e.target.value || 1, 10)
-                          ),
-                        }))
+                        setForm((f) => {
+                          const chosen = inventory.find(
+                            (x) => Number(x.id) === +f.bakery_inventory_id
+                          );
+                          const maxQ = chosen ? Number(chosen.quantity) : 0;
+                          const s =
+                            e.target.value === "" ? "0" : e.target.value;
+                          const n = parseInt(s, 10);
+                          const val = Number.isFinite(n) ? n : 0;
+                          return {
+                            ...f,
+                            quantity: Math.min(maxQ, Math.max(0, val)),
+                          };
+                        })
                       }
+                      value={Number(form.quantity)}
                       required
                       aria-label="Quantity"
                     />
+
                     <button
                       type="button"
                       className="shrink-0 h-12 w-12 grid place-items-center rounded-2xl border border-[#f2d4b5] bg-white hover:bg-[#FFF6E9] transition shadow-sm"
                       onClick={() =>
                         setForm((f) => ({
                           ...f,
-                          quantity: Number(f.quantity) + 1,
+                          quantity: (() => {
+                            const chosen = inventory.find(
+                              (x) => Number(x.id) === +f.bakery_inventory_id
+                            );
+                            const maxQ = chosen
+                              ? Number(chosen.quantity)
+                              : Infinity;
+                            return Math.min(maxQ, Number(f.quantity) + 1);
+                          })(),
                         }))
                       }
                       aria-label="Increase quantity"
@@ -823,9 +874,39 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                       </span>
                     </button>
                   </div>
-                  <p className="mt-1.5 text-[11px] text-[#7b5836]">
-                    Use the stepper to quickly match demand.
-                  </p>
+                  <div className="mt-1.5 flex items-center justify-between">
+                    <p className="text-[11px] text-[#7b5836]">
+                      Use the stepper to quickly match demand.
+                    </p>
+                    <button
+                      type="button"
+                      className="shrink-0 h-7 px-3 rounded-full border border-[#f2d4b5] bg-white hover:bg-[#FFF6E9] transition shadow-sm"
+                      onClick={() =>
+                        setForm((f) => {
+                          const id = parseInt(f.bakery_inventory_id || 0, 10);
+                          const chosen = inventory.find(
+                            (x) => Number(x.id) === id
+                          );
+                          if (!chosen) {
+                            Swal.fire(
+                              "Pick an item",
+                              "Select an inventory item first.",
+                              "warning"
+                            );
+                            return f;
+                          }
+                          const maxQ = Number(chosen.quantity) || 0;
+                          return { ...f, quantity: maxQ };
+                        })
+                      }
+                      aria-label="Set to max quantity"
+                      title="Max"
+                    >
+                      <span className="text-[11px] font-semibold tracking-wide text-[#6b4b2b]">
+                        MAX
+                      </span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Charity */}

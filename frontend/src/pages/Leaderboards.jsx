@@ -9,7 +9,7 @@ const Leaderboards = () => {
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch leaderboard data on mount
+  // Fetch leaderboard data
   useEffect(() => {
     axios
       .get(`${API}/leaderboard/bakery`, {
@@ -58,9 +58,7 @@ const Leaderboards = () => {
 
   return (
     <div className="p-4 sm:p-6">
-      {/* Outer panel  */}
       <div className="max-w-5xl mx-auto rounded-3xl bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9] shadow-[0_8px_24px_rgba(201,124,44,0.12)] border border-[#e8d8c2]">
-        {/* Title section */}
         <div className="text-center px-6 pt-8 pb-4 border-b border-[#e8d8c2]/70">
           <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
             Bakery Leaderboard
@@ -70,12 +68,10 @@ const Leaderboards = () => {
           </p>
         </div>
 
-        {/* Table container */}
         <div className="p-6">
           <div className="overflow-hidden rounded-2xl bg-white/95 shadow ring-1 ring-[#e9d7c3]">
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
-                {/* Header */}
                 <thead className="bg-[#EADBC8] text-[#4A2F17]">
                   <tr>
                     <th className="px-4 py-3 text-left font-semibold w-[140px]">
@@ -90,7 +86,6 @@ const Leaderboards = () => {
                   </tr>
                 </thead>
 
-                {/* Body */}
                 <tbody className="divide-y divide-[#f2d4b5]">
                   {leaderboard.map((b) => {
                     const topRow =

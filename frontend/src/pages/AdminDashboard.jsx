@@ -138,24 +138,7 @@ const AdminDashboard = () => {
     })();
   }, []);
 
-  // Feedback / reports
-  useEffect(() => {
-    (async () => {
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
-      try {
-        const r1 = await axios.get("/admin/feedbacks", { headers });
-        setFeedbacks(r1.data || []);
-      } catch {
-        try {
-          const r2 = await axios.get("/feedbacks/pending", { headers });
-          setFeedbacks(r2.data || []);
-        } catch {
-          setFeedbacks([]);
-        }
-      }
-    })();
-  }, []);
+
 
   // Complaints
   useEffect(() => {

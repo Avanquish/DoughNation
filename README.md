@@ -32,8 +32,8 @@ The platform promotes **zero-waste food management**, **community support**, and
 | **Frontend** | React.js, Tailwind CSS, Axios, SweetAlert2, Leaflet.js |
 | **Backend** | FastAPI (Python), SQLAlchemy ORM, JWT Authentication |
 | **Database** | PostgreSQL |
-| **Deployment** | Nginx (Reverse Proxy), Uvicorn, Docker (optional) |
-| **Security** | Role-Based Access Control (RBAC), Email Verification, File Upload Validation |
+| **Deployment** | Hostinger VPS, Nginx (Reverse Proxy), Uvicorn |
+| **Security** | Role-Based Access Control (RBAC), Email Verification, File Upload Validation, JWT Token |
 | **Logic** | Gamification (Badges, Leaderboard), Expiration Monitoring, Geofencing Notifications |
 
 ---

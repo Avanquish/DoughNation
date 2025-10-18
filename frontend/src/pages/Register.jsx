@@ -96,7 +96,7 @@ export default function Register() {
     if (!email || !email.includes("@")) return;
     setEmailChecking(true);
     try {
-      const res = await axios.get("https://api.doughnationhq.cloud/check-email", {
+      const res = await axios.get("http://localhost:8000/check-email", {
         params: { email },
       });
       setEmailAvailable(res.data.available);
@@ -152,11 +152,7 @@ export default function Register() {
     }
 
     try {
-<<<<<<< HEAD
       await axios.post("http://localhost:8000/register", submitData, {
-=======
-      await axios.post("https://api.doughnationhq.cloud/register", submitData, {
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
         headers: { "Content-Type": "multipart/form-data" },
       });
       Swal.fire({
@@ -560,22 +556,12 @@ export default function Register() {
                     </button>
                   </div>
 
-                  {/* confirm meter */}
-                  <div className="mt-2 h-2 w-full bg-[#FFE1BE]/70 rounded-full overflow-hidden">
-                    <div
-                      className="h-full transition-all"
-                      style={{
-                        width: `${matchRatio * 100}%`,
-                        background: confirmMeterColor,
-                      }}
-                    />
-                  </div>
                   <p className="text-xs text-[#a47134]/80">
                     {formData.password.length === 0
                       ? "Enter a password first."
                       : formData.confirm_password === formData.password
                       ? "Passwords match"
-                      : "Re-type the same password"}
+                      : "Re-enter the same password"}
                   </p>
                 </div>
               </div>

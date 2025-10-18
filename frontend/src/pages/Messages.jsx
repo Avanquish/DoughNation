@@ -226,11 +226,7 @@ export default function Messages({ currentUser: currentUserProp }) {
   const [disabledDonations, setDisabledDonations] = useState(new Set());
   const [allDonationRequests, setAllDonationRequests] = useState([]);
   const [removedProducts, setRemovedProducts] = useState(new Set());
-<<<<<<< HEAD
-
-=======
   const [, setLoading] = useState(false);
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
   const [messages, setMessages] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("chat_messages")) || [];
@@ -495,10 +491,7 @@ useEffect(() => {
     let reconnectTimerId;
 
     const connectWS = () => {
-<<<<<<< HEAD
-=======
         console.log("[WS-DEBUG] connecting to WebSocket:", `${WS_URL}/messages/${currentUser.id}`);
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
         const ws = new WebSocket(`${WS_URL}/messages/${currentUser.id}`);
       wsRef.current = ws;
 

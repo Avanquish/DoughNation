@@ -117,7 +117,7 @@ const Login = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post("https://api.doughnationhq.cloud/login", {
+      const res = await axios.post("http://localhost:8000/login", {
         email,
         password,
         role,
@@ -474,7 +474,7 @@ const Login = () => {
 
           {/* Hide image */}
           <img
-            src="/images/GivingDonation.png"
+            src="/images/givingdonation.png"
             alt=""
             aria-hidden="true"
             className="give-illu"

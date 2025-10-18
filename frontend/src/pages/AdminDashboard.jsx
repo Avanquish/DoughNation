@@ -53,7 +53,18 @@ function UnreadCircle({ read }) {
 
 const AdminDashboard = () => {
   const [name, setName] = useState("Admin");
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const fromUrl = params.get("tab");
+      if (fromUrl && ADMIN_ALLOWED_TABS.includes(fromUrl)) return fromUrl;
+
+      const fromStorage = localStorage.getItem(ADMIN_TAB_KEY);
+      if (fromStorage && ADMIN_ALLOWED_TABS.includes(fromStorage))
+        return fromStorage;
+    } catch {}
+    return "dashboard";
+  });
 
   // Keep tab on reload
   useEffect(() => {
@@ -138,30 +149,25 @@ const AdminDashboard = () => {
     })();
   }, []);
 
-<<<<<<< HEAD
-
-
-  // Complaints
-=======
   // Feedback / reports
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
   useEffect(() => {
     (async () => {
+      const token = localStorage.getItem("token");
+      const headers = { Authorization: `Bearer ${token}` };
       try {
-        const token = localStorage.getItem("token");
-        const res = await axios.get("/complaints", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setComplaints(res.data || []);
-      } catch (e) {
-        console.error(e);
-        setComplaints([]);
+        const r1 = await axios.get("/admin/feedbacks", { headers });
+        setFeedbacks(r1.data || []);
+      } catch {
+        try {
+          const r2 = await axios.get("/feedbacks/pending", { headers });
+          setFeedbacks(r2.data || []);
+        } catch {
+          setFeedbacks([]);
+        }
       }
     })();
   }, []);
 
-<<<<<<< HEAD
-=======
   // Complaints
   useEffect(() => {
     (async () => {
@@ -178,7 +184,6 @@ const AdminDashboard = () => {
     })();
   }, []);
 
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
   // Actions
   const handleVerify = async (id) => {
     try {
@@ -327,13 +332,11 @@ const AdminDashboard = () => {
     (n) => n.kind === "registration"
   );
   const complaintsList = notifications.filter((n) => n.kind === "complaint");
-<<<<<<< HEAD
   const reportsList = notifications.filter((n) => n.kind === "feedback");
-=======
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
 
   const unreadVerifications = verificationList.filter((n) => !n.isRead).length;
   const unreadComplaints = complaintsList.filter((n) => !n.isRead).length;
+  const unreadReports = reportsList.filter((n) => !n.isRead).length;
 
   return (
     <div className="min-h-screen relative">
@@ -540,6 +543,11 @@ const AdminDashboard = () => {
                             label: "Complaints",
                             count: unreadComplaints,
                           },
+                          {
+                            key: "reports",
+                            label: "Reports",
+                            count: unreadReports,
+                          },
                         ].map((t) => (
                           <button
                             key={t.key}
@@ -675,7 +683,6 @@ const AdminDashboard = () => {
                             )}
                           </div>
                         )}
-<<<<<<< HEAD
 
                         {/* REPORTS */}
                         {notifTab === "reports" && (
@@ -726,8 +733,6 @@ const AdminDashboard = () => {
                             )}
                           </div>
                         )}
-=======
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                       </div>
 
                       {/* Footer */}

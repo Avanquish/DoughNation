@@ -17,7 +17,7 @@ function UnreadCircle({ read }) {
   );
 }
 
-const API = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const STORAGE_KEY = "readNotifications";
 const CARD_WIDTH = 340;
 

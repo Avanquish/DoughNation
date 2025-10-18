@@ -3,12 +3,13 @@ import axios from "axios";
 import Swal from "sweetalert2";
 import { Crown, Medal } from "lucide-react";
 
-const API = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const Leaderboards = () => {
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Fetch leaderboard data on mount
   useEffect(() => {
     axios
       .get(`${API}/leaderboard/bakery`, {
@@ -56,26 +57,88 @@ const Leaderboards = () => {
   const formatNumber = (n) => (typeof n === "number" ? n.toLocaleString() : n);
 
   return (
-    <div className="max-w-3xl mx-auto mt-10 p-6 bg-white rounded-2xl shadow-md">
-      <h2 className="text-2xl font-bold text-center mb-6">🏆 Bakery Leaderboard</h2>
-      <table className="w-full table-auto border-collapse">
-        <thead>
-          <tr className="bg-gray-200">
-            <th className="p-3 text-center">Rank</th>
-            <th className="p-3 text-center">Bakery</th>
-            <th className="p-3 text-center">Total Donated</th>
-          </tr>
-        </thead>
-        <tbody>
-          {leaderboard.map((bakery) => (
-            <tr key={bakery.bakery_id} className="border-b hover:bg-gray-100">
-              <td className="p-3 font-semibold text-center">#{bakery.rank}</td>
-              <td className="p-3 text-center">{bakery.bakery_name}</td>
-              <td className="p-3 text-center">{bakery.total_donated}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="p-4 sm:p-6">
+      {/* Outer panel  */}
+      <div className="max-w-5xl mx-auto rounded-3xl bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9] shadow-[0_8px_24px_rgba(201,124,44,0.12)] border border-[#e8d8c2]">
+        {/* Title section */}
+        <div className="text-center px-6 pt-8 pb-4 border-b border-[#e8d8c2]/70">
+          <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
+            Bakery Leaderboard
+          </h2>
+          <p className="mt-1 text-sm text-[#7b5836]">
+            Top bakeries ranked by total donations
+          </p>
+        </div>
+
+        {/* Table container */}
+        <div className="p-6">
+          <div className="overflow-hidden rounded-2xl bg-white/95 shadow ring-1 ring-[#e9d7c3]">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                {/* Header */}
+                <thead className="bg-[#EADBC8] text-[#4A2F17]">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold w-[140px]">
+                      Rank
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold">
+                      Bakery
+                    </th>
+                    <th className="px-4 py-3 text-right font-semibold w-[180px]">
+                      Total Donated
+                    </th>
+                  </tr>
+                </thead>
+
+                {/* Body */}
+                <tbody className="divide-y divide-[#f2d4b5]">
+                  {leaderboard.map((b) => {
+                    const topRow =
+                      b.rank === 1
+                        ? "bg-gradient-to-r from-[#FFF3E6] via-[#FFE6CC] to-[#FFE0BF]"
+                        : b.rank === 2
+                        ? "bg-gradient-to-r from-[#FFF7ED] via-[#FFF0DE] to-[#FFE6CF]"
+                        : b.rank === 3
+                        ? "bg-gradient-to-r from-[#FFFAF2] via-[#FFF2E3] to-[#FFE9D3]"
+                        : "bg-white";
+
+                    return (
+                      <tr
+                        key={b.bakery_id}
+                        className={`${topRow} hover:bg-[#fff6ec] transition-colors transform-gpu hover:scale-[1.015] hover:shadow-[0_12px_28px_rgba(201,124,44,0.18)] hover:ring-1 hover:ring-[#e9d7c3] relative z-[1] transition-transform duration-200`}
+                      >
+                        <td className="px-4 py-3">
+                          <RankBadge rank={b.rank} />
+                        </td>
+                        <td className="px-4 py-3 text-[#3b2a18] font-medium">
+                          {b.bakery_name}
+                        </td>
+                        <td className="px-4 py-3 text-right font-extrabold text-[#2a170a]">
+                          {formatNumber(b.total_donated)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {leaderboard.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={3}
+                        className="px-4 py-10 text-center text-[#6b4b2b]/70"
+                      >
+                        No data available.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <p className="mt-4 text-center text-[#6b4b2b]/70 text-xs">
+            Rankings update automatically as donations change.
+          </p>
+        </div>
+      </div>
     </div>
   );
 };

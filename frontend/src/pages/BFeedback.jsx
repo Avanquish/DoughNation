@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { FaStar } from "react-icons/fa";
 
-const API = "https://api.doughnationhq.cloud";
+const API = "http://localhost:8000";
 
 // Color palette
 const brand = {

@@ -3,10 +3,7 @@ import axios from "axios";
 import { Bell, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-<<<<<<< HEAD
-=======
 // Small unread/read circle indicator
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
 function UnreadCircle({ read }) {
   return (
     <span
@@ -21,27 +18,24 @@ function UnreadCircle({ read }) {
   );
 }
 
-const API = "https://api.doughnationhq.cloud";
+const API = "http://localhost:8000";
 const STORAGE_KEY = "readNotifications";
 
 export default function NotificationBell() {
-  const [tab, setTab] = useState("donations");
+  const [tab, setTab] = useState("donations"); // "donations" | "messages" | "receivedDonations"
   const [donations, setDonations] = useState([]);
   const [receivedDonations, setReceivedDonations] = useState([]);
   const [messages, setMessages] = useState([]);
-  const [priorityDonations, setPriorityDonations] = useState([]);
+
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef(null);
   const bellRef = useRef(null);
   const navigate = useNavigate();
 
-<<<<<<< HEAD
-=======
   const [priorityDonations, setPriorityDonations] = useState([]);
 
   const prevRequestStatusRef = useRef({});
   // helpers for localStorage
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
   const getReadFromStorage = () => {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
@@ -53,15 +47,16 @@ export default function NotificationBell() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
   };
 
-  // ✅ Fetch notifications
+  // Fetch notifs
   const fetchNotifications = async () => {
     try {
       const token = localStorage.getItem("token");
       const opts = token
         ? { headers: { Authorization: `Bearer ${token}` } }
         : { withCredentials: true };
+
       const res = await axios.get(`${API}/notifications/charity`, opts);
-      const {
+      let {
         messages: msgs = [],
         donations: dons = [],
         received_donations: rDons = [],
@@ -70,23 +65,16 @@ export default function NotificationBell() {
 
       const storedRead = getReadFromStorage();
 
-      setMessages(msgs.map((m) => ({ ...m })));
+      setMessages((msgs || []).map((m) => ({ ...m })));
 
       setPriorityDonations(
-<<<<<<< HEAD
-        geofences.map((g) => ({
-=======
         (geofences || []).map((g) => ({
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
           ...g,
           read: storedRead.includes(g.id),
         }))
       );
 
       setDonations(
-<<<<<<< HEAD
-        dons.map((d) => ({
-=======
         (dons || []).map((d) => ({
           ...d,
           read: storedRead.includes(d.id),
@@ -116,31 +104,19 @@ export default function NotificationBell() {
         const wasRead = storedRead.includes(d.id);
 
         return {
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
           ...d,
-          read: storedRead.includes(d.id),
-        }))
-      );
+          message,
+          read: wasRead,
+        };
+      });
 
-      setReceivedDonations(
-        rDons.map((d) => ({
-          ...d,
-          read: storedRead.includes(d.id),
-          message:
-            d.type === "direct"
-              ? `${d.bakery_name} sent a donation`
-              : d.type === "request"
-              ? `${d.bakery_name} accepted your request`
-              : d.type === "request_declined"
-              ? `${d.bakery_name} declined your request`
-              : `Update from ${d.bakery_name}`,
-        }))
-      );
+      setReceivedDonations(mapped);
     } catch (err) {
-      console.error("❌ Failed to fetch notifications", err);
+      console.error("Failed to fetch notifications", err);
     }
   };
 
+  // mark as read
   const markNotificationAsRead = async (id) => {
     const stored = getReadFromStorage();
     if (!stored.includes(id)) saveReadToStorage([...stored, id]);
@@ -152,10 +128,11 @@ export default function NotificationBell() {
         : { withCredentials: true };
       await axios.patch(`${API}/notifications/${id}/read`, {}, opts);
     } catch (err) {
-      console.error("❌ Failed to mark notification as read", err);
+      console.error("Failed to mark notification as read", err);
     }
   };
 
+  // effects
   useEffect(() => {
     fetchNotifications();
     const iv = setInterval(fetchNotifications, 2000);
@@ -177,6 +154,7 @@ export default function NotificationBell() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // counts
   const unreadCountDonations = donations.filter((d) => !d.read).length;
   const unreadCountMessages = messages.length;
   const unreadCountReceivedDonations = receivedDonations.filter(
@@ -185,42 +163,10 @@ export default function NotificationBell() {
   const totalUnread =
     unreadCountDonations + unreadCountMessages + unreadCountReceivedDonations;
 
+  // helpers
   const avatar = (path, fallback = `${API}/uploads/placeholder.png`) =>
     path ? `${API}/${path}` : fallback;
 
-<<<<<<< HEAD
-  // ✅ FIXED — click handler for geofence / priority donation
-  const handlePriorityDonationClick = (d) => {
-    markNotificationAsRead(d.id);
-    setOpen(false);
-
-    // Save donation ID for donation tab
-    localStorage.setItem("highlight_donation", d.id);
-
-    // 🔹 1️⃣ Switch to donation tab (for UI in parent)
-    window.dispatchEvent(new CustomEvent("switch_to_donation_tab"));
-
-    // 🔹 2️⃣ Wait a bit then trigger modal open
-    setTimeout(() => {
-      window.dispatchEvent(
-        new CustomEvent("open_donation_modal", {
-          detail: { donationId: d.id },
-        })
-      );
-    }, 400);
-  };
-
-  const handleNormalDonationClick = (d) => {
-    markNotificationAsRead(d.id);
-    setOpen(false);
-
-    localStorage.setItem("highlight_donation", d.donation_id || d.id);
-    window.dispatchEvent(new CustomEvent("switch_to_donation_tab"));
-
-    setTimeout(() => {
-      window.dispatchEvent(new Event("highlight_donation"));
-    }, 200);
-=======
   // --- Click Handlers ---
   const handleNormalDonationClick = (d) => {
     // remove it from the state
@@ -252,12 +198,11 @@ export default function NotificationBell() {
     );
     markNotificationAsRead(d.id);
     setOpen(false);
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
   };
 
   return (
     <div className="relative inline-block">
-      {/* Bell Icon */}
+      {/* Bell */}
       <button
         ref={bellRef}
         className="icon-btn"
@@ -321,11 +266,7 @@ export default function NotificationBell() {
                             background:
                               "linear-gradient(90deg, #F6C17C, #E49A52, #BF7327)",
                           }
-<<<<<<< HEAD
-                        : {}
-=======
                         : { background: "transparent" }
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                     }
                   >
                     {t.label}
@@ -341,18 +282,12 @@ export default function NotificationBell() {
                 ))}
               </div>
 
-              {/* Content */}
+              {/* Lists */}
               <div className="max-h-80 overflow-y-auto">
-<<<<<<< HEAD
-                {tab === "donations" && (
-                  <div>
-                    {/* Geofence / Priority Donations */}
-=======
                 {/* Donations */}
                 {tab === "donations" && (
                   <div>
                     {/* Priority Donations */}
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                     {priorityDonations.length > 0 && (
                       <div className="mb-2">
                         <div className="px-3 py-2 text-xs font-bold text-red-600 bg-red-50">
@@ -391,13 +326,6 @@ export default function NotificationBell() {
                                       d.expiration_date
                                     ).toLocaleDateString()}{" "}
                                     {d.distance_km != null &&
-<<<<<<< HEAD
-                                      `• ${d.distance_km} km`}
-                                  </span>
-                                </p>
-                              </div>
-                              <ChevronRight className="w-4 h-4 shrink-0 text-[#8b6b48]" />
-=======
                                       `• Approx ${d.distance_km} km`}
                                   </span>
                                 </p>
@@ -406,7 +334,6 @@ export default function NotificationBell() {
                                 className="w-4 h-4 shrink-0"
                                 style={{ color: "#8b6b48" }}
                               />
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                             </button>
                           ))}
                         </div>
@@ -432,9 +359,6 @@ export default function NotificationBell() {
                                   ? "bg-white hover:bg-[#fff6ec]"
                                   : "bg-[rgba(255,246,236,1)]"
                               }`}
-<<<<<<< HEAD
-                              onClick={() => handleNormalDonationClick(d)}
-=======
                               onClick={() => {
                                 localStorage.setItem(
                                   "highlight_donation",
@@ -453,7 +377,6 @@ export default function NotificationBell() {
                                 markNotificationAsRead(d.id);
                                 setOpen(false);
                               }}
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                             >
                               <UnreadCircle read={d.read} />
                               <img
@@ -471,27 +394,17 @@ export default function NotificationBell() {
                                 >
                                   <strong>{d.bakery_name}</strong>: {d.name} (
                                   {d.quantity})
-<<<<<<< HEAD
-                                  {d.distance_km && (
-                                    <span className="ml-1 text-xs text-gray-400">
-                                      • {d.distance_km} km
-=======
                                   {d.distance_km != null && (
                                     <span className="ml-1 text-xs text-gray-400">
                                       • Approx {d.distance_km} km
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                                     </span>
                                   )}
                                 </p>
                               </div>
-<<<<<<< HEAD
-                              <ChevronRight className="w-4 h-4 shrink-0 text-[#8b6b48]" />
-=======
                               <ChevronRight
                                 className="w-4 h-4 shrink-0"
                                 style={{ color: "#8b6b48" }}
                               />
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                             </button>
                           ))}
                         </div>
@@ -500,10 +413,7 @@ export default function NotificationBell() {
                   </div>
                 )}
 
-<<<<<<< HEAD
-=======
                 {/* Received Donations */}
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                 {tab === "receivedDonations" && (
                   <div>
                     {receivedDonations.length === 0 ? (
@@ -532,11 +442,7 @@ export default function NotificationBell() {
                                 window.dispatchEvent(
                                   new Event("highlight_donationStatus_donation")
                                 ),
-<<<<<<< HEAD
-                              200
-=======
                               100
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                             );
                             markNotificationAsRead(d.id);
                             setOpen(false);
@@ -548,10 +454,7 @@ export default function NotificationBell() {
                             alt={d.bakery_name}
                             className="w-8 h-8 rounded-full object-cover border"
                           />
-<<<<<<< HEAD
-=======
 
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                           <div className="min-w-0 flex-1">
                             <p
                               className={`text-[13px] leading-tight ${
@@ -563,20 +466,17 @@ export default function NotificationBell() {
                               {d.message}
                             </p>
                           </div>
-<<<<<<< HEAD
-                          <ChevronRight className="w-4 h-4 shrink-0 text-[#8b6b48]" />
-=======
                           <ChevronRight
                             className="w-4 h-4 shrink-0"
                             style={{ color: "#8b6b48" }}
                           />
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                         </button>
                       ))
                     )}
                   </div>
                 )}
 
+                {/* Messages */}
                 {tab === "messages" && (
                   <div>
                     {messages.length === 0 ? (
@@ -598,24 +498,14 @@ export default function NotificationBell() {
                               "open_chat_with",
                               JSON.stringify(peer)
                             );
-<<<<<<< HEAD
-                            await markNotificationAsRead(m.id);
-=======
                             try {
                               await markNotificationAsRead(m.id);
                             } catch {}
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                             window.dispatchEvent(new Event("open_chat"));
-                            setMessages((prev) =>
-                              prev.filter((x) => x.id !== m.id)
-                            );
                             setOpen(false);
-<<<<<<< HEAD
-=======
                             setMessages((prev) =>
                               prev.filter((x) => x.id !== m.id)
                             );
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                           }}
                         >
                           <UnreadCircle read={false} />
@@ -624,10 +514,7 @@ export default function NotificationBell() {
                             alt={m.sender_name}
                             className="w-8 h-8 rounded-full object-cover border"
                           />
-<<<<<<< HEAD
-=======
 
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                           <div className="min-w-0 flex-1">
                             <p className="text-[13px] leading-tight">
                               <span className="font-bold text-[#6b4b2b]">
@@ -638,14 +525,10 @@ export default function NotificationBell() {
                               </span>
                             </p>
                           </div>
-<<<<<<< HEAD
-                          <ChevronRight className="w-4 h-4 shrink-0 text-[#8b6b48]" />
-=======
                           <ChevronRight
                             className="w-4 h-4 shrink-0"
                             style={{ color: "#8b6b48" }}
                           />
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                         </button>
                       ))
                     )}
@@ -653,13 +536,10 @@ export default function NotificationBell() {
                 )}
               </div>
 
+              {/* footer hint */}
               <div className="px-3 py-2 text-[11px] text-[#8a5a25] bg-white/70">
-<<<<<<< HEAD
-                Tip: Click a donation to jump to the correct tab and open it.
-=======
                 Tip: Click a donation to jump to the correct tab and highlight
                 it.
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
               </div>
             </div>
           </div>

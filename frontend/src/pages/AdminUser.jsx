@@ -1,10 +1,9 @@
-
 import React, { useEffect, useMemo, useState } from "react";
 import Swal from "sweetalert2";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 
-const API = "https://api.doughnationhq.cloud"; // adjust if needed
+const API = "http://localhost:8000"; // adjust if needed
 
 const AdminUser = () => {
   const [pendingUsers, setPendingUsers] = useState([]);

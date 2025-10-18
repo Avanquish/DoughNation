@@ -4,7 +4,7 @@ import axios from "axios";
 import Swal from "sweetalert2";
 import { Heart, Clock, AlertTriangle, Package } from "lucide-react";
 
-const API = "https://api.doughnationhq.cloud";
+const API = "http://localhost:8000";
 
 /* ---------- helpers ---------- */
 const isExpired = (dateStr) => {
@@ -61,8 +61,6 @@ function Overlay({ onClose, children }) {
   );
 }
 
-<<<<<<< HEAD
-=======
 <button
   type="button"
   className="shrink-0 h-7 px-3 rounded-full border border-[#f2d4b5] bg-white hover:bg-[#FFF6E9] transition shadow-sm"
@@ -86,7 +84,6 @@ function Overlay({ onClose, children }) {
   </span>
 </button>;
 
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
 /* ---------- tiny UI helpers ---------- */
 const Pill = ({ tone = "neutral", children }) => {
   const tones = {
@@ -776,7 +773,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                       onChange={(e) =>
                         setForm({ ...form, name: e.target.value })
                       }
-                      disabled
+                      required
                     />
                     <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
                       <svg
@@ -807,11 +804,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                       onClick={() =>
                         setForm((f) => ({
                           ...f,
-<<<<<<< HEAD
-                          quantity: Math.max(1, Number(f.quantity) - 1),
-=======
                           quantity: Math.max(0, Number(f.quantity) - 1),
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                         }))
                       }
                       aria-label="Decrease quantity"
@@ -822,23 +815,6 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                     </button>
                     <input
                       type="number"
-<<<<<<< HEAD
-                      min={1}
-                      className="w-full rounded-2xl border border-[#f2d4b5] bg-white/95 px-4 py-3.5 text-center text-[15px] outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52] transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      value={form.quantity}
-                      onChange={(e) =>
-                        setForm((f) => ({
-                          ...f,
-                          quantity: Math.max(
-                            1,
-                            parseInt(e.target.value || 1, 10)
-                          ),
-                        }))
-                      }
-                      required
-                      aria-label="Quantity"
-                    />
-=======
                       min={0}
                       max={(() => {
                         const chosen = inventory.find(
@@ -874,16 +850,12 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                       aria-label="Quantity"
                     />
 
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                     <button
                       type="button"
                       className="shrink-0 h-12 w-12 grid place-items-center rounded-2xl border border-[#f2d4b5] bg-white hover:bg-[#FFF6E9] transition shadow-sm"
                       onClick={() =>
                         setForm((f) => ({
                           ...f,
-<<<<<<< HEAD
-                          quantity: Number(f.quantity) + 1,
-=======
                           quantity: (() => {
                             const chosen = inventory.find(
                               (x) => Number(x.id) === +f.bakery_inventory_id
@@ -893,7 +865,6 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                               : Infinity;
                             return Math.min(maxQ, Number(f.quantity) + 1);
                           })(),
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                         }))
                       }
                       aria-label="Increase quantity"
@@ -903,11 +874,6 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                       </span>
                     </button>
                   </div>
-<<<<<<< HEAD
-                  <p className="mt-1.5 text-[11px] text-[#7b5836]">
-                    Use the stepper to quickly match demand.
-                  </p>
-=======
                   <div className="mt-1.5 flex items-center justify-between">
                     <p className="text-[11px] text-[#7b5836]">
                       Use the stepper to quickly match demand.
@@ -941,7 +907,6 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                       </span>
                     </button>
                   </div>
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                 </div>
 
                 {/* Charity */}
@@ -1026,11 +991,9 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                                   className="w-full px-4 py-2.5 hover:bg-[#FFF6E9] focus:bg-[#FFF6E9] flex items-center justify-between"
                                 >
                                   <div className="flex items-center gap-2 min-w-0">
-                                    <img
-                                      src={c.profile_picture ? `${import.meta.env.VITE_API_URL}/${c.profile_picture}` : "/default-avatar.png"}
-                                      alt={c.name}
-                                      className="h-6 w-6 rounded-full object-cover border border-gray-200"
-                                    />
+                                    <div className="h-6 w-6 rounded-full grid place-items-center bg-[#FFDCC3] text-[#6b4b2b] text-xs font-bold">
+                                      ❤
+                                    </div>
                                     <span className="truncate">{c.name}</span>
                                   </div>
                                   <span className="inline-flex items-center gap-1.5 px-2.5 py-[3px] text-[11px] font-semibold rounded-full bg-[#FFF6E9] border border-[#f4e6cf] text-[#6b4b2b]">
@@ -1059,11 +1022,9 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                                   className="w-full px-4 py-2.5 hover:bg-[#FFF6E9] focus:bg-[#FFF6E9] flex items-center justify-between"
                                 >
                                   <div className="flex items-center gap-2 min-w-0">
-                                    <img
-                                      src={c.profile_picture ? `${import.meta.env.VITE_API_URL}/${c.profile_picture}` : "/default-avatar.png"}
-                                      alt={c.name}
-                                      className="h-6 w-6 rounded-full object-cover border border-gray-200"
-                                    />
+                                    <div className="h-6 w-6 rounded-full grid place-items-center bg-[#EDE7DB] text-[#6b4b2b] text-xs font-bold">
+                                      ❤
+                                    </div>
                                     <span className="truncate">{c.name}</span>
                                   </div>
                                   <span className="inline-flex items-center gap-1.5 px-2.5 py-[3px] text-[11px] font-semibold rounded-full bg-[#FFF6E9] border border-[#f4e6cf] text-[#6b4b2b]">

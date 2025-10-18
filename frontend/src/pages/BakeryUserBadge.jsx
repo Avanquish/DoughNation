@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { Card, CardContent } from "@/components/ui/card";
 
-const API = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const UserBadges = ({ userId }) => {
   const [badges, setBadges] = useState([]);

@@ -24,11 +24,7 @@ import {
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 
-<<<<<<< HEAD
 const API = "http://localhost:8000";
-=======
-const API = "https://api.doughnationhq.cloud";
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
 
 // Sub-tab state management
 const SUBTAB_KEY = "charity_profile_active_subtab";

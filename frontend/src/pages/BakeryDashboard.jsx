@@ -35,21 +35,7 @@ import RecentDonations from "./RecentDonations";
 import DashboardSearch from "./DashboardSearch";
 import UserBadge from "./UserBadge";
 
-const API = "https://api.doughnationhq.cloud";
-
-// Stable keys for tab persistence
-const TAB_KEY = "bakery_active_tab";
-const ALLOWED_TABS = [
-  "dashboard",
-  "inventory",
-  "donations",
-  "DONATIONstatus",
-  "employee",
-  "complaints",
-  "reports",
-  "feedback",
-  "badges",
-];
+const API = "http://localhost:8000";
 
 // Stable keys for tab persistence
 const TAB_KEY = "bakery_active_tab";
@@ -88,7 +74,20 @@ const BakeryDashboard = () => {
   const [name, setName] = useState("Bakery");
 
   // initialize from URL, localStorage, or default
-const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const fromUrl = params.get("tab");
+      if (fromUrl && ALLOWED_TABS.includes(fromUrl)) return fromUrl;
+
+      const fromStorage = localStorage.getItem(TAB_KEY);
+      if (fromStorage && ALLOWED_TABS.includes(fromStorage)) return fromStorage;
+
+      return "dashboard";
+    } catch {
+      return "dashboard";
+    }
+  });
 
   const [badges, setBadges] = useState([]);
   const [highlightedDonationId, setHighlightedDonationId] = useState(null);

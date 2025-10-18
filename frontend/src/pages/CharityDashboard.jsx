@@ -26,11 +26,7 @@ import DashboardSearch from "./DashboardSearch.jsx";
 import Complaint from "./Complaint.jsx";
 import CharityReports from "./CharityReports.jsx";
 
-<<<<<<< HEAD
 const API = "http://localhost:8000";
-=======
-const API = "https://api.doughnationhq.cloud";
->>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
 const TAB_KEY = "charity_active_tab";
 const ALLOWED_TABS = [
   "dashboard",
@@ -128,7 +124,20 @@ const CharityDashboard = () => {
   const [name, setName] = useState("");
   const [isVerified, setIsVerified] = useState(false);
 
-  const [activeTab, setActiveTab] = useState("donation");
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const fromUrl = params.get("tab");
+      if (fromUrl && ALLOWED_TABS.includes(fromUrl)) return fromUrl;
+
+      const fromStorage = localStorage.getItem(TAB_KEY);
+      if (fromStorage && ALLOWED_TABS.includes(fromStorage)) return fromStorage;
+
+      return "donation";
+    } catch {
+      return "donation";
+    }
+  });
 
   const navigate = useNavigate();
 

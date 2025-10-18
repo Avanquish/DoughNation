@@ -1,53 +1,5 @@
 import React, { useState, useEffect } from "react";
-const API = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
-
-// Styles
-const Styles = () => (
-  <style>{`
-    .panel-wrap{
-      border:1px solid #eadfce;
-      border-radius:24px;
-      background: linear-gradient(165deg,#FFF9F1 0%,#FFF7ED 40%,#FFEFD9 100%);
-      box-shadow:0 2px 8px rgba(93,64,28,.06);
-    }
-    .card{
-      position:relative;
-      overflow:hidden;
-      border:1px solid #f2e3cf;
-      border-radius:16px;
-      background:rgba(255,255,255,.7);
-      box-shadow:0 2px 10px rgba(93,64,28,.05);
-      transition:transform .24s cubic-bezier(.2,.8,.2,1), box-shadow .24s ease, border-color .25s ease;
-      will-change:transform;
-    }
-    .card::before{
-      content:"";
-      position:absolute;
-      inset:-6px;
-      border-radius:inherit;
-      background:
-        radial-gradient(360px 220px at 88% 18%, rgba(247,193,124,.28), rgba(247,193,124,0) 62%),
-        linear-gradient(135deg, rgba(255,232,200,.28), rgba(255,255,255,0));
-      opacity:0;
-      transform:scale(.99);
-      transition:opacity .22s ease, transform .22s ease;
-      z-index:-1;
-      pointer-events:none;
-    }
-    .card:hover{ transform: translateY(-4px) scale(1.01); box-shadow:0 14px 32px rgba(191,115,39,.18); border-color:#eadfce; }
-    .card:hover::before{ opacity:1; transform:scale(1); }
-    .img-zoom{ transition:transform .5s cubic-bezier(.2,.8,.2,1), filter .5s ease; border-radius:12px; }
-    .card:hover .img-zoom{ transform:scale(1.04); filter:saturate(1.03); }
-    .pill{ display:inline-flex; align-items:center; gap:.4rem; padding:.25rem .55rem; font-size:11px; font-weight:700;
-           background:#FFEFD9; border:1px solid #f3ddc0; color:#6b4b2b; border-radius:999px;}
-    .badge{
-      display:inline-flex; align-items:center; gap:.45rem; font-size:11px; font-weight:700; padding:.3rem .6rem; border-radius:999px;
-      background:#e9f9ef; border:1px solid #c7ecd5; color:#2b7a3f;
-    }
-    .badge.red{ background:#fff1f0; border-color:#ffd6d6; color:#c92a2a; }
-    .meta-tile{ border:1px solid #f2e3cf; background:#fff; border-radius:10px; padding:.45rem .6rem; font-size:12px; color:#7b5836; }
-  `}</style>
-);
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // Styles
 const Styles = () => (

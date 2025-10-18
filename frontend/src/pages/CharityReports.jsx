@@ -26,7 +26,11 @@ import autoTable from "jspdf-autotable";
 export default function BakeryReports() {
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
+<<<<<<< HEAD
   const [activeReport, setActiveReport] = useState("donation");
+=======
+  const [activeReport, setActiveReport] = useState();
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
   const [charityInfo, setCharityInfo] = useState(null);
   const [weekStart, setWeekStart] = useState("");
   const [weekEnd, setWeekEnd] = useState("");
@@ -44,7 +48,11 @@ export default function BakeryReports() {
     { key: "monthly", label: "Monthly Summary" },
   ];
 
+<<<<<<< HEAD
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+=======
+  const API_URL = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
 
   const normalizePath = (path) => path.replace(/\\/g, "/");
 
@@ -1350,7 +1358,11 @@ export default function BakeryReports() {
   const printReport = async (charity) => {
     if (!reportData) return;
 
+<<<<<<< HEAD
     const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+=======
+    const API_URL = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
     const headerHTML = getCharityHeaderHTML(charity, activeReport);
     const formatHeader = (h) => h.replace(/_/g, " ").toUpperCase();
     const normalizePath = (p) => p.replace(/\\/g, "/");

@@ -138,8 +138,30 @@ const AdminDashboard = () => {
     })();
   }, []);
 
+<<<<<<< HEAD
 
 
+  // Complaints
+=======
+  // Feedback / reports
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await axios.get("/complaints", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setComplaints(res.data || []);
+      } catch (e) {
+        console.error(e);
+        setComplaints([]);
+      }
+    })();
+  }, []);
+
+<<<<<<< HEAD
+=======
   // Complaints
   useEffect(() => {
     (async () => {
@@ -156,6 +178,7 @@ const AdminDashboard = () => {
     })();
   }, []);
 
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
   // Actions
   const handleVerify = async (id) => {
     try {
@@ -304,7 +327,10 @@ const AdminDashboard = () => {
     (n) => n.kind === "registration"
   );
   const complaintsList = notifications.filter((n) => n.kind === "complaint");
+<<<<<<< HEAD
   const reportsList = notifications.filter((n) => n.kind === "feedback");
+=======
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
 
   const unreadVerifications = verificationList.filter((n) => !n.isRead).length;
   const unreadComplaints = complaintsList.filter((n) => !n.isRead).length;
@@ -649,6 +675,7 @@ const AdminDashboard = () => {
                             )}
                           </div>
                         )}
+<<<<<<< HEAD
 
                         {/* REPORTS */}
                         {notifTab === "reports" && (
@@ -699,6 +726,8 @@ const AdminDashboard = () => {
                             )}
                           </div>
                         )}
+=======
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                       </div>
 
                       {/* Footer */}

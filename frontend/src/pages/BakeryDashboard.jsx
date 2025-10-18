@@ -35,7 +35,21 @@ import RecentDonations from "./RecentDonations";
 import DashboardSearch from "./DashboardSearch";
 import UserBadge from "./UserBadge";
 
-const API = "http://localhost:8000";
+const API = "https://api.doughnationhq.cloud";
+
+// Stable keys for tab persistence
+const TAB_KEY = "bakery_active_tab";
+const ALLOWED_TABS = [
+  "dashboard",
+  "inventory",
+  "donations",
+  "DONATIONstatus",
+  "employee",
+  "complaints",
+  "reports",
+  "feedback",
+  "badges",
+];
 
 // Stable keys for tab persistence
 const TAB_KEY = "bakery_active_tab";

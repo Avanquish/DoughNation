@@ -36,9 +36,15 @@ const AchievementBadges = () => {
     if (!userId) return;
     try {
       const [badgesRes, userBadgesRes, progressRes] = await Promise.all([
+<<<<<<< HEAD
         axios.get("http://localhost:8000/badges/"),
         axios.get(`http://localhost:8000/badges/user/${userId}`),
         axios.get(`http://localhost:8000/badges/progress/${userId}`),
+=======
+        axios.get("https://api.doughnationhq.cloud/badges/"),
+        axios.get(`https://api.doughnationhq.cloud/badges/user/${userId}`),
+        axios.get(`https://api.doughnationhq.cloud/badges/progress/${userId}`),
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
       ]);
 
       setAllBadges(badgesRes.data);
@@ -177,7 +183,11 @@ const AchievementBadges = () => {
                 <img
                   src={
                     badge.icon_url
+<<<<<<< HEAD
                       ? `http://localhost:8000/${badge.icon_url}`
+=======
+                      ? `https://api.doughnationhq.cloud/${badge.icon_url}`
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                       : "/placeholder-badge.png"
                   }
                   alt={badge.name}

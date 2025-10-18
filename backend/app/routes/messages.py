@@ -8,15 +8,38 @@ from app.chat_manager import manager
 import base64, os, json
 from uuid import uuid4
 
-router = APIRouter()
+router = APIRouter(prefix="/ws", tags=["Messages"])
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-@router.websocket("/ws/messages/{user_id}")
+@router.websocket("/messages/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: int):
-    await manager.connect(int(user_id), websocket)
-    db = database.SessionLocal()
-    print(f"[WS] User {user_id} connected")
+    connection_error = None
+    try:
+        print(f"[WS] Accepting connection for user {user_id}")
+        await websocket.accept()
+        
+        # Log connection details
+        client = websocket.client
+        print(f"[WS] Client connecting from: {client.host}:{client.port}")
+        
+        # Check headers
+        headers = dict(websocket.headers)
+        print(f"[WS] Connection headers: {headers}")
+        
+        # Check origin
+        origin = headers.get('origin', 'unknown')
+        print(f"[WS] Connection origin: {origin}")
+        
+        await manager.connect(int(user_id), websocket)
+        db = database.SessionLocal()
+        print(f"[WS] User {user_id} successfully connected")
+    except Exception as e:
+        connection_error = str(e)
+        print(f"[WS] Error during connection setup: {str(e)}")
+        if not websocket.client_state.DISCONNECTED:
+            await websocket.close(code=1011, reason=f"Internal server error: {str(e)}")
+        return
 
     try:
         # Send active chats immediately

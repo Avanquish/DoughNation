@@ -76,7 +76,11 @@ const ForgotPassword = () => {
     e.preventDefault();
     try {
       const res = await axios.post(
+<<<<<<< HEAD
         "http://localhost:8000/forgot-password/check-email",
+=======
+        "https://api.doughnationhq.cloud/forgot-password/check-email",
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
         { email }
       );
       if (res.data.valid) {
@@ -102,7 +106,11 @@ const ForgotPassword = () => {
     e.preventDefault();
     try {
       const res = await axios.post(
+<<<<<<< HEAD
         "http://localhost:8000/forgot-password/check-date",
+=======
+        "https://api.doughnationhq.cloud/forgot-password/check-date",
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
         { email, registration_date: registrationDate }
       );
       if (res.data.valid) {
@@ -137,7 +145,11 @@ const ForgotPassword = () => {
     }
     try {
       const res = await axios.post(
+<<<<<<< HEAD
         "http://localhost:8000/forgot-password/reset",
+=======
+        "https://api.doughnationhq.cloud/forgot-password/reset",
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
         {
           email,
           new_password: newPassword,

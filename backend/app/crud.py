@@ -54,6 +54,13 @@ def create_user(
             detail="Email already registered"
         )
 
+    #Contact Number limitation set to 11 numbers only
+    if contact_number and len(contact_number) != 11:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Contact number must be 11 digits"
+        )
+
     # Check password confirmation
     if password != confirm_password:
         raise HTTPException(

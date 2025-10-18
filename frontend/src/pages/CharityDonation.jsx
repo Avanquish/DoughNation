@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 
-const API = "http://localhost:8000";
+const API = "https://api.doughnationhq.cloud";
 
 // Helpers
 const isExpired = (dateStr) => {
@@ -63,6 +63,7 @@ const statusChip = (d) => {
     ),
   };
 };
+<<<<<<< HEAD
 
 // Styles
 const Styles = () => (
@@ -114,17 +115,77 @@ export default function CharityDonation() {
   const [requestedDonations, setRequestedDonations] = useState({});
   const [selectedDonation, setSelectedDonation] = useState(null); // 🔹 Added
 
+=======
+
+// Styles
+const Styles = () => (
+  <style>{`
+    .card-bouncy{
+      position: relative;
+      z-index: 0;
+      overflow: visible;
+      border:1px solid #f2e3cf;
+      border-radius:16px;
+      background:rgba(255,255,255,.7);
+      box-shadow:0 2px 10px rgba(93,64,28,.05);
+      transition:
+        transform .24s cubic-bezier(.2,.8,.2,1),
+        box-shadow .24s ease,
+        border-color .25s ease;
+      will-change: transform;
+    }
+    .card-bouncy::before{
+      content:"";
+      position:absolute;
+      inset:-6px; /* thin border of the background tint */
+      border-radius:inherit;
+      background:
+        radial-gradient(360px 220px at 88% 18%, rgba(247,193,124,.32), rgba(247,193,124,0) 62%),
+        linear-gradient(135deg, rgba(255,232,200,.35), rgba(255,255,255,0));
+      opacity:0;
+      transform:scale(.99);
+      transition:opacity .22s ease, transform .22s ease;
+      z-index:-1;
+      pointer-events:none;
+    }
+    .card-bouncy:hover::before{ opacity:1; transform:scale(1); }
+    .card-bouncy:hover{
+      transform: translateY(-5px) scale(1.015);
+      box-shadow:0 14px 32px rgba(191,115,39,.18);
+      border-color:#eadfce;
+    }
+    .donation-img{
+      transition: transform .5s cubic-bezier(.2,.8,.2,1), filter .5s ease;
+      border-radius:12px;
+    }
+    .card-bouncy:hover .donation-img{ transform:scale(1.05); filter:saturate(1.02); }
+  `}</style>
+);
+
+export default function CharityDonation() {
+  const [donations, setDonations] = useState([]);
+  const [requestedDonations, setRequestedDonations] = useState({}); // donation_id -> request_id
+
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
   // Fetching data
   useEffect(() => {
     const fetchData = async () => {
       try {
         const token = localStorage.getItem("token");
 
+<<<<<<< HEAD
+=======
+        // Available donations
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
         const res = await axios.get(`${API}/available`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setDonations(res.data || []);
 
+<<<<<<< HEAD
+=======
+        // My pending requests
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
         const pendingRes = await axios.get(`${API}/donation/my_requests`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -137,6 +198,7 @@ export default function CharityDonation() {
       } catch (err) {
         console.error(err);
         Swal.fire("Error", "Failed to fetch donations", "error");
+<<<<<<< HEAD
       }
     };
     fetchData();
@@ -174,6 +236,15 @@ export default function CharityDonation() {
   return () => window.removeEventListener("open_donation_modal", openModalListener);
 }, [donations]);
 
+=======
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Request donation
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
   const requestDonation = async (donation) => {
     try {
       const token = localStorage.getItem("token");
@@ -188,6 +259,11 @@ export default function CharityDonation() {
         localStorage.setItem("requestedDonations", JSON.stringify(updated));
         return updated;
       });
+<<<<<<< HEAD
+=======
+
+      // Handoff to Messenger
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
       const bakeryInfo = {
         id: donation.bakery_id,
         name: donation.bakery_name,
@@ -223,6 +299,10 @@ export default function CharityDonation() {
         localStorage.setItem("requestedDonations", JSON.stringify(updated));
         return updated;
       });
+<<<<<<< HEAD
+=======
+
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
       window.dispatchEvent(
         new CustomEvent("donation_cancelled", { detail: { donation_id } })
       );
@@ -237,6 +317,7 @@ export default function CharityDonation() {
     <>
       <Styles />
 
+<<<<<<< HEAD
       {/* 🔹 Modal for selected donation */}
       {selectedDonation && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
@@ -285,6 +366,18 @@ export default function CharityDonation() {
             Available Donations
           </h2>
         </div>
+=======
+      {/* HEADER + CONTENT PANEL */}
+      <div className="space-y-4 p-6">
+        <div className="flex items-center justify-between">
+          <h2
+            className="text-3xl sm:text-4xl font-extrabold"
+            style={{ color: "#6B4B2B" }}
+          >
+            Available Donations
+          </h2>
+        </div>
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
 
         <div
           className="

@@ -682,7 +682,11 @@ const Home = () => {
         className="bg-white"
         style={{ paddingBlock: "var(--space-4)" }}
       >
+<<<<<<< HEAD
         <div className="max-w-5xl mx-auto px-4">
+=======
+        <div className="max-w-6xl mx-auto px-4">
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
           <h2
             className="text-center font-extrabold bg-gradient-to-r from-[#f1b66f] to-[#c97c2c] bg-clip-text text-transparent"
             data-reveal

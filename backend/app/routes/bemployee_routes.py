@@ -80,10 +80,18 @@ def get_employees(
     
     # If no employees exist, automatically register the contact person as the first employee
     if not employees and current_user.role.lower() == "bakery":
+<<<<<<< HEAD
+=======
+        default_picture = "uploads/employee_pictures/default-profile.png"
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
         first_employee = models.Employee(
             bakery_id=current_user.id,
             name=current_user.contact_person,
             role="Manager/Owner",
+<<<<<<< HEAD
+=======
+            profile_picture=default_picture,
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
             start_date=current_user.created_at
         )
         db.add(first_employee)

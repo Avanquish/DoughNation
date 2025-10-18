@@ -15,7 +15,7 @@ export default function AdminReports() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+  const API_URL = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
   const normalizePath = (path) => path.replace(/\\/g, "/");
 
   // Report types

@@ -26,7 +26,11 @@ const AdminBadge = () => {
   // Fetch bakery users
   useEffect(() => {
     axios
+<<<<<<< HEAD
       .get("http://localhost:8000/badges/bakery-users")
+=======
+      .get("https://api.doughnationhq.cloud/badges/bakery-users")
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
       .then((res) => setUsers(res.data || []))
       .catch((err) => console.error("Error fetching users:", err));
   }, []);
@@ -34,7 +38,11 @@ const AdminBadge = () => {
   // Fetch admin badges (limit to 4)
   useEffect(() => {
     axios
+<<<<<<< HEAD
       .get("http://localhost:8000/badges/admin-badge")
+=======
+      .get("https://api.doughnationhq.cloud/badges/admin-badge")
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
       .then((res) =>
         setBadges(Array.isArray(res.data) ? res.data.slice(0, 4) : [])
       )
@@ -50,7 +58,11 @@ const AdminBadge = () => {
 
     try {
       // Use badgeName if provided, else fallback to selectedBadge.name
+<<<<<<< HEAD
       await axios.post("http://localhost:8000/badges/assign", {
+=======
+      await axios.post("https://api.doughnationhq.cloud/badges/assign", {
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
         user_id: selectedUser,
         badge_id: selectedBadge.id,
         badge_name: badgeName || selectedBadge.name, // use custom name if provided
@@ -159,7 +171,11 @@ const AdminBadge = () => {
                   {badges.slice(0, 4).map((badge) => {
                     const isActive = selectedBadge?.id === badge.id;
                     const iconSrc = badge.icon_url
+<<<<<<< HEAD
                       ? `http://localhost:8000/${badge.icon_url}`
+=======
+                      ? `https://api.doughnationhq.cloud/${badge.icon_url}`
+>>>>>>> e2fa480054cccbac18683e9d7a24e8f97e5a6d85
                       : badge.icon
                       ? badge.icon
                       : null;

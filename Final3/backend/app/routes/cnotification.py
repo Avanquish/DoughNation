@@ -242,24 +242,30 @@ def get_message_notifications(
 
     for entry in geofence_entries:
         try:
-            _, donation_id, _, charity_id = entry.notif_id.split("-")
-            donation = db.query(models.Donation).filter_by(id=int(donation_id)).first()
+            # notif_id looks like "geofence-<donation_id>-to-<charity_id>"
+            parts = entry.notif_id.split("-")
+            donation_id = parts[1] if len(parts) >= 4 else None
+
+            # Fetch related donation
+            donation = db.query(models.Donation).filter_by(id=int(donation_id)).first() if donation_id and donation_id.isdigit() else None
             if not donation:
                 continue
 
             bakery = db.query(models.User).filter_by(id=donation.bakery_id).first()
-            charity = db.query(models.User).filter_by(id=int(charity_id)).first()
+            charity = db.query(models.User).filter_by(id=int(parts[-1])).first() if len(parts) >= 4 else None
 
-             # Calculate distance
+            # Calculate distance
             distance_km = None
             if bakery and charity and bakery.latitude and bakery.longitude and charity.latitude and charity.longitude:
                 distance_km = round(haversine(
                     bakery.latitude, bakery.longitude,
                     charity.latitude, charity.longitude
-                ), 1)  # rounded to 1 decimal
+                ), 1)
 
+            # ✅ Keep notif_id for DB, add numeric id for frontend highlight
             geofence_notifs.append({
-                "id": entry.notif_id,
+                "id": int(donation.id),  # for frontend zoom
+                "notif_id": entry.notif_id,  # for backend tracking
                 "type": "geofence",
                 "name": donation.name,
                 "quantity": donation.quantity,
@@ -269,15 +275,18 @@ def get_message_notifications(
                 "read": entry.read_at is not None,
                 "distance_km": distance_km
             })
+
         except Exception as e:
             print("[Geofence] Parse error:", e)
             continue
-        
+
     return {
         "messages": latest_messages,
-        "donations" : donations,
+        "donations": donations,
         "received_donations": received_donations,
-        "geofence_notifications": geofence_notifs}
+        "geofence_notifications": geofence_notifs
+    }
+
 
 # Geofence Helper
 def haversine(lat1, lon1, lat2, lon2):

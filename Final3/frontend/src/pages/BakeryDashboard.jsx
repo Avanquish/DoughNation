@@ -17,9 +17,9 @@ import {
   Users,
   AlertTriangle,
   LogOut,
-  CheckCircle
+  CheckCircle,
 } from "lucide-react";
-import { useNavigate, useLocation, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import BakeryInventory from "./BakeryInventory";
 import BakeryEmployee from "./BakeryEmployee";
 import BakeryDonation from "./BakeryDonation";
@@ -34,8 +34,23 @@ import AchievementBadges from "./AchievementBadges";
 import RecentDonations from "./RecentDonations";
 import DashboardSearch from "./DashboardSearch";
 import UserBadge from "./UserBadge";
+import Messages1 from "./Messages1";
 
 const API = "http://localhost:8000";
+
+// Stable keys for tab persistence
+const TAB_KEY = "bakery_active_tab";
+const ALLOWED_TABS = [
+  "dashboard",
+  "inventory",
+  "donations",
+  "DONATIONstatus",
+  "employee",
+  "complaints",
+  "reports",
+  "feedback",
+  "badges",
+];
 
 const parseDate = (s) => (s ? new Date(s) : null);
 const daysUntil = (dateStr) => {
@@ -47,9 +62,6 @@ const daysUntil = (dateStr) => {
   return Math.ceil((d - today) / (1000 * 60 * 60 * 24));
 };
 const statusOf = (item) => {
-  // If already donated, skip from expired/soon/fresh logic
-  if (item.status === "donated") return "donated";
-
   const d = daysUntil(item.expiration_date);
   if (d === null) return "fresh";
   if (d < 0) return "expired";
@@ -59,16 +71,33 @@ const statusOf = (item) => {
 
 const BakeryDashboard = () => {
   const { id } = useParams();
-  const location = useLocation();
   const [isVerified, setIsVerified] = useState(false);
   const [name, setName] = useState("Bakery");
-  const [activeTab, setActiveTab] = useState("dashboard");
+
+  // initialize from URL, localStorage, or default
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const fromUrl = params.get("tab");
+      if (fromUrl && ALLOWED_TABS.includes(fromUrl)) return fromUrl;
+
+      const fromStorage = localStorage.getItem(TAB_KEY);
+      if (fromStorage && ALLOWED_TABS.includes(fromStorage)) return fromStorage;
+
+      return "dashboard";
+    } catch {
+      return "dashboard";
+    }
+  });
+
   const [badges, setBadges] = useState([]);
-
   const [highlightedDonationId, setHighlightedDonationId] = useState(null);
-  const [totals, setTotals] = useState({ grand_total: 0, normal_total: 0, direct_total: 0 });
+  const [totals, setTotals] = useState({
+    grand_total: 0,
+    normal_total: 0,
+    direct_total: 0,
+  });
   const [unlockedBadge, setUnlockedBadge] = useState(null);
-
 
   // Live data for cards
   const [inventory, setInventory] = useState([]);
@@ -80,53 +109,80 @@ const BakeryDashboard = () => {
 
   const navigate = useNavigate();
 
-useEffect(() => {
-  const token = localStorage.getItem("token");
-  if (!token) return;
+  // keep URL & localStorage in sync with activeTab
+  useEffect(() => {
+    try {
+      if (!activeTab) return;
+      localStorage.setItem(TAB_KEY, activeTab);
 
-  let decoded;
-  try {
-    decoded = JSON.parse(atob(token.split(".")[1]));
-    console.log("Decoded token:", decoded);
-    setName(decoded.name || "Madam Bakery");
-    setIsVerified(decoded.is_verified);
-   const userId = decoded.sub || decoded.id || decoded.user_id || decoded._id;
-    if (!userId) {
-      console.error("User ID missing in token:", decoded);
-      return;
+      const params = new URLSearchParams(window.location.search);
+
+      // For "dashboard"
+      if (activeTab === "dashboard") {
+        if (params.has("tab")) {
+          params.delete("tab");
+          const next = `${window.location.pathname}${
+            params.toString() ? `?${params.toString()}` : ""
+          }${window.location.hash}`;
+          window.history.replaceState({}, "", next);
+        }
+      } else {
+        if (params.get("tab") !== activeTab) {
+          params.set("tab", activeTab);
+          const next = `${window.location.pathname}?${params.toString()}${
+            window.location.hash
+          }`;
+          window.history.replaceState({}, "", next);
+        }
+      }
+    } catch {
+      // ignore persistence errors
     }
-    
-    // Fetch badges for the user
-    axios
-      .get(`${API}/badges/user/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then((res) => {
-        console.log("User badges", res.data);
-        setBadges(res.data || []);
-        setCurrentUser({
-          id: userId,
-          name: decoded.name,
-          is_verified: decoded.is_verified,
-          badges: res.data || [],
-        });
-      })
-      .catch((err) => {
-        console.error("Failed to fetch user badges:", err);
-        setBadges([]);
-        setCurrentUser({
-          id: userId,
-          name: decoded.name,
-          is_verified: decoded.is_verified,
-          badges: [],
-        });
-      });
+  }, [activeTab]);
 
-  } catch (err) {
-    console.error("Error decoding token:", err);
-  }
-}, []);
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
 
+    let decoded;
+    try {
+      decoded = JSON.parse(atob(token.split(".")[1]));
+      setName(decoded.name || "Madam Bakery");
+      setIsVerified(decoded.is_verified);
+      const userId =
+        decoded.sub || decoded.id || decoded.user_id || decoded._id;
+      if (!userId) {
+        console.error("User ID missing in token:", decoded);
+        return;
+      }
+
+      // Fetch badges for the user
+      axios
+        .get(`${API}/badges/user/${userId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        .then((res) => {
+          setBadges(res.data || []);
+          setCurrentUser({
+            id: userId,
+            name: decoded.name,
+            is_verified: decoded.is_verified,
+            badges: res.data || [],
+          });
+        })
+        .catch(() => {
+          setBadges([]);
+          setCurrentUser({
+            id: userId,
+            name: decoded.name,
+            is_verified: decoded.is_verified,
+            badges: [],
+          });
+        });
+    } catch {
+      // token decode error
+    }
+  }, []);
 
   // Fetch inventory, employees, uploaded and donated products
   useEffect(() => {
@@ -134,27 +190,35 @@ useEffect(() => {
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
     const loadInventory = () =>
-      axios.get(`${API}/inventory`, { headers })
+      axios
+        .get(`${API}/inventory`, { headers })
         .then((r) => setInventory(r.data || []))
         .catch(() => setInventory([]));
 
     const loadEmployees = () =>
-      axios.get(`${API}/employees`, { headers })
+      axios
+        .get(`${API}/employees`, { headers })
         .then((r) => setEmployeeCount((r.data || []).length))
         .catch(() => setEmployeeCount(0));
 
     const loadUploadedProducts = () =>
-      axios.get(`${API}/donations`, { headers })
+      axios
+        .get(`${API}/donations`, { headers })
         .then((r) => {
-          const available = (r.data || []).filter((d) => d.status === "available").length;
+          const available = (r.data || []).filter(
+            (d) => d.status === "available"
+          ).length;
           setUploadedProducts(available);
         })
         .catch(() => setUploadedProducts(0));
 
     const loadDonatedProducts = () =>
-      axios.get(`${API}/donations`, { headers })
+      axios
+        .get(`${API}/donations`, { headers })
         .then((r) => {
-          const donated = (r.data || []).filter((d) => d.status === "donated").length;
+          const donated = (r.data || []).filter(
+            (d) => d.status === "donated"
+          ).length;
           setDonatedProducts(donated);
         })
         .catch(() => setDonatedProducts(0));
@@ -188,48 +252,31 @@ useEffect(() => {
     };
   }, []);
 
-
-  // read ?tab= from URL (e.g. /bakery-dashboard/:id?tab=inventory)
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const tabFromUrl = params.get("tab");
-    const allowed = ["dashboard", "inventory", "donations", "employee"];
-    if (tabFromUrl && allowed.includes(tabFromUrl)) {
-      setActiveTab(tabFromUrl);
-      requestAnimationFrame(() =>
-        window.scrollTo({ top: 0, behavior: "smooth" })
-      );
+    if (activeTab !== "donations") {
+      setHighlightedDonationId(null);
     }
-  }, [location.search]);
-
-  useEffect(() => {
-  if (activeTab !== "donations") {
-    setHighlightedDonationId(null);
-  }
-}, [activeTab]);
+  }, [activeTab]);
 
   // Stats calculations
   const stats = useMemo(() => {
-  const totalProducts = inventory.length;
-
-  const expiredProducts = inventory.filter(
-    (i) => i.status !== "donated" && statusOf(i) === "expired"
-  ).length;
-
-  const nearingExpiration = inventory.filter(
-    (i) => i.status !== "donated" && statusOf(i) === "soon"
-  ).length;
-
-  return {
-    totalDonations: donatedProducts,
-    totalInventory: totalProducts,
-    uploadedProducts,
-    donatedProducts,
-    employeeCount,
-    expiredProducts,
-    nearingExpiration,
-  };
-}, [inventory, employeeCount, uploadedProducts, donatedProducts]);
+    const totalProducts = inventory.length;
+    const expiredProducts = inventory.filter(
+      (i) => statusOf(i) === "expired"
+    ).length;
+    const nearingExpiration = inventory.filter(
+      (i) => statusOf(i) === "soon"
+    ).length;
+    return {
+      totalDonations: donatedProducts,
+      totalInventory: totalProducts,
+      uploadedProducts,
+      donatedProducts,
+      employeeCount,
+      expiredProducts,
+      nearingExpiration,
+    };
+  }, [inventory, employeeCount, uploadedProducts, donatedProducts]);
 
   // ui helpers
   const handleLogout = () => {
@@ -238,15 +285,15 @@ useEffect(() => {
   };
 
   const statusText = useMemo(() => {
-    switch (activeTab) {
-      default:
-        return (
-          <span className="flex items-center gap-1 text-green-600">
-            <CheckCircle className="w-4 h-4" />
-            Verified
-          </span>
-        );
-    }
+    return (
+      <span
+        className="flex items-center gap-1 font-bold"
+        style={{ color: "#16a34a" }}
+      >
+        <CheckCircle className="w-4 h-4 text-green-600" />
+        Verified
+      </span>
+    );
   }, [activeTab]);
 
   // Fetch the computed Donation Send
@@ -257,16 +304,12 @@ useEffect(() => {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         });
 
-        if (!res.ok) {
-          console.error("Failed to fetch totals, status:", res.status);
-          return;
-        }
+        if (!res.ok) return;
 
         const data = await res.json();
-        console.log("✅ Totals response from backend:", data); // debug log
         setTotals(data);
-      } catch (err) {
-        console.error("❌ Error fetching totals:", err);
+      } catch {
+        // ignore
       }
     };
 
@@ -274,41 +317,43 @@ useEffect(() => {
   }, []);
 
   // Fetch uploaded products
-useEffect(() => {
-  const fetchUploadedProducts = async () => {
-    try {
-      const res = await fetch(`${API}/bakery/total_products_for_donation`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-      });
+  useEffect(() => {
+    const fetchUploadedProducts = async () => {
+      try {
+        const res = await fetch(`${API}/bakery/total_products_for_donation`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        });
 
-      if (!res.ok) throw new Error("Failed to fetch uploaded products");
+        if (!res.ok) throw new Error("Failed to fetch uploaded products");
 
-      const data = await res.json();
-      setUploadedProducts(data.total_products || 0);
-    } catch (err) {
-      console.error("❌ Error fetching uploaded products:", err);
-      setUploadedProducts(0);
-    }
-  };
+        const data = await res.json();
+        setUploadedProducts(data.total_products || 0);
+      } catch {
+        setUploadedProducts(0);
+      }
+    };
 
-  fetchUploadedProducts();
-}, []);
+    fetchUploadedProducts();
+  }, []);
 
-    // If user is not verified, show "verification pending" screen
+  // If user is not verified, show "verification pending" screen
   if (!isVerified) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-surface to-primary/5 p-6">
         <Card className="max-w-md shadow-elegant">
           <CardHeader>
-            <CardTitle>Account Verification Required</CardTitle>
-            <CardDescription>
-              Hello {name}, your account is pending verification.  
-              Please wait until an admin verifies your account before using the dashboard features.
+            <CardTitle style={{ color: "#6B4B2B" }}>
+              Account Verification Required
+            </CardTitle>
+            <CardDescription style={{ color: "#7b5836" }}>
+              Hello {name}, your account is pending verification. Please wait
+              until an admin verifies your account before using the dashboard
+              features.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4">
             <Button onClick={handleLogout} variant="destructive">
-              Log Out
+              Back to Home Page
             </Button>
           </CardContent>
         </Card>
@@ -383,8 +428,18 @@ useEffect(() => {
       .gwrap{position:relative; border-radius:16px; padding:1px; background:linear-gradient(135deg, rgba(247,199,137,.9), rgba(201,124,44,.55)); background-size:200% 200%; animation:borderShift 8s ease-in-out infinite}
       @keyframes borderShift{0%{background-position:0% 0%}50%{background-position:100% 100%}100%{background-position:0% 0%}}
       .glass-card{border-radius:15px; background:rgba(255,255,255,.94); backdrop-filter:blur(8px)}
-      .chip{width:46px; height:46px; display:flex; align-items:center; justify-content:center; border-radius:9999px; background:linear-gradient(180deg,#FFE7C5,#F7C489); color:#8a5a25; border:1px solid #fff3e0; box-shadow:0 6px 18px rgba(201,124,44,.18)}
-      .hover-lift{transition:transform .35s cubic-bezier(.22,.98,.4,1), box-shadow .35s}
+.chip{
+  width:54px; height:54px;
+  display:grid; place-items:center;
+  border-radius:9999px;
+  background: radial-gradient(120% 120% at 30% 25%, #ffe6c6 0%, #f7c489 55%, #e8a765 100%);
+  box-shadow: 0 10px 24px rgba(201,124,44,.20), inset 0 1px 0 rgba(255,255,255,.8);
+  border: 1px solid rgba(255,255,255,.8);
+}
+  .chip svg{
+  width:22px; height:22px;
+  color:#8a5a25;
+}      .hover-lift{transition:transform .35s cubic-bezier(.22,.98,.4,1), box-shadow .35s}
       .hover-lift:hover{transform:translateY(-4px); box-shadow:0 18px 38px rgba(201,124,44,.14)}
       .reveal{opacity:0; transform:translateY(8px) scale(.985); animation:rise .6s ease forwards}
       .r1{animation-delay:.05s}.r2{animation-delay:.1s}.r3{animation-delay:.15s}.r4{animation-delay:.2s}.r5{animation-delay:.25s}.r6{animation-delay:.3s}
@@ -405,7 +460,7 @@ useEffect(() => {
   );
 
   return (
-      <div className="min-h-screen relative">
+    <div className="min-h-screen relative">
       <Styles />
 
       <div className="page-bg">
@@ -416,7 +471,8 @@ useEffect(() => {
       <header className="head">
         <div className="head-bg" />
         <div className="head-inner">
-          <div className="flex items-start justify-between gap-4">
+          {/* ALIGNMENT FIX: match */}
+          <div className="flex justify-between items-center gap-4">
             <div className="flex-1 min-w-0">
               <div className="brand">
                 <div className="ring">
@@ -456,13 +512,12 @@ useEffect(() => {
               </div>
             </div>
 
-            <div>
-              <DashboardSearch/>
-            </div>
+            {/* Search moved into the right cluster and sized small */}
+            <div className="iconbar">
+              <DashboardSearch size="sm" />
 
-            <div className="pt-1 iconbar">
               {/* Messages Button */}
-              <Messages currentUser={currentUser} />
+              <Messages1 currentUser={currentUser} />
 
               {/* Notifications Bell */}
               <BakeryNotification />
@@ -497,26 +552,21 @@ useEffect(() => {
           </div>
         </div>
       </header>
-      
 
-       {unlockedBadge && (
-          <UnlockModalBadge
-              badge={unlockedBadge}
-              onClose={() => setUnlockedBadge(null)}
-          />
+      {unlockedBadge && (
+        <UnlockModalBadge
+          badge={unlockedBadge}
+          onClose={() => setUnlockedBadge(null)}
+        />
       )}
 
       {/* Tabs */}
       <Tabs
         value={activeTab}
         onValueChange={(v) => {
-          setActiveTab(v);
-          const base = `/bakery-dashboard/${id}`;
-          const url = v === "dashboard" ? base : `${base}?tab=${v}`;
-          navigate(url, { replace: true });
+          if (ALLOWED_TABS.includes(v)) setActiveTab(v);
         }}
       >
-
         <div className="seg-wrap">
           <div className="seg">
             <TabsList className="bg-transparent p-0 border-0">
@@ -528,7 +578,7 @@ useEffect(() => {
               <TabsTrigger value="complaints">Complaints</TabsTrigger>
               <TabsTrigger value="reports">Report Generation</TabsTrigger>
               <TabsTrigger value="feedback">Feedback</TabsTrigger>
-               <TabsTrigger value="badges">Achievement Badges</TabsTrigger>
+              <TabsTrigger value="badges">Achievement Badges</TabsTrigger>
             </TabsList>
           </div>
         </div>
@@ -537,13 +587,24 @@ useEffect(() => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7">
           <TabsContent value="dashboard" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Stat cards */}
               <div className="gwrap reveal r1 hover-lift">
                 <Card className="glass-card shadow-none">
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">Total Donations</p>
-                        <p className="text-3xl font-extrabold">{totals.grand_total.toLocaleString()}</p>
+                        <p
+                          className="text-sm font-medium"
+                          style={{ color: "#6B4B2B" }}
+                        >
+                          Total Donations
+                        </p>
+                        <p
+                          className="text-3xl font-extrabold"
+                          style={{ color: "#2b1a0b" }}
+                        >
+                          {totals.grand_total.toLocaleString()}
+                        </p>
                       </div>
                       <div className="chip">
                         <Heart className="h-5 w-5" />
@@ -558,8 +619,18 @@ useEffect(() => {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">Product in Inventory</p>
-                        <p className="text-3xl font-extrabold">{stats.totalInventory}</p>
+                        <p
+                          className="text-sm font-medium"
+                          style={{ color: "#6B4B2B" }}
+                        >
+                          Product in Inventory
+                        </p>
+                        <p
+                          className="text-3xl font-extrabold"
+                          style={{ color: "#2b1a0b" }}
+                        >
+                          {stats.totalInventory}
+                        </p>
                       </div>
                       <div className="chip">
                         <Package className="h-5 w-5" />
@@ -574,8 +645,18 @@ useEffect(() => {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">Uploaded Products</p>
-                        <p className="text-3xl font-extrabold">{stats.uploadedProducts}</p>
+                        <p
+                          className="text-sm font-medium"
+                          style={{ color: "#6B4B2B" }}
+                        >
+                          Uploaded Products
+                        </p>
+                        <p
+                          className="text-3xl font-extrabold"
+                          style={{ color: "#2b1a0b" }}
+                        >
+                          {stats.uploadedProducts}
+                        </p>
                       </div>
                       <div className="chip">
                         <Upload className="h-5 w-5" />
@@ -590,8 +671,18 @@ useEffect(() => {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">Employee</p>
-                        <p className="text-3xl font-extrabold">{stats.employeeCount}</p>
+                        <p
+                          className="text-sm font-medium"
+                          style={{ color: "#6B4B2B" }}
+                        >
+                          Employee
+                        </p>
+                        <p
+                          className="text-3xl font-extrabold"
+                          style={{ color: "#2b1a0b" }}
+                        >
+                          {stats.employeeCount}
+                        </p>
                       </div>
                       <div className="chip">
                         <Users className="h-5 w-5" />
@@ -606,8 +697,18 @@ useEffect(() => {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">Expired Product</p>
-                        <p className="text-3xl font-extrabold">{stats.expiredProducts}</p>
+                        <p
+                          className="text-sm font-medium"
+                          style={{ color: "#6B4B2B" }}
+                        >
+                          Expired Product
+                        </p>
+                        <p
+                          className="text-3xl font-extrabold"
+                          style={{ color: "#2b1a0b" }}
+                        >
+                          {stats.expiredProducts}
+                        </p>
                       </div>
                       <div className="chip">
                         <AlertTriangle className="h-5 w-5" />
@@ -622,8 +723,18 @@ useEffect(() => {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">Nearing Expiration</p>
-                        <p className="text-3xl font-extrabold">{stats.nearingExpiration}</p>
+                        <p
+                          className="text-sm font-medium"
+                          style={{ color: "#6B4B2B" }}
+                        >
+                          Nearing Expiration
+                        </p>
+                        <p
+                          className="text-3xl font-extrabold"
+                          style={{ color: "#2b1a0b" }}
+                        >
+                          {stats.nearingExpiration}
+                        </p>
                       </div>
                       <div className="chip">
                         <Clock className="h-5 w-5" />
@@ -638,10 +749,12 @@ useEffect(() => {
               <div className="gwrap hover-lift reveal">
                 <Card className="glass-card shadow-none">
                   <CardHeader className="pb-2">
-                    <CardTitle>Recent Donations</CardTitle>
-                    <CardDescription>
+                    <CardTitle style={{ color: "#6B4B2B" }}>
+                      Recent Donations
+                    </CardTitle>
+                    <CardDescription style={{ color: "#7b5836" }}>
                       <RecentDonations />
-                      </CardDescription>
+                    </CardDescription>
                   </CardHeader>
                   <CardContent className="min-h-[10px]" />
                 </Card>
@@ -650,47 +763,91 @@ useEffect(() => {
               <div className="gwrap hover-lift reveal">
                 <Card className="glass-card shadow-none">
                   <CardHeader className="pb-2">
-                    <CardTitle>Achievements &amp; Badges</CardTitle>
-                    <CardDescription>Your donation milestones</CardDescription>
+                    <CardTitle style={{ color: "#6B4B2B" }}>
+                      Achievements &amp; Badges
+                    </CardTitle>
+                    <CardDescription style={{ color: "#7b5836" }}>
+                      Your donation milestones
+                    </CardDescription>
                   </CardHeader>
-                  <CardContent className="min-h-[404px] flex flex-wrap gap-3">
+
+                  {/* >>> BADGES GRID — EXACTLY 5 PER ROW + SMALLER ICONS <<< */}
+                  <CardContent
+                    className="
+                      min-h-[404px]
+                      grid
+                      [grid-template-columns:repeat(5,minmax(0,1fr))]
+                      gap-x-[clamp(12px,2.6vw,32px)]
+                      gap-y-[clamp(10px,2vw,24px)]
+                      items-start
+                    "
+                  >
                     {badges && badges.length > 0 ? (
-                          badges.map((userBadge) => (
-                            <div key={userBadge.id} className="flex flex-col items-center">
-                              <img
-                                src={
-                                  userBadge.badge?.icon_url
-                                    ? `${API}/${userBadge.badge.icon_url}`
-                                    : "/placeholder-badge.png"
-                                }
-                                alt={userBadge.badge?.name}
-                                title={userBadge.badge?.name}
-                                className="w-12 h-12 hover:scale-110 transition-transform"
-                              />
-                              <span className="text-xs mt-1">
-                                {userBadge.badge_name && userBadge.badge_name.trim() !== ""
-                                  ? userBadge.badge_name
-                                  : userBadge.badge?.name}
-                              </span>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="text-sm text-gray-400">No badges unlocked yet.</p>
-                        )}
+                      badges.map((userBadge) => (
+                        <div
+                          key={userBadge.id}
+                          className="flex flex-col items-center justify-start"
+                        >
+                          <img
+                            src={
+                              userBadge.badge?.icon_url
+                                ? `${API}/${userBadge.badge.icon_url}`
+                                : "/placeholder-badge.png"
+                            }
+                            alt={userBadge.badge?.name}
+                            title={userBadge.badge?.name}
+                            className="hover:scale-110 transition-transform"
+                            style={{
+                              /* smaller icons */
+                              width: "clamp(44px,5.5vw,64px)",
+                              height: "clamp(44px,5.5vw,64px)",
+                              objectFit: "contain",
+                            }}
+                          />
+                          {/* Keep label block-level; slightly narrower width to match smaller icon */}
+                          <span
+                            className="
+                              block
+                              text-[11px]
+                              mt-2
+                              leading-tight
+                              text-center
+                              truncate
+                              w-[96px]
+                            "
+                            title={
+                              userBadge.badge_name &&
+                              userBadge.badge_name.trim() !== ""
+                                ? userBadge.badge_name
+                                : userBadge.badge?.name
+                            }
+                          >
+                            {userBadge.badge_name &&
+                            userBadge.badge_name.trim() !== ""
+                              ? userBadge.badge_name
+                              : userBadge.badge?.name}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm" style={{ color: "#7b5836" }}>
+                        No badges unlocked yet.
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               </div>
             </div>
 
             <div className="gwrap hover-lift reveal">
-                <Card className="glass-card shadow-none">
-                  <CardHeader className="pb-2">
-                    <CardTitle>Analytics</CardTitle>
-                    <BakeryAnalytics />
-                  </CardHeader>
-                  <CardContent className="min-h-[120px]" />
-                </Card>
-              </div>
+              <Card className="glass-card shadow-none">
+                <CardHeader className="pb-2">
+                  <CardTitle style={{ color: "#6B4B2B" }}>Analytics</CardTitle>
+                  <BakeryAnalytics currentUser={currentUser} />{" "}
+                </CardHeader>
+                <CardContent className="min-h-[120px]" />
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="inventory" className="reveal">
@@ -702,7 +859,9 @@ useEffect(() => {
               <Card className="glass-card shadow-none">
                 <CardHeader>
                   <TabsContent value="donations" className="reveal">
-                    <BakeryDonation highlightedDonationId={highlightedDonationId} />
+                    <BakeryDonation
+                      highlightedDonationId={highlightedDonationId}
+                    />
                   </TabsContent>
                 </CardHeader>
                 <CardContent className="min-h-[120px]" />
@@ -710,7 +869,7 @@ useEffect(() => {
             </div>
           </TabsContent>
 
-           <TabsContent value="DONATIONstatus" className="reveal">
+          <TabsContent value="DONATIONstatus" className="reveal">
             <BDonationStatus />
           </TabsContent>
 
@@ -731,14 +890,14 @@ useEffect(() => {
             <div className="gwrap">
               <Card className="glass-card shadow-none">
                 <CardHeader className="pb-2">
-                  <CardTitle>Feedback</CardTitle>
+                  <CardTitle style={{ color: "#6B4B2B" }}>Feedback</CardTitle>
                 </CardHeader>
                 <BFeedback />
               </Card>
             </div>
           </TabsContent>
 
-            <TabsContent value="badges" className="reveal">
+          <TabsContent value="badges" className="reveal">
             <AchievementBadges />
           </TabsContent>
         </div>

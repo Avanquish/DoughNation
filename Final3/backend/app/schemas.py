@@ -164,8 +164,15 @@ class DonationRequestRead(BaseModel):
     donation_id: Optional[int]
     charity_id: int
     bakery_id: int
+    bakery_inventory_id: int  # ← ADD THIS
     timestamp: datetime
     status: str
+    donation_name: Optional[str] = None
+    donation_image: Optional[str] = None
+    donation_quantity: Optional[int] = None
+    donation_expiration: Optional[datetime] = None
+    bakery_name: Optional[str] = None
+    bakery_profile_picture: Optional[str] = None
 
     class Config:
         from_attributes = True

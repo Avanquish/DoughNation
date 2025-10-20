@@ -129,12 +129,6 @@ export default function BakeryInventory() {
   const [showForm, setShowForm] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [verified, setVerified] = useState(false); // Access control
-  const [employeeName, setEmployeeName] = useState("");
-  const [employeeRole, setEmployeeRole] = useState("");
-  const canModify = ["Manager", "Full Time Staff", "Manager/Owner"].includes(
-    employeeRole
-  );
 
   const [form, setForm] = useState({
     item_name: "",
@@ -144,7 +138,7 @@ export default function BakeryInventory() {
     description: "",
     image_file: null,
     threshold: 1,
-    uploaded: employeeName || "", // Initialize with employee name if available
+    uploaded: "", // Initialize with employee name if available
   });
 
   const [showDirectDonation, setShowDirectDonation] = useState(false);
@@ -190,37 +184,10 @@ export default function BakeryInventory() {
     fetchEmployees();
   }, []);
 
-  // Fetch inventory if verified.
+  // Fetch inventory immediately
   useEffect(() => {
-    if (verified) fetchInventory();
-  }, [verified]);
-
-  // Employee verification.
-  const handleVerify = () => {
-    const found = employees.find(
-      (emp) => emp.name.toLowerCase() === employeeName.trim().toLowerCase()
-    );
-
-    if (found) {
-      setVerified(true);
-      setEmployeeRole(found.role || ""); // store role
-      setEmployeeName(found.name); // Store the verified employee name
-      setForm((prev) => ({ ...prev, uploaded: found.name }));
-      Swal.fire({
-        title: "Access Granted",
-        text: `Welcome, ${found.name}! Role: ${found.role}`,
-        icon: "success",
-        timer: 1500,
-        showConfirmButton: false,
-      });
-    } else {
-      Swal.fire({
-        title: "Employee Not Found",
-        text: "Please enter a valid employee name.",
-        icon: "error",
-      });
-    }
-  };
+    fetchInventory();
+  }, []);
 
   // From Notifs
   useEffect(() => {
@@ -311,22 +278,13 @@ export default function BakeryInventory() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!canModify) {
-      Swal.fire(
-        "Permission Denied",
-        "You are not allowed to add products.",
-        "error"
-      );
-      return;
-    }
-
     const fd = new FormData();
     fd.append("name", form.item_name);
     fd.append("quantity", form.quantity);
     fd.append("creation_date", form.creation_date);
     fd.append("expiration_date", form.expiration_date);
     fd.append("threshold", form.threshold);
-    fd.append("uploaded", employeeName || form.uploaded);
+    fd.append("uploaded", form.uploaded);
     fd.append("description", form.description);
     if (form.image_file) fd.append("image", form.image_file);
 
@@ -350,15 +308,6 @@ export default function BakeryInventory() {
   };
 
   const handleDelete = async (id) => {
-    if (!canModify) {
-      Swal.fire(
-        "Permission Denied",
-        "You are not allowed to delete products.",
-        "error"
-      );
-      return;
-    }
-
     const ok = await Swal.fire({
       title: "Are you sure?",
       text: "This can't be undone.",
@@ -384,15 +333,6 @@ export default function BakeryInventory() {
   const handleUpdate = async (e) => {
     e.preventDefault();
 
-    if (!canModify) {
-      Swal.fire(
-        "Permission Denied",
-        "You are not allowed to edit products.",
-        "error"
-      );
-      return;
-    }
-
     if (!selectedItem) return;
 
     const ok = await Swal.fire({
@@ -410,7 +350,7 @@ export default function BakeryInventory() {
     fd.append("creation_date", selectedItem.creation_date);
     fd.append("expiration_date", selectedItem.expiration_date);
     fd.append("threshold", selectedItem.threshold);
-    fd.append("uploaded", employeeName || selectedItem.uploaded || "");
+    fd.append("uploaded", selectedItem.uploaded || "");
     fd.append("description", selectedItem.description || "");
     if (selectedItem.image_file) fd.append("image", selectedItem.image_file);
 
@@ -583,11 +523,9 @@ export default function BakeryInventory() {
               </button>
             )}
           </div>
-          {canModify && (
-            <button onClick={() => setShowForm(true)} className={pillSolid}>
-              + Add Product
-            </button>
-          )}
+          <button onClick={() => setShowForm(true)} className={pillSolid}>
+            + Add Product
+          </button>
         </div>
       </div>
 
@@ -603,89 +541,19 @@ export default function BakeryInventory() {
         >
           Select Expired
         </button>
-        {canModify && (
-          <button
-            onClick={deleteSelected}
-            disabled={!selectedCount}
-            className={`${pillSolid} disabled:opacity-50 disabled:cursor-not-allowed`}
-          >
-            Delete Selected
-          </button>
-        )}
+        <button
+          onClick={deleteSelected}
+          disabled={!selectedCount}
+          className={`${pillSolid} disabled:opacity-50 disabled:cursor-not-allowed`}
+        >
+          Delete Selected
+        </button>
         {selectedCount > 0 && (
           <button onClick={clearSelection} className={pillOutline}>
             Clear Selection
           </button>
         )}
       </div>
-
-      {/* Verification Modal*/}
-      {employees.length > 0 && !verified && (
-        <div className="fixed inset-0 z-[200]">
-          <div
-            className="
-        absolute inset-0
-        bg-[#FFF1E3]/85
-        [backdrop-filter:blur(42px)_saturate(85%)_contrast(65%)]
-        md:[backdrop-filter:blur(56px)_saturate(85%)_contrast(65%)]
-      "
-          />
-
-          <div
-            className="
-        absolute inset-0 pointer-events-none mix-blend-multiply opacity-25
-        bg-gradient-to-br from-[#FDE3C1] via-transparent to-[#FAD1A1]
-      "
-          />
-          <div
-            className="
-        absolute inset-0 pointer-events-none
-        bg-[radial-gradient(120%_80%_at_50%_40%,rgba(255,241,227,0.95),rgba(255,241,227,0.82)_60%,rgba(255,241,227,0.78)_85%,transparent)]
-      "
-          />
-
-          {/* Modal */}
-          <div className="relative h-full w-full flex items-center justify-center p-4">
-            <div
-              role="dialog"
-              aria-modal="true"
-              className="bg-white rounded-3xl shadow-2xl ring-1 ring-black/10 overflow-hidden max-w-md w-full"
-            >
-              {/* Header */}
-              <div className="bg-gradient-to-b from-[#FCE7D3] to-[#FBE1C5] py-4 text-center border-b border-[#EAD3B8]">
-                <h2 className="text-xl font-semibold text-[#6b4b2b]">
-                  Verify Access
-                </h2>
-              </div>
-
-              <div className="p-5 sm:p-6">
-                <div className="space-y-3">
-                  <label className={labelTone} htmlFor="verify_name">
-                    Employee Name
-                  </label>
-                  <input
-                    id="verify_name"
-                    type="text"
-                    placeholder="Enter employee name"
-                    value={employeeName}
-                    onChange={(e) => setEmployeeName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleVerify()}
-                    className={inputTone}
-                  />
-                  <p className="text-xs text-gray-500">
-                    Type your name exactly as saved by HR to continue.
-                  </p>
-                </div>
-                <div className="mt-5 flex justify-end gap-2">
-                  <button onClick={handleVerify} className={pillSolid}>
-                    Enter Employee
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Table */}
       <div className="overflow-x-auto rounded-xl shadow ring-1 ring-black/5 bg-white/80 backdrop-blur-sm">
@@ -931,8 +799,10 @@ export default function BakeryInventory() {
                     id="prod_uploader"
                     type="text"
                     className={`${inputTone} rounded-2xl`}
-                    value={employeeName}
-                    disabled
+                    value={form.uploaded}
+                    onChange={(e) =>
+                      setForm({ ...form, uploaded: e.target.value })
+                    }
                   />
                 </div>
 
@@ -1014,22 +884,18 @@ export default function BakeryInventory() {
             </div>
 
             <div className="mt-auto p-5 flex flex-wrap gap-2 justify-end border-t bg-white">
-              {canModify && (
-                <>
-                  <button
-                    onClick={() => handleDelete(selectedItem.id)}
-                    className={pillSolid}
-                  >
-                    Delete
-                  </button>
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className={pillSolid}
-                  >
-                    Edit
-                  </button>
-                </>
-              )}
+              <button
+                onClick={() => handleDelete(selectedItem.id)}
+                className={pillSolid}
+              >
+                Delete
+              </button>
+              <button
+                onClick={() => setIsEditing(true)}
+                className={pillSolid}
+              >
+                Edit
+              </button>
               <button
                 onClick={() => {
                   setSelectedItem(null);
@@ -1178,8 +1044,13 @@ export default function BakeryInventory() {
                   id="edit_uploaded"
                   type="text"
                   className={`${inputTone} rounded-2xl`}
-                  value={employeeName}
-                  disabled
+                  value={selectedItem.uploaded || ""}
+                  onChange={(e) =>
+                    setSelectedItem({
+                      ...selectedItem,
+                      uploaded: e.target.value,
+                    })
+                  }
                 />
               </div>
 

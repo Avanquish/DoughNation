@@ -38,12 +38,6 @@ export default function BakeryReports() {
   const COLORS_STATUS = ["#28a745", "#007bff", "#dc3545"]; // Green, Blue, Red
   const COLORS_TYPE = ["#17a2b8", "#ffc107"]; // Direct vs Request
 
-  const [verified, setVerified] = useState(false); // Access control
-  const [employeeName, setEmployeeName] = useState("");
-  const [employeeRole, setEmployeeRole] = useState("");
-  const [employees, setEmployees] = useState([]);
-  const canModify = ["Manager", "Full Time Staff", "Manager/Owner"].includes(employeeRole);
-
   const reportTypes = [
     { key: "donation_history", label: "Donation History" },
     { key: "expiry_loss", label: "Expiry Loss" },
@@ -201,46 +195,7 @@ export default function BakeryReports() {
     fetchEmployees();
   }, []);
 
-  // Employee verification.
-  const handleVerify = () => {
-    const found = employees.find(
-      (emp) => emp.name.toLowerCase() === employeeName.trim().toLowerCase()
-    );
-
-    if (!found) {
-      Swal.fire({
-        title: "Employee Not Found",
-        text: "Please enter a valid employee name.",
-        icon: "error",
-      });
-      return;
-    }
-
-    const wasVerified = verified;
-
-    setVerified(true);
-    setEmployeeRole(found.role || "");
-
-    Swal.fire({
-      title: "Access Granted",
-      text: `Welcome, ${found.name}! Role: ${found.role}`,
-      icon: "success",
-      timer: 1500,
-      showConfirmButton: false,
-    });
-
-    const savedType = localStorage.getItem("lastReportType");
-    const validReport = reportTypes.find((r) => r.key === savedType);
-
-    if (!wasVerified) {
-      generateReport(validReport ? validReport.key : "donation_history");
-      setActiveReport(validReport ? validReport.key : "donation_history");
-    }
-  };
-
   useEffect(() => {
-    if (!verified) return;
-
     const savedType = localStorage.getItem("lastReportType");
     const savedData = localStorage.getItem("lastReportData");
     const savedStart = localStorage.getItem("lastWeekStart");
@@ -263,7 +218,7 @@ export default function BakeryReports() {
       setSavedMonth(savedMonthLocal);
       generateReport("monthly", { month: savedMonthLocal });
     }
-  }, [verified]);
+  }, []);
 
   const downloadReportCSV = () => {
     if (!reportData) return;
@@ -2059,93 +2014,8 @@ export default function BakeryReports() {
     );
   };
 
-  const sectionHeader = "border-b border-[#eadfce] bg-[#FFF6E9] px-4 py-2";
-  const labelTone = "block text-sm font-medium text-[#6b4b2b]";
-  const inputTone =
-    "w-full border border-[#eadfce] rounded-md p-2 outline-none focus:ring-2 focus:ring-[#E49A52]";
-  const primaryBtn =
-    "rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 font-semibold shadow-[0_10px_26px_rgba(201,124,44,.25)] ring-1 ring-white/60 transition-transform hover:-translate-y-0.5 active:scale-95 disabled:opacity-60";
-
-  const pillSolid =
-    "rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 transition-transform hover:-translate-y-0.5 active:scale-95 hover:brightness-95";
-
   return (
     <div className="p-6 relative">
-      {/* Verification Overlay — lowered so navbar/tabs remain visible */}
-      {!verified && (
-        <div className="fixed inset-0 z-[200]">
-          {/* blur + dim like inventory */}
-          <div
-            className="
-              absolute inset-0
-              bg-[#FFF1E3]/85
-              [backdrop-filter:blur(42px)_saturate(85%)_contrast(65%)]
-              md:[backdrop-filter:blur(56px)_saturate(85%)_contrast(65%)]
-            "
-          />
-          {/* warm wash */}
-          <div
-            className="
-              absolute inset-0 pointer-events-none mix-blend-multiply opacity-25
-              bg-gradient-to-br from-[#FDE3C1] via-transparent to-[#FAD1A1]
-            "
-          />
-          {/* subtle radial/light bokeh */}
-          <div
-            className="
-              absolute inset-0 pointer-events-none
-              bg-[radial-gradient(120%_80%_at_50%_40%,rgba(255,241,227,0.95),rgba(255,241,227,0.82)_60%,rgba(255,241,227,0.78)_85%,transparent)]
-            "
-          />
-
-          {/* Modal lowered: add padding-top and align to start */}
-          <div className="relative h-full w-full flex items-start justify-center p-4 pt-28 sm:pt-32">
-            <div
-              role="dialog"
-              aria-modal="true"
-              className="bg-white rounded-3xl shadow-2xl ring-1 ring-black/10 overflow-hidden max-w-md w-full"
-            >
-              {/* Header */}
-              <div className="bg-gradient-to-b from-[#FCE7D3] to-[#FBE1C5] py-4 text-center border-b border-[#EAD3B8]">
-                <h2 className="text-xl font-semibold text-[#6b4b2b]">
-                  Verify Access
-                </h2>
-              </div>
-
-              {/* Body */}
-              <div className="p-5 sm:p-6">
-                <div className="space-y-3">
-                  <label
-                    className="block text-sm font-semibold text-[#6b4b2b]"
-                    htmlFor="verify_name_reports"
-                  >
-                    Employee Name
-                  </label>
-                  <input
-                    id="verify_name_reports"
-                    type="text"
-                    placeholder="Enter employee name"
-                    value={employeeName}
-                    onChange={(e) => setEmployeeName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleVerify()}
-                    className="w-full rounded-md border border-[#f2d4b5] bg-white p-2 outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52]"
-                  />
-                  <p className="text-xs text-gray-500">
-                    Type your name exactly as saved by HR to continue.
-                  </p>
-                </div>
-
-                <div className="mt-5 flex justify-end">
-                  <button onClick={handleVerify} className={pillSolid}>
-                    Enter Employee
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       <h1 className="text-3xl font-bold text-[#6b4b2b] mb-4">
         Bakery Report Generation
       </h1>
@@ -2155,7 +2025,6 @@ export default function BakeryReports() {
         value={activeReport}
         onValueChange={(val) => {
           setActiveReport(val);
-          if (!verified) return;
           generateReport(val);
         }}
       >
@@ -2658,28 +2527,26 @@ export default function BakeryReports() {
                     )}
 
                     {/* Actions */}
-                    {canModify && (
-                      <div className="flex flex-wrap gap-3 mt-5">
-                        <Button
-                          onClick={downloadReportCSV}
-                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
-                        >
-                          <Download size={16} /> Download CSV
-                        </Button>
-                        <Button
-                          onClick={() => downloadReportPDF(bakeryInfo)}
-                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
-                        >
-                          <Download size={16} /> Download PDF
-                        </Button>
-                        <Button
-                          onClick={() => printReport(bakeryInfo)}
-                          className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
-                        >
-                          <Printer size={16} /> Print
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex flex-wrap gap-3 mt-5">
+                      <Button
+                        onClick={downloadReportCSV}
+                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                      >
+                        <Download size={16} /> Download CSV
+                      </Button>
+                      <Button
+                        onClick={() => downloadReportPDF(bakeryInfo)}
+                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                      >
+                        <Download size={16} /> Download PDF
+                      </Button>
+                      <Button
+                        onClick={() => printReport(bakeryInfo)}
+                        className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
+                      >
+                        <Printer size={16} /> Print
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <p className="text-[#6b4b2b]/70">

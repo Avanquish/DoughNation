@@ -112,15 +112,6 @@ const BakeryDonation = ({ highlightedDonationId }) => {
   const [loading, setLoading] = useState(true);
   const highlightedRef = useRef(null);
 
-  // access
-  const [verified, setVerified] = useState(false);
-  const [employeeName, setEmployeeName] = useState("");
-  const [employeeRole, setEmployeeRole] = useState("");
-  const [employees, setEmployees] = useState([]);
-  const canModify = ["Manager", "Full Time Staff", "Manager/Owner"].includes(
-    employeeRole
-  );
-
   // modal + data
   const [showDonate, setShowDonate] = useState(false);
   const [inventory, setInventory] = useState([]);
@@ -211,38 +202,14 @@ const BakeryDonation = ({ highlightedDonationId }) => {
     fetchEmployees();
   }, []);
   useEffect(() => {
-    if (verified) fetchDonations();
-  }, [verified]);
+    fetchDonations();
+  }, []);
   useEffect(() => {
     if (showDonate) {
       fetchInventory();
       fetchCharities();
     }
   }, [showDonate]);
-
-  /* ---------- verify ---------- */
-  const handleVerify = () => {
-    const found = employees.find(
-      (emp) => emp.name.toLowerCase() === employeeName.trim().toLowerCase()
-    );
-    if (!found) {
-      Swal.fire(
-        "Employee Not Found",
-        "Please enter a valid employee name.",
-        "error"
-      );
-      return;
-    }
-    setVerified(true);
-    setEmployeeRole(found.role || "");
-    Swal.fire({
-      title: "Access Granted",
-      text: `Welcome, ${found.name}! Role: ${found.role}`,
-      icon: "success",
-      timer: 1500,
-      showConfirmButton: false,
-    });
-  };
 
   /* ---------- UX niceties ---------- */
   useEffect(() => {
@@ -331,50 +298,6 @@ const BakeryDonation = ({ highlightedDonationId }) => {
   /* ---------- UI ---------- */
   return (
     <div className="space-y-4">
-      {/* Verify modal */}
-      {employees.length > 0 && !verified && (
-        <div className="fixed inset-0 z-[200]">
-          <div className="absolute inset-0 bg-[#FFF1E3]/85 [backdrop-filter:blur(42px)_saturate(85%)_contrast(65%)] md:[backdrop-filter:blur(56px)_saturate(85%)_contrast(65%)]" />
-          <div className="absolute inset-0 pointer-events-none mix-blend-multiply opacity-25 bg-gradient-to-br from-[#FDE3C1] via-transparent to-[#FAD1A1]" />
-          <div className="relative h-full w-full flex items-center justify-center p-4">
-            <div
-              role="dialog"
-              aria-modal="true"
-              className="bg-white rounded-3xl shadow-2xl ring-1 ring-black/10 overflow-hidden max-w-md w-full"
-            >
-              <div className="bg-gradient-to-b from-[#FCE7D3] to-[#FBE1C5] py-4 text-center border-b border-[#EAD3B8]">
-                <h2 className="text-xl font-semibold text-[#6b4b2b]">
-                  Verify Access
-                </h2>
-              </div>
-              <div className="p-6">
-                <label className="block text-sm font-medium text-[#6b4b2b]">
-                  Employee Name
-                </label>
-                <input
-                  className="mt-2 w-full border border-[#eadfce] rounded-xl p-3 outline-none focus:ring-2 focus:ring-[#E49A52]"
-                  placeholder="Enter employee name"
-                  value={employeeName}
-                  onChange={(e) => setEmployeeName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleVerify()}
-                />
-                <p className="mt-2 text-xs text-gray-500">
-                  Type your name exactly as saved by HR to continue.
-                </p>
-                <div className="mt-5 flex justify-end">
-                  <button
-                    onClick={handleVerify}
-                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:-translate-y-0.5 active:scale-95 transition"
-                  >
-                    Enter Employee
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* header row */}
       <div className="flex items-center justify-between">
         <h2
@@ -383,14 +306,12 @@ const BakeryDonation = ({ highlightedDonationId }) => {
         >
           For Donations
         </h2>
-        {canModify && (
-          <button
-            onClick={() => setShowDonate(true)}
-            className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-6 py-2.5 font-semibold shadow-[0_10px_26px_rgba(201,124,44,.25)] ring-1 ring-white/60 hover:-translate-y-0.5 active:scale-95 transition"
-          >
-            Donate Now!
-          </button>
-        )}
+        <button
+          onClick={() => setShowDonate(true)}
+          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-6 py-2.5 font-semibold shadow-[0_10px_26px_rgba(201,124,44,.25)] ring-1 ring-white/60 hover:-translate-y-0.5 active:scale-95 transition"
+        >
+          Donate Now!
+        </button>
       </div>
 
       {/* cards */}
@@ -691,8 +612,12 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                                       className="w-full px-4 py-2.5 hover:bg-[#FFF6E9] focus:bg-[#FFF6E9] flex items-center justify-between"
                                     >
                                       <div className="flex items-center gap-2 min-w-0">
-                                        <div className="h-6 w-6 rounded-full grid place-items-center bg-[#FFE9C7] text-[#6b4b2b] text-xs font-bold">
-                                          Q
+                                        <div className="h-6 w-6 rounded-full overflow-hidden bg-[#EDE7DB] grid place-items-center">
+                                          <img
+                                            src={it.image ? `${API}/${it.image}` : "/placeholder.png"}
+                                            alt={it.name}
+                                            className="h-full w-full object-cover"
+                                          />
                                         </div>
                                         <span className="truncate">
                                           {it.name}
@@ -735,8 +660,12 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                                       className="w-full px-4 py-2.5 hover:bg-[#FFF6E9] focus:bg-[#FFF6E9] flex items-center justify-between"
                                     >
                                       <div className="flex items-center gap-2 min-w-0">
-                                        <div className="h-6 w-6 rounded-full grid place-items-center bg-[#EDE7DB] text-[#6b4b2b] text-xs font-bold">
-                                          Q
+                                        <div className="h-6 w-6 rounded-full overflow-hidden bg-[#EDE7DB] grid place-items-center">
+                                          <img
+                                            src={it.image ? `${API}/${it.image}` : "/placeholder.png"}
+                                            alt={it.name}
+                                            className="h-full w-full object-cover"
+                                          />
                                         </div>
                                         <span className="truncate">
                                           {it.name}
@@ -991,9 +920,11 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                                   className="w-full px-4 py-2.5 hover:bg-[#FFF6E9] focus:bg-[#FFF6E9] flex items-center justify-between"
                                 >
                                   <div className="flex items-center gap-2 min-w-0">
-                                    <div className="h-6 w-6 rounded-full grid place-items-center bg-[#FFDCC3] text-[#6b4b2b] text-xs font-bold">
-                                      ❤
-                                    </div>
+                                    <img
+                                      src={c.profile_picture ? `${import.meta.env.VITE_API_URL}/${c.profile_picture}` : "/default-avatar.png"}
+                                      alt={c.name}
+                                      className="h-6 w-6 rounded-full object-cover border border-gray-200"
+                                    />
                                     <span className="truncate">{c.name}</span>
                                   </div>
                                   <span className="inline-flex items-center gap-1.5 px-2.5 py-[3px] text-[11px] font-semibold rounded-full bg-[#FFF6E9] border border-[#f4e6cf] text-[#6b4b2b]">
@@ -1022,9 +953,11 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                                   className="w-full px-4 py-2.5 hover:bg-[#FFF6E9] focus:bg-[#FFF6E9] flex items-center justify-between"
                                 >
                                   <div className="flex items-center gap-2 min-w-0">
-                                    <div className="h-6 w-6 rounded-full grid place-items-center bg-[#EDE7DB] text-[#6b4b2b] text-xs font-bold">
-                                      ❤
-                                    </div>
+                                    <img
+                                      src={c.profile_picture ? `${import.meta.env.VITE_API_URL}/${c.profile_picture}` : "/default-avatar.png"}
+                                      alt={c.name}
+                                      className="h-6 w-6 rounded-full object-cover border border-gray-200"
+                                    />
                                     <span className="truncate">{c.name}</span>
                                   </div>
                                   <span className="inline-flex items-center gap-1.5 px-2.5 py-[3px] text-[11px] font-semibold rounded-full bg-[#FFF6E9] border border-[#f4e6cf] text-[#6b4b2b]">

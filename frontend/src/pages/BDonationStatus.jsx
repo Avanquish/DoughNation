@@ -271,11 +271,6 @@ const BDonationStatus = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [highlightedId, setHighlightedId] = useState(null);
   const [selectedDonation, setSelectedDonation] = useState(null);
-  const [verified, setVerified] = useState(false);
-  const [employeeName, setEmployeeName] = useState("");
-  const [employeeRole, setEmployeeRole] = useState("");
-  const [employees, setEmployees] = useState([]);
-  const canModify = ["Manager", "Full Time Staff", "Manager/Owner"].includes(employeeRole);
 
   const [acceptedNorm, setAcceptedNorm] = useState([]);
   const [pendingNorm, setPendingNorm] = useState([]);
@@ -474,33 +469,9 @@ const BDonationStatus = () => {
   }, []);
 
   useEffect(() => {
-    if (verified) setReceivedDonations([...acceptedNorm, ...pendingNorm]);
+    setReceivedDonations([...acceptedNorm, ...pendingNorm]);
     setDirectDonations(mapped);
-  }, [verified]);
-
-  const handleVerify = () => {
-    const found = employees.find(
-      (emp) => emp.name.toLowerCase() === employeeName.trim().toLowerCase()
-    );
-
-    if (found) {
-      setVerified(true);
-      setEmployeeRole(found.role || "");
-      Swal.fire({
-        title: "Access Granted",
-        text: `Welcome, ${found.name}! Role: ${found.role}`,
-        icon: "success",
-        timer: 1500,
-        showConfirmButton: false,
-      });
-    } else {
-      Swal.fire({
-        title: "Employee Not Found",
-        text: "Please enter a valid employee name.",
-        icon: "error",
-      });
-    }
-  };
+  }, [acceptedNorm, pendingNorm, mapped]);
 
   /* ---------------- UI shells ---------------- */
   const Section = ({ title, count, children }) => (
@@ -723,46 +694,6 @@ const Card = ({ d, onClick }) => {
   /* ---------------- Render ---------------- */
   return (
     <div className="relative mx-auto max-w-[1280px] px-6 py-8">
-      {/* Verify modal */}
-      {!verified && (
-        <div className="fixed inset-0 z-[200]">
-          <div className="absolute inset-0 bg-[#FFF1E3]/85 [backdrop-filter:blur(42px)_saturate(85%)_contrast(65%)] md:[backdrop-filter:blur(56px)_saturate(85%)_contrast(65%)]" />
-          <div className="absolute inset-0 pointer-events-none mix-blend-multiply opacity-25 bg-gradient-to-br from-[#FDE3C1] via-transparent to-[#FAD1A1]" />
-          <div className="relative h-full w-full flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl ring-1 ring-black/10 overflow-hidden max-w-md w-full">
-              <div className="bg-gradient-to-b from-[#FCE7D3] to-[#FBE1C5] py-4 text-center border-b border-[#EAD3B8]">
-                <h2 className="text-xl font-semibold text-[#6b4b2b]">
-                  Verify Access
-                </h2>
-              </div>
-              <div className="p-6">
-                <label className="block text-sm font-medium text-[#6b4b2b]">
-                  Employee Name
-                </label>
-                <input
-                  className="mt-2 w-full border border-[#eadfce] rounded-xl p-3 outline-none focus:ring-2 focus:ring-[#E49A52]"
-                  placeholder="Enter employee name"
-                  value={employeeName}
-                  onChange={(e) => setEmployeeName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleVerify()}
-                />
-                <p className="mt-2 text-xs text-gray-500">
-                  Type your name exactly as saved by HR to continue.
-                </p>
-                <div className="mt-5 flex justify-end">
-                  <button
-                    onClick={handleVerify}
-                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:-translate-y-0.5 active:scale-95 transition"
-                  >
-                    Enter Employee
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-3xl sm:text-4xl font-extrabold text-[#4A2F17]">
           Donation Status
@@ -973,26 +904,25 @@ const Card = ({ d, onClick }) => {
 
               {/* CTA*/}
               {(selectedDonation.tracking_status === "preparing" ||
-                selectedDonation.tracking_status === "ready_for_pickup") &&
-                canModify && (
-                  <button
-                    onClick={() =>
-                      handleUpdateTracking(
-                        selectedDonation.id,
-                        selectedDonation.tracking_status,
-                        selectedDonation.btracking_status !== undefined
-                      )
-                    }
-                    className="mt-6 w-full rounded-full px-5 py-3 font-semibold text-white
-                             bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327]
-                             shadow-[0_10px_26px_rgba(201,124,44,.25)]
-                             hover:brightness-[1.05] transition"
-                  >
-                    {selectedDonation.tracking_status === "preparing"
-                      ? "Mark as Ready for Pickup"
-                      : "Mark as In Transit"}
-                  </button>
-                )}
+                selectedDonation.tracking_status === "ready_for_pickup") && (
+                <button
+                  onClick={() =>
+                    handleUpdateTracking(
+                      selectedDonation.id,
+                      selectedDonation.tracking_status,
+                      selectedDonation.btracking_status !== undefined
+                    )
+                  }
+                  className="mt-6 w-full rounded-full px-5 py-3 font-semibold text-white
+                           bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327]
+                           shadow-[0_10px_26px_rgba(201,124,44,.25)]
+                           hover:brightness-[1.05] transition"
+                >
+                  {selectedDonation.tracking_status === "preparing"
+                    ? "Mark as Ready for Pickup"
+                    : "Mark as In Transit"}
+                </button>
+              )}
             </div>
           </div>
         </div>

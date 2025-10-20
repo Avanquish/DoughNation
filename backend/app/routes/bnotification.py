@@ -10,21 +10,29 @@ router = APIRouter()
 @router.get("/notifications")
 def get_notifications(
     db: Session = Depends(database.get_db),
-    current_user=Depends(auth.get_current_user)
+    current_auth=Depends(auth.get_current_user_or_employee)
 ):
-    user_id = current_user.id
+    # Get bakery_id from either user or employee
+    bakery_id = auth.get_bakery_id_from_auth(current_auth)
+    
+    # Get user_id for notification reads
+    if isinstance(current_auth, dict):
+        user_id = current_auth.get("bakery_id")  # Use bakery_id for employees
+    else:
+        user_id = current_auth.id
+    
     today = datetime.now()
 
     # Nearing expiration (within 2 days)
     nearing_expiration = db.query(models.BakeryInventory).filter(
-        models.BakeryInventory.bakery_id == user_id,
+        models.BakeryInventory.bakery_id == bakery_id,
         models.BakeryInventory.expiration_date > today,
         models.BakeryInventory.expiration_date <= today + timedelta(days=2)
     ).all()
 
     # Already expired
     expired = db.query(models.BakeryInventory).filter(
-        models.BakeryInventory.bakery_id == user_id,
+        models.BakeryInventory.bakery_id == bakery_id,
         models.BakeryInventory.expiration_date <= today
     ).all()
 
@@ -64,9 +72,13 @@ def get_notifications(
 def mark_notification_as_read(
     notif_id: str,
     db: Session = Depends(database.get_db),
-    current_user=Depends(auth.get_current_user)
+    current_auth=Depends(auth.get_current_user_or_employee)
 ):
-    user_id = current_user.id
+    # Get user_id from either user or employee
+    if isinstance(current_auth, dict):
+        user_id = current_auth.get("bakery_id")
+    else:
+        user_id = current_auth.id
 
     # Split product and message notifications
     if notif_id.startswith("msg-"):
@@ -139,10 +151,18 @@ def get_product(
 @router.get("/notifications/all")
 def get_all_notifications(
     db: Session = Depends(database.get_db),
-    current_user=Depends(auth.get_current_user)
+    current_auth=Depends(auth.get_current_user_or_employee)
 ):
-    user_id = current_user.id
-    products_resp = get_notifications(db=db, current_user=current_user)
+    # Get user_id from either user or employee
+    if isinstance(current_auth, dict):
+        # Employee - use bakery_id for notifications
+        user_id = current_auth.get("bakery_id")
+    else:
+        # Bakery owner
+        user_id = current_auth.id
+        
+    # Call get_notifications with the current_auth
+    products_resp = get_notifications(db=db, current_auth=current_auth)
 
     # Messages
     messages = db.query(models.Message).filter(

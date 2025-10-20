@@ -15,7 +15,8 @@ const RecentDonations = ({ userId }) => {
   const fetchDonations = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
+      // Get the appropriate token (employee token takes priority if it exists)
+      const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       let url = `${API}/recent_donations`;
       if (userId) url += `?user_id=${userId}`;

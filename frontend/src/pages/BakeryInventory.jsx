@@ -130,6 +130,9 @@ export default function BakeryInventory() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
 
+  // Get logged-in user's name from token
+  const [uploaderName, setUploaderName] = useState("");
+
   const [form, setForm] = useState({
     item_name: "",
     quantity: 1,
@@ -138,7 +141,7 @@ export default function BakeryInventory() {
     description: "",
     image_file: null,
     threshold: 1,
-    uploaded: "", // Initialize with employee name if available
+    uploaded: "", // Will be set from token
   });
 
   const [showDirectDonation, setShowDirectDonation] = useState(false);
@@ -164,8 +167,38 @@ export default function BakeryInventory() {
   const pillSolid = `rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 ${bounce}`;
   const pillOutline = `rounded-full border border-[#f2d4b5] text-[#6b4b2b] bg-white px-5 py-2 shadow-sm hover:bg-white/90 ${bounce}`;
 
-  const token = localStorage.getItem("token");
+  // Get the appropriate token (employee token takes priority if it exists)
+  const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
+
+  // Decode token to get user name on mount
+  useEffect(() => {
+    const employeeToken = localStorage.getItem("employeeToken");
+    const bakeryToken = localStorage.getItem("token");
+    
+    let name = "";
+    
+    if (employeeToken) {
+      // Decode employee JWT token
+      try {
+        const payload = JSON.parse(atob(employeeToken.split('.')[1]));
+        name = payload.employee_name || "";
+      } catch (e) {
+        console.error("Failed to decode employee token", e);
+      }
+    } else if (bakeryToken) {
+      // Decode bakery owner JWT token
+      try {
+        const payload = JSON.parse(atob(bakeryToken.split('.')[1]));
+        name = payload.name || "";
+      } catch (e) {
+        console.error("Failed to decode bakery token", e);
+      }
+    }
+    
+    setUploaderName(name);
+    setForm(prev => ({ ...prev, uploaded: name }));
+  }, []);
 
   const fetchInventory = async () => {
     const res = await axios.get(`${API}/inventory`, { headers });
@@ -300,7 +333,7 @@ export default function BakeryInventory() {
       description: "",
       image_file: null,
       threshold: 1,
-      uploaded: "",
+      uploaded: uploaderName, // Reset to logged-in user's name
     });
     setShowForm(false);
     await fetchInventory();
@@ -798,12 +831,14 @@ export default function BakeryInventory() {
                   <input
                     id="prod_uploader"
                     type="text"
-                    className={`${inputTone} rounded-2xl`}
+                    className={`${inputTone} rounded-2xl bg-gray-100`}
                     value={form.uploaded}
-                    onChange={(e) =>
-                      setForm({ ...form, uploaded: e.target.value })
-                    }
+                    readOnly
+                    disabled
                   />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Auto-filled from your login
+                  </p>
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2">

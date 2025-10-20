@@ -28,8 +28,14 @@ async def create_direct_donation(
     charity_id: int = Form(...),
     quantity: int = Form(...),
     db: Session = Depends(database.get_db),
-    current_user=Depends(auth.get_current_user),
+    current_auth=Depends(auth.get_current_user_or_employee),
 ):
+    # Extract bakery_id from either employee or bakery token
+    bakery_id = auth.get_bakery_id_from_auth(current_auth)
+    
+    if not bakery_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
     # Fetch bakery inventory item
     inventory_item = db.query(models.BakeryInventory).filter(
         models.BakeryInventory.id == bakery_inventory_id
@@ -97,16 +103,19 @@ async def create_direct_donation(
 @router.get("/direct/bakery", response_model=list[schemas.DirectDonationResponse])
 def get_direct_donations_for_bakery(
     db: Session = Depends(database.get_db),
-    current_user=Depends(auth.get_current_user),
+    current_auth=Depends(auth.get_current_user_or_employee),
 ):
-    if current_user.role.lower() != "bakery":
+    # Extract bakery_id from either employee or bakery token
+    bakery_id = auth.get_bakery_id_from_auth(current_auth)
+    
+    if not bakery_id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Only get donations where the inventory belongs to the current bakery
     donations = (
         db.query(models.DirectDonation)
         .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
-        .filter(models.BakeryInventory.bakery_id == current_user.id)
+        .filter(models.BakeryInventory.bakery_id == bakery_id)
         .all()
     )
 
@@ -144,12 +153,18 @@ def update_direct_tracking(
     direct_donation_id: int,
     data: schemas.bTrackingUpdate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_auth = Depends(auth.get_current_user_or_employee)
 ):
+    # Extract bakery_id from either employee or bakery token
+    bakery_id = auth.get_bakery_id_from_auth(current_auth)
+    
+    if not bakery_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
     # Fetch donation
     donation = db.query(models.DirectDonation).join(models.BakeryInventory).filter(
         models.DirectDonation.id == direct_donation_id,
-        models.BakeryInventory.bakery_id == current_user.id  # ownership check
+        models.BakeryInventory.bakery_id == bakery_id  # ownership check
     ).first()
 
     if not donation:
@@ -183,7 +198,7 @@ def update_direct_tracking(
     db.commit()
     
     if data.btracking_status.lower() == "complete":
-        update_user_badges(db, current_user.id)
+        update_user_badges(db, bakery_id)
 
     return donation
 
@@ -199,15 +214,18 @@ def get_charities(db: Session = Depends(database.get_db)):
 @router.get("/donation/requests")
 def get_donation_requests(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_auth = Depends(auth.get_current_user_or_employee)
 ):
-    if current_user.role.lower() != "bakery":
+    # Extract bakery_id from either employee or bakery token
+    bakery_id = auth.get_bakery_id_from_auth(current_auth)
+    
+    if not bakery_id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Fetch all requests for this bakery
     requests = (
         db.query(models.DonationRequest)
-        .filter(models.DonationRequest.bakery_id == current_user.id)
+        .filter(models.DonationRequest.bakery_id == bakery_id)
         .all()
     )
 
@@ -271,11 +289,17 @@ def update_tracking_status(
     request_id: int,
     data: schemas.TrackingUpdate,  # use Pydantic schema here
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_auth = Depends(auth.get_current_user_or_employee)
 ):
+    # Extract bakery_id from either employee or bakery token
+    bakery_id = auth.get_bakery_id_from_auth(current_auth)
+    
+    if not bakery_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
     donation_request = db.query(models.DonationRequest).filter(
         models.DonationRequest.id == request_id,
-        models.DonationRequest.bakery_id == current_user.id
+        models.DonationRequest.bakery_id == bakery_id
     ).first()
     if not donation_request:
         raise HTTPException(status_code=404, detail="Donation request not found")
@@ -289,14 +313,14 @@ def update_tracking_status(
     db.refresh(donation_request)
     
     if data.tracking_status.lower() == "complete":
-        update_user_badges(db, current_user.id)
+        update_user_badges(db, bakery_id)
     
     return donation_request
 
 @router.get("/charities/recommended")
 def get_recommended_charities(
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(auth.get_current_user)
+    current_auth = Depends(auth.get_current_user_or_employee)
 ):
     """
     Recommend charities for a bakery based on transaction activity.
@@ -304,7 +328,10 @@ def get_recommended_charities(
     - If all have >=5, recommended = 3 least active ones
     - Always include all charities (so frontend can show 'Other Charities')
     """
-    if current_user.role.lower() != "bakery":
+    # Extract bakery_id from either employee or bakery token
+    bakery_id = auth.get_bakery_id_from_auth(current_auth)
+    
+    if not bakery_id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Count accepted donation requests per charity
@@ -314,7 +341,7 @@ def get_recommended_charities(
             func.count(models.DonationRequest.id).label("count")
         )
         .filter(
-            models.DonationRequest.bakery_id == current_user.id,
+            models.DonationRequest.bakery_id == bakery_id,
             models.DonationRequest.status == "accepted"
         )
         .group_by(models.DonationRequest.charity_id)
@@ -328,7 +355,7 @@ def get_recommended_charities(
             func.count(models.DirectDonation.id).label("count")
         )
         .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
-        .filter(models.BakeryInventory.bakery_id == current_user.id)
+        .filter(models.BakeryInventory.bakery_id == bakery_id)
         .group_by(models.DirectDonation.charity_id)
         .all()
     )

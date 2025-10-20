@@ -34,8 +34,8 @@ const BakeryEmployee = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
 
-  // Determine role from localStorage token
-  const token = localStorage.getItem("token");
+  // Get the appropriate token (employee token takes priority if it exists)
+  const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
 
   const [formData, setFormData] = useState({
     name: "",

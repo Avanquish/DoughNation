@@ -109,6 +109,54 @@ def create_user(
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+    
+    print(f"\n🔍 DEBUG: User created")
+    print(f"   ID: {db_user.id}")
+    print(f"   Name: {db_user.name}")
+    print(f"   Email: {db_user.email}")
+    print(f"   Role (db): {db_user.role}")
+    print(f"   Role (variable): {role}")
+    print(f"   Contact Person: {contact_person}")
+    print(f"   Role check: role.lower() == 'bakery' => {role.lower()} == 'bakery' => {role.lower() == 'bakery'}")
+    
+    # 🆕 If bakery, automatically create contact person as first employee
+    if role.lower() == "bakery":
+        try:
+            print(f"\n✅ ROLE CHECK PASSED - Creating first employee for bakery {db_user.id}: {contact_person}")
+            # Default password for first employee
+            default_password = "Employee123!"
+            hashed_emp_password = pwd_context.hash(default_password)
+            
+            # Verify the employee doesn't already exist
+            existing_emp = db.query(models.Employee).filter(
+                models.Employee.bakery_id == db_user.id,
+                models.Employee.name == contact_person
+            ).first()
+            
+            if existing_emp:
+                print(f"⚠️  Employee already exists: {existing_emp.name}")
+                return db_user
+            
+            first_employee = models.Employee(
+                bakery_id=db_user.id,
+                name=contact_person,
+                role="Owner",
+                start_date=date.today(),  # ✅ Set start date to today
+                hashed_password=hashed_emp_password
+            )
+            db.add(first_employee)
+            db.commit()
+            db.refresh(first_employee)
+            print(f"✅ EMPLOYEE CREATED: {first_employee.name} (ID: {first_employee.id}, bakery_id: {first_employee.bakery_id}, password_set: {bool(first_employee.hashed_password)})")
+        except Exception as e:
+            print(f"❌ ERROR creating first employee: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Failed to create first employee: {str(e)}")
+    else:
+        print(f"❌ ROLE CHECK FAILED - role.lower()={role.lower()}, not 'bakery', skipping employee creation")
+    
     return db_user
 
 #Update User Information

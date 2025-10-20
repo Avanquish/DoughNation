@@ -26,19 +26,33 @@ const AchievementBadges = () => {
     new Set(JSON.parse(localStorage.getItem("shownBadges") || "[]"))
   );
 
-  // To identify current user
-  const token = localStorage.getItem("token");
+  // To identify current user - support both employee and bakery owner tokens
+  const employeeToken = localStorage.getItem("employeeToken");
+  const bakeryToken = localStorage.getItem("token");
+  const token = employeeToken || bakeryToken;
+  
   const decoded = token ? jwtDecode(token) : null;
-  const userId = decoded?.id || decoded?.user_id || decoded?.sub;
+  
+  // Extract user ID - for employees, use bakery_id; for owners, use their own ID
+  let userId;
+  if (employeeToken && decoded) {
+    // Employee token
+    userId = decoded.bakery_id;
+  } else if (bakeryToken && decoded) {
+    // Bakery owner token
+    userId = decoded.id || decoded.user_id || decoded.sub;
+  }
 
   // Function to fetch all badge data
   const fetchBadgeData = React.useCallback(async () => {
-    if (!userId) return;
+    if (!userId || !token) return;
     try {
+      const headers = { Authorization: `Bearer ${token}` };
+      
       const [badgesRes, userBadgesRes, progressRes] = await Promise.all([
-        axios.get("http://localhost:8000/badges/"),
-        axios.get(`http://localhost:8000/badges/user/${userId}`),
-        axios.get(`http://localhost:8000/badges/progress/${userId}`),
+        axios.get("http://localhost:8000/badges/", { headers }),
+        axios.get(`http://localhost:8000/badges/user/${userId}`, { headers }),
+        axios.get(`http://localhost:8000/badges/progress/${userId}`, { headers }),
       ]);
 
       setAllBadges(badgesRes.data);
@@ -47,7 +61,7 @@ const AchievementBadges = () => {
     } catch (error) {
       console.error("Error fetching badge data:", error);
     }
-  }, [userId]);
+  }, [userId, token]);
 
   // Initial fetch and refresh setup
   useEffect(() => {

@@ -50,12 +50,10 @@ def get_charity_totals(
 @router.get("/bakery/total_donations_sent")
 def get_bakery_totals(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user)
+    current_auth = Depends(auth.get_current_user_or_employee)
 ):
-    if current_user.role.lower() != "bakery":
-        return {"error": "Not authorized"}
-
-    bakery_id = current_user.id
+    # Get bakery_id from either user or employee
+    bakery_id = auth.get_bakery_id_from_auth(current_auth)
 
     # Count completed DonationRequests for this bakery via inventory
     normal_total = (
@@ -91,12 +89,10 @@ def get_bakery_totals(
 @router.get("/bakery/total_products_for_donation")
 def get_total_products_for_donation(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user)
+    current_auth = Depends(auth.get_current_user_or_employee)
 ):
-    if current_user.role.lower() != "bakery":
-        return {"error": "Not authorized"}
-
-    bakery_id = current_user.id
+    # Get bakery_id from either user or employee
+    bakery_id = auth.get_bakery_id_from_auth(current_auth)
 
     # Count distinct products uploaded by this bakery
     total_products = (
@@ -110,12 +106,10 @@ def get_total_products_for_donation(
 @router.get("/analytics")
 def get_bakery_analytics(
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(auth.get_current_user)
+    current_auth = Depends(auth.get_current_user_or_employee)
 ):
-    if current_user.role.lower() != "bakery":
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    bakery_id = current_user.id
+    # Get bakery_id from either user or employee
+    bakery_id = auth.get_bakery_id_from_auth(current_auth)
     today = datetime.today().date()
 
     # INVENTORY COUNTS

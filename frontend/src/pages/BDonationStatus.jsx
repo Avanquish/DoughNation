@@ -271,6 +271,7 @@ const BDonationStatus = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [highlightedId, setHighlightedId] = useState(null);
   const [selectedDonation, setSelectedDonation] = useState(null);
+  const [employees, setEmployees] = useState([]);
 
   const [acceptedNorm, setAcceptedNorm] = useState([]);
   const [pendingNorm, setPendingNorm] = useState([]);
@@ -286,10 +287,23 @@ const BDonationStatus = () => {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
     if (!token) return;
     try {
       const decoded = JSON.parse(atob(token.split(".")[1]));
+      
+      // Handle employee token
+      if (decoded.type === "employee") {
+        setCurrentUser({
+          id: decoded.bakery_id,
+          role: "bakery",
+          employeeName: decoded.employee_name,
+          employeeRole: decoded.employee_role,
+        });
+        return;
+      }
+      
+      // Handle regular user token
       setCurrentUser({
         id: Number(decoded.sub),
         role: decoded.role.toLowerCase(),
@@ -318,7 +332,7 @@ const BDonationStatus = () => {
     currentStatus,
     isDirect = false
   ) => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
     if (!token) return;
 
     const nextStatusMap = {
@@ -375,7 +389,7 @@ const BDonationStatus = () => {
 
   useEffect(() => {
     if (!currentUser) return;
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
 
     if (currentUser.role === "charity" || currentUser.role === "bakery") {
       const url =
@@ -453,7 +467,7 @@ const BDonationStatus = () => {
 
   const fetchEmployees = async () => {
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
       const opts = token
         ? { headers: { Authorization: `Bearer ${token}` } }
         : {};

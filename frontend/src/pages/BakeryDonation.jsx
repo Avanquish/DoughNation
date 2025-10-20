@@ -137,7 +137,8 @@ const BakeryDonation = ({ highlightedDonationId }) => {
     image_file: null,
   });
 
-  const token = localStorage.getItem("token");
+  // Get the appropriate token (employee token takes priority if it exists)
+  const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
 
   /* ---------- data fetch ---------- */

@@ -30,7 +30,8 @@ export default function ComplaintModule() {
 
   const fetchComplaints = async () => {
     try {
-      const token = localStorage.getItem("token");
+      // Get the appropriate token (employee token takes priority if it exists)
+      const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
       const res = await axios.get("http://127.0.0.1:8000/complaints/me", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -53,7 +54,8 @@ export default function ComplaintModule() {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem("token");
+      // Get the appropriate token (employee token takes priority if it exists)
+      const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
       await axios.post("http://127.0.0.1:8000/complaints/", formData, {
         headers: { Authorization: `Bearer ${token}` },
       });

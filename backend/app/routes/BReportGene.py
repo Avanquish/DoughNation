@@ -10,25 +10,26 @@ router = APIRouter(
     tags=["Reports"]
 )
 
-def check_bakery(current_user: models.User = Depends(auth.get_current_user)):
-    if current_user.role != "Bakery":
-        raise HTTPException(status_code=403, detail="Not authorized")
-    return current_user
+def check_bakery_or_employee(current_auth = Depends(auth.get_current_user_or_employee)):
+    """Allow both bakery owners and employees to access reports"""
+    bakery_id = auth.get_bakery_id_from_auth(current_auth)
+    return current_auth, bakery_id
 
 from sqlalchemy.orm import joinedload
 
 @router.get("/donation_history")
 def donation_history(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(check_bakery),  # restrict to bakeries
+    auth_data = Depends(check_bakery_or_employee),  # Allow bakeries and employees
 ):
+    current_auth, bakery_id = auth_data
     results = []
 
     # For bakeries — donations they sent
     donation_requests = (
         db.query(models.DonationRequest)
         .filter(
-            models.DonationRequest.bakery_id == current_user.id,
+            models.DonationRequest.bakery_id == bakery_id,
             models.DonationRequest.tracking_status == "complete",
             models.DonationRequest.tracking_completed_at != None,
         )
@@ -40,7 +41,7 @@ def donation_history(
         db.query(models.DirectDonation)
         .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
         .filter(
-            models.BakeryInventory.bakery_id == current_user.id,
+            models.BakeryInventory.bakery_id == bakery_id,
             models.DirectDonation.btracking_status == "complete",
             models.DirectDonation.btracking_completed_at != None,
         )
@@ -80,15 +81,16 @@ def donation_history(
 @router.get("/expiry_loss")
 def expiry_loss_report(
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(check_bakery)
+    auth_data = Depends(check_bakery_or_employee)
 ):
+    current_auth, bakery_id = auth_data
     expired = (
         db.query(models.BakeryInventory)
         .options(
             joinedload(models.BakeryInventory.bakery)  # join bakery relationship
         )
         .filter(
-            models.BakeryInventory.bakery_id == current_user.id,
+            models.BakeryInventory.bakery_id == bakery_id,
             models.BakeryInventory.expiration_date < datetime.utcnow(),
             models.BakeryInventory.status != "donated",
         )
@@ -115,8 +117,9 @@ def expiry_loss_report(
 @router.get("/top_items")
 def top_donated_items(
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(check_bakery)
+    auth_data = Depends(check_bakery_or_employee)
 ):
+    current_auth, bakery_id = auth_data
     # --- Direct donations (only complete) ---
     direct_items = (
         db.query(
@@ -127,7 +130,7 @@ def top_donated_items(
             models.BakeryInventory,
             models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id,
         )
-        .filter(models.BakeryInventory.bakery_id == current_user.id)
+        .filter(models.BakeryInventory.bakery_id == bakery_id)
         .filter(models.DirectDonation.btracking_status == "complete")
         .group_by(models.DirectDonation.name)
         .all()
@@ -139,7 +142,7 @@ def top_donated_items(
             models.DonationRequest.donation_name.label("product_name"),
             func.sum(models.DonationRequest.donation_quantity).label("quantity"),
         )
-        .filter(models.DonationRequest.bakery_id == current_user.id)
+        .filter(models.DonationRequest.bakery_id == bakery_id)
         .filter(models.DonationRequest.tracking_status == "complete")
         .group_by(models.DonationRequest.donation_name)
         .all()
@@ -166,8 +169,9 @@ def top_donated_items(
 @router.get("/charity_list")
 def charity_list_report(
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(check_bakery)
+    auth_data = Depends(check_bakery_or_employee)
 ):
+    current_auth, bakery_id = auth_data
     from collections import defaultdict
 
     charities = defaultdict(lambda: {
@@ -186,7 +190,7 @@ def charity_list_report(
         db.query(models.DonationRequest)
         .join(models.User, models.DonationRequest.charity_id == models.User.id)
         .filter(
-            models.DonationRequest.bakery_id == current_user.id,
+            models.DonationRequest.bakery_id == bakery_id,
             models.DonationRequest.tracking_status == "complete"
         )
         .options(joinedload(models.DonationRequest.charity))
@@ -208,7 +212,7 @@ def charity_list_report(
         db.query(models.DirectDonation)
         .join(models.User, models.DirectDonation.charity_id == models.User.id)
         .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
-        .filter(models.BakeryInventory.bakery_id == current_user.id,
+        .filter(models.BakeryInventory.bakery_id == bakery_id,
                 models.DirectDonation.btracking_status == "complete"
         )
          
@@ -257,8 +261,9 @@ def weekly_summary(
     start_date: str | None = Query(None, description="Week start date YYYY-MM-DD"),
     end_date: str | None = Query(None, description="Week end date YYYY-MM-DD"),
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(check_bakery)
+    auth_data = Depends(check_bakery_or_employee)
 ):
+    current_auth, bakery_id = auth_data
     today = datetime.utcnow().date()
     week_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else today - timedelta(days=7)
     week_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else today
@@ -270,7 +275,7 @@ def weekly_summary(
     direct_donations = (
         db.query(func.coalesce(func.sum(models.DirectDonation.quantity), 0))
         .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
-        .filter(models.BakeryInventory.bakery_id == current_user.id)
+        .filter(models.BakeryInventory.bakery_id == bakery_id)
         .filter(models.DirectDonation.btracking_status == "complete")
         .filter(models.DirectDonation.btracking_completed_at != None)
         .filter(models.DirectDonation.btracking_completed_at >= week_start,
@@ -281,7 +286,7 @@ def weekly_summary(
     # --- Donation Requests (completed this week) ---
     request_donations = (
         db.query(func.coalesce(func.sum(models.DonationRequest.donation_quantity), 0))
-        .filter(models.DonationRequest.bakery_id == current_user.id)
+        .filter(models.DonationRequest.bakery_id == bakery_id)
         .filter(models.DonationRequest.tracking_status == "complete")
         .filter(models.DonationRequest.tracking_completed_at != None)
         .filter(models.DonationRequest.tracking_completed_at >= week_start,
@@ -292,7 +297,7 @@ def weekly_summary(
     # --- Expired products (exclude donated/complete items) ---
     expired_total = (
         db.query(func.sum(models.BakeryInventory.quantity))
-        .filter(models.BakeryInventory.bakery_id == current_user.id)
+        .filter(models.BakeryInventory.bakery_id == bakery_id)
         .filter(models.BakeryInventory.status != "donated")   # or "complete"
         .filter(models.BakeryInventory.expiration_date >= week_start,
                 models.BakeryInventory.expiration_date < week_end_inclusive)
@@ -302,7 +307,7 @@ def weekly_summary(
     # --- Available products (not expired, not donated/complete) ---
     available_total = (
         db.query(func.sum(models.BakeryInventory.quantity))
-        .filter(models.BakeryInventory.bakery_id == current_user.id)
+        .filter(models.BakeryInventory.bakery_id == bakery_id)
         .filter(models.BakeryInventory.status == "available")
         .filter(models.BakeryInventory.expiration_date >= week_start,
                 models.BakeryInventory.expiration_date < week_end_inclusive)
@@ -315,7 +320,7 @@ def weekly_summary(
             models.DonationRequest.donation_name.label("product_name"),
             func.sum(models.DonationRequest.donation_quantity).label("quantity"),
         )
-        .filter(models.DonationRequest.bakery_id == current_user.id)
+        .filter(models.DonationRequest.bakery_id == bakery_id)
         .filter(models.DonationRequest.tracking_status == "complete")
         .filter(models.DonationRequest.tracking_completed_at != None)
         .filter(models.DonationRequest.tracking_completed_at >= week_start,
@@ -327,7 +332,7 @@ def weekly_summary(
                 func.sum(models.DirectDonation.quantity).label("quantity"),
             )
             .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
-            .filter(models.BakeryInventory.bakery_id == current_user.id)
+            .filter(models.BakeryInventory.bakery_id == bakery_id)
             .filter(models.DirectDonation.btracking_status == "complete")
             .filter(models.DirectDonation.btracking_completed_at != None)
             .filter(models.DirectDonation.btracking_completed_at >= week_start,
@@ -347,10 +352,17 @@ def weekly_summary(
         key=lambda x: x["quantity"],
         reverse=True
     )[:10]
+    
+    # Get bakery name
+    if isinstance(current_auth, dict):
+        bakery_user = db.query(models.User).filter(models.User.id == bakery_id).first()
+        bakery_name = bakery_user.name if bakery_user else "Unknown"
+    else:
+        bakery_name = current_auth.name
 
     return {
-        "bakery_id": current_user.id,
-        "bakery_name": current_user.name,
+        "bakery_id": bakery_id,
+        "bakery_name": bakery_name,
         "week_start": str(week_start),
         "week_end": str(week_end),
         "total_direct_donations": direct_donations or 0,
@@ -366,8 +378,9 @@ def weekly_summary(
 def monthly_summary(
     month: str | None = Query(None, description="Month YYYY-MM, e.g. 2025-09"),
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(check_bakery)
+    auth_data = Depends(check_bakery_or_employee)
 ):
+    current_auth, bakery_id = auth_data
     today = datetime.utcnow().date()
     if month:
         try:
@@ -389,7 +402,7 @@ def monthly_summary(
     direct_donations = (
         db.query(func.coalesce(func.sum(models.DirectDonation.quantity), 0))
         .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
-        .filter(models.BakeryInventory.bakery_id == current_user.id)
+        .filter(models.BakeryInventory.bakery_id == bakery_id)
         .filter(models.DirectDonation.btracking_status == "complete")
         .filter(models.DirectDonation.btracking_completed_at != None)
         .filter(models.DirectDonation.btracking_completed_at >= start_date,
@@ -400,7 +413,7 @@ def monthly_summary(
     # --- Donation Requests (completed this month) ---
     request_donations = (
         db.query(func.coalesce(func.sum(models.DonationRequest.donation_quantity), 0))
-        .filter(models.DonationRequest.bakery_id == current_user.id)
+        .filter(models.DonationRequest.bakery_id == bakery_id)
         .filter(models.DonationRequest.tracking_status == "complete")
         .filter(models.DonationRequest.tracking_completed_at != None)
         .filter(models.DonationRequest.tracking_completed_at >= start_date,
@@ -414,7 +427,7 @@ def monthly_summary(
             models.DonationRequest.donation_name.label("product_name"),
             func.sum(models.DonationRequest.donation_quantity).label("quantity"),
         )
-        .filter(models.DonationRequest.bakery_id == current_user.id)
+        .filter(models.DonationRequest.bakery_id == bakery_id)
         .filter(models.DonationRequest.tracking_status == "complete")
         .filter(models.DonationRequest.tracking_completed_at != None)
         .filter(models.DonationRequest.tracking_completed_at >= start_date,
@@ -426,7 +439,7 @@ def monthly_summary(
                 func.sum(models.DirectDonation.quantity).label("quantity"),
             )
             .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
-            .filter(models.BakeryInventory.bakery_id == current_user.id)
+            .filter(models.BakeryInventory.bakery_id == bakery_id)
             .filter(models.DirectDonation.btracking_status == "complete")
             .filter(models.DirectDonation.btracking_completed_at != None)
             .filter(models.DirectDonation.btracking_completed_at >= start_date,
@@ -439,7 +452,7 @@ def monthly_summary(
     # --- Expired / Available products ---
     expired_total = (
         db.query(func.sum(models.BakeryInventory.quantity))
-        .filter(models.BakeryInventory.bakery_id == current_user.id)
+        .filter(models.BakeryInventory.bakery_id == bakery_id)
         .filter(models.BakeryInventory.status != "donated")
         .filter(models.BakeryInventory.expiration_date >= start_date,
                 models.BakeryInventory.expiration_date < end_date_inclusive)
@@ -448,7 +461,7 @@ def monthly_summary(
 
     available_total = (
         db.query(func.sum(models.BakeryInventory.quantity))
-        .filter(models.BakeryInventory.bakery_id == current_user.id)
+        .filter(models.BakeryInventory.bakery_id == bakery_id)
         .filter(models.BakeryInventory.status == "available")
         .filter(models.BakeryInventory.expiration_date >= start_date,
                 models.BakeryInventory.expiration_date < end_date_inclusive)
@@ -465,6 +478,13 @@ def monthly_summary(
         key=lambda x: x["quantity"],
         reverse=True
     )[:10]
+    
+    # Get bakery name
+    if isinstance(current_auth, dict):
+        bakery_user = db.query(models.User).filter(models.User.id == bakery_id).first()
+        bakery_name = bakery_user.name if bakery_user else "Unknown"
+    else:
+        bakery_name = current_auth.name
 
     return {
         "month": start_date.strftime("%Y-%m"),
@@ -478,7 +498,18 @@ def monthly_summary(
 
 
 @router.get("/bakery-info")
-def bakery_info(current_user: models.User = Depends(check_bakery)):
+def bakery_info(auth_data = Depends(check_bakery_or_employee), db: Session = Depends(database.get_db)):
+    current_auth, bakery_id = auth_data
+    
+    # If it's an employee, fetch the bakery user info
+    if isinstance(current_auth, dict):
+        bakery_user = db.query(models.User).filter(models.User.id == bakery_id).first()
+        if not bakery_user:
+            raise HTTPException(status_code=404, detail="Bakery not found")
+        current_user = bakery_user
+    else:
+        current_user = current_auth
+    
     return {
         "profile": current_user.profile_picture,
         "name": current_user.name,

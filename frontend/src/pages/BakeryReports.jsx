@@ -35,6 +35,8 @@ export default function BakeryReports() {
   const [savedWeekEnd, setSavedWeekEnd] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState("");
   const [savedMonth, setSavedMonth] = useState(null);
+  const [employees, setEmployees] = useState([]);
+  const [employeeName, setEmployeeName] = useState("");
   const COLORS_STATUS = ["#28a745", "#007bff", "#dc3545"]; // Green, Blue, Red
   const COLORS_TYPE = ["#17a2b8", "#ffc107"]; // Direct vs Request
 
@@ -145,7 +147,8 @@ export default function BakeryReports() {
     setLoading(true);
     setActiveReport(type);
     try {
-      const token = localStorage.getItem("token");
+      // Get the appropriate token (employee token takes priority if it exists)
+      const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
       let url = `${API_URL}/reports/${type}`;
 
       if (type === "weekly" && param?.start && param?.end) {
@@ -180,7 +183,8 @@ export default function BakeryReports() {
 
   const fetchEmployees = async () => {
     try {
-      const token = localStorage.getItem("token");
+      // Get the appropriate token (employee token takes priority if it exists)
+      const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
       const opts = token
         ? { headers: { Authorization: `Bearer ${token}` } }
         : {};
@@ -190,6 +194,34 @@ export default function BakeryReports() {
       console.error("Failed to fetch employees:", e);
     }
   };
+
+  // Get logged-in user's name from token
+  useEffect(() => {
+    const employeeToken = localStorage.getItem("employeeToken");
+    const bakeryToken = localStorage.getItem("token");
+    
+    let name = "System";
+    
+    if (employeeToken) {
+      // Decode employee JWT token
+      try {
+        const payload = JSON.parse(atob(employeeToken.split('.')[1]));
+        name = payload.employee_name || "Employee";
+      } catch (e) {
+        console.error("Failed to decode employee token", e);
+      }
+    } else if (bakeryToken) {
+      // Decode bakery owner JWT token
+      try {
+        const payload = JSON.parse(atob(bakeryToken.split('.')[1]));
+        name = payload.name || "Bakery Owner";
+      } catch (e) {
+        console.error("Failed to decode bakery token", e);
+      }
+    }
+    
+    setEmployeeName(name);
+  }, []);
 
   useEffect(() => {
     fetchEmployees();

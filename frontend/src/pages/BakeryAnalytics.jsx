@@ -28,7 +28,8 @@ const BakeryAnalytics = ({ currentUser }) => {
 useEffect(() => {
   const fetchStats = async () => {
     try {
-      const token = localStorage.getItem("token");
+      // Get the appropriate token (employee token takes priority if it exists)
+      const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const res = await axios.get(`${API}/analytics`, { headers });
       console.log("DashAnalytics", res.data);

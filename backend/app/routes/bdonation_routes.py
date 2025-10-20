@@ -10,12 +10,12 @@ router = APIRouter()
 @router.get("/donations", response_model=List[schemas.DonationBase])
 def get_donations(
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(auth.ensure_verified_user)
+    current_auth = Depends(auth.get_current_user_or_employee)
 ):
-    if current_user.role.lower() != "bakery":
-        raise HTTPException(status_code=403, detail="Only bakeries can view donation")
+    # Get bakery_id from either user or employee
+    bakery_id = auth.get_bakery_id_from_auth(current_auth)
 
-    donations = crud.list_donations(db, bakery_id=current_user.id)
+    donations = crud.list_donations(db, bakery_id=bakery_id)
 
     for donation in donations:
         if donation.image and donation.image.startswith("uploads/bakery_inventory/"):

@@ -59,15 +59,15 @@ def add_inventory(
 @router.get("/inventory", response_model=List[schemas.BakeryInventoryOut])
 def list_inventory(
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(auth.ensure_verified_user)
+    current_auth = Depends(auth.get_current_user_or_employee)
 ):
-    if current_user.role.lower() != "bakery":
-        raise HTTPException(status_code=403, detail="Only bakeries can view inventory")
+    # Get bakery_id from either user or employee
+    bakery_id = auth.get_bakery_id_from_auth(current_auth)
     
     # To apply the edit on bakery inventory table
     check_inventory_status(db)
 
-    inventory_items = crud.list_inventory(db, bakery_id=current_user.id)
+    inventory_items = crud.list_inventory(db, bakery_id=bakery_id)
     updated_items = []
 
     for item in inventory_items:

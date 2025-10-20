@@ -135,8 +135,11 @@ const Login = () => {
         return;
       }
 
-      if (actualRole === "Bakery") navigate(`/bakery-dashboard/${sub}`);
-      else if (actualRole === "Charity") navigate(`/charity-dashboard/${sub}`);
+      if (actualRole === "Bakery") {
+        // Store bakery ID and redirect to employee login
+        localStorage.setItem("bakery_id_for_employee_login", sub);
+        navigate(`/employee-login?bakery_id=${sub}`);
+      } else if (actualRole === "Charity") navigate(`/charity-dashboard/${sub}`);
       else if (actualRole === "Admin") navigate(`/admin-dashboard/${sub}`);
     } catch (error) {
       console.error("Login error:", error);

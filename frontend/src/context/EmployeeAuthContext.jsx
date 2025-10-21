@@ -14,6 +14,7 @@ export const EmployeeAuthProvider = ({ children }) => {
         employee_name: decoded.employee_name,
         employee_role: decoded.employee_role,
         bakery_id: decoded.bakery_id,
+        requires_password_change: decoded.requires_password_change || false,
         token
       };
     } catch {
@@ -29,6 +30,7 @@ export const EmployeeAuthProvider = ({ children }) => {
       employee_name: decoded.employee_name,
       employee_role: decoded.employee_role,
       bakery_id: decoded.bakery_id,
+      requires_password_change: decoded.requires_password_change || false,
       token
     };
     setEmployee(employeeData);

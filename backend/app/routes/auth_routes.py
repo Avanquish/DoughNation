@@ -30,19 +30,104 @@ async def register(
     )
 
 @router.post("/login", response_model=schemas.Token)
-def login(user: schemas.UserLogin, db: Session = Depends(database.get_db)):
-    db_user = db.query(models.User).filter(models.User.email == user.email).first()
+def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db)):
+    """
+    🔑 UNIFIED LOGIN SYSTEM
     
-    if not db_user or not verify_password(user.password, db_user.hashed_password):
+    Supports both User (Bakery/Charity/Admin) and Employee accounts:
+    - Users log in with EMAIL + PASSWORD
+    - Employees log in with NAME + PASSWORD (identifier field accepts name)
+    
+    Returns JWT with:
+    - type: "bakery" | "charity" | "admin" | "employee"
+    - role: user's specific role
+    - appropriate ID fields
+    
+    🚫 RESTRICTION: Part-time employees CANNOT log in
+    """
+    print(f"\n{'='*80}")
+    print(f"🔐 UNIFIED LOGIN ATTEMPT")
+    print(f"   Identifier: '{user.email}'")
+    print(f"   Password: {'*' * len(user.password)}")
+    
+    identifier = user.email.strip()
+    
+    # STEP 1: Try to find User account (Bakery/Charity/Admin) by EMAIL
+    db_user = db.query(models.User).filter(models.User.email == identifier).first()
+    
+    if db_user:
+        # Found a User account - verify password
+        if not verify_password(user.password, db_user.hashed_password):
+            print(f"❌ Invalid password for User account")
+            print(f"{'='*80}\n")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        print(f"✅ User authenticated: {db_user.name} (Role: {db_user.role})")
+        print(f"{'='*80}\n")
+        
+        # Generate token with type based on role
+        token_data = {
+            "sub": str(db_user.id),
+            "type": db_user.role.lower(),  # "bakery", "charity", or "admin"
+            "role": db_user.role,
+            "name": db_user.name,
+            "is_verified": db_user.verified
+        }
+        
+        token = create_access_token(token_data)
+        return {"access_token": token, "token_type": "bearer"}
+    
+    # STEP 2: Try to find Employee account by NAME
+    # Search across ALL bakeries (employee might not know bakery_id at login)
+    employees = db.query(models.Employee).filter(
+        models.Employee.name == identifier
+    ).all()
+    
+    if not employees:
+        print(f"❌ No User or Employee found with identifier: '{identifier}'")
+        print(f"{'='*80}\n")
         raise HTTPException(status_code=401, detail="Invalid credentials")
-
+    
+    # If multiple employees with same name exist, try to authenticate with each
+    authenticated_employee = None
+    for emp in employees:
+        if emp.hashed_password and verify_password(user.password, emp.hashed_password):
+            authenticated_employee = emp
+            break
+    
+    if not authenticated_employee:
+        print(f"❌ Invalid password for Employee account(s)")
+        print(f"{'='*80}\n")
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    # 🚫 BLOCK PART-TIME EMPLOYEES
+    employee_role_normalized = authenticated_employee.role.lower().replace("-", "").replace(" ", "")
+    if "parttime" in employee_role_normalized or employee_role_normalized == "part":
+        print(f"🚫 Part-time employee login blocked: {authenticated_employee.name}")
+        print(f"{'='*80}\n")
+        raise HTTPException(
+            status_code=403, 
+            detail="Part-time employees cannot access the system. Please contact your manager if you believe this is an error."
+        )
+    
+    print(f"✅ Employee authenticated: {authenticated_employee.name} (Role: {authenticated_employee.role})")
+    print(f"   Bakery ID: {authenticated_employee.bakery_id}")
+    print(f"{'='*80}\n")
+    
+    # 🔐 CHECK IF EMPLOYEE IS USING DEFAULT PASSWORD
+    is_default_password = verify_password("Employee123!", authenticated_employee.hashed_password)
+    
+    # Generate employee token
     token_data = {
-        "sub": str(db_user.id),
-        "role": db_user.role,
-        "name": db_user.name,
-        "is_verified": db_user.verified
+        "type": "employee",
+        "employee_id": authenticated_employee.id,
+        "employee_name": authenticated_employee.name,
+        "employee_role": authenticated_employee.role,
+        "bakery_id": authenticated_employee.bakery_id,
+        "sub": str(authenticated_employee.bakery_id),  # For compatibility
+        "requires_password_change": is_default_password  # Flag for first-time login
     }
-
+    
     token = create_access_token(token_data)
     return {"access_token": token, "token_type": "bearer"}
 
@@ -515,8 +600,22 @@ def employee_change_password(
     print(f"✅ Password changed successfully for {employee.name}")
     print(f"{'='*80}\n")
 
+    # 🔑 GENERATE NEW TOKEN (without requires_password_change flag)
+    new_token_data = {
+        "type": "employee",
+        "employee_id": employee.id,
+        "employee_name": employee.name,
+        "employee_role": employee.role,
+        "bakery_id": employee.bakery_id,
+        "sub": str(employee.bakery_id),
+        "requires_password_change": False  # Password has been changed
+    }
+    new_token = create_access_token(new_token_data)
+
     return {
         "message": "Password changed successfully",
         "employee_id": employee.id,
-        "employee_name": employee.name
+        "employee_name": employee.name,
+        "access_token": new_token,  # Return new token
+        "token_type": "bearer"
     }

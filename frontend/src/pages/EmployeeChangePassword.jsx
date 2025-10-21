@@ -20,7 +20,7 @@ import { Eye, EyeOff, Lock, AlertCircle } from "lucide-react";
 const API = "http://localhost:8000";
 
 const EmployeeChangePassword = () => {
-  const { employee } = useEmployeeAuth();
+  const { employee, login: employeeLogin, logout: employeeLogout } = useEmployeeAuth();
   const navigate = useNavigate();
 
   // Debug: Check if component is rendering
@@ -165,7 +165,7 @@ const EmployeeChangePassword = () => {
 
       console.log("📤 Sending password change request with token");
       
-      await axios.post(
+      const response = await axios.post(
         `${API}/employee-change-password`,
         {
           current_password: currentPassword,
@@ -179,17 +179,24 @@ const EmployeeChangePassword = () => {
         }
       );
 
+      // 🔑 UPDATE TOKEN WITH NEW ONE (without requires_password_change flag)
+      if (response.data.access_token) {
+        const newToken = response.data.access_token;
+        employeeLogin(newToken); // Update context with new token
+      }
+
       Swal.fire({
         icon: "success",
         title: "Password Changed",
-        text: "Your password has been updated successfully!",
-        timer: 1500,
+        text: "Your password has been updated successfully! Please login again with your new password.",
+        timer: 2500,
       });
 
-      // Redirect to dashboard
+      // Logout employee and redirect to Home page (employee needs to login again with new password)
       setTimeout(() => {
-        navigate(`/bakery-dashboard/${employee?.bakery_id}?mode=employee`);
-      }, 1500);
+        employeeLogout(); // Clear employee session
+        navigate("/");
+      }, 2500);
     } catch (error) {
       console.error("Password change error:", error);
       const detail =

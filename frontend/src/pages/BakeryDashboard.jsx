@@ -120,6 +120,10 @@ const BakeryDashboard = () => {
       setIsEmployeeMode(true);
       setEmployeeRole(employee.employee_role);
       setName(employee.employee_name);
+      setIsVerified(true); // ✅ Employees are always verified (part of verified bakery)
+      
+      // Set a loading placeholder immediately
+      setBakeryName("Loading...");
       
       // Fetch bakery name using employee token
       const employeeToken = localStorage.getItem("employeeToken");
@@ -129,12 +133,15 @@ const BakeryDashboard = () => {
             headers: { Authorization: `Bearer ${employeeToken}` },
           })
           .then((res) => {
-            setBakeryName(res.data.name);
+            setBakeryName(res.data.name || "Bakery");
           })
           .catch((err) => {
             console.error("Failed to fetch bakery name:", err);
             setBakeryName("Bakery");
           });
+      } else {
+        // If no token, fallback to generic name
+        setBakeryName("Bakery");
       }
     }
   }, [employee, id]);
@@ -146,25 +153,30 @@ const BakeryDashboard = () => {
       return ALLOWED_TABS;
     }
 
-    // Role-based tab visibility
-    const role = employeeRole.toLowerCase();
+    // Normalize role for comparison (remove spaces, hyphens, lowercase)
+    const role = employeeRole.toLowerCase().replace(/[-\s]/g, "");
     
+    // 👑 OWNER & MANAGER: Full access to ALL tabs
     if (role === "owner" || role === "manager") {
-      // Full access - all tabs
       return ALLOWED_TABS;
-    } else if (role === "full-time" || role === "full time staff" || role === "full-time staff") {
-      // Full-time can access: dashboard, inventory, donations, donation status, complaints, feedback, badges
-      // Cannot access: employee management, reports
+    } 
+    
+    // 👷 FULL-TIME: Limited access
+    // Can access: dashboard, inventory, donations, donation status, complaints, feedback (view only), badges
+    // Cannot access: employee management, reports
+    else if (role.includes("fulltime") || role === "full") {
       return ALLOWED_TABS.filter(
         (tab) => tab !== "employee" && tab !== "reports"
       );
-    } else if (role === "part-time" || role === "part time staff" || role === "part-time staff") {
-      // Part-time cannot log in (handled at login level)
-      // If they somehow access, show nothing
+    } 
+    
+    // 🚫 PART-TIME: Should not be able to log in (handled at backend)
+    // If they somehow access, show nothing
+    else if (role.includes("parttime") || role === "part") {
       return [];
     }
     
-    // Default: show all tabs
+    // Default: show all tabs (fallback for unknown roles)
     return ALLOWED_TABS;
   };
 
@@ -208,8 +220,11 @@ const BakeryDashboard = () => {
     let decoded;
     try {
       decoded = JSON.parse(atob(token.split(".")[1]));
-      setName(decoded.name || "Madam Bakery");
-      setBakeryName(decoded.name || "Bakery"); // Set bakery name from token for owners
+      // Only set name and bakeryName for bakery owners (not employees)
+      if (!isEmployeeMode) {
+        setName(decoded.name || "Madam Bakery");
+        setBakeryName(decoded.name || "Bakery");
+      }
       setIsVerified(decoded.is_verified);
       const userId =
         decoded.sub || decoded.id || decoded.user_id || decoded._id;
@@ -244,7 +259,7 @@ const BakeryDashboard = () => {
     } catch {
       // token decode error
     }
-  }, []);
+  }, [isEmployeeMode]);
 
   // Fetch inventory, employees, uploaded and donated products
   useEffect(() => {

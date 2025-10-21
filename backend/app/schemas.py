@@ -30,7 +30,7 @@ class UserOut(BaseModel):
         from_attributes = True
 
 class UserLogin(BaseModel):
-    email: EmailStr
+    email: str  # Changed from EmailStr to str - now accepts both email and employee name
     password: str
 
 class Token(BaseModel):

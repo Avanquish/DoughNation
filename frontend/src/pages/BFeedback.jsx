@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { FaStar } from "react-icons/fa";
+import { jwtDecode } from "jwt-decode";
 
 const API = "http://localhost:8000";
 
@@ -60,7 +61,28 @@ export default function BakeryFeedback() {
   const [feedbacks, setFeedbacks] = useState([]);
   const [replying, setReplying] = useState(null);
   const [replyMessage, setReplyMessage] = useState("");
-  const token = localStorage.getItem("token");
+  
+  // Get token (employee token takes priority)
+  const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
+  
+  // Check if user is a full-time employee (view-only mode)
+  const [isViewOnly, setIsViewOnly] = useState(false);
+  
+  useEffect(() => {
+    if (token) {
+      try {
+        const decoded = jwtDecode(token);
+        // Full-time employees have view-only access
+        if (decoded.type === "employee" && decoded.employee_role) {
+          const role = decoded.employee_role.toLowerCase().replace(/[-\s]/g, "");
+          setIsViewOnly(role.includes("fulltime") || role === "full");
+        }
+      } catch (e) {
+        console.error("Failed to decode token:", e);
+      }
+    }
+  }, [token]);
+  
   const rootRef = useRef(null);
 
   useEffect(() => {
@@ -256,47 +278,62 @@ export default function BakeryFeedback() {
                     )}
 
                     {/* Reply */}
-                    <div
-                      className="mt-5 pt-4 border-t"
-                      style={{ borderColor: brand.cardBorder }}
-                    >
-                      {f.reply_message ? (
+                    {!isViewOnly && (
+                      <div
+                        className="mt-5 pt-4 border-t"
+                        style={{ borderColor: brand.cardBorder }}
+                      >
+                        {f.reply_message ? (
+                          <div className="rounded-xl bg-[#e9f9ef] border border-[#c7ecd5] px-3.5 py-2 text-[13px] text-[#1b5c30]">
+                            <span className="font-semibold">Bakery Reply:</span>{" "}
+                            {f.reply_message}
+                          </div>
+                        ) : replying === f.id ? (
+                          <div>
+                            <textarea
+                              value={replyMessage}
+                              onChange={(e) => setReplyMessage(e.target.value)}
+                              placeholder="Write your reply..."
+                              className="w-full rounded-xl border border-[#f2d4b5] bg-white p-2.5 outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52]"
+                            />
+                            <div className="mt-3 flex flex-wrap justify-end gap-2">
+                              <button onClick={saveReply} className={primaryBtn}>
+                                Save Reply
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setReplying(null);
+                                  setReplyMessage("");
+                                }}
+                                className={cancelBtn}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setReplying(f.id)}
+                            className={`${primaryBtn} mt-1`}
+                          >
+                            Reply
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Show reply if it exists, even in view-only mode */}
+                    {isViewOnly && f.reply_message && (
+                      <div
+                        className="mt-5 pt-4 border-t"
+                        style={{ borderColor: brand.cardBorder }}
+                      >
                         <div className="rounded-xl bg-[#e9f9ef] border border-[#c7ecd5] px-3.5 py-2 text-[13px] text-[#1b5c30]">
                           <span className="font-semibold">Bakery Reply:</span>{" "}
                           {f.reply_message}
                         </div>
-                      ) : replying === f.id ? (
-                        <div>
-                          <textarea
-                            value={replyMessage}
-                            onChange={(e) => setReplyMessage(e.target.value)}
-                            placeholder="Write your reply..."
-                            className="w-full rounded-xl border border-[#f2d4b5] bg-white p-2.5 outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52]"
-                          />
-                          <div className="mt-3 flex flex-wrap justify-end gap-2">
-                            <button onClick={saveReply} className={primaryBtn}>
-                              Save Reply
-                            </button>
-                            <button
-                              onClick={() => {
-                                setReplying(null);
-                                setReplyMessage("");
-                              }}
-                              className={cancelBtn}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setReplying(f.id)}
-                          className={`${primaryBtn} mt-1`}
-                        >
-                          Reply
-                        </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               );

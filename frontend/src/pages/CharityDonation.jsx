@@ -106,12 +106,28 @@ const Styles = () => (
       border-radius:12px;
     }
     .card-bouncy:hover .donation-img{ transform:scale(1.05); filter:saturate(1.02); }
+
+    /* Zoom animation for modal */
+  @keyframes zoomInModal {
+    0% {
+      opacity: 0;
+      transform: scale(0.85);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  .zoom-modal {
+    animation: zoomInModal 0.3s ease forwards;
+  }
   `}</style>
 );
 
 export default function CharityDonation() {
   const [donations, setDonations] = useState([]);
   const [requestedDonations, setRequestedDonations] = useState({}); // donation_id -> request_id
+  const [selectedDonation, setSelectedDonation] = useState(null);
 
   // Fetching data
   useEffect(() => {
@@ -145,42 +161,69 @@ export default function CharityDonation() {
   }, []);
 
   // Request donation
-  const requestDonation = async (donation) => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.post(
-        `${API}/donation/request`,
-        { donation_id: donation.id, bakery_id: donation.bakery_id },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+const requestDonation = async (donation) => {
+   console.log("DONATION OBJECT BEING REQUESTED:", donation);
+   console.log("bakery_inventory_id on donation:", donation.bakery_inventory_id);
+  try {
+    const token = localStorage.getItem("token");
+    const res = await axios.post(
+      `${API}/donation/request`,
+      { donation_id: donation.id, bakery_id: donation.bakery_id },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
 
-      const requestId = res.data.request_id;
-      setRequestedDonations((prev) => {
-        const updated = { ...prev, [donation.id]: requestId };
-        localStorage.setItem("requestedDonations", JSON.stringify(updated));
-        return updated;
-      });
+    const requestId = res.data.request_id;
+    
+    // FETCH the full DonationRequest that was just created
+    const requestRes = await axios.get(
+      `${API}/donation/my_requests`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    
+    // Find the one we just created
+    const newRequest = requestRes.data.find((req) => req.id === requestId);
 
-      // Handoff to Messenger
-      const bakeryInfo = {
-        id: donation.bakery_id,
-        name: donation.bakery_name,
-        profile_picture: donation.bakery_profile_picture || null,
-      };
-      localStorage.setItem("open_chat_with", JSON.stringify(bakeryInfo));
-      localStorage.setItem("send_donation", JSON.stringify(donation));
-      window.dispatchEvent(new Event("open_chat"));
+    setRequestedDonations((prev) => {
+      const updated = { ...prev, [donation.id]: requestId };
+      return updated;
+    });
 
-      Swal.fire("Success", "Donation request sent!", "success");
-    } catch (err) {
-      console.error(err);
-      Swal.fire(
-        "Error",
-        err.response?.data?.detail || "Failed to request donation",
-        "error"
-      );
-    }
-  };
+    // Combine request data with full donation object
+    const donationCardData = {
+      ...newRequest,                   
+      id: newRequest.id,                
+      product_name: donation.name,      
+      name: donation.name,              
+      image: donation.image,            
+      quantity: newRequest.donation_quantity || donation.quantity,  
+      expiration_date: donation.expiration_date,
+      bakery_id: donation.bakery_id,
+      bakery_name: donation.bakery_name,
+      bakery_profile_picture: donation.bakery_profile_picture,
+      bakery_inventory_id: newRequest.bakery_inventory_id  
+    };
+
+    // Handoff to Messenger with complete data
+    const bakeryInfo = {
+      id: donation.bakery_id,
+      name: donation.bakery_name,
+      profile_picture: donation.bakery_profile_picture || null,
+    };
+    
+    localStorage.setItem("open_chat_with", JSON.stringify(bakeryInfo));
+    localStorage.setItem("send_donation", JSON.stringify(donationCardData));
+    window.dispatchEvent(new Event("open_chat"));
+
+    Swal.fire("Success", "Donation request sent!", "success");
+  } catch (err) {
+    console.error(err);
+    Swal.fire(
+      "Error",
+      err.response?.data?.detail || "Failed to request donation",
+      "error"
+    );
+  }
+};
 
   const cancelRequest = async (donation_id) => {
     const request_id = requestedDonations[donation_id];
@@ -212,12 +255,73 @@ export default function CharityDonation() {
     }
   };
 
+  // Listen for highlight_donation event (from notification)
+  useEffect(() => {
+  const handleHighlightDonation = (e) => {
+    const donationId = Number(e.detail?.donation_id);
+    console.log("🟢 [Event Received] highlight_donation fired with ID:", donationId);
+    if (!donationId) return;
+    console.warn("⚠️ [HighlightDonation] No donation_id found in event detail.");
+
+   const targetDonation = donations.find((d) => Number(d.id) === donationId);
+   console.log("🔍 [HighlightDonation] Searching donation in main list...");
+    if (!targetDonation) return;
+
+    setSelectedDonation(targetDonation);
+
+    const element = document.getElementById(`donation-${donationId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      element.classList.add("animate-highlight");
+      setTimeout(() => element.classList.remove("animate-highlight"), 1500);
+    }
+  };
+
+  window.addEventListener("highlight_donation", handleHighlightDonation);
+  return () => window.removeEventListener("highlight_donation", handleHighlightDonation);
+}, [donations]);
+
+//Cancel is auto trigger if bakery click cancel in cards
+useEffect(() => {
+  const handleExternalCancel = (e) => {
+    const donationId = Number(e?.detail?.donation_id);
+    if (!donationId) return;
+    console.log("Received external cancel event for donation:", donationId);
+
+    // Remove request mapping if present
+    setRequestedDonations((prev) => {
+      const updated = { ...prev };
+      if (updated.hasOwnProperty(donationId)) {
+        delete updated[donationId];
+      }
+      // keep localStorage sync if you still use it elsewhere (optional)
+      try {
+        localStorage.setItem("requestedDonations", JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    // Remove donation card from visible list
+    setDonations((prev) => prev.filter((d) => Number(d.id) !== Number(donationId)));
+
+    // Optional small feedback
+    Swal.fire("Info", "Donation request canceled", "info");
+  };
+
+  window.addEventListener("donation_cancelled_by_messages", handleExternalCancel);
+  window.addEventListener("donation_cancelled", handleExternalCancel);
+  return () => {
+    window.removeEventListener("donation_cancelled_by_messages", handleExternalCancel);
+    window.removeEventListener("donation_cancelled", handleExternalCancel);
+  };
+}, []);
+
   return (
     <>
       <Styles />
 
       {/* HEADER + CONTENT PANEL */}
-      <div className="space-y-4 p-6">
+      <div className={`space-y-4 p-6 transition-all duration-300 ${selectedDonation ? "blur-sm" : ""}`}>
         <div className="flex items-center justify-between">
           <h2
             className="text-3xl sm:text-4xl font-extrabold"
@@ -254,9 +358,10 @@ export default function CharityDonation() {
                 return (
                   <div
                     key={donation.id}
+                    id={`donation-${donation.id}`}
                     className={`
                       card-bouncy group overflow-hidden
-                      hover:ring-1 hover:ring-[#E49A52]/35
+                      hover:ring-1 hover:ring-[#E49A52]/35 donation-card
                     `}
                   >
                     {/* Image header with status chip */}
@@ -416,6 +521,157 @@ export default function CharityDonation() {
           )}
         </div>
       </div>
+      {selectedDonation && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fadeIn"
+          onClick={() => setSelectedDonation(null)} // close when clicking outside
+        >
+          <div
+            className="relative bg-white rounded-2xl overflow-hidden shadow-2xl max-w-md w-full transform transition-all duration-300 scale-100"
+            onClick={(e) => e.stopPropagation()} // prevent close on inner click
+          >
+            {/* Close button */}
+            <button
+              onClick={() => setSelectedDonation(null)}
+              className="absolute top-3 right-3 z-10 bg-white/80 backdrop-blur-md rounded-full p-1 shadow-md text-[#6b4b2b] hover:text-[#3b2a18] transition"
+            >
+              ✕
+            </button>
+
+            {/* Image header with status chip */}
+            <div className="relative h-48 overflow-hidden">
+              {selectedDonation.image ? (
+                <img
+                  src={`${API}/${selectedDonation.image}`}
+                  alt={selectedDonation.name}
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.src = `${API}/static/placeholder.png`;
+                  }}
+                />
+              ) : (
+                <div className="h-full w-full grid place-items-center bg-[#FFF6E9] text-[#b88a5a]">
+                  No Image
+                </div>
+              )}
+
+              {/* Status chip (same logic as main donation cards) */}
+              {(() => {
+                const chip = statusChip(selectedDonation);
+                return (
+                  <div
+                    className={`absolute top-3 right-3 text-[11px] font-bold inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${chip.cls}`}
+                  >
+                    {chip.icon}
+                    {chip.text}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Body */}
+            <div className="p-5">
+              {/* Bakery info */}
+              <div className="flex items-center gap-2">
+                <img
+                  src={
+                    selectedDonation.bakery_profile_picture
+                      ? `${API}/${selectedDonation.bakery_profile_picture}`
+                      : `${API}/uploads/placeholder.png`
+                  }
+                  alt={selectedDonation.bakery_name}
+                  className="h-10 w-10 rounded-full object-cover border border-[#f2e3cf]"
+                />
+                <div className="min-w-0">
+                  <div
+                    className="text-sm font-semibold truncate"
+                    style={{ color: "#3b2a18" }}
+                  >
+                    {selectedDonation.bakery_name}
+                  </div>
+                  <div className="text-[11px]" style={{ color: "#7b5836" }}>
+                    Donor
+                  </div>
+                </div>
+              </div>
+
+              <h3
+                className="text-lg font-semibold mt-3"
+                style={{ color: "#3b2a18" }}
+              >
+                {selectedDonation.name}
+              </h3>
+
+              {/* Meta chips */}
+              <div className="mt-2 flex flex-wrap gap-2">
+                <span
+                  className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full
+                            bg-[#FFEFD9] border border-[#f3ddc0]"
+                  style={{ color: "#6b4b2b" }}
+                >
+                  Qty: {selectedDonation.quantity}
+                </span>
+                <span
+                  className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full
+                            bg-[#FFF6E9] border border-[#f4e6cf]"
+                  style={{ color: "#6b4b2b" }}
+                >
+                  Threshold: {selectedDonation.threshold ?? "—"}
+                </span>
+              </div>
+
+              {/* Dates grid */}
+              <div
+                className="mt-3 grid grid-cols-2 gap-2 text-xs"
+                style={{ color: "#7b5836" }}
+              >
+                <div className="rounded-lg border border-[#f2e3cf] bg-white/60 p-2">
+                  <div className="font-semibold">Created</div>
+                  <div>
+                    {selectedDonation.creation_date
+                      ? new Date(selectedDonation.creation_date).toLocaleDateString()
+                      : "—"}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-[#f2e3cf] bg-white/60 p-2">
+                  <div className="font-semibold">Expires</div>
+                  <div>
+                    {selectedDonation.expiration_date
+                      ? new Date(selectedDonation.expiration_date).toLocaleDateString()
+                      : "—"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Description */}
+              {selectedDonation.description && (
+                <p className="mt-3 text-sm" style={{ color: "#7b5836" }}>
+                  {selectedDonation.description}
+                </p>
+              )}
+              {selectedDonation.distance_km !== null && (
+                <span className="text-gray-400 text-xs">
+                  Approx: {selectedDonation.distance_km} km
+                </span>
+              )}
+
+              {/* Action buttons */}
+              <div className="mt-4 space-y-2">
+                <button
+                  className="w-full rounded-full px-4 py-2 bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327]
+                            text-white font-semibold shadow-md hover:-translate-y-0.5 active:scale-95 transition"
+                  onClick={() => {
+                    requestDonation(selectedDonation);
+                    setSelectedDonation(null);
+                  }}
+                >
+                  Request Donation
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

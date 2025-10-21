@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from datetime import date, datetime
 from typing import List, Optional
 from app.database import get_db
+from sqlalchemy import or_
 from app import models, schemas, database, auth
 from app.auth import ensure_verified_user
 from app.schemas import DonationRequestCreate
@@ -63,7 +64,6 @@ def get_available_donations(
         if donation_dict.get("image"):
             donation_dict["image"] = donation_dict["image"]
 
-        # Calculate distance if both coordinates exist
         distance_km = None
         if (
             current_user.latitude is not None and current_user.longitude is not None
@@ -83,7 +83,6 @@ def request_donation(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(ensure_verified_user)
 ):
-    # Count donations in process (accepted but not completed)
     pending_feedback_normal = db.query(models.DonationRequest).filter(
         models.DonationRequest.charity_id == current_user.id,
         models.DonationRequest.status == "accepted",
@@ -111,7 +110,18 @@ def request_donation(
     if donation.quantity <= 0:
         raise HTTPException(status_code=400, detail="Donation not available")
 
-    # Check if a request already exists (including canceled)
+    # ✅ CRITICAL: Check if ANY request for this bakery_inventory_id has been accepted
+    has_accepted = db.query(models.DonationRequest).filter(
+        models.DonationRequest.bakery_inventory_id == donation.bakery_inventory_id,
+        models.DonationRequest.status == "accepted"
+    ).first()
+    
+    if has_accepted:
+        raise HTTPException(
+            status_code=400, 
+            detail="This donation has already been accepted by another charity"
+        )
+
     existing_request = db.query(models.DonationRequest).filter(
         models.DonationRequest.charity_id == current_user.id,
         models.DonationRequest.donation_id == payload.donation_id
@@ -123,7 +133,18 @@ def request_donation(
         elif existing_request.status == "accepted":
             raise HTTPException(status_code=400, detail="Donation already accepted")
         elif existing_request.status == "canceled":
-            # Re-request by updating status
+            # Check again before re-requesting
+            has_accepted = db.query(models.DonationRequest).filter(
+                models.DonationRequest.bakery_inventory_id == donation.bakery_inventory_id,
+                models.DonationRequest.status == "accepted"
+            ).first()
+            
+            if has_accepted:
+                raise HTTPException(
+                    status_code=400,
+                    detail="This donation has already been accepted by another charity"
+                )
+            
             existing_request.status = "pending"
             existing_request.timestamp = datetime.utcnow()
             db.commit()
@@ -131,7 +152,6 @@ def request_donation(
             update_inventory_status(db, donation.bakery_inventory_id)
             return {"message": "Donation re-requested", "request_id": existing_request.id}
 
-    # Create a new request if none exists
     bakery = db.query(models.User).filter(models.User.id == payload.bakery_id).first()
     new_request = models.DonationRequest(
         donation_id=payload.donation_id,
@@ -158,23 +178,39 @@ def request_donation(
 @router.post("/donation/cancel/{request_id}")
 def cancel_donation_request(
     request_id: int,
+    charity_id: int = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(ensure_verified_user)
 ):
-    request_obj = db.query(models.DonationRequest).filter(
-        models.DonationRequest.id == request_id,
-        models.DonationRequest.charity_id == current_user.id
-    ).first()
+    query = db.query(models.DonationRequest).filter(
+        models.DonationRequest.id == request_id
+    )
+    if charity_id:
+        query = query.filter(models.DonationRequest.charity_id == charity_id)
+    else:
+        query = query.filter(
+            or_(
+                models.DonationRequest.charity_id == current_user.id,
+                models.DonationRequest.bakery_id == current_user.id
+            )
+        )
+    request_obj = query.first()
+
     if not request_obj or request_obj.status != "pending":
-        raise HTTPException(status_code=404, detail="Pending request not found")
+        alt = db.query(models.DonationRequest).filter(models.DonationRequest.id == request_id).first()
+        print("[DEBUG] cancel lookup alt:", None if not alt else {"id": alt.id, "charity_id": alt.charity_id, "bakery_id": getattr(alt,'bakery_id',None), "status": alt.status, "tracking_status": alt.tracking_status})
+        raise HTTPException(status_code=404, detail="Pending request not found or you are not authorized")
 
     request_obj.status = "canceled"
+    bakery_inventory_id = request_obj.bakery_inventory_id
     db.commit()
-
-    # Update inventory status
-    update_inventory_status(db, request_obj.bakery_inventory_id)
-
-    return {"message": "Donation request canceled"}
+    
+    update_inventory_status(db, bakery_inventory_id)
+    
+    return {
+        "message": "Donation request canceled",
+        "bakery_inventory_id": bakery_inventory_id
+    }
 
 
 @router.get("/donation/my_requests", response_model=List[schemas.DonationRequestRead])
@@ -188,9 +224,10 @@ def my_requests(
     ).all()
     return requests
 
-@router.post("/donation/accept/{donation_id}")
+
+@router.post("/donation/accept/{request_id}")
 def accept_donation(
-    donation_id: int,
+    request_id: int,
     payload: dict = Body(...),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(ensure_verified_user)
@@ -199,9 +236,8 @@ def accept_donation(
     if not charity_id:
         raise HTTPException(status_code=400, detail="charity_id required")
 
-    # Find the correct pending donation request
     donation_request = db.query(models.DonationRequest).filter(
-        models.DonationRequest.donation_id == donation_id,
+        models.DonationRequest.id == request_id,
         models.DonationRequest.bakery_id == current_user.id,
         models.DonationRequest.charity_id == charity_id,
         models.DonationRequest.status == "pending"
@@ -210,10 +246,22 @@ def accept_donation(
     if not donation_request:
         raise HTTPException(status_code=404, detail="Pending donation request not found")
 
-    # Accept the request
+    # ✅ CRITICAL: Double-check no other request for this inventory has been accepted
+    has_accepted = db.query(models.DonationRequest).filter(
+        models.DonationRequest.bakery_inventory_id == donation_request.bakery_inventory_id,
+        models.DonationRequest.status == "accepted",
+        models.DonationRequest.id != request_id
+    ).first()
+    
+    if has_accepted:
+        raise HTTPException(
+            status_code=400,
+            detail="This donation has already been accepted by another charity"
+        )
+
+    # Accept this request
     donation_request.status = "accepted"
 
-    # Save record to DonationsCardChecking
     new_check = models.DonationCardChecking(
         donor_id=donation_request.bakery_id,
         recipient_id=donation_request.charity_id,
@@ -222,7 +270,7 @@ def accept_donation(
     )
     db.add(new_check)
 
-    #  Cancel all other requests for same product
+    # Cancel all other requests for same bakery_inventory_id
     other_requests = db.query(models.DonationRequest).filter(
         models.DonationRequest.bakery_inventory_id == donation_request.bakery_inventory_id,
         models.DonationRequest.id != donation_request.id,
@@ -233,10 +281,8 @@ def accept_donation(
         r.status = "canceled"
         canceled_charity_ids.append(r.charity_id)
 
-    #  Commit everything once
     db.commit()
 
-    #  Update inventory
     update_inventory_status(db, donation_request.bakery_inventory_id)
     check_threshold_and_create_donation(db)
 
@@ -244,9 +290,11 @@ def accept_donation(
         "message": "Donation accepted and others canceled",
         "accepted_charity_id": donation_request.charity_id,
         "canceled_charities": canceled_charity_ids,
-        "donation_id": donation_id,
-        "donation_name": donation_request.donation_name
+        "request_id": request_id,
+        "donation_name": donation_request.donation_name,
+        "bakery_inventory_id": donation_request.bakery_inventory_id
     }
+
 
 @router.get("/donation/received")
 def received_donations(
@@ -263,7 +311,6 @@ def received_donations(
     result = []
     for r in requests:
         if r.status in ["accepted", "pending"]:
-            # Fetch bakery info
             donation_inventory = db.query(models.BakeryInventory).filter(
                 models.BakeryInventory.id == r.bakery_inventory_id
             ).first()
@@ -276,7 +323,7 @@ def received_donations(
                 "donation_id": r.donation_id,
                 "status": r.status,
                 "tracking_status": r.tracking_status,
-                "tracking_completed_at": r. tracking_completed_at,
+                "tracking_completed_at": r.tracking_completed_at,
                 "feedback_submitted": r.feedback_submitted,
                 "name": r.donation_name,
                 "image": r.donation_image,
@@ -287,6 +334,7 @@ def received_donations(
             })
 
     return result
+
 
 @router.post("/donation/received/{request_id}")
 def mark_received(
@@ -304,7 +352,7 @@ def mark_received(
     if request_obj.tracking_status != "in_transit":
         raise HTTPException(status_code=400, detail="Donation not ready to be received")
 
-    request_obj.tracking_status = "received"  # Mark as received
+    request_obj.tracking_status = "received"
     db.commit()
     db.refresh(request_obj)
     return {"message": "Donation marked as received"}
@@ -326,7 +374,6 @@ async def submit_feedback(
     if not request_obj:
         raise HTTPException(status_code=404, detail="Donation request not found")
 
-    # create feedback first
     feedback = models.Feedback(
         donation_request_id=request_obj.id,
         charity_id=current_user.id,
@@ -344,7 +391,6 @@ async def submit_feedback(
     saved_files = []
     if files:
         for file in files:
-            # use feedback.id + timestamp for uniqueness
             filename = f"{feedback.id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{file.filename}"
             file_path = os.path.join(UPLOAD_DIR, filename)
 
@@ -353,13 +399,10 @@ async def submit_feedback(
 
             saved_files.append(f"feedback/{filename}")
 
-        # join all files as CSV, or store in JSON if you prefer
         feedback.media_file = ",".join(saved_files)
-
         db.commit()
         db.refresh(feedback)
 
-    # Update donation request
     request_obj.feedback_submitted = True
     request_obj.tracking_status = "complete"
     if not request_obj.tracking_completed_at: 
@@ -372,7 +415,6 @@ async def submit_feedback(
     return {"message": "Feedback submitted and donation marked complete"}
 
 
-#  GET DONATIONS FOR LOGGED-IN CHARITY 
 @router.get("/direct/mine", response_model=List[schemas.DirectDonationResponse])
 def get_my_direct_donations(
     db: Session = Depends(get_db),
@@ -430,7 +472,6 @@ def mark_direct_received(
     if not donation:
         raise HTTPException(status_code=404, detail="Direct donation not found")
 
-    # Use btracking_status instead of tracking_status
     if donation.btracking_status not in ["in_transit", "preparing"]:
         raise HTTPException(status_code=400, detail="Donation not ready to be received")
 
@@ -440,12 +481,13 @@ def mark_direct_received(
 
     return {"message": "Direct donation marked as received"}
 
+
 @router.post("/direct/feedback/{direct_donation_id}")
 async def submit_direct_feedback(
     direct_donation_id: int,
     message: str = Form(...),
     rating: int = Form(...),
-    files: Optional[List[UploadFile]] = File(None),   # multiple files
+    files: Optional[List[UploadFile]] = File(None),
     db: Session = Depends(get_db),
     current_user=Depends(auth.get_current_user)
 ):
@@ -460,7 +502,6 @@ async def submit_direct_feedback(
     if not donation.bakery_inventory:
         raise HTTPException(status_code=400, detail="Direct donation is missing bakery inventory")
 
-    # Create feedback first so we have an ID
     feedback = models.Feedback(
         direct_donation_id=donation.id,
         charity_id=current_user.id,
@@ -475,7 +516,6 @@ async def submit_direct_feedback(
     db.commit()
     db.refresh(feedback)
 
-    # Save uploaded files
     saved_files = []
     if files:
         for file in files:
@@ -487,12 +527,10 @@ async def submit_direct_feedback(
 
             saved_files.append(f"feedback/{filename}")
 
-        # store all file paths (comma-separated)
         feedback.media_file = ",".join(saved_files)
         db.commit()
         db.refresh(feedback)
 
-    # Update donation status
     donation.feedback_submitted = True
     donation.btracking_status = "complete"
     if not donation.btracking_completed_at: 
@@ -504,7 +542,6 @@ async def submit_direct_feedback(
 
     return {"message": "Feedback submitted successfully"}
 
-#===============================================================
 
 @router.get("/donation/accepted")
 def get_accepted_donations(
@@ -536,3 +573,50 @@ def get_accepted_donations(
         }
         for r in requests 
     ]
+
+
+@router.get("/donation/inventory_status/{bakery_inventory_id}")
+def get_inventory_status(
+    bakery_inventory_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(ensure_verified_user)
+):
+    """
+    Get the status of all donation requests for a specific bakery inventory item.
+    
+    Returns:
+        - has_accepted: True if ANY request has been accepted for this inventory
+        - has_pending: True if there are pending requests
+        - all_canceled: True if ALL requests are canceled
+        - total_requests: Total number of requests for this inventory
+    """
+    requests = db.query(models.DonationRequest).filter(
+        models.DonationRequest.bakery_inventory_id == bakery_inventory_id
+    ).all()
+    
+    # Check if ANY request has been ACCEPTED for this inventory
+    # If so, hide all buttons for everyone
+    has_accepted = any(r.status == "accepted" for r in requests)
+    
+    # Check if there are pending requests
+    has_pending = any(r.status == "pending" for r in requests)
+    
+    # Check if ALL requests are canceled
+    all_canceled = all(r.status == "canceled" for r in requests) if requests else False
+    
+    return {
+        "bakery_inventory_id": bakery_inventory_id,
+        "has_accepted": has_accepted,      # ← KEY FLAG: Hide buttons if true
+        "has_pending": has_pending,
+        "all_canceled": all_canceled,
+        "total_requests": len(requests),
+        "requests": [
+            {
+                "id": r.id,
+                "status": r.status,
+                "charity_id": r.charity_id,
+                "timestamp": r.timestamp.isoformat() if r.timestamp else None
+            }
+            for r in requests
+        ]
+    }

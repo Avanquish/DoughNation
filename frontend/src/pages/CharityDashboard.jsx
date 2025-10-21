@@ -25,6 +25,7 @@ import RecentDonations from "./RecentDonations.jsx";
 import DashboardSearch from "./DashboardSearch.jsx";
 import Complaint from "./Complaint.jsx";
 import CharityReports from "./CharityReports.jsx";
+import Messages1 from "./Messages1.jsx";
 
 const API = "http://localhost:8000";
 const TAB_KEY = "charity_active_tab";
@@ -313,7 +314,7 @@ const CharityDashboard = () => {
               <DashboardSearch size="sm" />
 
               <div className="icon-btn">
-                <Messages currentUser={currentUser} compact />
+                <Messages1 currentUser={currentUser} compact />
               </div>
 
               <div className="icon-btn">

@@ -35,6 +35,7 @@ import AchievementBadges from "./AchievementBadges";
 import RecentDonations from "./RecentDonations";
 import DashboardSearch from "./DashboardSearch";
 import UserBadge from "./UserBadge";
+import Messages1 from "./Messages1";
 
 const API = "http://localhost:8000";
 
@@ -630,7 +631,7 @@ const BakeryDashboard = () => {
               <DashboardSearch size="sm" />
 
               {/* Messages Button */}
-              <Messages currentUser={currentUser} />
+              <Messages1 currentUser={currentUser} />
 
               {/* Notifications Bell */}
               <BakeryNotification />

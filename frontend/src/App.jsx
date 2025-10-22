@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import EmployeeProtectedRoute from "./routes/EmployeeProtectedRoute";
+import BakeryDashboardRoute from "./routes/BakeryDashboardRoute";
 
 import Login from './pages/Login';
 import EmployeeChangePassword from './pages/EmployeeChangePassword';
@@ -24,14 +25,12 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/privacy-terms" element={<PrivacyTerms/>} />
 
+          {/* Unified Bakery Dashboard Route - handles both bakery owners and employees */}
+          <Route path="/bakery-dashboard/:id" element={<BakeryDashboardRoute><BakeryDashboard /></BakeryDashboardRoute>} />
+          
+          {/* Bakery Profile - only for bakery owners */}
           <Route element={<ProtectedRoute allowedRoles={["Bakery"]} />}>
-            <Route path="/bakery-dashboard/:id" element={<BakeryDashboard />} />
             <Route path="/bakery-dashboard/:id/profile" element={<Profile />} />
-          </Route>
-
-          {/* Employee routes - when accessing bakery dashboard as employee */}
-          <Route element={<EmployeeProtectedRoute />}>
-            <Route path="/bakery-dashboard/:id" element={<BakeryDashboard />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={["Charity"]} />}>

@@ -79,16 +79,20 @@ const BakeryDashboard = () => {
   const [employeeRole, setEmployeeRole] = useState(null);
   const [isEmployeeMode, setIsEmployeeMode] = useState(false);
 
-  // initialize from URL, localStorage, or default
+  // initialize from URL, localStorage, or default (always prefer "dashboard" on fresh load)
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const fromUrl = params.get("tab");
+      
+      // If URL has tab param, use it
       if (fromUrl && ALLOWED_TABS.includes(fromUrl)) return fromUrl;
 
+      // Otherwise, check localStorage (but only if URL doesn't exist)
       const fromStorage = localStorage.getItem(TAB_KEY);
       if (fromStorage && ALLOWED_TABS.includes(fromStorage)) return fromStorage;
 
+      // Default to dashboard
       return "dashboard";
     } catch {
       return "dashboard";

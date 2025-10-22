@@ -188,8 +188,9 @@ const EmployeeChangePassword = () => {
         showConfirmButton: false,
       });
 
-      // Clear employee session and redirect to Home page
+      // Clear employee session, tab preference, and redirect to Home page
       employeeLogout();
+      localStorage.removeItem("bakery_active_tab"); // Clear stored tab
       navigate("/", { replace: true });
     } catch (error) {
       console.error("Password change error:", error);

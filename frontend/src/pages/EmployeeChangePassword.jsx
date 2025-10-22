@@ -20,7 +20,7 @@ import { Eye, EyeOff, Lock, AlertCircle } from "lucide-react";
 const API = "http://localhost:8000";
 
 const EmployeeChangePassword = () => {
-  const { employee, login: employeeLogin, logout: employeeLogout } = useEmployeeAuth();
+  const { employee, logout: employeeLogout } = useEmployeeAuth();
   const navigate = useNavigate();
 
   // Debug: Check if component is rendering
@@ -159,13 +159,13 @@ const EmployeeChangePassword = () => {
           title: "Authentication Error",
           text: "No authentication token found. Please login again.",
         });
-        navigate("/employee-login");
+        navigate("/");
         return;
       }
 
       console.log("📤 Sending password change request with token");
       
-      const response = await axios.post(
+      await axios.post(
         `${API}/employee-change-password`,
         {
           current_password: currentPassword,
@@ -179,24 +179,18 @@ const EmployeeChangePassword = () => {
         }
       );
 
-      // 🔑 UPDATE TOKEN WITH NEW ONE (without requires_password_change flag)
-      if (response.data.access_token) {
-        const newToken = response.data.access_token;
-        employeeLogin(newToken); // Update context with new token
-      }
-
-      Swal.fire({
+      // Show success message and wait for it to complete
+      await Swal.fire({
         icon: "success",
-        title: "Password Changed",
-        text: "Your password has been updated successfully! Please login again with your new password.",
-        timer: 2500,
+        title: "Password Changed Successfully!",
+        text: "Your password has been updated. Please login again with your new password.",
+        timer: 2000,
+        showConfirmButton: false,
       });
 
-      // Logout employee and redirect to Home page (employee needs to login again with new password)
-      setTimeout(() => {
-        employeeLogout(); // Clear employee session
-        navigate("/");
-      }, 2500);
+      // Clear employee session and redirect to Home page
+      employeeLogout();
+      navigate("/", { replace: true });
     } catch (error) {
       console.error("Password change error:", error);
       const detail =
@@ -213,7 +207,18 @@ const EmployeeChangePassword = () => {
     }
   };
 
-  // If no employee data is loaded, show loading or redirect
+  // If no employee data is loaded, redirect to home after timeout
+  useEffect(() => {
+    if (!employee) {
+      const timer = setTimeout(() => {
+        console.log("⚠️ No employee data found, redirecting to home page");
+        navigate("/", { replace: true });
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [employee, navigate]);
+
+  // If no employee data is loaded, show loading
   if (!employee) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#f5f1e8] via-[#fef9f0] to-[#efe8d8] flex items-center justify-center">
@@ -222,11 +227,7 @@ const EmployeeChangePassword = () => {
             <div className="text-center">
               <p className="text-lg text-gray-600">Loading employee data...</p>
               <p className="text-sm text-gray-500 mt-2">
-                If this takes too long, please{" "}
-                <a href="/employee-login" className="text-blue-600 underline">
-                  login again
-                </a>
-                .
+                Redirecting to home page...
               </p>
             </div>
           </CardContent>

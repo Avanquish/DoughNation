@@ -40,6 +40,7 @@ export const EmployeeAuthProvider = ({ children }) => {
   const logout = () => {
     setEmployee(null);
     localStorage.removeItem("employeeToken");
+    localStorage.removeItem("bakery_id_for_employee_login");
   };
 
   return (

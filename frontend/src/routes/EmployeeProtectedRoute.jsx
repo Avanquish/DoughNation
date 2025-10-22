@@ -3,7 +3,7 @@ import { useEmployeeAuth } from "../context/EmployeeAuthContext";
 
 /**
  * EmployeeProtectedRoute - Guards routes that require employee authentication
- * Redirects to /employee-login if not authenticated
+ * Redirects to home (/) if not authenticated
  */
 const EmployeeProtectedRoute = ({ children }) => {
   const { employee } = useEmployeeAuth();
@@ -11,8 +11,8 @@ const EmployeeProtectedRoute = ({ children }) => {
   console.log("🔒 EmployeeProtectedRoute - Employee data:", employee);
 
   if (!employee) {
-    console.log("❌ No employee data, redirecting to login");
-    return <Navigate to="/employee-login" replace />;
+    console.log("❌ No employee data, redirecting to home");
+    return <Navigate to="/" replace />;
   }
 
   console.log("✅ Employee authenticated, rendering protected content");

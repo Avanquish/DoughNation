@@ -3,7 +3,6 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 import EmployeeProtectedRoute from "./routes/EmployeeProtectedRoute";
 
 import Login from './pages/Login';
-import EmployeeLogin from './pages/EmployeeLogin';
 import EmployeeChangePassword from './pages/EmployeeChangePassword';
 import Home from './pages/Home';
 import Register from './pages/Register';
@@ -20,7 +19,6 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/employee-login" element={<EmployeeLogin />} />
           <Route path="/employee-change-password" element={<EmployeeProtectedRoute><EmployeeChangePassword /></EmployeeProtectedRoute>} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />

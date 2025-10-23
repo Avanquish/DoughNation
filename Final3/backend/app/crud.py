@@ -5,6 +5,7 @@ import os
 import shutil
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 
 from app import schemas
 from . import models, auth
@@ -52,6 +53,13 @@ def create_user(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
+        )
+
+    #Contact Number limitation set to 11 numbers only
+    if contact_number and len(contact_number) != 11:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Contact number must be 11 digits"
         )
 
     # Check password confirmation
@@ -102,6 +110,54 @@ def create_user(
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+    
+    print(f"\n🔍 DEBUG: User created")
+    print(f"   ID: {db_user.id}")
+    print(f"   Name: {db_user.name}")
+    print(f"   Email: {db_user.email}")
+    print(f"   Role (db): {db_user.role}")
+    print(f"   Role (variable): {role}")
+    print(f"   Contact Person: {contact_person}")
+    print(f"   Role check: role.lower() == 'bakery' => {role.lower()} == 'bakery' => {role.lower() == 'bakery'}")
+    
+    # 🆕 If bakery, automatically create contact person as first employee
+    if role.lower() == "bakery":
+        try:
+            print(f"\n✅ ROLE CHECK PASSED - Creating first employee for bakery {db_user.id}: {contact_person}")
+            # Default password for first employee
+            default_password = "Employee123!"
+            hashed_emp_password = pwd_context.hash(default_password)
+            
+            # Verify the employee doesn't already exist
+            existing_emp = db.query(models.Employee).filter(
+                models.Employee.bakery_id == db_user.id,
+                models.Employee.name == contact_person
+            ).first()
+            
+            if existing_emp:
+                print(f"⚠️  Employee already exists: {existing_emp.name}")
+                return db_user
+            
+            first_employee = models.Employee(
+                bakery_id=db_user.id,
+                name=contact_person,
+                role="Owner",
+                start_date=date.today(),  # ✅ Set start date to today
+                hashed_password=hashed_emp_password
+            )
+            db.add(first_employee)
+            db.commit()
+            db.refresh(first_employee)
+            print(f"✅ EMPLOYEE CREATED: {first_employee.name} (ID: {first_employee.id}, bakery_id: {first_employee.bakery_id}, password_set: {bool(first_employee.hashed_password)})")
+        except Exception as e:
+            print(f"❌ ERROR creating first employee: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Failed to create first employee: {str(e)}")
+    else:
+        print(f"❌ ROLE CHECK FAILED - role.lower()={role.lower()}, not 'bakery', skipping employee creation")
+    
     return db_user
 
 #Update User Information
@@ -217,7 +273,12 @@ def create_inventory(
     uploaded: str,
     description: str = None
 ):
-    from datetime import datetime
+    from datetime import datetime, timezone, timedelta
+    import random
+
+    # Use Philippine timezone (UTC+8) to match the rest of the system
+    philippine_tz = timezone(timedelta(hours=8))
+    server_creation_date = datetime.now(philippine_tz).date()
 
     image_path = None
     if image:
@@ -235,7 +296,7 @@ def create_inventory(
         name=name,
         image=image_path,
         quantity=quantity,
-        creation_date=datetime.strptime(creation_date, "%Y-%m-%d").date(),
+        creation_date=server_creation_date,
         expiration_date=datetime.strptime(expiration_date, "%Y-%m-%d").date() if expiration_date else None,
         threshold=threshold,
         uploaded=uploaded,
@@ -245,7 +306,6 @@ def create_inventory(
     db.commit()
     db.refresh(item)
     return item
-
 
 def list_inventory(db: Session, bakery_id: int):
     return db.query(models.BakeryInventory).filter(models.BakeryInventory.bakery_id == bakery_id).all()
@@ -277,7 +337,6 @@ def update_inventory(
     # Update basic fields
     item.name = name
     item.quantity = quantity
-    item.creation_date = datetime.strptime(creation_date, "%Y-%m-%d").date()
     item.expiration_date = datetime.strptime(expiration_date, "%Y-%m-%d").date() if expiration_date else None
     item.threshold = threshold
     item.uploaded = uploaded
@@ -316,6 +375,40 @@ def delete_inventory(db: Session, inventory_id: int, bakery_id: int):
     # Delete from DB
     db.delete(item)
     db.commit()
+
+def get_product_template(db: Session, bakery_id: int, product_name: str):
+    """
+    Get the product template (shelf life and threshold) for a specific product.
+    Case-insensitive and space-insensitive search.
+    Returns: dict with 'shelf_life_days', 'threshold', and 'creation_date' or None
+    """
+    # Normalize: trim, lowercase, and remove all spaces
+    normalized_name = product_name.strip().lower().replace(' ', '')
+    
+    existing = db.query(models.BakeryInventory).filter(
+        models.BakeryInventory.bakery_id == bakery_id,
+        func.lower(func.replace(models.BakeryInventory.name, ' ', '')) == normalized_name
+    ).order_by(models.BakeryInventory.id.desc()).first()
+    
+    if existing and existing.creation_date and existing.expiration_date:
+        creation = existing.creation_date
+        expiration = existing.expiration_date
+        
+        # Ensure both are date objects
+        if isinstance(creation, datetime):
+            creation = creation.date()
+        if isinstance(expiration, datetime):
+            expiration = expiration.date()
+            
+        shelf_life = (expiration - creation).days
+        
+        return { 
+            'shelf_life_days': shelf_life,
+            'threshold': existing.threshold,
+            'creation_date': creation.isoformat()
+        }
+    
+    return None
 
 # ------------------ BAKERY EMPLOYEE ------------------
 EMPLOYEE_UPLOAD_DIR = "uploads/employee_pictures"
@@ -521,12 +614,37 @@ def get_user_badges(db: Session, user_id: int):
         )
 
 # -------- Badge Progress --------
-def update_progress(db: Session, user_id: int, badge_id: int, increment: int = 1):
+def update_progress(db: Session, user_id: int, badge_id: int, increment: int = 1, total_quantity: int = None):
     progress = db.query(models.BadgeProgress).filter_by(user_id=user_id, badge_id=badge_id).first()
+    
+    # Get badge info for quantity-based targets
+    badge = db.query(models.Badge).filter_by(id=badge_id).first()
+    
+    # Set target based on badge type
+    target = 1  # default target
+    if badge and badge.category == "Quantity-Based":
+        if badge.name == "Bread Saver":
+            target = 10
+        elif badge.name == "Basket Filler":
+            target = 50
+        elif badge.name == "Loaf Legend":
+            target = 100
+        elif badge.name == "Ton of Goodness":
+            target = 500
+            
     if not progress:
-        progress = models.BadgeProgress(user_id=user_id, badge_id=badge_id, progress=0, target=1)
+        progress = models.BadgeProgress(user_id=user_id, badge_id=badge_id, progress=0, target=target)
         db.add(progress)
-    progress.progress += increment
+    
+    # Update progress based on donation quantity or increment
+    if total_quantity is not None:
+        progress.progress = total_quantity  # Set absolute progress for quantity badges
+    else:
+        progress.progress += increment
+        
+    # Ensure we update the target
+    progress.target = target
+    
     db.commit()
     db.refresh(progress)
 
@@ -619,16 +737,85 @@ def get_completed_donation_count(db: Session, user_id: int) -> int:
 
     return direct_count + request_count
 
+# ---------------- Helper ----------------
+def to_datetime(value):
+    """Convert date or datetime to datetime."""
+    if value is None:
+        return datetime.utcnow()
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time())
+    return value  # fallback
+
+def donation_date(donation):
+    """Get the main date of a donation object."""
+    if hasattr(donation, "timestamp"):
+        return to_datetime(donation.timestamp)  # DonationRequest
+    if hasattr(donation, "creation_date"):
+        return to_datetime(donation.creation_date)  # DirectDonation
+    return datetime.utcnow()
+
+
+# ---------------- Main Badge Update ----------------
 def update_user_badges(db: Session, user_id: int):
     """Update all badges for a user based on multiple criteria."""
     user = db.query(models.User).get(user_id)
     if not user:
         return
 
-    # ---------------- 0. Fetch all donations from multiple sources ----------------
-    donation_requests = db.query(models.DonationRequest).filter_by(charity_id=user_id).all()
-    direct_donations = db.query(models.DirectDonation).filter_by(charity_id=user_id).all()
-    all_quantity_donations = db.query(models.Donation).filter_by(bakery_id=user_id).all()
+    # ---------------- Fetch all donations ----------------
+    if user.role.lower() == "bakery":
+        # For bakeries, get completed donations they've made
+        donation_requests = (
+            db.query(models.DonationRequest)
+            .filter(
+                models.DonationRequest.bakery_id == user_id,
+                models.DonationRequest.tracking_status.ilike("complete")
+            )
+            .all()
+        )
+
+        # Get all completed direct donations
+        direct_donations = (
+            db.query(models.DirectDonation)
+            .join(
+                models.BakeryInventory,
+                models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id
+            )
+            .filter(
+                models.BakeryInventory.bakery_id == user_id,
+                models.DirectDonation.btracking_status.ilike("complete")
+            )
+            .all()
+        )
+
+        # Get all donation items (for quantity tracking)
+        all_quantity_donations = (
+            db.query(models.Donation)
+            .filter(models.Donation.bakery_id == user_id)
+            .all()
+        )
+    else:
+        # For charities, get donations they've received
+        donation_requests = (
+            db.query(models.DonationRequest)
+            .filter(
+                models.DonationRequest.charity_id == user_id,
+                models.DonationRequest.tracking_status.ilike("complete")
+            )
+            .all()
+        )
+        
+        direct_donations = (
+            db.query(models.DirectDonation)
+            .filter(
+                models.DirectDonation.charity_id == user_id,
+                models.DirectDonation.btracking_status.ilike("complete")
+            )
+            .all()
+        )
+        all_quantity_donations = []
 
     donations = donation_requests + direct_donations
 
@@ -636,35 +823,63 @@ def update_user_badges(db: Session, user_id: int):
         return db.query(models.UserBadge).filter_by(user_id=user_id, badge_id=badge_id).first()
 
     # ---------------- 1. Donation Frequency Badges ----------------
-    if donations and not has_badge(1):  # First Loaf
+    # First Loaf - Awarded for first completed donation
+    completed_donations = [d for d in donations if (
+        hasattr(d, 'tracking_status') and d.tracking_status.lower() == 'complete'
+    ) or (
+        hasattr(d, 'btracking_status') and d.btracking_status.lower() == 'complete'
+    )]
+    
+    if completed_donations and not has_badge(1):
         db.add(models.UserBadge(user_id=user_id, badge_id=1))
 
     # Weekly Giver (donated at least once per week for last 4 weeks)
-    one_month_ago = datetime.now() - timedelta(days=30)
-    weekly_donations = [d for d in donations if d.date >= one_month_ago]
-    weeks_donated = len(set(d.date.isocalendar()[1] for d in weekly_donations))
-    if weeks_donated >= 4 and not has_badge(2):
+    one_month_ago = datetime.utcnow() - timedelta(days=30)
+    weekly_donations = [d for d in completed_donations if donation_date(d) >= one_month_ago]
+    donation_weeks = set()
+    
+    for donation in weekly_donations:
+        donation_date_val = donation_date(donation)
+        year, week, _ = donation_date_val.isocalendar()
+        donation_weeks.add((year, week))
+    
+    if len(donation_weeks) >= 4 and not has_badge(2):
         db.add(models.UserBadge(user_id=user_id, badge_id=2))
 
     # Monthly Habit - donated every month for last 3 months
-    recent_months = set((d.date.year, d.date.month) for d in donations if d.date >= datetime.now() - timedelta(days=90))
-    if len(recent_months) >= 3 and not has_badge(3):
+    three_months_ago = datetime.utcnow() - timedelta(days=90)
+    monthly_donations = [d for d in completed_donations if donation_date(d) >= three_months_ago]
+    donation_months = set()
+    
+    for donation in monthly_donations:
+        donation_date_val = donation_date(donation)
+        donation_months.add((donation_date_val.year, donation_date_val.month))
+    
+    if len(donation_months) >= 3 and not has_badge(3):
         db.add(models.UserBadge(user_id=user_id, badge_id=3))
 
     # Donation Streaker - 7 days in a row
-    donation_dates = sorted(set(d.date.date() for d in donations))
-    streak = 1
+    donation_dates = sorted(set(donation_date(d).date() for d in completed_donations))
+    max_streak = 1
+    current_streak = 1
+    
     for i in range(1, len(donation_dates)):
         if (donation_dates[i] - donation_dates[i-1]).days == 1:
-            streak += 1
-            if streak >= 7 and not has_badge(4):
-                db.add(models.UserBadge(user_id=user_id, badge_id=4))
-                break
+            current_streak += 1
+            max_streak = max(max_streak, current_streak)
         else:
-            streak = 1
+            current_streak = 1
+            
+    if max_streak >= 7 and not has_badge(4):
+        db.add(models.UserBadge(user_id=user_id, badge_id=4))
 
     # ---------------- 2. Quantity-Based Badges ----------------
-    total_items = sum(d.quantity for d in all_quantity_donations)
+    # Calculate total items only from completed donations
+    total_items = (
+        sum(d.donation_quantity or 0 for d in donation_requests if d.tracking_status.lower() == "complete")
+        + sum(d.quantity or 0 for d in direct_donations if d.btracking_status.lower() == "complete")
+    )
+
     quantity_badges = [
         (5, 10),    # Bread Saver
         (6, 50),    # Basket Filler
@@ -672,29 +887,41 @@ def update_user_badges(db: Session, user_id: int):
         (8, 500),   # Ton of Goodness
     ]
     for badge_id, threshold in quantity_badges:
+        # Update progress for each quantity badge
+        update_progress(db, user_id, badge_id, total_quantity=total_items)
+        
+        # If threshold reached, add badge if not already present
         if total_items >= threshold and not has_badge(badge_id):
             db.add(models.UserBadge(user_id=user_id, badge_id=badge_id))
 
     # ---------------- 3. Impact Badges ----------------
-    charities = set(d.charity_id for d in donations)
-    total_people_served = sum(getattr(d, "people_served", 0) for d in donations)
+    # Get unique charities from both types of donations
+    request_charities = {d.charity_id for d in donation_requests if d.charity_id}
+    direct_charities = {d.charity_id for d in direct_donations if d.charity_id}
+    charities = request_charities.union(direct_charities)
+
+    # Estimate people served based on quantity (assume 1 item serves 1 person)
+    total_people_served = total_items
 
     impact_badges = [
-        (9, len(charities) >= 3),       # Community Helper
-        (10, total_people_served >= 100),  # Neighborhood Hero
-        (11, total_people_served >= 500),  # Hunger Fighter
-        (12, total_people_served >= 1000), # Hope Giver
+        (9, len(charities) >= 3),         # Community Helper
+        (10, total_people_served >= 100), # Neighborhood Hero
+        (11, total_people_served >= 500), # Hunger Fighter
+        (12, total_people_served >= 1000),# Hope Giver
     ]
     for badge_id, condition in impact_badges:
         if condition and not has_badge(badge_id):
             db.add(models.UserBadge(user_id=user_id, badge_id=badge_id))
 
     # ---------------- 4. Timeliness & Freshness Badges ----------------
-    early_donations = [d for d in donations if d.date.hour < 9]
+    early_donations = [d for d in donations if donation_date(d).hour < 9]
     if early_donations and not has_badge(13):
         db.add(models.UserBadge(user_id=user_id, badge_id=13))  # Early Riser
 
-    on_time_donations = [d for d in donations if getattr(d, "expiration_date", datetime.now()) - d.date >= timedelta(hours=24)]
+    on_time_donations = [
+        d for d in donations
+        if (to_datetime(getattr(d, "expiration_date", datetime.utcnow())) - donation_date(d)) >= timedelta(hours=24)
+    ]
     if on_time_donations and not has_badge(14):
         db.add(models.UserBadge(user_id=user_id, badge_id=14))  # Right on Time
 
@@ -703,9 +930,9 @@ def update_user_badges(db: Session, user_id: int):
         db.add(models.UserBadge(user_id=user_id, badge_id=15))  # Freshness Keeper
 
     # ---------------- 5. Milestone/Anniversary Badges ----------------
-    first_donation_date = min((d.date for d in donations), default=None)
+    first_donation_date = min((donation_date(d) for d in donations), default=None)
     if first_donation_date:
-        days_active = (datetime.now() - first_donation_date).days
+        days_active = (datetime.utcnow() - first_donation_date).days
         milestones = [
             (16, 30),   # One Month Donator
             (17, 180),  # Six-Month Supporter
@@ -717,18 +944,19 @@ def update_user_badges(db: Session, user_id: int):
 
     # ---------------- 6. Special Event / Seasonal Badges ----------------
     for d in donations:
+        dt = donation_date(d)
         # Holiday Spirit – Christmas/New Year (Dec 24–31)
-        if d.date.month == 12 and 24 <= d.date.day <= 31 and not has_badge(19):
+        if dt.month == 12 and 24 <= dt.day <= 31 and not has_badge(19):
             db.add(models.UserBadge(user_id=user_id, badge_id=19))
         # Share the Love – Valentine’s Day (Feb 14)
-        if d.date.month == 2 and d.date.day == 14 and not has_badge(20):
+        if dt.month == 2 and dt.day == 14 and not has_badge(20):
             db.add(models.UserBadge(user_id=user_id, badge_id=20))
         # Ramadan Generosity – Feb 15 to Mar 20
-        if (d.date.month == 2 and d.date.day >= 15) or (d.date.month == 3 and d.date.day <= 20):
+        if (dt.month == 2 and dt.day >= 15) or (dt.month == 3 and dt.day <= 20):
             if not has_badge(21):
                 db.add(models.UserBadge(user_id=user_id, badge_id=21))
         # World Hunger Day Hero – May 28
-        if d.date.month == 5 and d.date.day == 28 and not has_badge(22):
+        if dt.month == 5 and dt.day == 28 and not has_badge(22):
             db.add(models.UserBadge(user_id=user_id, badge_id=22))
 
     db.commit()

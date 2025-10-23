@@ -5,10 +5,11 @@ import os
 import shutil
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 
 from app import schemas
 from . import models, auth
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from app.routes.geofence import geocode_address, get_coordinates_osm
 
@@ -272,7 +273,12 @@ def create_inventory(
     uploaded: str,
     description: str = None
 ):
-    from datetime import datetime
+    from datetime import datetime, timezone, timedelta
+    import random
+
+    # Use Philippine timezone (UTC+8) to match the rest of the system
+    philippine_tz = timezone(timedelta(hours=8))
+    server_creation_date = datetime.now(philippine_tz).date()
 
     image_path = None
     if image:
@@ -290,7 +296,7 @@ def create_inventory(
         name=name,
         image=image_path,
         quantity=quantity,
-        creation_date=datetime.strptime(creation_date, "%Y-%m-%d").date(),
+        creation_date=server_creation_date,
         expiration_date=datetime.strptime(expiration_date, "%Y-%m-%d").date() if expiration_date else None,
         threshold=threshold,
         uploaded=uploaded,
@@ -300,7 +306,6 @@ def create_inventory(
     db.commit()
     db.refresh(item)
     return item
-
 
 def list_inventory(db: Session, bakery_id: int):
     return db.query(models.BakeryInventory).filter(models.BakeryInventory.bakery_id == bakery_id).all()
@@ -332,7 +337,6 @@ def update_inventory(
     # Update basic fields
     item.name = name
     item.quantity = quantity
-    item.creation_date = datetime.strptime(creation_date, "%Y-%m-%d").date()
     item.expiration_date = datetime.strptime(expiration_date, "%Y-%m-%d").date() if expiration_date else None
     item.threshold = threshold
     item.uploaded = uploaded
@@ -371,6 +375,40 @@ def delete_inventory(db: Session, inventory_id: int, bakery_id: int):
     # Delete from DB
     db.delete(item)
     db.commit()
+
+def get_product_template(db: Session, bakery_id: int, product_name: str):
+    """
+    Get the product template (shelf life and threshold) for a specific product.
+    Case-insensitive and space-insensitive search.
+    Returns: dict with 'shelf_life_days', 'threshold', and 'creation_date' or None
+    """
+    # Normalize: trim, lowercase, and remove all spaces
+    normalized_name = product_name.strip().lower().replace(' ', '')
+    
+    existing = db.query(models.BakeryInventory).filter(
+        models.BakeryInventory.bakery_id == bakery_id,
+        func.lower(func.replace(models.BakeryInventory.name, ' ', '')) == normalized_name
+    ).order_by(models.BakeryInventory.id.desc()).first()
+    
+    if existing and existing.creation_date and existing.expiration_date:
+        creation = existing.creation_date
+        expiration = existing.expiration_date
+        
+        # Ensure both are date objects
+        if isinstance(creation, datetime):
+            creation = creation.date()
+        if isinstance(expiration, datetime):
+            expiration = expiration.date()
+            
+        shelf_life = (expiration - creation).days
+        
+        return { 
+            'shelf_life_days': shelf_life,
+            'threshold': existing.threshold,
+            'creation_date': creation.isoformat()
+        }
+    
+    return None
 
 # ------------------ BAKERY EMPLOYEE ------------------
 EMPLOYEE_UPLOAD_DIR = "uploads/employee_pictures"
@@ -700,23 +738,39 @@ def get_completed_donation_count(db: Session, user_id: int) -> int:
     return direct_count + request_count
 
 # ---------------- Helper ----------------
+def get_philippine_time():
+    """Get current time in Philippine timezone (UTC+8)."""
+    philippine_tz = timezone(timedelta(hours=8))
+    return datetime.now(philippine_tz)
+
 def to_datetime(value):
-    """Convert date or datetime to datetime."""
+    """Convert date or datetime to datetime with Philippine timezone awareness."""
+    philippine_tz = timezone(timedelta(hours=8))
+    
     if value is None:
-        return datetime.utcnow()
+        return get_philippine_time()
+    
     if isinstance(value, datetime):
-        return value
+        # If already timezone-aware, convert to Philippine time
+        if value.tzinfo is not None:
+            return value.astimezone(philippine_tz)
+        # If naive datetime, assume it's already in Philippine time
+        return value.replace(tzinfo=philippine_tz)
+    
     if isinstance(value, date):
-        return datetime.combine(value, datetime.min.time())
+        # Convert date to datetime at midnight Philippine time
+        dt = datetime.combine(value, datetime.min.time())
+        return dt.replace(tzinfo=philippine_tz)
+    
     return value  # fallback
 
 def donation_date(donation):
-    """Get the main date of a donation object."""
+    """Get the main date of a donation object in Philippine time."""
     if hasattr(donation, "timestamp"):
         return to_datetime(donation.timestamp)  # DonationRequest
     if hasattr(donation, "creation_date"):
         return to_datetime(donation.creation_date)  # DirectDonation
-    return datetime.utcnow()
+    return get_philippine_time()
 
 
 # ---------------- Main Badge Update ----------------
@@ -796,7 +850,8 @@ def update_user_badges(db: Session, user_id: int):
         db.add(models.UserBadge(user_id=user_id, badge_id=1))
 
     # Weekly Giver (donated at least once per week for last 4 weeks)
-    one_month_ago = datetime.utcnow() - timedelta(days=30)
+    current_time = get_philippine_time()
+    one_month_ago = current_time - timedelta(days=30)
     weekly_donations = [d for d in completed_donations if donation_date(d) >= one_month_ago]
     donation_weeks = set()
     
@@ -809,7 +864,7 @@ def update_user_badges(db: Session, user_id: int):
         db.add(models.UserBadge(user_id=user_id, badge_id=2))
 
     # Monthly Habit - donated every month for last 3 months
-    three_months_ago = datetime.utcnow() - timedelta(days=90)
+    three_months_ago = current_time - timedelta(days=90)
     monthly_donations = [d for d in completed_donations if donation_date(d) >= three_months_ago]
     donation_months = set()
     
@@ -882,7 +937,7 @@ def update_user_badges(db: Session, user_id: int):
 
     on_time_donations = [
         d for d in donations
-        if (to_datetime(getattr(d, "expiration_date", datetime.utcnow())) - donation_date(d)) >= timedelta(hours=24)
+        if (to_datetime(getattr(d, "expiration_date", get_philippine_time())) - donation_date(d)) >= timedelta(hours=24)
     ]
     if on_time_donations and not has_badge(14):
         db.add(models.UserBadge(user_id=user_id, badge_id=14))  # Right on Time
@@ -894,7 +949,7 @@ def update_user_badges(db: Session, user_id: int):
     # ---------------- 5. Milestone/Anniversary Badges ----------------
     first_donation_date = min((donation_date(d) for d in donations), default=None)
     if first_donation_date:
-        days_active = (datetime.utcnow() - first_donation_date).days
+        days_active = (current_time - first_donation_date).days
         milestones = [
             (16, 30),   # One Month Donator
             (17, 180),  # Six-Month Supporter

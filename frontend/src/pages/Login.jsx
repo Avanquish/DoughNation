@@ -182,8 +182,12 @@ const Login = () => {
           localStorage.setItem("bakery_active_tab", "dashboard");
           navigate(`/bakery-dashboard/${userId}`);
         } else if (accountType === "charity") {
+          // Set default tab to "donation" (Available Donation)
+          localStorage.setItem("charity_active_tab", "donation");
           navigate(`/charity-dashboard/${userId}`);
         } else if (accountType === "admin") {
+          // Set default tab to "dashboard"
+          localStorage.setItem("admin_active_tab", "dashboard");
           navigate(`/admin-dashboard/${userId}`);
         }
         

@@ -252,7 +252,11 @@ export default function Messages({ currentUser: currentUserProp }) {
 
   /* ---- Helper Functions ---- */
   const makeAuthOpts = () => {
-    const token = localStorage.getItem("token") || currentUser?.token;
+    // Check for employee token first, then bakery owner token
+    const employeeToken = localStorage.getItem("employeeToken");
+    const bakeryToken = localStorage.getItem("token");
+    const token = employeeToken || bakeryToken || currentUser?.token;
+    
     return token ? { headers: { Authorization: `Bearer ${token}` } } : {};
   };
 
@@ -1000,17 +1004,43 @@ export default function Messages({ currentUser: currentUserProp }) {
 
   useEffect(() => {
     if (currentUserProp) return;
-    const token = localStorage.getItem("token");
+    
+    // Check for employee token first, then bakery owner token
+    const employeeToken = localStorage.getItem("employeeToken");
+    const bakeryToken = localStorage.getItem("token");
+    const token = employeeToken || bakeryToken;
+    
     if (!token) return;
+    
     try {
       const decoded = JSON.parse(atob(token.split(".")[1]));
-      setCurrentUser({
-        id: Number(decoded.sub),
-        role: decoded.role?.toLowerCase?.() || "",
-        email: decoded.email || "",
-        name: decoded.name || "",
-        token,
-      });
+      
+      // Handle employee token
+      if (decoded.type === "employee") {
+        // IMPORTANT: Use bakery_id as the main ID so employees receive bakery messages
+        setCurrentUser({
+          id: Number(decoded.bakery_id), // ✅ Use bakery_id, not employee_id
+          role: "employee",
+          email: "",
+          name: decoded.employee_name || decoded.name || "",
+          token,
+          employee_id: Number(decoded.employee_id),
+          employee_role: decoded.employee_role,
+          bakery_id: Number(decoded.bakery_id),
+          is_employee: true, // Flag to identify employee users
+        });
+      } 
+      // Handle bakery/charity/admin token
+      else {
+        setCurrentUser({
+          id: Number(decoded.sub),
+          role: decoded.role?.toLowerCase?.() || decoded.type || "",
+          email: decoded.email || "",
+          name: decoded.name || "",
+          token,
+          is_employee: false,
+        });
+      }
     } catch (err) {
       console.error("Failed to decode token:", err);
     }

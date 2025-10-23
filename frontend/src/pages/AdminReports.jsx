@@ -2,7 +2,15 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Download, Printer } from "lucide-react";
+import { 
+  Download, 
+  Printer, 
+  AlertTriangle, 
+  ShieldAlert, 
+  Activity,
+  Filter,
+  RefreshCw
+} from "lucide-react";
 import axios from "axios";
 import Swal from "sweetalert2";
 import jsPDF from "jspdf";
@@ -15,11 +23,47 @@ export default function AdminReports() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
+  // System Events specific state
+  const [eventData, setEventData] = useState([]);
+  const [eventSummary, setEventSummary] = useState(null);
+  const [eventType, setEventType] = useState("");
+  const [severity, setSeverity] = useState("");
+
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
   const normalizePath = (path) => path.replace(/\\/g, "/");
 
   // Report types
-  const reportTypes = [{ key: "manage_users", label: "Manage Users" }];
+  const reportTypes = [
+    { key: "manage_users", label: "Manage Users" },
+    { key: "system_events", label: "System Events & Alerts" }
+  ];
+
+  // Event type labels for display
+  const eventTypeLabels = {
+    failed_login: "Failed Login",
+    unauthorized_access: "Unauthorized Access",
+    sos_alert: "SOS Alert",
+    geofence_breach: "Geofence Breach",
+    uptime: "System Uptime",
+    downtime: "System Downtime"
+  };
+
+  // Predefined event types
+  const availableEventTypes = [
+    "failed_login",
+    "unauthorized_access", 
+    "sos_alert",
+    "geofence_breach",
+    "uptime",
+    "downtime"
+  ];
+
+  // Severity colors
+  const severityColors = {
+    info: "bg-blue-100 text-blue-800 border-blue-300",
+    warning: "bg-yellow-100 text-yellow-800 border-yellow-300",
+    critical: "bg-red-100 text-red-800 border-red-300"
+  };
 
   const getReportLabel = (key) => {
     const found = reportTypes.find((r) => r.key === key);
@@ -336,7 +380,403 @@ export default function AdminReports() {
     };
   };
 
-  // Table renderer
+  // ========== SYSTEM EVENTS FUNCTIONS ==========
+
+  // Fetch system events
+  const fetchSystemEvents = async () => {
+    if (!startDate || !endDate) {
+      Swal.fire(
+        "Missing Dates",
+        "Please select both start and end date.",
+        "warning"
+      );
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const params = {
+        start_date: startDate,
+        end_date: endDate,
+        limit: 1000
+      };
+      
+      if (eventType) params.event_type = eventType;
+      if (severity) params.severity = severity;
+
+      const res = await axios.get(`${API_URL}/superadmin/events`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params
+      });
+
+      setEventData(res.data.events || []);
+      
+      if (res.data.events.length === 0) {
+        Swal.fire(
+          "No Events",
+          `No system events found between ${startDate} to ${endDate}`,
+          "info"
+        );
+      }
+
+      // Also fetch summary
+      await fetchEventSummary();
+    } catch (err) {
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: err.response?.data?.detail || "Failed to fetch events.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch event summary
+  const fetchEventSummary = async () => {
+    if (!startDate || !endDate) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${API_URL}/superadmin/events/summary`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { start_date: startDate, end_date: endDate }
+      });
+
+      setEventSummary(res.data);
+    } catch (err) {
+      console.error("Error fetching summary:", err);
+    }
+  };
+
+  // Download System Events CSV
+  const downloadEventsCSV = () => {
+    if (!eventData || eventData.length === 0) return;
+
+    const headers = [
+      "Event ID",
+      "Event Type",
+      "Description",
+      "Severity",
+      "Timestamp",
+      "User ID",
+      "User Name",
+      "User Email",
+      "User Role"
+    ];
+
+    const rows = eventData.map((event) => [
+      `"${event.id}"`,
+      `"${event.event_type}"`,
+      `"${event.description}"`,
+      `"${event.severity}"`,
+      `"${event.timestamp || 'N/A'}"`,
+      `"${event.user?.id || 'N/A'}"`,
+      `"${event.user?.name || 'N/A'}"`,
+      `"${event.user?.email || 'N/A'}"`,
+      `"${event.user?.role || 'N/A'}"`
+    ].join(","));
+
+    const csvContent = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `System_Events_Report_${startDate}_to_${endDate}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Download System Events PDF
+  const downloadEventsPDF = () => {
+    if (!eventData || eventData.length === 0) {
+      Swal.fire("No data", "Nothing to export", "info");
+      return;
+    }
+
+    const doc = new jsPDF("landscape", "pt", "a4");
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let currentY = 40;
+
+    // Header
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("SYSTEM EVENTS & ALERTS REPORT", pageWidth / 2, currentY, {
+      align: "center",
+    });
+    currentY += 20;
+
+    // Date range
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(
+      `Period: ${startDate} to ${endDate}`,
+      pageWidth / 2,
+      currentY,
+      { align: "center" }
+    );
+    currentY += 25;
+
+    // Summary stats if available
+    if (eventSummary) {
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("Summary Statistics:", 40, currentY);
+      currentY += 15;
+
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Total Events: ${eventSummary.total_events}`, 40, currentY);
+      currentY += 12;
+      
+      const sevCounts = eventSummary.severities || {};
+      doc.text(
+        `Critical: ${sevCounts.critical || 0} | Warning: ${sevCounts.warning || 0} | Info: ${sevCounts.info || 0}`,
+        40,
+        currentY
+      );
+      currentY += 20;
+    }
+
+    // Table
+    const headers = [
+      "ID",
+      "Event Type",
+      "Description",
+      "Severity",
+      "Timestamp",
+      "User",
+      "Role"
+    ];
+
+    const rows = eventData.map((event) => [
+      event.id,
+      event.event_type,
+      event.description.substring(0, 50) + (event.description.length > 50 ? "..." : ""),
+      event.severity,
+      new Date(event.timestamp).toLocaleString(),
+      event.user?.name || "System",
+      event.user?.role || "N/A"
+    ]);
+
+    autoTable(doc, {
+      head: [headers],
+      body: rows,
+      startY: currentY,
+      styles: { fontSize: 8, valign: "middle" },
+      headStyles: {
+        fillColor: [185, 115, 39],
+        textColor: 255,
+        fontStyle: "bold",
+      },
+      margin: { left: 40, right: 40 },
+    });
+
+    doc.save(`System_Events_Report_${startDate}_to_${endDate}.pdf`);
+  };
+
+  // Print System Events
+  const printEvents = () => {
+    if (!eventData || eventData.length === 0) return;
+
+    const tableHTML = `
+      <html>
+        <head>
+          <title>SYSTEM EVENTS & ALERTS REPORT</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            h2 { text-align: center; color: #6b4b2b; }
+            .summary { margin: 20px 0; padding: 15px; background: #f9f9f9; border-radius: 8px; }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 20px 0;
+            }
+            th, td {
+              border: 1px solid #ccc;
+              padding: 8px;
+              text-align: left;
+            }
+            th { background-color: #B97327; color: white; }
+            .critical { background-color: #fee; }
+            .warning { background-color: #ffc; }
+            .info { background-color: #eff; }
+          </style>
+        </head>
+        <body>
+          <h2>System Events & Alerts Report</h2>
+          <p style="text-align: center;">Period: ${startDate} to ${endDate}</p>
+          
+          ${eventSummary ? `
+            <div class="summary">
+              <h3>Summary Statistics</h3>
+              <p><strong>Total Events:</strong> ${eventSummary.total_events}</p>
+              <p>
+                <strong>By Severity:</strong> 
+                Critical: ${eventSummary.severities?.critical || 0} | 
+                Warning: ${eventSummary.severities?.warning || 0} | 
+                Info: ${eventSummary.severities?.info || 0}
+              </p>
+            </div>
+          ` : ''}
+          
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Event Type</th>
+                <th>Description</th>
+                <th>Severity</th>
+                <th>Timestamp</th>
+                <th>User</th>
+                <th>Role</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${eventData
+                .map(
+                  (event) => `
+                <tr class="${event.severity}">
+                  <td>${event.id}</td>
+                  <td>${eventTypeLabels[event.event_type] || event.event_type}</td>
+                  <td>${event.description}</td>
+                  <td>${event.severity.toUpperCase()}</td>
+                  <td>${new Date(event.timestamp).toLocaleString()}</td>
+                  <td>${event.user?.name || "System"}</td>
+                  <td>${event.user?.role || "N/A"}</td>
+                </tr>
+              `
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Please allow popups for printing.");
+      return;
+    }
+    printWindow.document.open();
+    printWindow.document.write(tableHTML);
+    printWindow.document.close();
+    printWindow.onload = () => {
+      printWindow.focus();
+      printWindow.print();
+    };
+  };
+
+  // Render system events table
+  const renderEventsTable = (data) => {
+    if (!Array.isArray(data) || data.length === 0) {
+      return <p className="text-[#6b4b2b]/70 text-center py-8">No events available</p>;
+    }
+
+    return (
+      <div className="overflow-x-auto rounded-xl ring-1 ring-black/10 bg-white/70">
+        <table className="min-w-full text-sm">
+          <thead className="bg-gradient-to-r from-[#B97327] to-[#E49A52] text-white">
+            <tr>
+              <th className="px-4 py-3 text-left font-semibold">ID</th>
+              <th className="px-4 py-3 text-left font-semibold">Event Type</th>
+              <th className="px-4 py-3 text-left font-semibold">Description</th>
+              <th className="px-4 py-3 text-center font-semibold">Severity</th>
+              <th className="px-4 py-3 text-left font-semibold">Timestamp</th>
+              <th className="px-4 py-3 text-left font-semibold">User</th>
+              <th className="px-4 py-3 text-left font-semibold">Role</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((event) => (
+              <tr
+                key={event.id}
+                className="odd:bg-white even:bg-white/60 border-b border-[#f2d4b5] hover:bg-amber-50/50 transition-colors"
+              >
+                <td className="px-4 py-3">{event.id}</td>
+                <td className="px-4 py-3">
+                  <span className="font-medium text-[#6b4b2b]">
+                    {eventTypeLabels[event.event_type] || event.event_type}
+                  </span>
+                </td>
+                <td className="px-4 py-3 max-w-md truncate" title={event.description}>
+                  {event.description}
+                </td>
+                <td className="px-4 py-3 text-center">
+                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${severityColors[event.severity]}`}>
+                    {event.severity.toUpperCase()}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-xs whitespace-nowrap">
+                  {new Date(event.timestamp).toLocaleString()}
+                </td>
+                <td className="px-4 py-3">{event.user?.name || "System"}</td>
+                <td className="px-4 py-3">{event.user?.role || "N/A"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  // Render summary cards
+  const renderSummaryCards = () => {
+    if (!eventSummary) return null;
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        {/* Total Events */}
+        <Card className="rounded-xl shadow-md ring-1 ring-black/5 bg-gradient-to-br from-blue-50 to-blue-100">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-blue-700 font-medium">Total Events</p>
+                <p className="text-3xl font-bold text-blue-900">{eventSummary.total_events}</p>
+              </div>
+              <Activity className="h-10 w-10 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Critical Events */}
+        <Card className="rounded-xl shadow-md ring-1 ring-black/5 bg-gradient-to-br from-red-50 to-red-100">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-red-700 font-medium">Critical Events</p>
+                <p className="text-3xl font-bold text-red-900">
+                  {eventSummary.severities?.critical || 0}
+                </p>
+              </div>
+              <AlertTriangle className="h-10 w-10 text-red-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Warning Events */}
+        <Card className="rounded-xl shadow-md ring-1 ring-black/5 bg-gradient-to-br from-yellow-50 to-yellow-100">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-yellow-700 font-medium">Warning Events</p>
+                <p className="text-3xl font-bold text-yellow-900">
+                  {eventSummary.severities?.warning || 0}
+                </p>
+              </div>
+              <ShieldAlert className="h-10 w-10 text-yellow-600" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
+  // Table renderer (for Manage Users)
   const renderTable = (data) => {
     if (!Array.isArray(data) || data.length === 0)
       return <p className="text-[#6b4b2b]/70">No data available</p>;
@@ -409,86 +849,246 @@ export default function AdminReports() {
 
         {reportTypes.map((r) => (
           <TabsContent key={r.key} value={r.key}>
-            <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
-              <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
-                <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
-                  {r.label} Report
-                </CardTitle>
-              </CardHeader>
+            {r.key === "system_events" ? (
+              /* System Events Tab */
+              <>
+                {/* Filter Section */}
+                <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden mb-6">
+                  <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
+                    <CardTitle className="text-lg font-semibold text-[#6b4b2b] flex items-center gap-2">
+                      <Filter size={20} />
+                      Filter Events
+                    </CardTitle>
+                  </CardHeader>
 
-              <CardContent className="p-5 sm:p-6">
-                {/* Date inputs */}
-                <div className="mb-4 flex flex-wrap gap-4 items-end">
-                  <div>
-                    <label className="block text-sm font-medium text-[#6b4b2b]">
-                      Start Date
-                    </label>
-                    <input
-                      type="date"
-                      value={startDate}
-                      max={new Date().toISOString().split("T")[0]}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-[#6b4b2b]">
-                      End Date
-                    </label>
-                    <input
-                      type="date"
-                      value={endDate}
-                      max={new Date().toISOString().split("T")[0]}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                    />
-                  </div>
-                  <Button
-                    onClick={() => generateReport(r.key)}
-                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
-                  >
-                    Generate Report
-                  </Button>
-                </div>
+                  <CardContent className="p-5 sm:p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                      {/* Start Date */}
+                      <div>
+                        <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
+                          Start Date
+                        </label>
+                        <input
+                          type="date"
+                          value={startDate}
+                          max={new Date().toISOString().split("T")[0]}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          className="w-full rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                        />
+                      </div>
 
-                {loading ? (
-                  <p className="text-[#6b4b2b]/70">Generating report...</p>
-                ) : reportData ? (
-                  <div>
-                    {renderTable(reportData)}
+                      {/* End Date */}
+                      <div>
+                        <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
+                          End Date
+                        </label>
+                        <input
+                          type="date"
+                          value={endDate}
+                          max={new Date().toISOString().split("T")[0]}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          className="w-full rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                        />
+                      </div>
 
-                    {/* Actions */}
-                    <div className="flex flex-wrap gap-3 mt-5">
-                      <Button
-                        onClick={downloadReportCSV}
-                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
-                      >
-                        <Download size={16} /> Download CSV
-                      </Button>
+                      {/* Event Type */}
+                      <div>
+                        <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
+                          Event Type
+                        </label>
+                        <select
+                          value={eventType}
+                          onChange={(e) => setEventType(e.target.value)}
+                          className="w-full rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                        >
+                          <option value="">All Types</option>
+                          {availableEventTypes.map((type) => (
+                            <option key={type} value={type}>
+                              {eventTypeLabels[type] || type}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
 
-                      <Button
-                        onClick={downloadReportPDF}
-                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
-                      >
-                        <Download size={16} /> Download PDF
-                      </Button>
-
-                      <Button
-                        onClick={printReport}
-                        className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
-                      >
-                        <Printer size={16} /> Print
-                      </Button>
+                      {/* Severity */}
+                      <div>
+                        <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
+                          Severity
+                        </label>
+                        <select
+                          value={severity}
+                          onChange={(e) => setSeverity(e.target.value)}
+                          className="w-full rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                        >
+                          <option value="">All Severities</option>
+                          <option value="info">Info</option>
+                          <option value="warning">Warning</option>
+                          <option value="critical">Critical</option>
+                        </select>
+                      </div>
                     </div>
-                  </div>
+
+                    <Button
+                      onClick={fetchSystemEvents}
+                      disabled={loading}
+                      className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-6 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {loading ? (
+                        <>
+                          <RefreshCw size={16} className="animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw size={16} />
+                          Generate Report
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Summary Statistics */}
+                {renderSummaryCards()}
+
+                {/* Events Table */}
+                {loading ? (
+                  <Card className="rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80">
+                    <CardContent className="p-8 text-center">
+                      <RefreshCw className="animate-spin h-8 w-8 mx-auto text-[#E49A52] mb-2" />
+                      <p className="text-[#6b4b2b]/70">Loading events...</p>
+                    </CardContent>
+                  </Card>
+                ) : eventData.length > 0 ? (
+                  <Card className="rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
+                    <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
+                      <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
+                        System Events ({eventData.length} records)
+                      </CardTitle>
+                    </CardHeader>
+
+                    <CardContent className="p-5 sm:p-6">
+                      {renderEventsTable(eventData)}
+
+                      {/* Export Actions */}
+                      <div className="flex flex-wrap gap-3 mt-6">
+                        <Button
+                          onClick={downloadEventsCSV}
+                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                        >
+                          <Download size={16} /> Download CSV
+                        </Button>
+
+                        <Button
+                          onClick={downloadEventsPDF}
+                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                        >
+                          <Download size={16} /> Download PDF
+                        </Button>
+
+                        <Button
+                          onClick={printEvents}
+                          className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
+                        >
+                          <Printer size={16} /> Print
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
                 ) : (
-                  <p className="text-[#6b4b2b]/70">
-                    Select a date range and click Generate Report to view{" "}
-                    {r.label}.
-                  </p>
+                  <Card className="rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80">
+                    <CardContent className="p-8 text-center">
+                      <ShieldAlert className="h-12 w-12 mx-auto text-[#6b4b2b]/30 mb-3" />
+                      <p className="text-[#6b4b2b]/70">
+                        Select filters and click Generate Report to view system events.
+                      </p>
+                    </CardContent>
+                  </Card>
                 )}
-              </CardContent>
-            </Card>
+              </>
+            ) : (
+              /* Manage Users Tab */
+              <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
+                <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
+                  <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
+                    {r.label} Report
+                  </CardTitle>
+                </CardHeader>
+
+                <CardContent className="p-5 sm:p-6">
+                  {/* Date inputs */}
+                  <div className="mb-4 flex flex-wrap gap-4 items-end">
+                    <div>
+                      <label className="block text-sm font-medium text-[#6b4b2b]">
+                        Start Date
+                      </label>
+                      <input
+                        type="date"
+                        value={startDate}
+                        max={new Date().toISOString().split("T")[0]}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-[#6b4b2b]">
+                        End Date
+                      </label>
+                      <input
+                        type="date"
+                        value={endDate}
+                        max={new Date().toISOString().split("T")[0]}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                      />
+                    </div>
+                    <Button
+                      onClick={() => generateReport(r.key)}
+                      className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                    >
+                      Generate Report
+                    </Button>
+                  </div>
+
+                  {loading ? (
+                    <p className="text-[#6b4b2b]/70">Generating report...</p>
+                  ) : reportData ? (
+                    <div>
+                      {renderTable(reportData)}
+
+                      {/* Actions */}
+                      <div className="flex flex-wrap gap-3 mt-5">
+                        <Button
+                          onClick={downloadReportCSV}
+                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                        >
+                          <Download size={16} /> Download CSV
+                        </Button>
+
+                        <Button
+                          onClick={downloadReportPDF}
+                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                        >
+                          <Download size={16} /> Download PDF
+                        </Button>
+
+                        <Button
+                          onClick={printReport}
+                          className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
+                        >
+                          <Printer size={16} /> Print
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[#6b4b2b]/70">
+                      Select a date range and click Generate Report to view{" "}
+                      {r.label}.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         ))}
       </Tabs>

@@ -41,6 +41,9 @@ class User(Base):
     badges = relationship("UserBadge", back_populates="user", cascade="all, delete-orphan")
     badge_progress = relationship("BadgeProgress", back_populates="user", cascade="all, delete-orphan")
     created_badges = relationship("Badge", back_populates="creator")
+    
+    # System events relationship
+    events = relationship("SystemEvent", back_populates="user")
 
  
 class BakeryInventory(Base):
@@ -286,4 +289,17 @@ class BadgeProgress(Base):
 
     user = relationship("User", back_populates="badge_progress")
     badge = relationship("Badge")
+
+class SystemEvent(Base):
+    __tablename__ = "system_events"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    event_type = Column(String, index=True, nullable=False)  # "failed_login", "unauthorized_access", "sos_alert", "geofence_breach", "uptime", "downtime"
+    description = Column(String, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Nullable for system-wide events
+    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    severity = Column(String, default="info")  # "info", "warning", "critical"
+    event_metadata = Column(String, nullable=True)  # JSON string for additional data (IP address, location, etc.)
+    
+    user = relationship("User", back_populates="events")
     

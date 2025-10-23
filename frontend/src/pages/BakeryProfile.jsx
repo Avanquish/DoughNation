@@ -19,7 +19,7 @@ import {
   ChevronRight,
   ChevronLeft,
 } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Messages from "./Messages";
 import BakeryNotification from "./BakeryNotification";
 import RecentDonations from "./RecentDonations";
@@ -72,7 +72,7 @@ const getInitialSubTab = () => {
 };
 
 export default function BakeryProfile() {
-  const { id } = useParams();
+  // No need for id from params - we get bakeryId from token
   const [name, setName] = useState("Bakery Name");
   const [activeSubTab, setActiveSubTab] = useState(getInitialSubTab); // <- changed
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -86,21 +86,47 @@ export default function BakeryProfile() {
   const [currentUser, setCurrentUser] = useState(null);
   const [profilePic, setProfilePic] = useState(null);
   const [badges, setBadges] = useState([]);
+  const [isEmployeeMode, setIsEmployeeMode] = useState(false);
+  const [bakeryId, setBakeryId] = useState(null);
 
   const navigate = useNavigate();
 
-  // keep data fresh: inventory, employees
+  // Determine if user is an employee and get the bakery ID
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    try {
-      if (token) {
-        const decoded = JSON.parse(atob(token.split(".")[1]));
+    const employeeToken = localStorage.getItem("employeeToken");
+    const bakeryToken = localStorage.getItem("token");
+    
+    if (employeeToken) {
+      try {
+        const decoded = JSON.parse(atob(employeeToken.split(".")[1]));
+        setIsEmployeeMode(true);
+        setBakeryId(decoded.bakery_id);
         setName(decoded.name || "Bakery Name");
         setCurrentUser(decoded);
+      } catch (err) {
+        console.error("Error decoding employee token:", err);
       }
-    } catch (err) {
-      console.error("Error fetching bakery profile stats:", err);
+    } else if (bakeryToken) {
+      try {
+        const decoded = JSON.parse(atob(bakeryToken.split(".")[1]));
+        setIsEmployeeMode(false);
+        setBakeryId(decoded.sub);
+        setName(decoded.name || "Bakery Name");
+        setCurrentUser(decoded);
+      } catch (err) {
+        console.error("Error decoding bakery token:", err);
+      }
     }
+  }, []);
+
+  // keep data fresh: inventory, employees
+  useEffect(() => {
+    if (!bakeryId) return;
+    
+    const employeeToken = localStorage.getItem("employeeToken");
+    const bakeryToken = localStorage.getItem("token");
+    const token = employeeToken || bakeryToken;
+    
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
     const loadInventory = () =>
@@ -140,14 +166,21 @@ export default function BakeryProfile() {
       window.removeEventListener("focus", onFocus);
       clearInterval(poll);
     };
-  }, []);
+  }, [bakeryId]);
 
   useEffect(() => {
     const fetchUser = async () => {
+      if (!bakeryId) return;
+      
       try {
-        const token = localStorage.getItem("token");
+        const employeeToken = localStorage.getItem("employeeToken");
+        const bakeryToken = localStorage.getItem("token");
+        const token = employeeToken || bakeryToken;
+        
         if (!token) return;
 
+        // For employees, fetch the bakery's information using bakery_id
+        // For bakery owners, fetch their own information
         const res = await axios.get(`${API}/information`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -161,15 +194,17 @@ export default function BakeryProfile() {
     };
 
     fetchUser();
-  }, []);
+  }, [bakeryId]);
 
-  const userId = id;
+  // Fetch badges using bakery_id (shared for both owner and employees)
   useEffect(() => {
+    if (!bakeryId) return;
+    
     axios
-      .get(`${API}/badges/user/${userId}`)
+      .get(`${API}/badges/user/${bakeryId}`)
       .then((res) => setBadges(res.data))
       .catch((err) => console.error(err));
-  }, [userId]);
+  }, [bakeryId]);
 
   // persist sub-tab across reloads
   useEffect(() => {
@@ -245,7 +280,11 @@ export default function BakeryProfile() {
   }, [isNotifOpen]);
 
   const handleLogout = () => {
+    // Clear both token types (one will exist depending on user type)
     localStorage.removeItem("token");
+    localStorage.removeItem("employeeToken");
+    localStorage.removeItem("bakery_active_tab");
+    localStorage.removeItem("bakery_id_for_employee_login");
     navigate("/");
   };
 
@@ -255,7 +294,7 @@ export default function BakeryProfile() {
       next.add(n.id);
       return next;
     });
-    navigate(`/bakery-dashboard/${id}?tab=inventory`);
+    navigate(`/bakery-dashboard/${bakeryId}?tab=inventory`);
   };
 
   const handleClickMessageNotification = (m) => {
@@ -528,7 +567,7 @@ export default function BakeryProfile() {
                   aria-label="Back to dashboard"
                   title="Back to Dashboard"
                   onClick={() =>
-                    navigate(`/bakery-dashboard/${id}?tab=dashboard`)
+                    navigate(`/bakery-dashboard/${bakeryId}?tab=dashboard`)
                   }
                 >
                   <ChevronLeft className="h-[18px] w-[18px]" />
@@ -731,7 +770,7 @@ export default function BakeryProfile() {
                   </Button>
                   <Button
                     onClick={() =>
-                      navigate(`/bakery-dashboard/${id}?tab=inventory`)
+                      navigate(`/bakery-dashboard/${bakeryId}?tab=inventory`)
                     }
                   >
                     View Inventory

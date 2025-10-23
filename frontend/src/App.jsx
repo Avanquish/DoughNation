@@ -28,10 +28,8 @@ function App() {
           {/* Unified Bakery Dashboard Route - handles both bakery owners and employees */}
           <Route path="/bakery-dashboard/:id" element={<BakeryDashboardRoute><BakeryDashboard /></BakeryDashboardRoute>} />
           
-          {/* Bakery Profile - only for bakery owners */}
-          <Route element={<ProtectedRoute allowedRoles={["Bakery"]} />}>
-            <Route path="/bakery-dashboard/:id/profile" element={<Profile />} />
-          </Route>
+          {/* Bakery Profile - accessible by both bakery owners and employees */}
+          <Route path="/bakery-dashboard/:id/profile" element={<BakeryDashboardRoute><Profile /></BakeryDashboardRoute>} />
 
           <Route element={<ProtectedRoute allowedRoles={["Charity"]} />}>
             <Route path="/charity-dashboard/:id" element={<CharityDashboard />} />

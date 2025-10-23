@@ -134,6 +134,7 @@ const CharityDashboard = () => {
       const fromStorage = localStorage.getItem(TAB_KEY);
       if (fromStorage && ALLOWED_TABS.includes(fromStorage)) return fromStorage;
 
+      // Default to "donation" (Available Donation) as landing tab
       return "donation";
     } catch {
       return "donation";

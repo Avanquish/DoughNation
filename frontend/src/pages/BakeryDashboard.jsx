@@ -265,6 +265,43 @@ const BakeryDashboard = () => {
     }
   }, [isEmployeeMode]);
 
+  // Fetch badges for employees (using bakery_id)
+  useEffect(() => {
+    if (!isEmployeeMode || !employee || !employee.bakery_id) return;
+
+    const employeeToken = localStorage.getItem("employeeToken");
+    if (!employeeToken) return;
+
+    // Fetch badges for the bakery (so employees can see the bakery's badges)
+    axios
+      .get(`${API}/badges/user/${employee.bakery_id}`, {
+        headers: { Authorization: `Bearer ${employeeToken}` },
+      })
+      .then((res) => {
+        setBadges(res.data || []);
+        setCurrentUser({
+          id: employee.bakery_id,
+          name: employee.employee_name,
+          is_verified: true,
+          badges: res.data || [],
+          employee_id: employee.employee_id,
+          employee_role: employee.employee_role,
+        });
+      })
+      .catch((err) => {
+        console.error("Failed to fetch badges for employee:", err);
+        setBadges([]);
+        setCurrentUser({
+          id: employee.bakery_id,
+          name: employee.employee_name,
+          is_verified: true,
+          badges: [],
+          employee_id: employee.employee_id,
+          employee_role: employee.employee_role,
+        });
+      });
+  }, [isEmployeeMode, employee]);
+
   // Fetch inventory, employees, uploaded and donated products
   useEffect(() => {
     // Get the appropriate token based on mode
@@ -342,25 +379,42 @@ const BakeryDashboard = () => {
     }
   }, [activeTab]);
 
-  // Stats calculations
-  const stats = useMemo(() => {
-    const totalProducts = inventory.length;
-    const expiredProducts = inventory.filter(
-      (i) => statusOf(i) === "expired"
-    ).length;
-    const nearingExpiration = inventory.filter(
-      (i) => statusOf(i) === "soon"
-    ).length;
-    return {
-      totalDonations: donatedProducts,
-      totalInventory: totalProducts,
-      uploadedProducts,
-      donatedProducts,
-      employeeCount,
-      expiredProducts,
-      nearingExpiration,
+  // Stats state - will be fetched from backend
+  const [stats, setStats] = useState({
+    totalDonations: 0,
+    totalInventory: 0,
+    uploadedProducts: 0,
+    donatedProducts: 0,
+    employeeCount: 0,
+    expiredProducts: 0,
+    nearingExpiration: 0,
+  });
+
+// Fetch stats from backend using Philippine timezone
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const token = isEmployeeMode 
+          ? localStorage.getItem("employeeToken")
+          : localStorage.getItem("token");
+        
+        const res = await axios.get(`${API}/dashboard-stats`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        setStats(res.data);
+      } catch (err) {
+        console.error("Failed to fetch dashboard stats:", err);
+      }
     };
-  }, [inventory, employeeCount, uploadedProducts, donatedProducts]);
+
+    fetchStats();
+    
+    // Refresh stats every 30 seconds
+    const interval = setInterval(fetchStats, 30000);
+    
+    return () => clearInterval(interval);
+  }, [isEmployeeMode]);
 
   // ui helpers
   const handleLogout = () => {
@@ -806,7 +860,7 @@ const BakeryDashboard = () => {
                           className="text-3xl font-extrabold"
                           style={{ color: "#2b1a0b" }}
                         >
-                          {stats.uploadedProducts}
+                          {uploadedProducts}
                         </p>
                       </div>
                       <div className="chip">

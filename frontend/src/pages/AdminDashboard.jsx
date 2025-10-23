@@ -21,7 +21,6 @@ import axios from "../api/axios";
 
 import AdminComplaint from "./AdminComplaint";
 import AdminReports from "./AdminReports";
-import AdminBadge from "./AdminBadge";
 import AdminUser from "./AdminUser";
 import Leaderboards from "./Leaderboards";
 
@@ -63,6 +62,7 @@ const AdminDashboard = () => {
       if (fromStorage && ADMIN_ALLOWED_TABS.includes(fromStorage))
         return fromStorage;
     } catch {}
+    // Default to "dashboard" as landing tab
     return "dashboard";
   });
 
@@ -321,7 +321,6 @@ const AdminDashboard = () => {
       users: "User Management",
       reports: "Report Generation",
       track: "Bakery Leaderboards",
-      badges: "Assign Badges",
       complaints: "Manage Complaints",
     };
     return map[activeTab] ?? "Dashboard";
@@ -763,10 +762,9 @@ const AdminDashboard = () => {
             <TabsList className="bg-transparent p-0 border-0">
               <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
               <TabsTrigger value="users">Manage Users</TabsTrigger>
-              <TabsTrigger value="reports">Report Generation</TabsTrigger>
-              <TabsTrigger value="track">Bakery Leaderboards</TabsTrigger>
-              <TabsTrigger value="badges">Assign Badges</TabsTrigger>
+              <TabsTrigger value="track">Donation Monitoring</TabsTrigger>
               <TabsTrigger value="complaints">Manage Complaints</TabsTrigger>
+              <TabsTrigger value="reports">Report Generation</TabsTrigger>
             </TabsList>
           </div>
         </div>
@@ -860,20 +858,6 @@ const AdminDashboard = () => {
                 <CardContent className="text-sm text-muted-foreground">
                   <Leaderboards />
                 </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Assign Badges */}
-          <TabsContent value="badges" className="reveal">
-            <div className="gwrap hover-lift">
-              <Card className="glass-card shadow-none">
-                <CardHeader>
-                  <CardTitle className="text-3xl font-extrabold text-[#6b4b2b]">
-                    Assign Badges
-                  </CardTitle>
-                </CardHeader>
-                <AdminBadge />
               </Card>
             </div>
           </TabsContent>

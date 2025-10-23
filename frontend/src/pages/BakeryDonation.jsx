@@ -6,28 +6,38 @@ import { Heart, Clock, AlertTriangle, Package } from "lucide-react";
 
 const API = "http://localhost:8000";
 
-/* ---------- helpers ---------- */
-const isExpired = (dateStr) => {
-  if (!dateStr) return false;
+/* ---------- helpers (using server date) ---------- */
+const isExpired = (dateStr, serverDate) => {
+  if (!dateStr || !serverDate) return false;
   const d = new Date(dateStr);
-  const t = new Date();
+  const [year, month, day] = serverDate.split('-').map(Number);
+  const t = new Date(year, month - 1, day);
   t.setHours(0, 0, 0, 0);
   d.setHours(0, 0, 0, 0);
-  return d <= t;
+  return d < t; // Changed from <= to < (expired means past days only)
 };
-const daysUntil = (dateStr) => {
-  if (!dateStr) return null;
+
+const daysUntil = (dateStr, serverDate) => {
+  if (!dateStr || !serverDate) return null;
   const d = new Date(dateStr);
-  const t = new Date();
+  const [year, month, day] = serverDate.split('-').map(Number);
+  const t = new Date(year, month - 1, day);
   t.setHours(0, 0, 0, 0);
   d.setHours(0, 0, 0, 0);
   return Math.ceil((d - t) / (1000 * 60 * 60 * 24));
 };
-const statusOf = (donation) => {
-  const d = daysUntil(donation?.expiration_date);
+
+const statusOf = (donation, serverDate) => {
+  const d = daysUntil(donation?.expiration_date, serverDate);
   if (d === null) return "fresh";
   if (d <= 0) return "expired";
-  if (d <= (Number(donation?.threshold) || 0)) return "soon";
+  
+  const threshold = Number(donation?.threshold);
+  
+  // Match inventory logic: threshold 0 means check if d <= 1
+  if (threshold === 0 && d <= 1) return "soon";
+  if (d <= threshold) return "soon";
+  
   return "fresh";
 };
 
@@ -124,6 +134,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
   // custom dropdown states
   const [openInv, setOpenInv] = useState(false);
   const [openChar, setOpenChar] = useState(false);
+  const [currentServerDate, setCurrentServerDate] = useState(null);
 
   const [form, setForm] = useState({
     bakery_inventory_id: "",
@@ -140,6 +151,27 @@ const BakeryDonation = ({ highlightedDonationId }) => {
   // Get the appropriate token (employee token takes priority if it exists)
   const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
+
+  // Fetch server date on mount
+useEffect(() => {
+  const fetchServerDate = async () => {
+    try {
+      const res = await axios.get(`${API}/server-time`, { headers });
+      setCurrentServerDate(res.data.date);
+    } catch (err) {
+      console.error("Failed to fetch server date:", err);
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      setCurrentServerDate(`${yyyy}-${mm}-${dd}`);
+    }
+  };
+  
+  fetchServerDate();
+  const interval = setInterval(fetchServerDate, 60 * 60 * 1000); // Refresh every hour
+  return () => clearInterval(interval);
+}, []);
 
   /* ---------- data fetch ---------- */
   const fetchEmployees = async () => {
@@ -185,7 +217,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
       const ok = (res.data || []).filter((it) => {
         const s = String(it.status || "").toLowerCase();
         return (
-          s !== "donated" && s !== "requested" && !isExpired(it.expiration_date)
+          s !== "donated" && s !== "requested" && !isExpired(it.expiration_date, currentServerDate)
         );
       });
       setInventory(ok);
@@ -260,7 +292,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
 
   /* ---------- card chip ---------- */
   const statusChip = (d) => {
-    const st = statusOf(d);
+    const st = statusOf(d, currentServerDate);
     if (st === "expired") {
       return {
         text: "Expired",
@@ -271,9 +303,9 @@ const BakeryDonation = ({ highlightedDonationId }) => {
     if (st === "soon") {
       return {
         text:
-          daysUntil(d.expiration_date) === 1
+          daysUntil(d.expiration_date, currentServerDate) === 1
             ? "Expires in 1 day"
-            : `Expires in ${daysUntil(d.expiration_date)} days`,
+            : `Expires in ${daysUntil(d.expiration_date, currentServerDate)} days`,
         cls: "bg-[#fff8e6] border-[#ffe7bf] text-[#8a5a25]",
         icon: <Clock className="w-3.5 h-3.5" />,
       };
@@ -286,8 +318,8 @@ const BakeryDonation = ({ highlightedDonationId }) => {
   };
 
   const sortedDonations = [...donations].sort((a, b) => {
-    const da = daysUntil(a.expiration_date);
-    const db = daysUntil(b.expiration_date);
+    const da = daysUntil(a.expiration_date, currentServerDate);
+    const db = daysUntil(b.expiration_date, currentServerDate);
     const ua = da !== null && da <= 2 ? 0 : 1;
     const ub = db !== null && db <= 2 ? 0 : 1;
     if (ua !== ub) return ua - ub;
@@ -471,7 +503,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                 const chosen = inventory.find(
                   (x) => Number(x.id) === parseInt(form.bakery_inventory_id, 10)
                 );
-                if (chosen && isExpired(chosen.expiration_date)) {
+                if (chosen && isExpired(chosen.expiration_date, currentServerDate)) {
                   Swal.fire(
                     "Not allowed",
                     "Expired products cannot be donated.",
@@ -549,7 +581,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                             (x) => Number(x.id) === +form.bakery_inventory_id
                           );
                           if (!chosen) return "Select item to donate";
-                          const left = daysUntil(chosen.expiration_date);
+                          const left = daysUntil(chosen.expiration_date, currentServerDate);
                           const chip = leftBadge(left);
                           return (
                             <span className="inline-flex items-center gap-2">
@@ -596,11 +628,11 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                                 .slice()
                                 .sort(
                                   (a, b) =>
-                                    (daysUntil(a.expiration_date) ?? Infinity) -
-                                    (daysUntil(b.expiration_date) ?? Infinity)
+                                    (daysUntil(a.expiration_date, currentServerDate) ?? Infinity) -
+                                    (daysUntil(b.expiration_date, currentServerDate) ?? Infinity)
                                 )
                                 .map((it) => {
-                                  const left = daysUntil(it.expiration_date);
+                                  const left = daysUntil(it.expiration_date, currentServerDate);
                                   const chip = leftBadge(left);
                                   return (
                                     <button
@@ -642,13 +674,13 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                                 .slice()
                                 .sort((a, b) => {
                                   const da =
-                                    daysUntil(a.expiration_date) ?? Infinity;
+                                    daysUntil(a.expiration_date, currentServerDate) ?? Infinity;
                                   const db =
-                                    daysUntil(b.expiration_date) ?? Infinity;
+                                    daysUntil(b.expiration_date, currentServerDate) ?? Infinity;
                                   return da - db;
                                 })
                                 .map((it) => {
-                                  const left = daysUntil(it.expiration_date);
+                                  const left = daysUntil(it.expiration_date, currentServerDate);
                                   const chip = leftBadge(left);
                                   return (
                                     <button
@@ -1001,7 +1033,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                             Nothing selected yet.
                           </p>
                         );
-                      const leftDays = daysUntil(chosen.expiration_date);
+                      const leftDays = daysUntil(chosen.expiration_date, currentServerDate);
                       const chip = leftBadge(leftDays);
                       return (
                         <>

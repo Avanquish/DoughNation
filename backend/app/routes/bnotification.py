@@ -12,6 +12,8 @@ def get_notifications(
     db: Session = Depends(database.get_db),
     current_auth=Depends(auth.get_current_user_or_employee)
 ):
+    from datetime import datetime, timezone, timedelta
+    
     # Get bakery_id from either user or employee
     bakery_id = auth.get_bakery_id_from_auth(current_auth)
     
@@ -21,51 +23,77 @@ def get_notifications(
     else:
         user_id = current_auth.id
     
-    today = datetime.now()
-
-    # Nearing expiration (within 2 days)
-    nearing_expiration = db.query(models.BakeryInventory).filter(
-        models.BakeryInventory.bakery_id == bakery_id,
-        models.BakeryInventory.expiration_date > today,
-        models.BakeryInventory.expiration_date <= today + timedelta(days=2)
+    # Philippine Time is UTC+8
+    philippine_tz = timezone(timedelta(hours=8))
+    today = datetime.now(philippine_tz).date()
+    
+    # Get all inventory items for this bakery
+    all_products = db.query(models.BakeryInventory).filter(
+        models.BakeryInventory.bakery_id == bakery_id
     ).all()
-
-    # Already expired
-    expired = db.query(models.BakeryInventory).filter(
-        models.BakeryInventory.bakery_id == bakery_id,
-        models.BakeryInventory.expiration_date <= today
-    ).all()
-
+    
     notifications = []
-
-    for product in nearing_expiration:
-        notif_id = f"near-{product.id}"
-        read = db.query(models.NotificationRead).filter_by(user_id=user_id, notif_id=notif_id).first() is not None
-        notifications.append({
-            "type": "warning",
-            "message": f"{product.name} is nearing expiration and will be automatically uploaded to donation ({product.expiration_date.strftime('%Y-%m-%d')})",
-            "id": notif_id,
-            "product_id": product.id,
-            "expiration_date": product.expiration_date,
-            "read": read
-        })
-
-    for product in expired:
-        notif_id = f"expired-{product.id}"
-        read = db.query(models.NotificationRead).filter_by(user_id=user_id, notif_id=notif_id).first() is not None
-        notifications.append({
-            "type": "danger",
-            "message": f"{product.name} has expired ({product.expiration_date.strftime('%Y-%m-%d')})",
-            "id": notif_id,
-            "product_id": product.id,
-            "expiration_date": product.expiration_date,
-            "read": read
-        })
-
+    
+    for product in all_products:
+        exp_date = product.expiration_date
+        threshold_days = product.threshold
+        
+        # Calculate status using the same logic as frontend
+        if exp_date is None:
+            days_remaining = None
+        else:
+            days_remaining = (exp_date - today).days
+        
+        # Determine item status
+        if days_remaining is None:
+            item_status = "fresh"
+        elif days_remaining <= 0:  # Changed from < 0 to <= 0 to match frontend
+            item_status = "expired"
+        elif threshold_days == 0 and days_remaining <= 1:
+            item_status = "soon"
+        elif days_remaining <= threshold_days:
+            item_status = "soon"
+        else:
+            item_status = "fresh"
+        
+        # Create notifications based on status
+        if item_status == "soon":
+            # Nearing expiration notification
+            notif_id = f"near-{product.id}"
+            read = db.query(models.NotificationRead).filter_by(
+                user_id=user_id, 
+                notif_id=notif_id
+            ).first() is not None
+            
+            notifications.append({
+                "type": "warning",
+                "message": f"{product.name} is nearing expiration and will be automatically uploaded to donation ({product.expiration_date.strftime('%Y-%m-%d')})",
+                "id": notif_id,
+                "product_id": product.id,
+                "expiration_date": product.expiration_date,
+                "read": read
+            })
+        
+        elif item_status == "expired":
+            # Expired notification
+            notif_id = f"expired-{product.id}"
+            read = db.query(models.NotificationRead).filter_by(
+                user_id=user_id, 
+                notif_id=notif_id
+            ).first() is not None
+            
+            notifications.append({
+                "type": "danger",
+                "message": f"{product.name} has expired ({product.expiration_date.strftime('%Y-%m-%d')})",
+                "id": notif_id,
+                "product_id": product.id,
+                "expiration_date": product.expiration_date,
+                "read": read
+            })
+    
     # Sort: unread first, then by newest expiration_date
     notifications.sort(key=lambda n: (n["read"], n["expiration_date"]), reverse=True)
     return {"notifications": notifications}
-
 
 # --- Mark notification as read ---
 @router.patch("/notifications/{notif_id}/read")

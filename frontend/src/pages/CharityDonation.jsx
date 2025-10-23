@@ -4,32 +4,43 @@ import Swal from "sweetalert2";
 
 const API = "http://localhost:8000";
 
-// Helpers
-const isExpired = (dateStr) => {
-  if (!dateStr) return false;
+// Helpers (using server date)
+const isExpired = (dateStr, serverDate) => {
+  if (!dateStr || !serverDate) return false;
   const d = new Date(dateStr);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const [year, month, day] = serverDate.split('-').map(Number);
+  const t = new Date(year, month - 1, day);
+  t.setHours(0, 0, 0, 0);
   d.setHours(0, 0, 0, 0);
-  return d <= today;
+  return d < t;
 };
-const daysUntil = (dateStr) => {
-  if (!dateStr) return null;
+
+const daysUntil = (dateStr, serverDate) => {
+  if (!dateStr || !serverDate) return null;
   const d = new Date(dateStr);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const [year, month, day] = serverDate.split('-').map(Number);
+  const t = new Date(year, month - 1, day);
+  t.setHours(0, 0, 0, 0);
   d.setHours(0, 0, 0, 0);
-  return Math.ceil((d - today) / (1000 * 60 * 60 * 24));
+  return Math.ceil((d - t) / (1000 * 60 * 60 * 24));
 };
-const statusOf = (donation) => {
-  const d = daysUntil(donation?.expiration_date);
+
+const statusOf = (donation, serverDate) => {
+  const d = daysUntil(donation?.expiration_date, serverDate);
   if (d === null) return "fresh";
   if (d <= 0) return "expired";
-  if (d <= (Number(donation?.threshold) || 0)) return "soon";
+  
+  const threshold = Number(donation?.threshold);
+  
+  // Match inventory logic: threshold 0 means check if d <= 1
+  if (threshold === 0 && d <= 1) return "soon";
+  if (d <= threshold) return "soon";
+  
   return "fresh";
 };
-const statusChip = (d) => {
-  const st = statusOf(d);
+
+const statusChip = (d, serverDate) => {
+  const st = statusOf(d, serverDate);
   if (st === "expired") {
     return {
       text: "Expired",
@@ -42,7 +53,7 @@ const statusChip = (d) => {
     };
   }
   if (st === "soon") {
-    const dleft = daysUntil(d.expiration_date);
+    const dleft = daysUntil(d.expiration_date, serverDate);
     return {
       text: dleft === 1 ? "Expires in 1 day" : `Expires in ${dleft} days`,
       cls: "bg-[#fff8e6] border-[#ffe7bf] text-[#8a5a25]",
@@ -128,6 +139,31 @@ export default function CharityDonation() {
   const [donations, setDonations] = useState([]);
   const [requestedDonations, setRequestedDonations] = useState({}); // donation_id -> request_id
   const [selectedDonation, setSelectedDonation] = useState(null);
+  const [currentServerDate, setCurrentServerDate] = useState(null);
+
+  // Fetch server date on mount
+useEffect(() => {
+  const fetchServerDate = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${API}/server-time`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCurrentServerDate(res.data.date);
+    } catch (err) {
+      console.error("Failed to fetch server date:", err);
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      setCurrentServerDate(`${yyyy}-${mm}-${dd}`);
+    }
+  };
+  
+  fetchServerDate();
+  const interval = setInterval(fetchServerDate, 60 * 60 * 1000); // Refresh every hour
+  return () => clearInterval(interval);
+}, []);
 
   // Fetching data
   useEffect(() => {
@@ -353,7 +389,7 @@ useEffect(() => {
               {donations.map((donation) => {
                 const requestId = requestedDonations[donation.id];
                 const isRequested = !!requestId;
-                const chip = statusChip(donation);
+                const chip = statusChip(donation,  currentServerDate);
 
                 return (
                   <div
@@ -557,7 +593,7 @@ useEffect(() => {
 
               {/* Status chip (same logic as main donation cards) */}
               {(() => {
-                const chip = statusChip(selectedDonation);
+                const chip = statusChip(selectedDonation,  currentServerDate);
                 return (
                   <div
                     className={`absolute top-3 right-3 text-[11px] font-bold inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${chip.cls}`}

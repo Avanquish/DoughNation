@@ -11,7 +11,11 @@ const UserBadges = ({ userId }) => {
   const fetchBadges = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
+      // Check for employee token first, then bakery owner token
+      const employeeToken = localStorage.getItem("employeeToken");
+      const bakeryToken = localStorage.getItem("token");
+      const token = employeeToken || bakeryToken;
+      
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const res = await axios.get(`${API}/badges/user/${userId}`, { headers });
       setBadges(res.data || []);

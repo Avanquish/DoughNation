@@ -110,7 +110,11 @@ def get_bakery_analytics(
 ):
     # Get bakery_id from either user or employee
     bakery_id = auth.get_bakery_id_from_auth(current_auth)
-    today = datetime.today().date()
+    
+    # USE PHILIPPINE TIME (UTC+8)
+    from datetime import timezone, timedelta
+    philippine_tz = timezone(timedelta(hours=8))
+    today = datetime.now(philippine_tz).date()
 
     # INVENTORY COUNTS
     total_inventory = db.query(models.BakeryInventory).filter(
@@ -124,14 +128,25 @@ def get_bakery_analytics(
 
     for item in total_inventory:
         if not item.expiration_date:
+            fresh += 1  #Items without expiration are fresh
             continue
+        
         days_left = (item.expiration_date - today).days
+        
+        # Match frontend logic exactly
         if days_left < 0:
             expired += 1
-        elif days_left <= (item.threshold or 0):
-            soon += 1
+        elif item.threshold == 0:
+            # Special case: threshold 0 means check if expires today or tomorrow
+            if days_left <= 1:
+                soon += 1
+            else:
+                fresh += 1
         else:
-            fresh += 1
+            if days_left <= item.threshold:
+                soon += 1
+            else:
+                fresh += 1
 
     # DONATION COUNTS
     uploaded_count = (

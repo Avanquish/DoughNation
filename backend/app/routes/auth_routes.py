@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, UploadFile, Form, File, HTTPException
 from sqlalchemy.orm import Session
 from app import crud, auth, database, schemas, models
 from app.auth import create_access_token, get_current_user, verify_password
+from app.event_logger import log_system_event
 from passlib.context import CryptContext
 
 router = APIRouter()
@@ -60,6 +61,17 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
         if not verify_password(user.password, db_user.hashed_password):
             print(f"❌ Invalid password for User account")
             print(f"{'='*80}\n")
+            
+            # Log failed user login attempt (invalid password)
+            log_system_event(
+                db=db,
+                event_type="failed_login",
+                description=f"Failed login attempt - Invalid password for user: {db_user.email} ({db_user.role})",
+                severity="warning",
+                user_id=db_user.id,
+                metadata={"email": db_user.email, "role": db_user.role, "reason": "invalid_password"}
+            )
+            
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
         print(f"✅ User authenticated: {db_user.name} (Role: {db_user.role})")
@@ -86,6 +98,17 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     if not employees:
         print(f"❌ No User or Employee found with identifier: '{identifier}'")
         print(f"{'='*80}\n")
+        
+        # Log failed login attempt (account not found)
+        log_system_event(
+            db=db,
+            event_type="failed_login",
+            description=f"Failed login attempt - Account not found: {identifier}",
+            severity="warning",
+            user_id=None,
+            metadata={"attempted_identifier": identifier, "reason": "account_not_found"}
+        )
+        
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     # If multiple employees with same name exist, try to authenticate with each
@@ -98,6 +121,17 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     if not authenticated_employee:
         print(f"❌ Invalid password for Employee account(s)")
         print(f"{'='*80}\n")
+        
+        # Log failed employee login attempt (invalid password)
+        log_system_event(
+            db=db,
+            event_type="failed_login",
+            description=f"Failed employee login attempt - Invalid password: {identifier}",
+            severity="warning",
+            user_id=None,
+            metadata={"attempted_name": identifier, "reason": "invalid_password", "employee_count": len(employees)}
+        )
+        
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     # 🚫 BLOCK PART-TIME EMPLOYEES
@@ -105,6 +139,17 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     if "parttime" in employee_role_normalized or employee_role_normalized == "part":
         print(f"🚫 Part-time employee login blocked: {authenticated_employee.name}")
         print(f"{'='*80}\n")
+        
+        # Log failed employee login attempt (part-time restriction)
+        log_system_event(
+            db=db,
+            event_type="failed_login",
+            description=f"Failed employee login attempt - Part-time restriction: {authenticated_employee.name} (Bakery ID: {authenticated_employee.bakery_id})",
+            severity="warning",
+            user_id=None,
+            metadata={"employee_name": authenticated_employee.name, "bakery_id": authenticated_employee.bakery_id, "reason": "part_time_restriction"}
+        )
+        
         raise HTTPException(
             status_code=403, 
             detail="Part-time employees cannot access the system. Please contact your manager if you believe this is an error."
@@ -456,6 +501,17 @@ def employee_login(
                 name_matches = emp.name == credentials.name
                 print(f"     Name match: {name_matches} ('{emp.name}' == '{credentials.name}')")
             print(f"{'='*80}\n")
+            
+            # Log failed employee login attempt (employee not found)
+            log_system_event(
+                db=db,
+                event_type="failed_login",
+                description=f"Failed employee login attempt - Employee not found: {credentials.name} (Bakery ID: {credentials.bakery_id})",
+                severity="warning",
+                user_id=None,
+                metadata={"attempted_name": credentials.name, "bakery_id": credentials.bakery_id, "reason": "employee_not_found"}
+            )
+            
             raise HTTPException(status_code=404, detail="Employee not found")
         
         print(f"✅ MATCH FOUND: {employee.name} (ID: {employee.id}, Role: {employee.role})")
@@ -464,6 +520,17 @@ def employee_login(
         if employee.role == "Part-time":
             print(f"❌ Part-time employees cannot log in")
             print(f"{'='*80}\n")
+            
+            # Log failed employee login attempt (part-time restriction)
+            log_system_event(
+                db=db,
+                event_type="failed_login",
+                description=f"Failed employee login attempt - Part-time employee tried to login: {employee.name} (Bakery ID: {credentials.bakery_id})",
+                severity="warning",
+                user_id=None,
+                metadata={"employee_name": employee.name, "bakery_id": credentials.bakery_id, "reason": "part_time_restriction"}
+            )
+            
             raise HTTPException(
                 status_code=403,
                 detail="Part-time employees cannot log in"
@@ -473,6 +540,17 @@ def employee_login(
         if not employee.hashed_password:
             print(f"❌ Employee has no hashed password set!")
             print(f"{'='*80}\n")
+            
+            # Log failed employee login attempt (no password set)
+            log_system_event(
+                db=db,
+                event_type="failed_login",
+                description=f"Failed employee login attempt - No password set: {employee.name} (Bakery ID: {credentials.bakery_id})",
+                severity="warning",
+                user_id=None,
+                metadata={"employee_name": employee.name, "bakery_id": credentials.bakery_id, "reason": "no_password_set"}
+            )
+            
             raise HTTPException(status_code=401, detail="Employee has no password set. Please contact your bakery owner.")
         
         password_is_valid = verify_password(credentials.password, employee.hashed_password)
@@ -481,6 +559,17 @@ def employee_login(
         if not password_is_valid:
             print(f"❌ Password verification failed")
             print(f"{'='*80}\n")
+            
+            # Log failed employee login attempt (invalid password)
+            log_system_event(
+                db=db,
+                event_type="failed_login",
+                description=f"Failed employee login attempt - Invalid password: {employee.name} (Bakery ID: {credentials.bakery_id})",
+                severity="warning",
+                user_id=None,
+                metadata={"employee_name": employee.name, "bakery_id": credentials.bakery_id, "reason": "invalid_password"}
+            )
+            
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         # Create JWT token with employee data

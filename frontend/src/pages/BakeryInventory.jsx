@@ -124,7 +124,7 @@ export default function BakeryInventory() {
   const [form, setForm] = useState({
     item_name: "",
     quantity: 1,
-    creation_date: "",
+    creation_date: "", 
     expiration_date: "",
     description: "",
     image_file: null,
@@ -959,10 +959,6 @@ export default function BakeryInventory() {
                       value={form.threshold}
                       onChange={(e) => {
                         const value = e.target.value === "" ? "" : parseInt(e.target.value, 10);
-                        setForm({
-                          ...form,
-                          threshold: value,
-                        });
                         
                         // Real-time validation if expiration date is set
                         if (form.expiration_date && value !== "") {
@@ -973,14 +969,35 @@ export default function BakeryInventory() {
                           expDate.setHours(0, 0, 0, 0);
                           
                           const daysUntilExpiration = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
+                          const maxThreshold = Math.max(0, daysUntilExpiration - 1);
                           
-                          if (value >= daysUntilExpiration) {
-                            e.target.setCustomValidity(
-                              `Threshold must be less than ${daysUntilExpiration} days (days until expiration)`
-                            );
+                          // If value exceeds max threshold, cap it and show error
+                          if (value > maxThreshold) {
+                            Swal.fire({
+                              title: "Threshold Exceeded",
+                              text: `Maximum threshold is ${maxThreshold} day${maxThreshold !== 1 ? 's' : ''}. Value has been adjusted automatically.`,
+                              icon: "warning",
+                              confirmButtonColor: "#A97142",
+                              timer: 3000
+                            });
+                            
+                            setForm({
+                              ...form,
+                              threshold: maxThreshold,
+                            });
+                            e.target.setCustomValidity('');
                           } else {
+                            setForm({
+                              ...form,
+                              threshold: value,
+                            });
                             e.target.setCustomValidity('');
                           }
+                        } else {
+                          setForm({
+                            ...form,
+                            threshold: value,
+                          });
                         }
                       }}
                       onFocus={(e) => {
@@ -994,18 +1011,6 @@ export default function BakeryInventory() {
                             confirmButtonColor: "#A97142",
                             timer: 2500
                           });
-                        }
-                      }}
-                      onBlur={(e) => {
-                        // Show visual feedback on blur
-                        if (form.expiration_date && form.threshold !== "") {
-                          const today = new Date();
-                          today.setHours(0, 0, 0, 0);
-                          
-                          const expDate = new Date(form.expiration_date);
-                          expDate.setHours(0, 0, 0, 0);
-                          
-                          const daysUntilExpiration = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
                         }
                       }}
                       readOnly={!!templateInfo || !form.expiration_date}

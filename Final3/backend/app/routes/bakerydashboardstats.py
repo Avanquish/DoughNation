@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, database, auth
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 router = APIRouter()
 
@@ -26,18 +26,41 @@ def get_dashboard_stats(db: Session = Depends(database.get_db), current_user=Dep
     # Employee count for this bakery
     employee_count = db.query(models.Employee).filter(models.Employee.bakery_id == bakery_id).count()
 
-    # Expired products (only for this bakery)
+    # Philippine Time is UTC+8
+    philippine_tz = timezone(timedelta(hours=8))
+    today_philippine = datetime.now(philippine_tz).date()
+
+    # Expired products (expiration_date < today, meaning yesterday or earlier)
     expired_products = db.query(models.BakeryInventory).filter(
         models.BakeryInventory.bakery_id == bakery_id,
-        models.BakeryInventory.expiration_date < datetime.today()
+        models.BakeryInventory.expiration_date < today_philippine
     ).count()
 
-    # Products nearing expiration within 2 days
-    nearing_expiration = db.query(models.BakeryInventory).filter(
+    # Products nearing expiration - match frontend logic exactly
+    # Frontend: statusOf checks if d <= threshold (where d = days until expiration)
+    # We need to fetch all items that are NOT expired yet
+    inventory_items = db.query(models.BakeryInventory).filter(
         models.BakeryInventory.bakery_id == bakery_id,
-        models.BakeryInventory.expiration_date > datetime.today(),  # only future dates
-        models.BakeryInventory.expiration_date <= datetime.today() + timedelta(days=2)  # within 2 days
-    ).count()
+        models.BakeryInventory.expiration_date >= today_philippine  # Today or future
+    ).all()
+
+    nearing_expiration = 0
+    for item in inventory_items:
+        # Calculate days until expiration (matching frontend daysUntil function)
+        days_until_expiration = (item.expiration_date - today_philippine).days
+        
+        # Match frontend logic exactly:
+        # if (threshold === 0 && d <= 1) return "soon"
+        # if (d <= threshold) return "soon"
+        if item.threshold == 0:
+            # For threshold 0: include today (0) and tomorrow (1)
+            if days_until_expiration <= 1:
+                nearing_expiration += 1
+        else:
+            # For other thresholds: d <= threshold
+            if days_until_expiration <= item.threshold:
+                nearing_expiration += 1
+
 
     return {
         "totalDonations": total_donations,

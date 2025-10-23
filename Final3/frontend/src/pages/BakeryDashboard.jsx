@@ -20,6 +20,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useEmployeeAuth } from "../context/EmployeeAuthContext";
 import BakeryInventory from "./BakeryInventory";
 import BakeryEmployee from "./BakeryEmployee";
 import BakeryDonation from "./BakeryDonation";
@@ -71,19 +72,27 @@ const statusOf = (item) => {
 
 const BakeryDashboard = () => {
   const { id } = useParams();
+  const { employee, logout: employeeLogout } = useEmployeeAuth();
   const [isVerified, setIsVerified] = useState(false);
   const [name, setName] = useState("Bakery");
+  const [bakeryName, setBakeryName] = useState("");
+  const [employeeRole, setEmployeeRole] = useState(null);
+  const [isEmployeeMode, setIsEmployeeMode] = useState(false);
 
-  // initialize from URL, localStorage, or default
+  // initialize from URL, localStorage, or default (always prefer "dashboard" on fresh load)
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const fromUrl = params.get("tab");
+      
+      // If URL has tab param, use it
       if (fromUrl && ALLOWED_TABS.includes(fromUrl)) return fromUrl;
 
+      // Otherwise, check localStorage (but only if URL doesn't exist)
       const fromStorage = localStorage.getItem(TAB_KEY);
       if (fromStorage && ALLOWED_TABS.includes(fromStorage)) return fromStorage;
 
+      // Default to dashboard
       return "dashboard";
     } catch {
       return "dashboard";
@@ -108,6 +117,74 @@ const BakeryDashboard = () => {
   const [currentUser, setCurrentUser] = useState(null);
 
   const navigate = useNavigate();
+
+  // Detect employee mode and set role
+  useEffect(() => {
+    if (employee && employee.bakery_id === parseInt(id)) {
+      setIsEmployeeMode(true);
+      setEmployeeRole(employee.employee_role);
+      setName(employee.employee_name);
+      setIsVerified(true); // ✅ Employees are always verified (part of verified bakery)
+      
+      // Set a loading placeholder immediately
+      setBakeryName("Loading...");
+      
+      // Fetch bakery name using employee token
+      const employeeToken = localStorage.getItem("employeeToken");
+      if (employeeToken) {
+        axios
+          .get(`${API}/users/${employee.bakery_id}`, {
+            headers: { Authorization: `Bearer ${employeeToken}` },
+          })
+          .then((res) => {
+            setBakeryName(res.data.name || "Bakery");
+          })
+          .catch((err) => {
+            console.error("Failed to fetch bakery name:", err);
+            setBakeryName("Bakery");
+          });
+      } else {
+        // If no token, fallback to generic name
+        setBakeryName("Bakery");
+      }
+    }
+  }, [employee, id]);
+
+  // Determine which tabs are visible based on role
+  const getVisibleTabs = () => {
+    if (!isEmployeeMode || !employeeRole) {
+      // All tabs visible for bakery owner
+      return ALLOWED_TABS;
+    }
+
+    // Normalize role for comparison (remove spaces, hyphens, lowercase)
+    const role = employeeRole.toLowerCase().replace(/[-\s]/g, "");
+    
+    // 👑 OWNER & MANAGER: Full access to ALL tabs
+    if (role === "owner" || role === "manager") {
+      return ALLOWED_TABS;
+    } 
+    
+    // 👷 FULL-TIME: Limited access
+    // Can access: dashboard, inventory, donations, donation status, complaints, feedback (view only), badges
+    // Cannot access: employee management, reports
+    else if (role.includes("fulltime") || role === "full") {
+      return ALLOWED_TABS.filter(
+        (tab) => tab !== "employee" && tab !== "reports"
+      );
+    } 
+    
+    // 🚫 PART-TIME: Should not be able to log in (handled at backend)
+    // If they somehow access, show nothing
+    else if (role.includes("parttime") || role === "part") {
+      return [];
+    }
+    
+    // Default: show all tabs (fallback for unknown roles)
+    return ALLOWED_TABS;
+  };
+
+  const visibleTabs = getVisibleTabs();
 
   // keep URL & localStorage in sync with activeTab
   useEffect(() => {
@@ -147,7 +224,11 @@ const BakeryDashboard = () => {
     let decoded;
     try {
       decoded = JSON.parse(atob(token.split(".")[1]));
-      setName(decoded.name || "Madam Bakery");
+      // Only set name and bakeryName for bakery owners (not employees)
+      if (!isEmployeeMode) {
+        setName(decoded.name || "Madam Bakery");
+        setBakeryName(decoded.name || "Bakery");
+      }
       setIsVerified(decoded.is_verified);
       const userId =
         decoded.sub || decoded.id || decoded.user_id || decoded._id;
@@ -182,11 +263,14 @@ const BakeryDashboard = () => {
     } catch {
       // token decode error
     }
-  }, []);
+  }, [isEmployeeMode]);
 
   // Fetch inventory, employees, uploaded and donated products
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    // Get the appropriate token based on mode
+    const token = isEmployeeMode 
+      ? localStorage.getItem("employeeToken")
+      : localStorage.getItem("token");
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
     const loadInventory = () =>
@@ -250,7 +334,7 @@ const BakeryDashboard = () => {
       window.removeEventListener("focus", onFocus);
       clearInterval(pollId);
     };
-  }, []);
+  }, [isEmployeeMode]);
 
   useEffect(() => {
     if (activeTab !== "donations") {
@@ -258,29 +342,52 @@ const BakeryDashboard = () => {
     }
   }, [activeTab]);
 
-  // Stats calculations
-  const stats = useMemo(() => {
-    const totalProducts = inventory.length;
-    const expiredProducts = inventory.filter(
-      (i) => statusOf(i) === "expired"
-    ).length;
-    const nearingExpiration = inventory.filter(
-      (i) => statusOf(i) === "soon"
-    ).length;
-    return {
-      totalDonations: donatedProducts,
-      totalInventory: totalProducts,
-      uploadedProducts,
-      donatedProducts,
-      employeeCount,
-      expiredProducts,
-      nearingExpiration,
+  // Stats state - will be fetched from backend
+  const [stats, setStats] = useState({
+    totalDonations: 0,
+    totalInventory: 0,
+    uploadedProducts: 0,
+    donatedProducts: 0,
+    employeeCount: 0,
+    expiredProducts: 0,
+    nearingExpiration: 0,
+  });
+
+// Fetch stats from backend using Philippine timezone
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const token = isEmployeeMode 
+          ? localStorage.getItem("employeeToken")
+          : localStorage.getItem("token");
+        
+        const res = await axios.get(`${API}/dashboard-stats`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        setStats(res.data);
+      } catch (err) {
+        console.error("Failed to fetch dashboard stats:", err);
+      }
     };
-  }, [inventory, employeeCount, uploadedProducts, donatedProducts]);
+
+    fetchStats();
+    
+    // Refresh stats every 30 seconds
+    const interval = setInterval(fetchStats, 30000);
+    
+    return () => clearInterval(interval);
+  }, [isEmployeeMode]);
 
   // ui helpers
   const handleLogout = () => {
-    localStorage.removeItem("token");
+    if (isEmployeeMode) {
+      // Employee logout
+      employeeLogout();
+    } else {
+      // Bakery owner logout
+      localStorage.removeItem("token");
+    }
     navigate("/");
   };
 
@@ -294,14 +401,18 @@ const BakeryDashboard = () => {
         Verified
       </span>
     );
-  }, [activeTab]);
+  }, []);
 
   // Fetch the computed Donation Send
   useEffect(() => {
     const fetchTotals = async () => {
       try {
+        const token = isEmployeeMode 
+          ? localStorage.getItem("employeeToken")
+          : localStorage.getItem("token");
+        
         const res = await fetch(`${API}/bakery/total_donations_sent`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          headers: { Authorization: `Bearer ${token}` },
         });
 
         if (!res.ok) return;
@@ -314,14 +425,18 @@ const BakeryDashboard = () => {
     };
 
     fetchTotals();
-  }, []);
+  }, [isEmployeeMode]);
 
   // Fetch uploaded products
   useEffect(() => {
     const fetchUploadedProducts = async () => {
       try {
+        const token = isEmployeeMode 
+          ? localStorage.getItem("employeeToken")
+          : localStorage.getItem("token");
+        
         const res = await fetch(`${API}/bakery/total_products_for_donation`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          headers: { Authorization: `Bearer ${token}` },
         });
 
         if (!res.ok) throw new Error("Failed to fetch uploaded products");
@@ -334,10 +449,11 @@ const BakeryDashboard = () => {
     };
 
     fetchUploadedProducts();
-  }, []);
+  }, [isEmployeeMode]);
 
   // If user is not verified, show "verification pending" screen
-  if (!isVerified) {
+  // BUT: Employees bypass this check since they're part of a verified bakery
+  if (!isVerified && !isEmployeeMode) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-surface to-primary/5 p-6">
         <Card className="max-w-md shadow-elegant">
@@ -504,10 +620,44 @@ const BakeryDashboard = () => {
                   </div>
                 </div>
                 <div className="min-w-0">
-                  <h1 className="title-ink text-2xl sm:text-[26px] truncate">
-                    {name}
-                  </h1>
-                  <span className="status-chip">{statusText}</span>
+                  {bakeryName ? (
+                    <>
+                      <h1 className="title-ink text-3xl sm:text-[32px] font-black truncate mb-1">
+                        {bakeryName}
+                      </h1>
+                      {isEmployeeMode && (
+                        <p 
+                          className="text-xs font-medium tracking-wide uppercase"
+                          style={{ 
+                            color: "#a67c52",
+                            letterSpacing: "0.08em"
+                          }}
+                        >
+                          👤 {name}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <h1 className="title-ink text-2xl sm:text-[26px] truncate">
+                      {name}
+                    </h1>
+                  )}
+                  <div className="flex gap-2 mt-1">
+                    <span className="status-chip">{statusText}</span>
+                    {isEmployeeMode && employeeRole && (
+                      <span
+                        className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full"
+                        style={{
+                          background: "linear-gradient(180deg, #E3F2FD, #BBDEFB)",
+                          color: "#1565C0",
+                          border: "1px solid #90CAF9",
+                        }}
+                      >
+                        <Users className="w-3 h-3" />
+                        {employeeRole}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -564,21 +714,39 @@ const BakeryDashboard = () => {
       <Tabs
         value={activeTab}
         onValueChange={(v) => {
-          if (ALLOWED_TABS.includes(v)) setActiveTab(v);
+          if (visibleTabs.includes(v)) setActiveTab(v);
         }}
       >
         <div className="seg-wrap">
           <div className="seg">
             <TabsList className="bg-transparent p-0 border-0">
-              <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-              <TabsTrigger value="inventory">Inventory</TabsTrigger>
-              <TabsTrigger value="donations">For Donations</TabsTrigger>
-              <TabsTrigger value="DONATIONstatus">Donation Status</TabsTrigger>
-              <TabsTrigger value="employee">Employee</TabsTrigger>
-              <TabsTrigger value="complaints">Complaints</TabsTrigger>
-              <TabsTrigger value="reports">Report Generation</TabsTrigger>
-              <TabsTrigger value="feedback">Feedback</TabsTrigger>
-              <TabsTrigger value="badges">Achievement Badges</TabsTrigger>
+              {visibleTabs.includes("dashboard") && (
+                <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+              )}
+              {visibleTabs.includes("inventory") && (
+                <TabsTrigger value="inventory">Inventory</TabsTrigger>
+              )}
+              {visibleTabs.includes("donations") && (
+                <TabsTrigger value="donations">For Donations</TabsTrigger>
+              )}
+              {visibleTabs.includes("DONATIONstatus") && (
+                <TabsTrigger value="DONATIONstatus">Donation Status</TabsTrigger>
+              )}
+              {visibleTabs.includes("employee") && (
+                <TabsTrigger value="employee">Employee</TabsTrigger>
+              )}
+              {visibleTabs.includes("complaints") && (
+                <TabsTrigger value="complaints">Complaints</TabsTrigger>
+              )}
+              {visibleTabs.includes("reports") && (
+                <TabsTrigger value="reports">Report Generation</TabsTrigger>
+              )}
+              {visibleTabs.includes("feedback") && (
+                <TabsTrigger value="feedback">Feedback</TabsTrigger>
+              )}
+              {visibleTabs.includes("badges") && (
+                <TabsTrigger value="badges">Achievement Badges</TabsTrigger>
+              )}
             </TabsList>
           </div>
         </div>
@@ -655,7 +823,7 @@ const BakeryDashboard = () => {
                           className="text-3xl font-extrabold"
                           style={{ color: "#2b1a0b" }}
                         >
-                          {stats.uploadedProducts}
+                          {uploadedProducts}
                         </p>
                       </div>
                       <div className="chip">

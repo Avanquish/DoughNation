@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import UnlockModalBadge from "@/components/ui/UnlockModalBadge";
 import { jwtDecode } from "jwt-decode";
 
 // Palette

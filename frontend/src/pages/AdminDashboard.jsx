@@ -15,7 +15,12 @@ import {
   ShieldCheck,
   LogOut,
   Bell,
-  UserCircle
+  UserCircle,
+  LayoutDashboard,
+  Users,
+  HandCoins,
+  MessageSquareWarning,
+  FileBarChart
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import axios from "../api/axios";
@@ -349,17 +354,57 @@ const AdminDashboard = () => {
 
       {/* Controller */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        {/* <div className="seg-wrap">
-          <div className="seg">
-            <TabsList className="bg-transparent p-0 border-0">
-              <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-              <TabsTrigger value="users">Manage Users</TabsTrigger>
-              <TabsTrigger value="track">Donation Monitoring</TabsTrigger>
-              <TabsTrigger value="complaints">Manage Complaints</TabsTrigger>
-              <TabsTrigger value="reports">Report Generation</TabsTrigger>
+        <div className="seg-wrap">
+          <div className="seg justify-center">
+            <TabsList
+              className="
+          flex items-center gap-1
+          bg-transparent p-0 border-0
+          overflow-x-auto no-scrollbar
+        "
+            >
+              <TabsTrigger
+                value="dashboard"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                <span className="hidden sm:inline">Dashboard</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="users"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+              >
+                <Users className="w-4 h-4" />
+                <span className="hidden sm:inline">Users</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="track"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+              >
+                <HandCoins className="w-4 h-4" />
+                <span className="hidden sm:inline">Donations</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="complaints"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+              >
+                <MessageSquareWarning className="w-4 h-4" />
+                <span className="hidden sm:inline">Complaints</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="reports"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+              >
+                <FileBarChart className="w-4 h-4" />
+                <span className="hidden sm:inline">Reports</span>
+              </TabsTrigger>
             </TabsList>
           </div>
-        </div> */}
+        </div>
 
         {/* Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7">

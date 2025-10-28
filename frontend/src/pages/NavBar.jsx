@@ -52,7 +52,7 @@ const NavBar = () => {
                     <nav
                         className="hidden md:flex items-center gap-5"
                         style={{ fontSize: 15 }}>
-                        <Link
+                        {/* <Link
                             to="/login"
                             className="nav-link transition-colors"
                             style={{ color: "#5b4631" }}>
@@ -81,7 +81,7 @@ const NavBar = () => {
                             className="nav-link transition-colors"
                             style={{ color: "#5b4631" }}>
                             Reports
-                        </Link>
+                        </Link> */}
                         <NotificationAction />
                         <UserMenu />
                     </nav>
@@ -135,7 +135,9 @@ const NavBar = () => {
                         } overflow-hidden`}
                 >
                     <div className="px-4 pb-3 pt-1 flex flex-col">
-                        <a
+                        <NotificationAction />
+                        <UserMenu />
+                        {/* <a
                             href="/"
                             className="block py-2 nav-link"
                             style={{ color: "#5b4631" }}
@@ -186,7 +188,7 @@ const NavBar = () => {
                             onClick={() => setMobileOpen(false)}
                         >
                             Logout
-                        </Link>
+                        </Link> */}
                     </div>
                 </div>
             </div>

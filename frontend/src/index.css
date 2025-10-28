@@ -358,7 +358,13 @@
     border-radius: 12px;
     padding: .3rem;
     box-shadow: 0 8px 24px rgba(201, 124, 44, .10);
-    width: fit-content
+    /* width: fit-content */
+}
+
+@media (max-width: 640px) {
+  .seg .TabsList {
+    justify-content: center;
+  }
 }
 
 .seg [role="tab"] {

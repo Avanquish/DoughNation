@@ -28,7 +28,7 @@ import AdminComplaint from "./AdminComplaint";
 import AdminReports from "./AdminReports";
 import AdminUser from "./AdminUser";
 import Leaderboards from "./Leaderboards";
-import UserMenu from "./UserMenu";
+import DataTable from "./DatatableSample";
 import NavBar from "./NavBar";
 
 // Tab persistence
@@ -55,6 +55,23 @@ function UnreadCircle({ read }) {
     />
   );
 }
+
+
+const data = [
+  { id: 1, name: "Alice Johnson", email: "alice@example.com", role: "Admin" },
+  { id: 2, name: "Bob Smith", email: "bob@example.com", role: "Editor" },
+  { id: 3, name: "Charlie Brown", email: "charlie@example.com", role: "Viewer" },
+]
+
+const columns = [
+  { accessorKey: "id", header: "ID" },
+  { accessorKey: "name", header: "Name" },
+  { accessorKey: "email", header: "Email" },
+  { accessorKey: "role", header: "Role" },
+]
+
+console.log("columns:", columns)
+console.log("data:", data)
 
 const AdminDashboard = () => {
   const [name, setName] = useState("Admin");
@@ -410,6 +427,11 @@ const AdminDashboard = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7">
           {/* Dashboard */}
           <TabsContent value="dashboard" className="space-y-6">
+            <div className="container mx-auto py-10">
+              <DataTable columns={columns} data={data} />
+            </div>
+
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* Stat: Total Bakeries */}
               <div className="stat reveal r1">

@@ -14,6 +14,7 @@ import Profile from "./pages/BakeryProfile";
 import CharityProfile from "./pages/CharityProfile";
 import ForgotPassword from "./pages/ForgetPassword";
 import PrivacyTerms from "./pages/PrivacyTerms";
+import DataTableDemo from "./pages/DatatableSample";
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/privacy-terms" element={<PrivacyTerms/>} />
+          <Route path="/sample-page" element={<DataTableDemo/>} />
 
           {/* Unified Bakery Dashboard Route - handles both bakery owners and employees */}
           <Route path="/bakery-dashboard/:id" element={<BakeryDashboardRoute><BakeryDashboard /></BakeryDashboardRoute>} />

@@ -753,3 +753,8 @@
     @apply bg-background text-foreground;
     }
 }
+
+thead{
+    background: #EADBC8;
+    color: #4A2F17;
+}

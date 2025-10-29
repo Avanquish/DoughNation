@@ -20,7 +20,9 @@ import {
   Users,
   HandCoins,
   MessageSquareWarning,
-  FileBarChart
+  FileBarChart,
+  Microwave,
+  Store
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import axios from "../api/axios";
@@ -30,6 +32,9 @@ import AdminUser from "./AdminUser";
 import Leaderboards from "./Leaderboards";
 import DataTable from "./DatatableSample";
 import NavBar from "./NavBar";
+import Bakery from "./Bakery";
+import Charity from "./Charity";
+
 
 // Tab persistence
 const ADMIN_TAB_KEY = "admin_active_tab";
@@ -64,14 +69,11 @@ const data = [
 ]
 
 const columns = [
-  { accessorKey: "id", header: "ID" },
-  { accessorKey: "name", header: "Name" },
-  { accessorKey: "email", header: "Email" },
-  { accessorKey: "role", header: "Role" },
+  { accessorKey: "id", header: "ID", isHide: "true" },
+  { accessorKey: "name", header: "Name", isHide: "false" },
+  { accessorKey: "email", header: "Email", isHide: "false" },
+  { accessorKey: "role", header: "Role", isHide: "false" },
 ]
-
-console.log("columns:", columns)
-console.log("data:", data)
 
 const AdminDashboard = () => {
   const [name, setName] = useState("Admin");
@@ -381,7 +383,7 @@ const AdminDashboard = () => {
         "
             >
               <TabsTrigger
-                value="dashboard"
+                value="dashboard" title="Dashboard"
                 className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
               >
                 <LayoutDashboard className="w-4 h-4" />
@@ -389,15 +391,23 @@ const AdminDashboard = () => {
               </TabsTrigger>
 
               <TabsTrigger
-                value="users"
+                value="bakeries" title="Bakeries"
                 className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
               >
-                <Users className="w-4 h-4" />
-                <span className="hidden sm:inline">Users</span>
+                <Microwave className="w-4 h-4" />
+                <span className="hidden sm:inline">Bakeries</span>
               </TabsTrigger>
 
               <TabsTrigger
-                value="track"
+                value="charities" title="Charities"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+              >
+                <Store className="w-4 h-4" />
+                <span className="hidden sm:inline">Charities</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="track" title="Donations"
                 className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
               >
                 <HandCoins className="w-4 h-4" />
@@ -405,85 +415,124 @@ const AdminDashboard = () => {
               </TabsTrigger>
 
               <TabsTrigger
-                value="complaints"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
-              >
-                <MessageSquareWarning className="w-4 h-4" />
-                <span className="hidden sm:inline">Complaints</span>
-              </TabsTrigger>
-
-              <TabsTrigger
-                value="reports"
+                value="reports" title="Reports"
                 className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
               >
                 <FileBarChart className="w-4 h-4" />
                 <span className="hidden sm:inline">Reports</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="users" title="Users"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+              >
+                <Users className="w-4 h-4" />
+                <span className="hidden sm:inline">Users</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="complaints" title="Complaints"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+              >
+                <MessageSquareWarning className="w-4 h-4" />
+                <span className="hidden sm:inline">Complaints</span>
               </TabsTrigger>
             </TabsList>
           </div>
         </div>
 
         {/* Content */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7">
+        <div className="max-w-7xl mx-auto px-3 sm:px-3 lg:px-3 py-7">
           {/* Dashboard */}
-          <TabsContent value="dashboard" className="space-y-6">
-            <div className="container mx-auto py-10">
-              <DataTable columns={columns} data={data} />
+          <TabsContent value="dashboard" className="reveal">
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  <div className="space-y-6">
+                    <div className="p-6">
+                      <div>
+                        <h2 className="text-3xl font-extrabold text-[#6b4b2b]">Dashboard</h2>
+                        <p className="mt-1 text-sm text-[#7b5836]">Metrics</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {/* Stat: Total Bakeries */}
+                    <div className="stat reveal r1">
+                      <div className="stat-inner">
+                        <div>
+                          <p className="stat-title">Total Bakeries</p>
+                          <p className="stat-value">{stats.totalBakeries}</p>
+                        </div>
+                        <div className="stat-ico">
+                          <Building2 />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Stat: Total Charities */}
+                    <div className="stat reveal r2">
+                      <div className="stat-inner">
+                        <div>
+                          <p className="stat-title">Total Charities</p>
+                          <p className="stat-value">{stats.totalCharities}</p>
+                        </div>
+                        <div className="stat-ico">
+                          <HelpingHand />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Stat: Total Users */}
+                    <div className="stat reveal r3">
+                      <div className="stat-inner">
+                        <div>
+                          <p className="stat-title">Total Users</p>
+                          <p className="stat-value">{stats.totalUsers}</p>
+                        </div>
+                        <div className="stat-ico">
+                          <UserCog />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Stat: Pending Users */}
+                    <div className="stat reveal r4">
+                      <div className="stat-inner">
+                        <div>
+                          <p className="stat-title">Pending Users</p>
+                          <p className="stat-value">{stats.pendingUsersCount}</p>
+                        </div>
+                        <div className="stat-ico">
+                          <ShieldCheck />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
+          </TabsContent>
 
+          {/* Bakeries */}
+          <TabsContent value="bakeries" className="reveal">
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  <Bakery />
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {/* Stat: Total Bakeries */}
-              <div className="stat reveal r1">
-                <div className="stat-inner">
-                  <div>
-                    <p className="stat-title">Total Bakeries</p>
-                    <p className="stat-value">{stats.totalBakeries}</p>
-                  </div>
-                  <div className="stat-ico">
-                    <Building2 />
-                  </div>
-                </div>
-              </div>
-
-              {/* Stat: Total Charities */}
-              <div className="stat reveal r2">
-                <div className="stat-inner">
-                  <div>
-                    <p className="stat-title">Total Charities</p>
-                    <p className="stat-value">{stats.totalCharities}</p>
-                  </div>
-                  <div className="stat-ico">
-                    <HelpingHand />
-                  </div>
-                </div>
-              </div>
-
-              {/* Stat: Total Users */}
-              <div className="stat reveal r3">
-                <div className="stat-inner">
-                  <div>
-                    <p className="stat-title">Total Users</p>
-                    <p className="stat-value">{stats.totalUsers}</p>
-                  </div>
-                  <div className="stat-ico">
-                    <UserCog />
-                  </div>
-                </div>
-              </div>
-
-              {/* Stat: Pending Users */}
-              <div className="stat reveal r4">
-                <div className="stat-inner">
-                  <div>
-                    <p className="stat-title">Pending Users</p>
-                    <p className="stat-value">{stats.pendingUsersCount}</p>
-                  </div>
-                  <div className="stat-ico">
-                    <ShieldCheck />
-                  </div>
-                </div>
-              </div>
+          {/* Charities */}
+          <TabsContent value="charities" className="reveal">
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  <Charity />
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 
@@ -505,8 +554,12 @@ const AdminDashboard = () => {
 
           {/* Report Generation */}
           <TabsContent value="reports" className="reveal">
-            <div>
-              <AdminReports />
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  <AdminReports />
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 
@@ -514,7 +567,15 @@ const AdminDashboard = () => {
           <TabsContent value="track" className="reveal">
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
-                <CardContent className="text-sm text-muted-foreground">
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  <div className="space-y-6">
+                    <div className="p-2 pt-4 sm:p-4 md:p-6">
+                      <div>
+                        <h2 className="text-3xl font-extrabold text-[#6b4b2b]">Donation Leaderboards</h2>
+                        <p className="mt-1 text-sm text-[#7b5836]">Track top performers by donations</p>
+                      </div>
+                    </div>
+                  </div>
                   <Leaderboards />
                 </CardContent>
               </Card>

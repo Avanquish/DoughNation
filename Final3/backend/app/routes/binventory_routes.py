@@ -1,18 +1,140 @@
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
-import os, shutil
+import os, shutil, csv
 from datetime import datetime, timedelta
 from sqlalchemy import func
 
 from app import models, database, schemas, auth, crud
-
 from app.routes.cnotification import process_geofence_notifications
 
 router = APIRouter()
 UPLOAD_DIR = "uploads"
+CSV_DIR = "bakery_templates"  # New directory for bakery-specific CSVs
 
-# --- INVENTORY ---
+# Ensure CSV directory exists
+os.makedirs(CSV_DIR, exist_ok=True)
+
+# === CSV HELPER FUNCTIONS ===
+def get_bakery_csv_path(bakery_id: int):
+    """Get the CSV file path for a specific bakery"""
+    filename = f"bakery_{bakery_id}_products.csv"
+    return os.path.join(CSV_DIR, filename)
+
+
+def initialize_bakery_csv(bakery_id: int):
+    """Create CSV file with headers if it doesn't exist"""
+    csv_path = get_bakery_csv_path(bakery_id)
+    
+    if not os.path.exists(csv_path):
+        print(f"[CSV] Creating new CSV for bakery {bakery_id}")
+        with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
+            writer = csv.DictWriter(f, fieldnames=['Product Name', 'Threshold', 'Expiration', 'Description'])
+            writer.writeheader()
+        print(f"[CSV] ✅ Created: {csv_path}")
+    
+    return csv_path
+
+
+def load_bakery_templates(bakery_id: int):
+    """Load product templates from bakery's CSV file"""
+    csv_path = get_bakery_csv_path(bakery_id)
+    templates = {}
+    
+    if not os.path.exists(csv_path):
+        print(f"[CSV] No CSV found for bakery {bakery_id}")
+        return templates
+    
+    encodings = ['utf-8-sig', 'utf-8', 'latin-1', 'cp1252']
+    
+    for encoding in encodings:
+        try:
+            with open(csv_path, 'r', encoding=encoding) as f:
+                reader = csv.DictReader(f)
+                
+                for row in reader:
+                    product_name = row.get('Product Name', '').strip()
+                    if not product_name:
+                        continue
+                    
+                    # Normalize name for matching
+                    normalized_name = product_name.lower().replace(' ', '')
+                    
+                    try:
+                        threshold = int(row.get('Threshold', 0))
+                        expiration = int(row.get('Expiration', 0))
+                    except ValueError:
+                        continue
+                    
+                    templates[normalized_name] = {
+                        'shelf_life_days': expiration,
+                        'threshold': threshold,
+                        'description': row.get('Description', '').strip(),
+                        'original_name': product_name
+                    }
+            
+            print(f"[CSV] ✅ Loaded {len(templates)} templates for bakery {bakery_id}")
+            return templates
+            
+        except UnicodeDecodeError:
+            continue
+        except Exception as e:
+            print(f"[CSV] ❌ Error loading CSV: {e}")
+            continue
+    
+    return templates
+
+
+def save_product_to_csv(bakery_id: int, product_name: str, threshold: int, shelf_life_days: int, description: str = ""):
+    """Save or update a product template in bakery's CSV"""
+    csv_path = initialize_bakery_csv(bakery_id)
+    
+    # Load existing templates
+    templates = load_bakery_templates(bakery_id)
+    normalized_name = product_name.strip().lower().replace(' ', '')
+    
+    # Check if product already exists
+    if normalized_name in templates:
+        print(f"[CSV] Product '{product_name}' already exists for bakery {bakery_id}, skipping...")
+        return False
+    
+    # Add new product to CSV
+    try:
+        with open(csv_path, 'a', newline='', encoding='utf-8-sig') as f:
+            writer = csv.DictWriter(f, fieldnames=['Product Name', 'Threshold', 'Expiration', 'Description'])
+            writer.writerow({
+                'Product Name': product_name.strip(),
+                'Threshold': threshold,
+                'Expiration': shelf_life_days,
+                'Description': description.strip()
+            })
+        
+        print(f"[CSV] ✅ Added '{product_name}' to bakery {bakery_id} CSV")
+        return True
+        
+    except Exception as e:
+        print(f"[CSV] ❌ Error saving to CSV: {e}")
+        return False
+
+
+def get_template_from_csv(bakery_id: int, product_name: str):
+    """Get template for a specific product from bakery's CSV"""
+    templates = load_bakery_templates(bakery_id)
+    normalized_name = product_name.strip().lower().replace(' ', '')
+    
+    print(f"[CSV] 🔍 Looking for '{product_name}' in bakery {bakery_id} CSV")
+    
+    template = templates.get(normalized_name)
+    
+    if template:
+        print(f"[CSV] ✅ Found template for '{product_name}'")
+    else:
+        print(f"[CSV] ❌ No template found for '{product_name}'")
+    
+    return template
+
+
+# INVENTORY ROUTES
 @router.post("/inventory", response_model=schemas.BakeryInventoryOut)
 def add_inventory(
     name: str = Form(...),
@@ -29,12 +151,12 @@ def add_inventory(
     if current_user.role.lower() != "bakery":
         raise HTTPException(status_code=403, detail="Only bakeries can add inventory")
 
-    # Save image
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     file_path = os.path.join(UPLOAD_DIR, image.filename)
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(image.file, buffer)
 
+    # Create inventory item
     new_item = crud.create_inventory(
         db=db,
         bakery_id=current_user.id,
@@ -48,30 +170,64 @@ def add_inventory(
         description=description
     )
 
-# To add product to donation table if reach threshold
+    # Calculate shelf life and save to bakery's CSV
+    try:
+        print(f"[CSV] 📝 Attempting to save product '{name}' for bakery {current_user.id}")
+        
+        # Ensure CSV directory exists
+        os.makedirs(CSV_DIR, exist_ok=True)
+        
+        # Parse dates
+        creation = datetime.strptime(creation_date, "%Y-%m-%d").date()
+        expiration = datetime.strptime(expiration_date, "%Y-%m-%d").date()
+        shelf_life_days = (expiration - creation).days
+        
+        print(f"[CSV] Shelf life calculated: {shelf_life_days} days")
+        
+        # Initialize CSV if it doesn't exist
+        csv_path = initialize_bakery_csv(current_user.id)
+        print(f"[CSV] CSV path: {csv_path}")
+        
+        # Save to CSV
+        success = save_product_to_csv(
+            bakery_id=current_user.id,
+            product_name=name,
+            threshold=threshold,
+            shelf_life_days=shelf_life_days,
+            description=description or ""
+        )
+        
+        if success:
+            print(f"[CSV] ✅ Successfully saved '{name}' to CSV")
+        else:
+            print(f"[CSV] ⚠️ Product '{name}' already exists in CSV, skipped")
+            
+    except ValueError as e:
+        print(f"[CSV] ❌ Date parsing error: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid date format: {e}")
+    except Exception as e:
+        print(f"[CSV] ❌ Error saving to CSV: {e}")
+        # Don't fail the entire request, but log the error
+        import traceback
+        traceback.print_exc()
+
     check_threshold_and_create_donation(db)
-# To apply the edit on bakery inventory table
     check_inventory_status(db)
 
     return new_item
-
 
 @router.get("/inventory", response_model=List[schemas.BakeryInventoryOut])
 def list_inventory(
     db: Session = Depends(database.get_db),
     current_auth = Depends(auth.get_current_user_or_employee)
 ):
-    # Get bakery_id from either user or employee
     bakery_id = auth.get_bakery_id_from_auth(current_auth)
-    
-    # To apply the edit on bakery inventory table
     check_inventory_status(db)
 
     inventory_items = crud.list_inventory(db, bakery_id=bakery_id)
     updated_items = []
 
     for item in inventory_items:
-        # Check pending donation requests via Donation → DonationRequest
         pending_request = db.query(models.DonationRequest).join(models.Donation).filter(
             models.Donation.bakery_inventory_id == item.id,
             models.DonationRequest.status == "pending"
@@ -110,12 +266,12 @@ def update_inventory(
         with open(image_path, "wb") as buffer:
             shutil.copyfileobj(image.file, buffer)
 
-    updated_item =  crud.update_inventory(
+    updated_item = crud.update_inventory(
         db=db,
         inventory_id=inventory_id,
         bakery_id=current_user.id,
         name=name,
-        image=image_path,  # Only update if new image uploaded
+        image=image_path,
         quantity=quantity,
         creation_date=creation_date,
         expiration_date=expiration_date,
@@ -124,63 +280,105 @@ def update_inventory(
         description=description
     )
 
-# To apply the edit on donation table
+    # Save to bakery's OWN CSV if product name changed
+    try:
+        creation = datetime.strptime(creation_date, "%Y-%m-%d").date()
+        expiration = datetime.strptime(expiration_date, "%Y-%m-%d").date()
+        shelf_life_days = (expiration - creation).days
+        
+        #Pass bakery_id to save to correct CSV
+        save_product_to_csv(
+            bakery_id=current_user.id,  #Each bakery updates their own CSV
+            product_name=name,
+            threshold=threshold,
+            shelf_life_days=shelf_life_days,
+            description=description or ""
+        )
+    except Exception as e:
+        print(f"[CSV] Warning: Could not save to CSV: {e}")
+
     check_threshold_and_create_donation(db)
-# To apply the edit on bakery inventory table
     check_inventory_status(db)
 
     return updated_item
 
-# Bakery Inventory delete function
 @router.delete("/inventory/{inventory_id}", response_model=dict)
 def delete_inventory(
     inventory_id: int,
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(auth.ensure_verified_user)
 ):
-    product = db.query(models.BakeryInventory).filter(models.BakeryInventory.id == inventory_id).first()
-
     if current_user.role.lower() != "bakery":
         raise HTTPException(status_code=403, detail="Only bakeries can delete inventory")
 
     crud.delete_inventory(db=db, inventory_id=inventory_id, bakery_id=current_user.id)
-
-# To apply the edit on bakery inventory table
     check_inventory_status(db)
 
     return {"message": "Inventory item deleted successfully"}
 
 
-# ---Check threshold and create donation ---
+@router.get("/inventory/template/{product_name}")
+def get_product_template(
+    product_name: str,
+    db: Session = Depends(database.get_db),
+    current_auth = Depends(auth.get_current_user_or_employee)
+):
+    """Get product template - only checks bakery's CSV file"""
+    bakery_id = auth.get_bakery_id_from_auth(current_auth)
+    
+    print(f"\n[Template] 🔎 Request for product: '{product_name}' (Bakery {bakery_id})")
+    
+    # Check CSV file
+    csv_template = get_template_from_csv(bakery_id, product_name)
+    
+    if csv_template:
+        print(f"[Template] ✅ Returning CSV template for '{product_name}'")
+        return {
+            "exists": True,
+            "source": "csv",
+            "shelf_life_days": csv_template['shelf_life_days'],
+            "threshold": csv_template['threshold'],
+            "description": csv_template['description'],
+            "product_name": csv_template['original_name']
+        }
+    
+    # Not found
+    print(f"[Template] ❌ Not found: '{product_name}'")
+    return {
+        "exists": False,
+        "product_name": product_name
+    }
+
+
+@router.get("/server-time")
+def get_server_time():
+    from datetime import datetime, timezone, timedelta
+    philippine_tz = timezone(timedelta(hours=8))
+    return {"date": datetime.now(philippine_tz).date().isoformat()}
+
+
+# === HELPER FUNCTIONS (Unchanged) ===
 def check_threshold_and_create_donation(db: Session):
     from datetime import datetime, timezone, timedelta
     
-    # Philippine Time is UTC+8
     philippine_tz = timezone(timedelta(hours=8))
     today = datetime.now(philippine_tz).date()
     
     bakery_ids_triggered = set()
-
-    # Fetch all bakery products
     products = db.query(models.BakeryInventory).all()
-    print(f"[Scheduler] Checking {len(products)} inventory items against threshold...")
-    print(f"[Scheduler] Using Philippine date: {today}")
 
     for p in products:
         exp_date = p.expiration_date
         threshold_days = p.threshold
         
-        # Calculate status using the same logic as JavaScript
-        # days_until calculation
         if exp_date is None:
             days_remaining = None
         else:
             days_remaining = (exp_date - today).days
         
-        # status_of logic
         if days_remaining is None:
             item_status = "fresh"
-        elif days_remaining <= 0:  # Changed from < 0 to <= 0
+        elif days_remaining <= 0:
             item_status = "expired"
         elif threshold_days == 0 and days_remaining <= 1:
             item_status = "soon"
@@ -189,32 +387,26 @@ def check_threshold_and_create_donation(db: Session):
         else:
             item_status = "fresh"
 
-        # Remove donations if expired (but keep in inventory)
         if item_status == "expired":
             existing = db.query(models.Donation).filter(
                 models.Donation.bakery_inventory_id == p.id
             ).first()
             if existing:
                 db.delete(existing)
-                print(f"Removed donation for expired product: {p.name} (keeping in inventory)")
             continue
 
-        # Remove donations if inventory is fully donated or quantity <= 0
         if p.quantity <= 0 or p.status == "donated":
             existing = db.query(models.Donation).filter(
                 models.Donation.bakery_inventory_id == p.id
             ).first()
             if existing:
                 db.delete(existing)
-                print(f"Removed donation for {p.name} (quantity zero/donated)")
             continue
     
-        # Check if a donation already exists
         existing = db.query(models.Donation).filter(
             models.Donation.bakery_inventory_id == p.id
         ).first()
 
-        # Only create/update donations for items with "soon" status
         if item_status == "soon":
             if existing:
                 existing.quantity = p.quantity
@@ -225,7 +417,6 @@ def check_threshold_and_create_donation(db: Session):
                 existing.expiration_date = p.expiration_date
                 existing.uploaded = p.uploaded
                 existing.description = p.description
-                print(f"Updated donation for {p.name} (quantity: {p.quantity}, status: {item_status})")
                 bakery_ids_triggered.add(p.bakery_id)
             else:
                 donation = models.Donation(
@@ -241,76 +432,54 @@ def check_threshold_and_create_donation(db: Session):
                     description=p.description
                 )
                 db.add(donation)
-                print(f"Created donation for {p.name} (quantity: {p.quantity}, status: {item_status})")
                 bakery_ids_triggered.add(p.bakery_id)
         else:
-            # Remove donation if status is not "soon" (fresh or expired)
             if existing:
                 db.delete(existing)
-                print(f"Removed donation for {p.name} (status: {item_status})")
 
     db.commit()
-    print("[Scheduler] Donation sync completed")
 
-    #  Run geofence only for bakeries that had updates
     for b_id in bakery_ids_triggered:
-        print(f"[Scheduler] Running geofence for bakery {b_id}")
         process_geofence_notifications(db, b_id)
 
 
 def check_inventory_status(db: Session):
     from datetime import datetime, timezone, timedelta
     
-    # Philippine Time is UTC+8
     philippine_tz = timezone(timedelta(hours=8))
     today = datetime.now(philippine_tz).date()
 
-    # Fetch all bakery products
     products = db.query(models.BakeryInventory).all()
-    print(f"Checking {len(products)} inventory items for expiration...")
 
     for p in products:
-        # Skip if no expiration date
-        if not p.expiration_date:
-            continue
-
-        # Skip if already donated
-        if p.status == "donated":
+        if not p.expiration_date or p.status == "donated":
             continue
 
         exp_date = p.expiration_date
 
-        # Ensure exp_date is a date object
         if isinstance(exp_date, datetime):
             exp_date = exp_date.date()
         elif isinstance(exp_date, str):
             try:
                 exp_date = datetime.strptime(exp_date, "%Y-%m-%d").date()
-            except Exception as e:
-                print(f"Error parsing expiration_date for {p.name}: {e}")
+            except Exception:
                 continue
 
-        # Mark expired products as unavailable (but don't delete from inventory)
         if exp_date <= today:
             if p.status != "unavailable":
                 p.status = "unavailable"
-                print(f"Marked {p.name} as unavailable (expired)")
         else:
-            # Optional: mark as available if not expired and quantity > 0
             if p.quantity > 0 and p.status == "unavailable":
                 p.status = "available"
-                print(f"Marked {p.name} as available (not expired)")
 
     db.commit()
-    print("Bakery inventory status sync completed")
 
-# For autofill of creation date
 @router.get("/server-time")
 def get_server_time():
     from datetime import datetime, timezone, timedelta
-    # Philippine Time is UTC+8
     philippine_tz = timezone(timedelta(hours=8))
     return {"date": datetime.now(philippine_tz).date().isoformat()}
+
 
 @router.get("/inventory/template/{product_name}")
 def get_product_template(
@@ -318,21 +487,28 @@ def get_product_template(
     db: Session = Depends(database.get_db),
     current_auth = Depends(auth.get_current_user_or_employee)
 ):
-    """Get product template (shelf life and threshold) for auto-fill"""
+    """Get product template - only checks bakery's OWN CSV file"""
     bakery_id = auth.get_bakery_id_from_auth(current_auth)
     
-    template = crud.get_product_template(db, bakery_id, product_name)
+    print(f"\n[Template] 🔎 Request for product: '{product_name}' (Bakery {bakery_id})")
     
-    if template:
+    #Check bakery's OWN CSV file
+    csv_template = get_template_from_csv(bakery_id, product_name)
+    
+    if csv_template:
+        print(f"[Template] ✅ Returning CSV template for '{product_name}' from Bakery {bakery_id}")
         return {
             "exists": True,
-            "shelf_life_days": template['shelf_life_days'],
-            "threshold": template['threshold'],
-            "creation_date": template['creation_date'],  
-            "product_name": product_name
+            "source": "csv",
+            "shelf_life_days": csv_template['shelf_life_days'],
+            "threshold": csv_template['threshold'],
+            "description": csv_template['description'],
+            "product_name": csv_template['original_name']
         }
-    else:
-        return {
-            "exists": False,
-            "product_name": product_name
-        } 
+    
+    # Not found in this bakery's CSV
+    print(f"[Template] ❌ Not found in Bakery {bakery_id} CSV: '{product_name}'")
+    return {
+        "exists": False,
+        "product_name": product_name
+    }

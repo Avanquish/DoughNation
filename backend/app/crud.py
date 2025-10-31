@@ -261,6 +261,7 @@ def generate_product_id(name: str):
     unique = str(int(datetime.now().timestamp()))[-6:] + str(random.randint(100, 999))
     return f"{prefix}-{unique}"
 
+
 def create_inventory(
     db: Session,
     bakery_id: int,
@@ -307,8 +308,10 @@ def create_inventory(
     db.refresh(item)
     return item
 
+
 def list_inventory(db: Session, bakery_id: int):
     return db.query(models.BakeryInventory).filter(models.BakeryInventory.bakery_id == bakery_id).all()
+
 
 def update_inventory(
     db: Session,
@@ -375,40 +378,6 @@ def delete_inventory(db: Session, inventory_id: int, bakery_id: int):
     # Delete from DB
     db.delete(item)
     db.commit()
-
-def get_product_template(db: Session, bakery_id: int, product_name: str):
-    """
-    Get the product template (shelf life and threshold) for a specific product.
-    Case-insensitive and space-insensitive search.
-    Returns: dict with 'shelf_life_days', 'threshold', and 'creation_date' or None
-    """
-    # Normalize: trim, lowercase, and remove all spaces
-    normalized_name = product_name.strip().lower().replace(' ', '')
-    
-    existing = db.query(models.BakeryInventory).filter(
-        models.BakeryInventory.bakery_id == bakery_id,
-        func.lower(func.replace(models.BakeryInventory.name, ' ', '')) == normalized_name
-    ).order_by(models.BakeryInventory.id.desc()).first()
-    
-    if existing and existing.creation_date and existing.expiration_date:
-        creation = existing.creation_date
-        expiration = existing.expiration_date
-        
-        # Ensure both are date objects
-        if isinstance(creation, datetime):
-            creation = creation.date()
-        if isinstance(expiration, datetime):
-            expiration = expiration.date()
-            
-        shelf_life = (expiration - creation).days
-        
-        return { 
-            'shelf_life_days': shelf_life,
-            'threshold': existing.threshold,
-            'creation_date': creation.isoformat()
-        }
-    
-    return None
 
 # ------------------ BAKERY EMPLOYEE ------------------
 EMPLOYEE_UPLOAD_DIR = "uploads/employee_pictures"

@@ -58,8 +58,8 @@ export default function AdminComplaints() {
       v === "resolved"
         ? "bg-[#e8f7ee] text-[#166534] ring-[#bbecd0]"
         : v === "in review"
-        ? "bg-[#fff7e6] text-[#8a5a25] ring-[#f3ddc0]"
-        : "bg-[#fff1f1] text-[#991b1b] ring-[#f5caca]";
+          ? "bg-[#fff7e6] text-[#8a5a25] ring-[#f3ddc0]"
+          : "bg-[#fff1f1] text-[#991b1b] ring-[#f5caca]";
     return (
       <span
         className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ring-1 ${styles}`}
@@ -70,19 +70,9 @@ export default function AdminComplaints() {
   };
 
   return (
-    <div className="p-4 sm:p-6">
-      <div className="max-w-6xl mx-auto rounded-3xl bg-gradient-to-br from-[#FFF5EA] via-[#FFF0DE] to-[#FFE9CE] ring-1 ring-black/10 shadow-sm">
-        {/* Title */}
-        <div className="px-6 pt-8 pb-4 border-b border-[#e8d8c2]/70 text-center">
-          <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
-            Complaints Management
-          </h2>
-          <p className="mt-1 text-sm text-[#7b5836]">
-            Review complaints and update their status.
-          </p>
-        </div>
-
-        <div className="p-6">
+    <div className="p-2 sm:p-2">
+      <div className="">
+        <div className="p-2">
           {loading ? (
             <p className="text-center text-[#6b4b2b]">Loading complaints...</p>
           ) : complaints.length === 0 ? (

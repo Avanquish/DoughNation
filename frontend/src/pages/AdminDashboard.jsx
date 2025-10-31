@@ -540,11 +540,6 @@ const AdminDashboard = () => {
           <TabsContent value="users" className="reveal">
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
-                <CardHeader>
-                  <CardTitle className="text-3xl font-extrabold text-[#6b4b2b]">
-                    User Management
-                  </CardTitle>
-                </CardHeader>
                 <CardContent>
                   <AdminUser />
                 </CardContent>

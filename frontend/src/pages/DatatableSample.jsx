@@ -194,7 +194,7 @@ export default function DataTable({ columns, data }) {
       </div>
 
       <div className="overflow-hidden rounded-md border">
-        <Table>
+        <Table className="font-bold">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>

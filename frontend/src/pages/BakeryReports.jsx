@@ -24,7 +24,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import html2canvas from "html2canvas";
 
-export default function BakeryReports() {
+export default function BakeryReports({ isViewOnly = false }) {
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeReport, setActiveReport] = useState("");
@@ -2052,10 +2052,24 @@ export default function BakeryReports() {
         Bakery Report Generation
       </h1>
 
+      {isViewOnly && (
+        <div 
+          className="mb-4 p-3 rounded-lg border-2 flex items-start gap-2 text-sm"
+          style={{
+            background: "linear-gradient(135deg, #FFF8E1 0%, #FFECB3 100%)",
+            borderColor: "#FFB74D",
+            color: "#7a4f1c"
+          }}
+        >
+          <span className="font-semibold">View-Only Mode:</span> Report generation and downloads are disabled for bakery account.
+        </div>
+      )}
+
       {/* Controlled Tabs */}
       <Tabs
         value={activeReport}
         onValueChange={(val) => {
+          if (isViewOnly) return; // Prevent tab change in view-only mode
           setActiveReport(val);
           generateReport(val);
         }}
@@ -2090,7 +2104,7 @@ export default function BakeryReports() {
                     {["weekly", "monthly"].includes(activeReport) ? (
                       <div className="w-full">
                         {/* Weekly Date Filters */}
-                        {activeReport === "weekly" && (
+                        {activeReport === "weekly" && !isViewOnly && (
                           <div className="mb-4 flex flex-wrap gap-4 items-end">
                             <div>
                               <label className="block text-sm font-medium text-[#6b4b2b]">
@@ -2124,7 +2138,7 @@ export default function BakeryReports() {
                         )}
 
                         {/* Monthly Filter */}
-                        {activeReport === "monthly" && (
+                        {activeReport === "monthly" && !isViewOnly && (
                           <div className="mb-4 flex flex-wrap gap-4 items-end">
                             <div>
                               <label className="block text-sm font-medium text-[#6b4b2b]">
@@ -2559,26 +2573,28 @@ export default function BakeryReports() {
                     )}
 
                     {/* Actions */}
-                    <div className="flex flex-wrap gap-3 mt-5">
-                      <Button
-                        onClick={downloadReportCSV}
-                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
-                      >
-                        <Download size={16} /> Download CSV
-                      </Button>
-                      <Button
-                        onClick={() => downloadReportPDF(bakeryInfo)}
-                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
-                      >
-                        <Download size={16} /> Download PDF
-                      </Button>
-                      <Button
-                        onClick={() => printReport(bakeryInfo)}
-                        className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
-                      >
-                        <Printer size={16} /> Print
-                      </Button>
-                    </div>
+                    {!isViewOnly && (
+                      <div className="flex flex-wrap gap-3 mt-5">
+                        <Button
+                          onClick={downloadReportCSV}
+                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                        >
+                          <Download size={16} /> Download CSV
+                        </Button>
+                        <Button
+                          onClick={() => downloadReportPDF(bakeryInfo)}
+                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                        >
+                          <Download size={16} /> Download PDF
+                        </Button>
+                        <Button
+                          onClick={() => printReport(bakeryInfo)}
+                          className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
+                        >
+                          <Printer size={16} /> Print
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <p className="text-[#6b4b2b]/70">

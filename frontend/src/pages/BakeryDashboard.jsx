@@ -78,6 +78,7 @@ const BakeryDashboard = () => {
   const [bakeryName, setBakeryName] = useState("");
   const [employeeRole, setEmployeeRole] = useState(null);
   const [isEmployeeMode, setIsEmployeeMode] = useState(false);
+  const [isViewOnly, setIsViewOnly] = useState(false); // TRUE for bakery owner login, FALSE for employee login
 
   // initialize from URL, localStorage, or default (always prefer "dashboard" on fresh load)
   const [activeTab, setActiveTab] = useState(() => {
@@ -125,6 +126,7 @@ const BakeryDashboard = () => {
       setEmployeeRole(employee.employee_role);
       setName(employee.employee_name);
       setIsVerified(true); // ✅ Employees are always verified (part of verified bakery)
+      setIsViewOnly(false); // ✅ Employees have full CRUD access
       
       // Set a loading placeholder immediately
       setBakeryName("Loading...");
@@ -228,6 +230,9 @@ const BakeryDashboard = () => {
       if (!isEmployeeMode) {
         setName(decoded.name || "Madam Bakery");
         setBakeryName(decoded.name || "Bakery");
+        
+        // ✅ If bakery owner (user with token, not employee), set view-only mode
+        setIsViewOnly(true); // Bakery owners can only view, employees can perform CRUD
       }
       setIsVerified(decoded.is_verified);
       const userId =
@@ -790,6 +795,51 @@ const BakeryDashboard = () => {
 
         {/* Content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7">
+          {/* View-Only Mode Banner for Bakery Owners */}
+          {isViewOnly && (
+            <div 
+              className="mb-6 p-4 rounded-lg border-2 flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-500"
+              style={{
+                background: "linear-gradient(135deg, #FFF8E1 0%, #FFECB3 100%)",
+                borderColor: "#FFB74D",
+                boxShadow: "0 4px 12px rgba(255, 152, 0, 0.15)"
+              }}
+            >
+              <AlertTriangle 
+                className="h-5 w-5 mt-0.5 flex-shrink-0" 
+                style={{ color: "#F57C00" }} 
+              />
+              <div className="flex-1">
+                <h3 
+                  className="font-bold text-base mb-1"
+                  style={{ color: "#E65100" }}
+                >
+                  View-Only Mode
+                </h3>
+                <p 
+                  className="text-sm leading-relaxed"
+                  style={{ color: "#7a4f1c" }}
+                >
+                  You are logged in as a <strong>Bakery Account</strong>. All data modification operations are disabled for this account, including:
+                  <br/>
+                  • Cannot add, edit, or delete <strong>inventory items</strong>
+                  <br/>
+                  • Cannot send <strong>donations</strong>
+                  <br/>
+                  • Cannot add, edit, or delete <strong>employees</strong>
+                  <br/>
+                  • Cannot <strong>submit complaints</strong>
+                  <br/>
+                  • Cannot <strong>generate or download reports</strong>
+                  <br/>
+                  • Cannot <strong>reply to feedback</strong>
+                  <br/><br/>
+                  Only <strong>employees</strong> can perform these operations. You can view all information but cannot make changes.
+                </p>
+              </div>
+            </div>
+          )}
+          
           <TabsContent value="dashboard" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {/* Stat cards */}
@@ -1056,7 +1106,7 @@ const BakeryDashboard = () => {
           </TabsContent>
 
           <TabsContent value="inventory" className="reveal">
-            <BakeryInventory />
+            <BakeryInventory isViewOnly={isViewOnly} />
           </TabsContent>
 
           <TabsContent value="donations" className="reveal">
@@ -1066,6 +1116,7 @@ const BakeryDashboard = () => {
                   <TabsContent value="donations" className="reveal">
                     <BakeryDonation
                       highlightedDonationId={highlightedDonationId}
+                      isViewOnly={isViewOnly}
                     />
                   </TabsContent>
                 </CardHeader>
@@ -1079,15 +1130,15 @@ const BakeryDashboard = () => {
           </TabsContent>
 
           <TabsContent value="employee" className="reveal">
-            <BakeryEmployee />
+            <BakeryEmployee isViewOnly={isViewOnly} />
           </TabsContent>
 
           <TabsContent value="complaints" className="reveal">
-            <Complaint />
+            <Complaint isViewOnly={isViewOnly} />
           </TabsContent>
 
           <TabsContent value="reports" className="reveal">
-            <BakeryReports />
+            <BakeryReports isViewOnly={isViewOnly} />
           </TabsContent>
 
           {/* Feedback */}
@@ -1097,7 +1148,7 @@ const BakeryDashboard = () => {
                 <CardHeader className="pb-2">
                   <CardTitle style={{ color: "#6B4B2B" }}>Feedback</CardTitle>
                 </CardHeader>
-                <BFeedback />
+                <BFeedback isViewOnly={isViewOnly} />
               </Card>
             </div>
           </TabsContent>

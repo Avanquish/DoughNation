@@ -57,31 +57,13 @@ const Badge = ({ children }) => (
 const avatar = (path, fallback = `${API}/uploads/placeholder.png`) =>
   path ? `${API}/${path}` : fallback;
 
-export default function BakeryFeedback() {
+export default function BakeryFeedback({ isViewOnly = false }) {
   const [feedbacks, setFeedbacks] = useState([]);
   const [replying, setReplying] = useState(null);
   const [replyMessage, setReplyMessage] = useState("");
   
   // Get token (employee token takes priority)
   const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
-  
-  // Check if user is a full-time employee (view-only mode)
-  const [isViewOnly, setIsViewOnly] = useState(false);
-  
-  useEffect(() => {
-    if (token) {
-      try {
-        const decoded = jwtDecode(token);
-        // Full-time employees have view-only access
-        if (decoded.type === "employee" && decoded.employee_role) {
-          const role = decoded.employee_role.toLowerCase().replace(/[-\s]/g, "");
-          setIsViewOnly(role.includes("fulltime") || role === "full");
-        }
-      } catch (e) {
-        console.error("Failed to decode token:", e);
-      }
-    }
-  }, [token]);
   
   const rootRef = useRef(null);
 

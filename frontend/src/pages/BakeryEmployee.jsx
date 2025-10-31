@@ -29,7 +29,7 @@ const toUrl = (p) => {
   return `${API_BASE}/${String(p).replace(/^\/+/, "")}`;
 };
 
-const BakeryEmployee = () => {
+const BakeryEmployee = ({ isViewOnly = false }) => {
   const [employees, setEmployees] = useState([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
@@ -232,13 +232,15 @@ const BakeryEmployee = () => {
               {employees.length === 1 ? "Employee" : "Employees"}
             </span>
 
-            <Button
-              onClick={openAdd}
-              className={primaryBtn}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Employee
-            </Button>
+            {!isViewOnly && (
+              <Button
+                onClick={openAdd}
+                className={primaryBtn}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Employee
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -289,30 +291,32 @@ const BakeryEmployee = () => {
                         </div>
                       </div>
 
-                      <div className="flex gap-3">
-                        <button
-                          aria-label="Edit employee"
-                          onClick={() => openEdit(emp)}
-                          className={`${actionBtnBase} ${actionEdit}`}
-                          title="Edit"
-                        >
-                          <Pencil
-                            className="h-5 w-5 text-[#3b2a18]"
-                            strokeWidth={2.4}
-                          />
-                        </button>
-                        <button
-                          aria-label="Delete employee"
-                          onClick={() => handleDelete(emp.id)}
-                          className={`${actionBtnBase} ${actionDelete}`}
-                          title="Delete"
-                        >
-                          <Trash2
-                            className="h-5 w-5 text-[#8f1f1f]"
-                            strokeWidth={2.4}
-                          />
-                        </button>
-                      </div>
+                      {!isViewOnly && (
+                        <div className="flex gap-3">
+                          <button
+                            aria-label="Edit employee"
+                            onClick={() => openEdit(emp)}
+                            className={`${actionBtnBase} ${actionEdit}`}
+                            title="Edit"
+                          >
+                            <Pencil
+                              className="h-5 w-5 text-[#3b2a18]"
+                              strokeWidth={2.4}
+                            />
+                          </button>
+                          <button
+                            aria-label="Delete employee"
+                            onClick={() => handleDelete(emp.id)}
+                            className={`${actionBtnBase} ${actionDelete}`}
+                            title="Delete"
+                          >
+                            <Trash2
+                              className="h-5 w-5 text-[#8f1f1f]"
+                              strokeWidth={2.4}
+                            />
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {emp.access_rights && (

@@ -107,7 +107,7 @@ function DonationStatus({ status }) {
   );
 }
 
-export default function BakeryInventory() {
+export default function BakeryInventory({ isViewOnly = false }) {
   const [inventory, setInventory] = useState([]);
   const [employees, setEmployees] = useState([]);
 
@@ -684,106 +684,112 @@ export default function BakeryInventory() {
               </button>
             )}
           </div>
-          <button onClick={() => setShowForm(true)} className={pillSolid}>
-            + Add Product
-          </button>
+          {!isViewOnly && (
+            <button onClick={() => setShowForm(true)} className={pillSolid}>
+              + Add Product
+            </button>
+          )}
         </div>
       </div>
 
       {/* Bulk actions */}
-      <div className="flex flex-wrap items-center gap-2 mb-3">
-        <span className="text-sm text-[#6b4b2b]">
-          Selected: <strong>{selectedCount}</strong>
-        </span>
-        <button
-          onClick={selectExpiredAll}
-          className={pillOutline}
-          title="Select all expired items"
-        >
-          Select Expired
-        </button>
-        <button 
-          onClick={() => {
-            if (!selectedCount) {
-              Swal.fire({
-                title: "No Items Selected",
-                text: "Please select at least one item to delete.",
-                icon: "error",
-                confirmButtonColor: "#A97142",
-              });
-              return;
-            }
-            
-            // Filter to get only items uploaded by current user
-            const userItems = filteredInventory.filter(
-              item => selectedIds.has(item.id) && item.uploaded === uploaderName
-            );
-            
-            // Check if any items belong to other users
-            const otherUserItems = filteredInventory.filter(
-              item => selectedIds.has(item.id) && item.uploaded !== uploaderName
-            );
-            
-            if (userItems.length === 0) {
-              Swal.fire({
-                title: "Access Denied",
-                text: "None of the selected items were uploaded by you.",
-                icon: "error",
-                confirmButtonColor: "#A97142",
-              });
-              return;
-            }
-            
-            // Show warning if some items will be skipped
-            if (otherUserItems.length > 0) {
-              Swal.fire({
-                title: "Partial Deletion",
-                text: `Only ${userItems.length} of ${selectedCount} selected items will be deleted. Items uploaded by others will be skipped.`,
-                icon: "warning",
-                showCancelButton: true,
-                confirmButtonColor: "#A97142",
-                cancelButtonColor: "#d33",
-                confirmButtonText: "Delete My Items",
-                cancelButtonText: "Cancel"
-              }).then((result) => {
-                if (result.isConfirmed) {
-                  // Delete only user's items
-                  userItems.forEach(item => handleDelete(item.id));
-                  clearSelection();
-                }
-              });
-              return;
-            }
-            
-            // All selected items belong to user
-            deleteSelected();
-          }}
-          className={pillSolid}
-        >
-          Delete Selected
-        </button>
-        {selectedCount > 0 && (
-          <button onClick={clearSelection} className={pillOutline}>
-            Clear Selection
+      {!isViewOnly && (
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <span className="text-sm text-[#6b4b2b]">
+            Selected: <strong>{selectedCount}</strong>
+          </span>
+          <button
+            onClick={selectExpiredAll}
+            className={pillOutline}
+            title="Select all expired items"
+          >
+            Select Expired
           </button>
-        )}
-      </div>
+          <button 
+            onClick={() => {
+              if (!selectedCount) {
+                Swal.fire({
+                  title: "No Items Selected",
+                  text: "Please select at least one item to delete.",
+                  icon: "error",
+                  confirmButtonColor: "#A97142",
+                });
+                return;
+              }
+              
+              // Filter to get only items uploaded by current user
+              const userItems = filteredInventory.filter(
+                item => selectedIds.has(item.id) && item.uploaded === uploaderName
+              );
+              
+              // Check if any items belong to other users
+              const otherUserItems = filteredInventory.filter(
+                item => selectedIds.has(item.id) && item.uploaded !== uploaderName
+              );
+              
+              if (userItems.length === 0) {
+                Swal.fire({
+                  title: "Access Denied",
+                  text: "None of the selected items were uploaded by you.",
+                  icon: "error",
+                  confirmButtonColor: "#A97142",
+                });
+                return;
+              }
+              
+              // Show warning if some items will be skipped
+              if (otherUserItems.length > 0) {
+                Swal.fire({
+                  title: "Partial Deletion",
+                  text: `Only ${userItems.length} of ${selectedCount} selected items will be deleted. Items uploaded by others will be skipped.`,
+                  icon: "warning",
+                  showCancelButton: true,
+                  confirmButtonColor: "#A97142",
+                  cancelButtonColor: "#d33",
+                  confirmButtonText: "Delete My Items",
+                  cancelButtonText: "Cancel"
+                }).then((result) => {
+                  if (result.isConfirmed) {
+                    // Delete only user's items
+                    userItems.forEach(item => handleDelete(item.id));
+                    clearSelection();
+                  }
+                });
+                return;
+              }
+              
+              // All selected items belong to user
+              deleteSelected();
+            }}
+            className={pillSolid}
+          >
+            Delete Selected
+          </button>
+          {selectedCount > 0 && (
+            <button onClick={clearSelection} className={pillOutline}>
+              Clear Selection
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-x-auto rounded-xl shadow ring-1 ring-black/5 bg-white/80 backdrop-blur-sm">
         <table className="min-w-full text-sm">
           <thead>
             <tr className="bg-[#EADBC8] text-left font-semibold text-[#4A2F17]">
-              <th className="p-3 w-10">
-                {/* Master checkbox */}
-                <input
-                  ref={masterRef}
-                  type="checkbox"
-                  onChange={(e) => toggleSelectAllOnPage(e.target.checked)}
-                  className="h-4 w-4 accent-[#A97142]"
-                  aria-label="Select all on page"
-                />
-              </th>
+              {!isViewOnly && (
+                <th className="p-3 w-10">
+                  {/* Master checkbox */}
+                  <input
+                    ref={masterRef}
+                    type="checkbox"
+                    onChange={(e) => toggleSelectAllOnPage(e.target.checked)}
+                    className="h-4 w-4 accent-[#A97142]"
+                    aria-label="Select all on page"
+                  />
+                </th>
+              )}
               <th className="p-3">Product ID</th>
               <th className="p-3">Product</th>
               <th className="p-3">Image</th>
@@ -815,15 +821,17 @@ export default function BakeryInventory() {
                     }}
                   >
                     {/* Row checkbox */}
-                    <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 accent-[#A97142]"
-                        checked={checked}
-                        onChange={() => toggleSelectOne(item.id)}
-                        aria-label={`Select ${item.name}`}
-                      />
-                    </td>
+                    {!isViewOnly && (
+                      <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-[#A97142]"
+                          checked={checked}
+                          onChange={() => toggleSelectOne(item.id)}
+                          aria-label={`Select ${item.name}`}
+                        />
+                      </td>
+                    )}
 
                     <td className="p-3">
                       <span title="Same name = same ID">
@@ -1217,43 +1225,47 @@ export default function BakeryInventory() {
             </div>
 
             <div className="mt-auto p-5 flex flex-wrap gap-2 justify-end border-t bg-white">
-              <button 
-                onClick={() => {
-                  if (selectedItem.uploaded !== uploaderName) {
-                    Swal.fire({
-                      title: "Access Denied",
-                      text: `Only ${selectedItem.uploaded || "the uploader"} can delete this item.`,
-                      icon: "error",
-                      confirmButtonColor: "#A97142",
-                    });
-                    return;
-                  }
-                  handleDelete(selectedItem.id);
-                }}
-                className={pillSolid}
-                title={selectedItem.uploaded !== uploaderName ? "Only the uploader can delete this item" : ""}
-              >
-                Delete
-              </button>
+              {!isViewOnly && (
+                <>
+                  <button 
+                    onClick={() => {
+                      if (selectedItem.uploaded !== uploaderName) {
+                        Swal.fire({
+                          title: "Access Denied",
+                          text: `Only ${selectedItem.uploaded || "the uploader"} can delete this item.`,
+                          icon: "error",
+                          confirmButtonColor: "#A97142",
+                        });
+                        return;
+                      }
+                      handleDelete(selectedItem.id);
+                    }}
+                    className={pillSolid}
+                    title={selectedItem.uploaded !== uploaderName ? "Only the uploader can delete this item" : ""}
+                  >
+                    Delete
+                  </button>
 
-              <button 
-                onClick={() => {
-                  if (selectedItem.uploaded !== uploaderName) {
-                    Swal.fire({
-                      title: "Access Denied",
-                      text: `Only ${selectedItem.uploaded || "the uploader"} can edit this item.`,
-                      icon: "error",
-                      confirmButtonColor: "#A97142",
-                    });
-                    return;
-                  }
-                  setIsEditing(true);
-                }}
-                className={pillSolid}
-                title={selectedItem.uploaded !== uploaderName ? "Only the uploader can edit this item" : ""}
-              >
-                Edit
-              </button>
+                  <button 
+                    onClick={() => {
+                      if (selectedItem.uploaded !== uploaderName) {
+                        Swal.fire({
+                          title: "Access Denied",
+                          text: `Only ${selectedItem.uploaded || "the uploader"} can edit this item.`,
+                          icon: "error",
+                          confirmButtonColor: "#A97142",
+                        });
+                        return;
+                      }
+                      setIsEditing(true);
+                    }}
+                    className={pillSolid}
+                    title={selectedItem.uploaded !== uploaderName ? "Only the uploader can edit this item" : ""}
+                  >
+                    Edit
+                  </button>
+                </>
+              )}
 
               <button 
                 onClick={() => {

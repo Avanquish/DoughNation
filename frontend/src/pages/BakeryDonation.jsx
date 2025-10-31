@@ -117,7 +117,7 @@ const leftBadge = (d) => {
 };
 
 /* ---------- main component ---------- */
-const BakeryDonation = ({ highlightedDonationId }) => {
+const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
   const [donations, setDonations] = useState([]);
   const [loading, setLoading] = useState(true);
   const highlightedRef = useRef(null);
@@ -339,12 +339,14 @@ useEffect(() => {
         >
           For Donations
         </h2>
-        <button
-          onClick={() => setShowDonate(true)}
-          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-6 py-2.5 font-semibold shadow-[0_10px_26px_rgba(201,124,44,.25)] ring-1 ring-white/60 hover:-translate-y-0.5 active:scale-95 transition"
-        >
-          Donate Now!
-        </button>
+        {!isViewOnly && (
+          <button
+            onClick={() => setShowDonate(true)}
+            className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-6 py-2.5 font-semibold shadow-[0_10px_26px_rgba(201,124,44,.25)] ring-1 ring-white/60 hover:-translate-y-0.5 active:scale-95 transition"
+          >
+            Donate Now!
+          </button>
+        )}
       </div>
 
       {/* cards */}

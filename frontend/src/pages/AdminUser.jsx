@@ -148,10 +148,14 @@ const AdminUser = () => {
   );
 
   return (
-    <div className="p-0">
-      <div className="rounded-3xl bg-gradient-to-br from-[#FFF5EA] via-[#FFF0DE] to-[#FFE9CE] ring-1 ring-black/10 p-6 sm:p-8 shadow-sm">
+    <div className="space-y-6">
+      <div className="p-2 pt-4 sm:p-4 md:p-6">
+        <div>
+          <h2 className="text-3xl font-extrabold text-[#6b4b2b]">User Management</h2>
+          <p className="mt-1 text-sm text-[#7b5836]">List of Users</p>
+        </div>
         {/* 🔸 Pending Verification */}
-        <div className="rounded-3xl border border-[#eadfce] bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9] shadow-[0_2px_8px_rgba(93,64,28,.06)] p-6 mb-8">
+        <div className="mt-3 rounded-3xl border border-[#eadfce] bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9] shadow-[0_2px_8px_rgba(93,64,28,.06)] p-6 mb-8">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-2xl sm:text-3xl font-extrabold text-[#6b4b2b]">
               Pending Verification
@@ -231,11 +235,10 @@ const AdminUser = () => {
                                 size="sm"
                                 onClick={() => reviewed && handleVerify(u.id)}
                                 disabled={!reviewed}
-                                className={`rounded-full ${
-                                  reviewed
-                                    ? "bg-gradient-to-r from-[#22c55e] via-[#16a34a] to-[#15803d] text-white hover:brightness-105"
-                                    : "bg-gray-300 text-white"
-                                }`}
+                                className={`rounded-full ${reviewed
+                                  ? "bg-gradient-to-r from-[#22c55e] via-[#16a34a] to-[#15803d] text-white hover:brightness-105"
+                                  : "bg-gray-300 text-white"
+                                  }`}
                                 title={
                                   reviewed
                                     ? "Approve this user"
@@ -409,11 +412,10 @@ const AdminUser = () => {
                     markReviewed(proofFor.id);
                   }}
                   disabled={!ackChecked}
-                  className={`rounded-full ${
-                    ackChecked
-                      ? "bg-gradient-to-r from-[#22c55e] via-[#16a34a] to-[#15803d] text-white"
-                      : "bg-gray-300 text-white"
-                  }`}
+                  className={`rounded-full ${ackChecked
+                    ? "bg-gradient-to-r from-[#22c55e] via-[#16a34a] to-[#15803d] text-white"
+                    : "bg-gray-300 text-white"
+                    }`}
                 >
                   Mark as reviewed
                 </Button>

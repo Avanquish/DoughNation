@@ -2,11 +2,11 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { 
-  Download, 
-  Printer, 
-  AlertTriangle, 
-  ShieldAlert, 
+import {
+  Download,
+  Printer,
+  AlertTriangle,
+  ShieldAlert,
   Activity,
   Filter,
   RefreshCw
@@ -51,7 +51,7 @@ export default function AdminReports() {
   // Predefined event types
   const availableEventTypes = [
     "failed_login",
-    "unauthorized_access", 
+    "unauthorized_access",
     "sos_alert",
     "geofence_breach",
     "uptime",
@@ -221,9 +221,8 @@ export default function AdminReports() {
 
       Swal.update({
         title: "Generating Report...",
-        html: `Processed ${Math.min(i + batchSize, reportData.length)} of ${
-          reportData.length
-        } records`,
+        html: `Processed ${Math.min(i + batchSize, reportData.length)} of ${reportData.length
+          } records`,
         allowOutsideClick: false,
         didOpen: () => {
           Swal.showLoading();
@@ -340,26 +339,25 @@ export default function AdminReports() {
           </thead>
           <tbody>
             ${reportData
-              .map(
-                (row) => `
+        .map(
+          (row) => `
               <tr>
                 <td>${row.role}</td>
                 <td>${row.name}</td>
                 <td>${row.email}</td>
                 <td>${row.contact_person}</td>
                 <td>${row.address}</td>
-                <td>${
-                  row.profile_picture
-                    ? `<img src="${API_URL}/${normalizePath(
-                        row.profile_picture
-                      )}"/>`
-                    : ""
-                }</td>
+                <td>${row.profile_picture
+              ? `<img src="${API_URL}/${normalizePath(
+                row.profile_picture
+              )}"/>`
+              : ""
+            }</td>
                 <td>${row.created_at}</td>
               </tr>
             `
-              )
-              .join("")}
+        )
+        .join("")}
           </tbody>
         </table>
       </body>
@@ -401,7 +399,7 @@ export default function AdminReports() {
         end_date: endDate,
         limit: 1000
       };
-      
+
       if (eventType) params.event_type = eventType;
       if (severity) params.severity = severity;
 
@@ -411,7 +409,7 @@ export default function AdminReports() {
       });
 
       setEventData(res.data.events || []);
-      
+
       if (res.data.events.length === 0) {
         Swal.fire(
           "No Events",
@@ -531,7 +529,7 @@ export default function AdminReports() {
       doc.setFont("helvetica", "normal");
       doc.text(`Total Events: ${eventSummary.total_events}`, 40, currentY);
       currentY += 12;
-      
+
       const sevCounts = eventSummary.severities || {};
       doc.text(
         `Critical: ${sevCounts.critical || 0} | Warning: ${sevCounts.warning || 0} | Info: ${sevCounts.info || 0}`,
@@ -637,8 +635,8 @@ export default function AdminReports() {
             </thead>
             <tbody>
               ${eventData
-                .map(
-                  (event) => `
+        .map(
+          (event) => `
                 <tr class="${event.severity}">
                   <td>${event.id}</td>
                   <td>${eventTypeLabels[event.event_type] || event.event_type}</td>
@@ -649,8 +647,8 @@ export default function AdminReports() {
                   <td>${event.user?.role || "N/A"}</td>
                 </tr>
               `
-                )
-                .join("")}
+        )
+        .join("")}
             </tbody>
           </table>
         </body>
@@ -827,271 +825,267 @@ export default function AdminReports() {
   };
 
   return (
-    <div className="p-6 relative">
-      <h1 className="text-3xl font-bold text-[#6b4b2b] mb-4">
-        Admin Report Generation
-      </h1>
+    <div className="space-y-6">
+      <div className="p-2 pt-4 sm:p-4 md:p-6">
+        <div>
+          <h2 className="text-3xl font-extrabold text-[#6b4b2b]">Report Generation</h2>
+          <p className="mt-1 text-sm text-[#7b5836]">Reports</p>
+        </div>
+        <div className="rounded-3xl bg-gradient-to-br overflow-hidden">
+          <Tabs value={activeReport} onValueChange={(val) => setActiveReport(val)}>
+            <TabsList className="flex flex-wrap gap-2 bg-white/70 ring-1 ring-black/5 rounded-full px-2 py-1 shadow-sm">
+              {reportTypes.map((r) => (
+                <TabsTrigger
+                  key={r.key}
+                  value={r.key}
+                  onClick={() => generateReport(r.key)}
+                  className="data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] rounded-full px-3 py-1 text-sm hover:bg-amber-50"
+                >
+                  {r.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
-      {/* Pills */}
-      <Tabs value={activeReport} onValueChange={(val) => setActiveReport(val)}>
-        <TabsList className="flex flex-wrap gap-2 bg-white/70 ring-1 ring-black/5 rounded-full px-2 py-1 shadow-sm">
-          {reportTypes.map((r) => (
-            <TabsTrigger
-              key={r.key}
-              value={r.key}
-              onClick={() => generateReport(r.key)}
-              className="data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] rounded-full px-3 py-1 text-sm hover:bg-amber-50"
-            >
-              {r.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+            {reportTypes.map((r) => (
+              <TabsContent key={r.key} value={r.key}>
+                {r.key === "system_events" ? (
+                  /* System Events Tab */
+                  <>
+                    {/* Filter Section */}
+                    <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden mb-6">
+                      <CardContent className="p-5 sm:p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                          {/* Start Date */}
+                          <div>
+                            <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
+                              Start Date
+                            </label>
+                            <input
+                              type="date"
+                              value={startDate}
+                              max={new Date().toISOString().split("T")[0]}
+                              onChange={(e) => setStartDate(e.target.value)}
+                              className="w-full rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                            />
+                          </div>
 
-        {reportTypes.map((r) => (
-          <TabsContent key={r.key} value={r.key}>
-            {r.key === "system_events" ? (
-              /* System Events Tab */
-              <>
-                {/* Filter Section */}
-                <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden mb-6">
-                  <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
-                    <CardTitle className="text-lg font-semibold text-[#6b4b2b] flex items-center gap-2">
-                      <Filter size={20} />
-                      Filter Events
+                          {/* End Date */}
+                          <div>
+                            <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
+                              End Date
+                            </label>
+                            <input
+                              type="date"
+                              value={endDate}
+                              max={new Date().toISOString().split("T")[0]}
+                              onChange={(e) => setEndDate(e.target.value)}
+                              className="w-full rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                            />
+                          </div>
+
+                          {/* Event Type */}
+                          <div>
+                            <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
+                              Event Type
+                            </label>
+                            <select
+                              value={eventType}
+                              onChange={(e) => setEventType(e.target.value)}
+                              className="w-full rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                            >
+                              <option value="">All Types</option>
+                              {availableEventTypes.map((type) => (
+                                <option key={type} value={type}>
+                                  {eventTypeLabels[type] || type}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Severity */}
+                          <div>
+                            <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
+                              Severity
+                            </label>
+                            <select
+                              value={severity}
+                              onChange={(e) => setSeverity(e.target.value)}
+                              className="w-full rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                            >
+                              <option value="">All Severities</option>
+                              <option value="info">Info</option>
+                              <option value="warning">Warning</option>
+                              <option value="critical">Critical</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <Button
+                          onClick={fetchSystemEvents}
+                          disabled={loading}
+                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-6 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 disabled:opacity-50 flex items-center gap-2"
+                        >
+                          {loading ? (
+                            <>
+                              <RefreshCw size={16} className="animate-spin" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw size={16} />
+                              Generate Report
+                            </>
+                          )}
+                        </Button>
+                      </CardContent>
+                    </Card>
+
+                    {/* Summary Statistics */}
+                    {renderSummaryCards()}
+
+                    {/* Events Table */}
+                    {loading ? (
+                      <Card className="rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80">
+                        <CardContent className="p-8 text-center">
+                          <RefreshCw className="animate-spin h-8 w-8 mx-auto text-[#E49A52] mb-2" />
+                          <p className="text-[#6b4b2b]/70">Loading events...</p>
+                        </CardContent>
+                      </Card>
+                    ) : eventData.length > 0 ? (
+                      <Card className="rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
+                        <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
+                          <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
+                            System Events ({eventData.length} records)
+                          </CardTitle>
+                        </CardHeader>
+
+                        <CardContent className="p-5 sm:p-6">
+                          {renderEventsTable(eventData)}
+
+                          {/* Export Actions */}
+                          <div className="flex flex-wrap gap-3 mt-6">
+                            <Button
+                              onClick={downloadEventsCSV}
+                              className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                            >
+                              <Download size={16} /> Download CSV
+                            </Button>
+
+                            <Button
+                              onClick={downloadEventsPDF}
+                              className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                            >
+                              <Download size={16} /> Download PDF
+                            </Button>
+
+                            <Button
+                              onClick={printEvents}
+                              className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
+                            >
+                              <Printer size={16} /> Print
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <Card className="rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80">
+                        <CardContent className="p-8 text-center">
+                          <ShieldAlert className="h-12 w-12 mx-auto text-[#6b4b2b]/30 mb-3" />
+                          <p className="text-[#6b4b2b]/70">
+                            Select filters and click Generate Report to view system events.
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </>
+                ) : (
+                  /* Manage Users Tab */
+                  <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
+                    {/* <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
+                    <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
+                      {r.label} Report
                     </CardTitle>
-                  </CardHeader>
-
-                  <CardContent className="p-5 sm:p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                      {/* Start Date */}
-                      <div>
-                        <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
-                          Start Date
-                        </label>
-                        <input
-                          type="date"
-                          value={startDate}
-                          max={new Date().toISOString().split("T")[0]}
-                          onChange={(e) => setStartDate(e.target.value)}
-                          className="w-full rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                        />
-                      </div>
-
-                      {/* End Date */}
-                      <div>
-                        <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
-                          End Date
-                        </label>
-                        <input
-                          type="date"
-                          value={endDate}
-                          max={new Date().toISOString().split("T")[0]}
-                          onChange={(e) => setEndDate(e.target.value)}
-                          className="w-full rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                        />
-                      </div>
-
-                      {/* Event Type */}
-                      <div>
-                        <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
-                          Event Type
-                        </label>
-                        <select
-                          value={eventType}
-                          onChange={(e) => setEventType(e.target.value)}
-                          className="w-full rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                        >
-                          <option value="">All Types</option>
-                          {availableEventTypes.map((type) => (
-                            <option key={type} value={type}>
-                              {eventTypeLabels[type] || type}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Severity */}
-                      <div>
-                        <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
-                          Severity
-                        </label>
-                        <select
-                          value={severity}
-                          onChange={(e) => setSeverity(e.target.value)}
-                          className="w-full rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                        >
-                          <option value="">All Severities</option>
-                          <option value="info">Info</option>
-                          <option value="warning">Warning</option>
-                          <option value="critical">Critical</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <Button
-                      onClick={fetchSystemEvents}
-                      disabled={loading}
-                      className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-6 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 disabled:opacity-50 flex items-center gap-2"
-                    >
-                      {loading ? (
-                        <>
-                          <RefreshCw size={16} className="animate-spin" />
-                          Generating...
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw size={16} />
-                          Generate Report
-                        </>
-                      )}
-                    </Button>
-                  </CardContent>
-                </Card>
-
-                {/* Summary Statistics */}
-                {renderSummaryCards()}
-
-                {/* Events Table */}
-                {loading ? (
-                  <Card className="rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80">
-                    <CardContent className="p-8 text-center">
-                      <RefreshCw className="animate-spin h-8 w-8 mx-auto text-[#E49A52] mb-2" />
-                      <p className="text-[#6b4b2b]/70">Loading events...</p>
-                    </CardContent>
-                  </Card>
-                ) : eventData.length > 0 ? (
-                  <Card className="rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
-                    <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
-                      <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
-                        System Events ({eventData.length} records)
-                      </CardTitle>
-                    </CardHeader>
+                  </CardHeader> */}
 
                     <CardContent className="p-5 sm:p-6">
-                      {renderEventsTable(eventData)}
-
-                      {/* Export Actions */}
-                      <div className="flex flex-wrap gap-3 mt-6">
+                      {/* Date inputs */}
+                      <div className="mb-4 flex flex-wrap gap-4 items-end">
+                        <div>
+                          <label className="block text-sm font-medium text-[#6b4b2b]">
+                            Start Date
+                          </label>
+                          <input
+                            type="date"
+                            value={startDate}
+                            max={new Date().toISOString().split("T")[0]}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-[#6b4b2b]">
+                            End Date
+                          </label>
+                          <input
+                            type="date"
+                            value={endDate}
+                            max={new Date().toISOString().split("T")[0]}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                          />
+                        </div>
                         <Button
-                          onClick={downloadEventsCSV}
-                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                          onClick={() => generateReport(r.key)}
+                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
                         >
-                          <Download size={16} /> Download CSV
-                        </Button>
-
-                        <Button
-                          onClick={downloadEventsPDF}
-                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
-                        >
-                          <Download size={16} /> Download PDF
-                        </Button>
-
-                        <Button
-                          onClick={printEvents}
-                          className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
-                        >
-                          <Printer size={16} /> Print
+                          Generate Report
                         </Button>
                       </div>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <Card className="rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80">
-                    <CardContent className="p-8 text-center">
-                      <ShieldAlert className="h-12 w-12 mx-auto text-[#6b4b2b]/30 mb-3" />
-                      <p className="text-[#6b4b2b]/70">
-                        Select filters and click Generate Report to view system events.
-                      </p>
+
+                      {loading ? (
+                        <p className="text-[#6b4b2b]/70">Generating report...</p>
+                      ) : reportData ? (
+                        <div>
+                          {renderTable(reportData)}
+
+                          {/* Actions */}
+                          <div className="flex flex-wrap gap-3 mt-5">
+                            <Button
+                              onClick={downloadReportCSV}
+                              className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                            >
+                              <Download size={16} /> Download CSV
+                            </Button>
+
+                            <Button
+                              onClick={downloadReportPDF}
+                              className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                            >
+                              <Download size={16} /> Download PDF
+                            </Button>
+
+                            <Button
+                              onClick={printReport}
+                              className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
+                            >
+                              <Printer size={16} /> Print
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-[#6b4b2b]/70">
+                          Select a date range and click Generate Report to view{" "}
+                          {r.label}.
+                        </p>
+                      )}
                     </CardContent>
                   </Card>
                 )}
-              </>
-            ) : (
-              /* Manage Users Tab */
-              <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
-                <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
-                  <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
-                    {r.label} Report
-                  </CardTitle>
-                </CardHeader>
-
-                <CardContent className="p-5 sm:p-6">
-                  {/* Date inputs */}
-                  <div className="mb-4 flex flex-wrap gap-4 items-end">
-                    <div>
-                      <label className="block text-sm font-medium text-[#6b4b2b]">
-                        Start Date
-                      </label>
-                      <input
-                        type="date"
-                        value={startDate}
-                        max={new Date().toISOString().split("T")[0]}
-                        onChange={(e) => setStartDate(e.target.value)}
-                        className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-[#6b4b2b]">
-                        End Date
-                      </label>
-                      <input
-                        type="date"
-                        value={endDate}
-                        max={new Date().toISOString().split("T")[0]}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                      />
-                    </div>
-                    <Button
-                      onClick={() => generateReport(r.key)}
-                      className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
-                    >
-                      Generate Report
-                    </Button>
-                  </div>
-
-                  {loading ? (
-                    <p className="text-[#6b4b2b]/70">Generating report...</p>
-                  ) : reportData ? (
-                    <div>
-                      {renderTable(reportData)}
-
-                      {/* Actions */}
-                      <div className="flex flex-wrap gap-3 mt-5">
-                        <Button
-                          onClick={downloadReportCSV}
-                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
-                        >
-                          <Download size={16} /> Download CSV
-                        </Button>
-
-                        <Button
-                          onClick={downloadReportPDF}
-                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
-                        >
-                          <Download size={16} /> Download PDF
-                        </Button>
-
-                        <Button
-                          onClick={printReport}
-                          className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
-                        >
-                          <Printer size={16} /> Print
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-[#6b4b2b]/70">
-                      Select a date range and click Generate Report to view{" "}
-                      {r.label}.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-        ))}
-      </Tabs>
+              </TabsContent>
+            ))}
+          </Tabs>
+        </div>
+      </div>
     </div>
   );
 }

@@ -140,7 +140,7 @@ const Leaderboards = () => {
     <div className="space-y-6">
       {/* Stats Overview */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="p-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <Card className="bg-gradient-to-br from-white to-[#FFF9F1] border-[#e8d8c2] shadow-md">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold text-[#6b4b2b] flex items-center gap-2">
@@ -183,15 +183,12 @@ const Leaderboards = () => {
       )}
 
       {/* Leaderboard Tabs */}
-      <div className="rounded-3xl bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9] shadow-[0_8px_24px_rgba(201,124,44,0.12)] border border-[#e8d8c2] overflow-hidden">
+      <div className="rounded-3xl bg-gradient-to-br overflow-hidden">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Header with Tabs */}
-          <div className="px-6 pt-6 pb-4 border-b border-[#e8d8c2]/70">
+          <div className="px-2 pt-2 pb-4 border-b border-[#e8d8c2]/70">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h2 className="text-3xl font-extrabold text-[#6b4b2b]">Donation Leaderboards</h2>
-                <p className="mt-1 text-sm text-[#7b5836]">Track top performers by donations</p>
-              </div>
+              
               <TabsList className="bg-[#EADBC8]/50 p-1 rounded-xl w-full sm:w-auto">
                 <TabsTrigger 
                   value="bakeries" 

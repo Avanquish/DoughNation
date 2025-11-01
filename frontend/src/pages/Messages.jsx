@@ -89,7 +89,7 @@ const Styles = () => (
 
     /* Chat list dropdown */
     .chatlist-dropdown{
-      width:360px; max-width:92vw; height:540px; max-height:calc(100vh - 96px);
+      width:250px; max-width:250px; max-height:calc(100vh - 96px);
       background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 18px 40px rgba(0,0,0,.18);
       transform:translateY(-6px); opacity:0; animation:clpop .16s ease forwards;
       display:flex; flex-direction:column; overflow:hidden;
@@ -1244,7 +1244,7 @@ const hideButtons = requestsForDonation.length > 0
 
         {/* Chat list dropdown */}
         {openList && (
-          <div className="absolute right-0 mt-2 z-[9998]" ref={dropdownRef}>
+          <div className="absolute mt-2 z-[9998]" ref={dropdownRef}>
             <div className="chatlist-dropdown">
               <div className="cl-head">
                 <div className="cl-title">Chats</div>

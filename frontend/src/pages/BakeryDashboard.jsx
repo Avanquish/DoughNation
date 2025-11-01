@@ -18,6 +18,14 @@ import {
   AlertTriangle,
   LogOut,
   CheckCircle,
+  LayoutDashboard,
+  PackageOpen,
+  HandCoins,
+  ListCheck,
+  FileBarChart,
+  MessageSquareWarning,
+  MessageSquareDot,
+  Medal
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useEmployeeAuth } from "../context/EmployeeAuthContext";
@@ -36,6 +44,7 @@ import RecentDonations from "./RecentDonations";
 import DashboardSearch from "./DashboardSearch";
 import UserBadge from "./UserBadge";
 import Messages1 from "./Messages1";
+import { Link } from "react-router-dom";
 
 const API = "http://localhost:8000";
 
@@ -78,13 +87,27 @@ const BakeryDashboard = () => {
   const [bakeryName, setBakeryName] = useState("");
   const [employeeRole, setEmployeeRole] = useState(null);
   const [isEmployeeMode, setIsEmployeeMode] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [showTop, setShowTop] = useState(false);  // You used this inside useEffect
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => {
+      const y = window.scrollY || document.documentElement.scrollTop;
+      setShowTop(y > 320);
+      setScrolled(y > 8);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   // initialize from URL, localStorage, or default (always prefer "dashboard" on fresh load)
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const fromUrl = params.get("tab");
-      
+
       // If URL has tab param, use it
       if (fromUrl && ALLOWED_TABS.includes(fromUrl)) return fromUrl;
 
@@ -113,7 +136,6 @@ const BakeryDashboard = () => {
   const [employeeCount, setEmployeeCount] = useState(0);
   const [uploadedProducts, setUploadedProducts] = useState(0);
   const [donatedProducts, setDonatedProducts] = useState(0);
-
   const [currentUser, setCurrentUser] = useState(null);
 
   const navigate = useNavigate();
@@ -125,10 +147,10 @@ const BakeryDashboard = () => {
       setEmployeeRole(employee.employee_role);
       setName(employee.employee_name);
       setIsVerified(true); // ✅ Employees are always verified (part of verified bakery)
-      
+
       // Set a loading placeholder immediately
       setBakeryName("Loading...");
-      
+
       // Fetch bakery name using employee token
       const employeeToken = localStorage.getItem("employeeToken");
       if (employeeToken) {
@@ -159,12 +181,12 @@ const BakeryDashboard = () => {
 
     // Normalize role for comparison (remove spaces, hyphens, lowercase)
     const role = employeeRole.toLowerCase().replace(/[-\s]/g, "");
-    
+
     // 👑 OWNER & MANAGER: Full access to ALL tabs
     if (role === "owner" || role === "manager") {
       return ALLOWED_TABS;
-    } 
-    
+    }
+
     // 👷 FULL-TIME: Limited access
     // Can access: dashboard, inventory, donations, donation status, complaints, feedback (view only), badges
     // Cannot access: employee management, reports
@@ -172,14 +194,14 @@ const BakeryDashboard = () => {
       return ALLOWED_TABS.filter(
         (tab) => tab !== "employee" && tab !== "reports"
       );
-    } 
-    
+    }
+
     // 🚫 PART-TIME: Should not be able to log in (handled at backend)
     // If they somehow access, show nothing
     else if (role.includes("parttime") || role === "part") {
       return [];
     }
-    
+
     // Default: show all tabs (fallback for unknown roles)
     return ALLOWED_TABS;
   };
@@ -198,17 +220,15 @@ const BakeryDashboard = () => {
       if (activeTab === "dashboard") {
         if (params.has("tab")) {
           params.delete("tab");
-          const next = `${window.location.pathname}${
-            params.toString() ? `?${params.toString()}` : ""
-          }${window.location.hash}`;
+          const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""
+            }${window.location.hash}`;
           window.history.replaceState({}, "", next);
         }
       } else {
         if (params.get("tab") !== activeTab) {
           params.set("tab", activeTab);
-          const next = `${window.location.pathname}?${params.toString()}${
-            window.location.hash
-          }`;
+          const next = `${window.location.pathname}?${params.toString()}${window.location.hash
+            }`;
           window.history.replaceState({}, "", next);
         }
       }
@@ -305,7 +325,7 @@ const BakeryDashboard = () => {
   // Fetch inventory, employees, uploaded and donated products
   useEffect(() => {
     // Get the appropriate token based on mode
-    const token = isEmployeeMode 
+    const token = isEmployeeMode
       ? localStorage.getItem("employeeToken")
       : localStorage.getItem("token");
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
@@ -390,18 +410,18 @@ const BakeryDashboard = () => {
     nearingExpiration: 0,
   });
 
-// Fetch stats from backend using Philippine timezone
+  // Fetch stats from backend using Philippine timezone
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const token = isEmployeeMode 
+        const token = isEmployeeMode
           ? localStorage.getItem("employeeToken")
           : localStorage.getItem("token");
-        
+
         const res = await axios.get(`${API}/dashboard-stats`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        
+
         setStats(res.data);
       } catch (err) {
         console.error("Failed to fetch dashboard stats:", err);
@@ -409,10 +429,10 @@ const BakeryDashboard = () => {
     };
 
     fetchStats();
-    
+
     // Refresh stats every 30 seconds
     const interval = setInterval(fetchStats, 30000);
-    
+
     return () => clearInterval(interval);
   }, [isEmployeeMode]);
 
@@ -444,10 +464,10 @@ const BakeryDashboard = () => {
   useEffect(() => {
     const fetchTotals = async () => {
       try {
-        const token = isEmployeeMode 
+        const token = isEmployeeMode
           ? localStorage.getItem("employeeToken")
           : localStorage.getItem("token");
-        
+
         const res = await fetch(`${API}/bakery/total_donations_sent`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -468,10 +488,10 @@ const BakeryDashboard = () => {
   useEffect(() => {
     const fetchUploadedProducts = async () => {
       try {
-        const token = isEmployeeMode 
+        const token = isEmployeeMode
           ? localStorage.getItem("employeeToken")
           : localStorage.getItem("token");
-        
+
         const res = await fetch(`${API}/bakery/total_products_for_donation`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -563,8 +583,14 @@ const BakeryDashboard = () => {
       @keyframes ink{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
       .status-chip{display:inline-flex; align-items:center; gap:.5rem; margin-top:.15rem; padding:.28rem .6rem; font-size:.78rem; border-radius:9999px; color:#7a4f1c; background:linear-gradient(180deg,#FFE7C5,#F7C489); border:1px solid #fff3e0}
 
-      .seg-wrap{max-width:80rem; margin:.75rem auto 0; padding:0 1rem;}
-      .seg{display:flex; gap:.4rem; background:rgba(255,255,255,.94); border:1px solid rgba(0,0,0,.07); border-radius:12px; padding:.3rem; box-shadow:0 8px 24px rgba(201,124,44,.08); width:fit-content}
+      .seg-wrap{max-width: 80rem;margin: .75rem auto 0;}
+      .seg{display: flex;
+      gap: .4rem;
+      background: rgba(255, 255, 255, .94);
+      border: 1px solid rgba(0, 0, 0, .07);
+      border-radius: 12px;
+      padding: .3rem;
+      box-shadow: 0 8px 24px rgba(201, 124, 44, .10);}
       .seg [role="tab"]{border-radius:10px; padding:.48rem .95rem; color:#6b4b2b; font-weight:700}
       .seg [role="tab"][data-state="active"]{color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); box-shadow:0 8px 18px rgba(201,124,44,.28)}
 
@@ -609,7 +635,17 @@ const BakeryDashboard = () => {
       .msg-panel{position:absolute; right:0; top:48px; width:340px; background:rgba(255,255,255,.98); border:1px solid rgba(0,0,0,.06); border-radius:14px; box-shadow:0 18px 40px rgba(0,0,0,.14); overflow:hidden; animation: pop .18s ease forwards}
       .skeleton{position:relative; overflow:hidden; background:#f3f3f3}
       .skeleton::after{content:""; position:absolute; inset:0; transform:translateX(-100%); background:linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.6), rgba(255,255,255,0)); animation: shimmer 1.2s infinite}
-    `}</style>
+      .brand-pop {
+    background: linear-gradient(90deg, #E3B57E 0%, #F3C27E 25%, #E59B50 50%, #C97C2C 75%, #E3B57E 100%);
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    animation: brandShimmer 6s ease-in-out infinite;
+    letter-spacing: .2px;
+}
+      `}</style>
   );
 
   return (
@@ -621,120 +657,60 @@ const BakeryDashboard = () => {
         <span className="blob b" />
       </div>
 
-      <header className="head">
+      <header className="head fixed top-0 left-0 right-0 z-[80]">
         <div className="head-bg" />
-        <div className="head-inner">
-          {/* ALIGNMENT FIX: match */}
-          <div className="flex justify-between items-center gap-4">
-            <div className="flex-1 min-w-0">
-              <div className="brand">
-                <div className="ring">
-                  <div>
-                    <svg
-                      width="28"
-                      height="28"
-                      viewBox="0 0 64 48"
-                      aria-hidden="true"
-                      className="bread"
-                    >
-                      <rect
-                        x="4"
-                        y="12"
-                        rx="12"
-                        ry="12"
-                        width="56"
-                        height="28"
-                        fill="#E8B06A"
-                      />
-                      <path
-                        d="M18 24c0-3 3-5 7-5s7 2 7 5m4 0c0-3 3-5 7-5s7 2 7 5"
-                        stroke="#9A5E22"
-                        strokeWidth="2.2"
-                        strokeLinecap="round"
-                        fill="none"
-                      />
-                    </svg>
-                  </div>
-                </div>
-                <div className="min-w-0">
-                  {bakeryName ? (
-                    <>
-                      <h1 className="title-ink text-3xl sm:text-[32px] font-black truncate mb-1">
-                        {bakeryName}
-                      </h1>
-                      {isEmployeeMode && (
-                        <p 
-                          className="text-xs font-medium tracking-wide uppercase"
-                          style={{ 
-                            color: "#a67c52",
-                            letterSpacing: "0.08em"
-                          }}
-                        >
-                          👤 {name}
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <h1 className="title-ink text-2xl sm:text-[26px] truncate">
-                      {name}
-                    </h1>
-                  )}
-                  <div className="flex gap-2 mt-1">
-                    <span className="status-chip">{statusText}</span>
-                    {isEmployeeMode && employeeRole && (
-                      <span
-                        className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full"
-                        style={{
-                          background: "linear-gradient(180deg, #E3F2FD, #BBDEFB)",
-                          color: "#1565C0",
-                          border: "1px solid #90CAF9",
-                        }}
-                      >
-                        <Users className="w-3 h-3" />
-                        {employeeRole}
-                      </span>
-                    )}
-                  </div>
+        <div className={`glass-soft header-gradient-line header-skin sticky-boost ${scrolled ? "is-scrolled" : ""}`}>
+          <div className="max-w-7xl mx-auto px-4 py-3 hdr-pad flex items-center justify-between relative">
+            <Link to="/" className="flex items-center gap-3">
+              <img src="/images/DoughNationLogo.png" alt="DoughNation logo" className="shrink-0" style={{
+                width: "28px",
+                height: "28px", objectFit: "contain"
+              }} />
+              <span className="font-extrabold brand-pop" style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}>
+                DoughNation
+              </span>
+            </Link>
+
+            {/* Desktop nav */}
+            <nav className="items-center gap-5" style={{ fontSize: 15 }}>
+              <div className="pt-1 flex items-center gap-3 relative">
+                <div className="iconbar">
+                  <DashboardSearch size="sm" className="hidden md:flex" />
+
+                  {/* Messages Button */}
+                  <Messages1 currentUser={currentUser} />
+
+                  {/* Notifications Bell */}
+                  <BakeryNotification />
+
+                  {/* Profile Icon */}
+                  <button className="icon-btn" aria-label="Open profile" onClick={() =>
+                    navigate(`/bakery-dashboard/${id}/profile`)}
+                    title="Profile"
+                  >
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold"
+                      style={{
+                        background: "linear-gradient(180deg,#FFE7C5,#F7C489)", color: "#7a4f1c",
+                        border: "1px solid #fff3e0",
+                      }}>
+                      {name?.trim()?.charAt(0).toUpperCase() || " "}
+                    </span>
+                  </button>
+
+                  <Button onClick={handleLogout} className="btn-logout flex items-center">
+                    <LogOut className="h-4 w-4" />
+                    <span className="hidden md:flex">Log Out</span>
+                  </Button>
                 </div>
               </div>
-            </div>
-
-            {/* Search moved into the right cluster and sized small */}
-            <div className="iconbar">
-              <DashboardSearch size="sm" />
-
-              {/* Messages Button */}
-              <Messages1 currentUser={currentUser} />
-
-              {/* Notifications Bell */}
-              <BakeryNotification />
-
-              {/* Profile Icon */}
-              <button
-                className="icon-btn"
-                aria-label="Open profile"
-                onClick={() => navigate(`/bakery-dashboard/${id}/profile`)}
-                title="Profile"
-              >
-                <span
-                  className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold"
-                  style={{
-                    background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
-                    color: "#7a4f1c",
-                    border: "1px solid #fff3e0",
-                  }}
-                >
-                  {name?.trim()?.charAt(0).toUpperCase() || " "}
-                </span>
-              </button>
-
-              <Button
-                onClick={handleLogout}
-                className="btn-logout flex items-center"
-              >
-                <LogOut className="h-4 w-4" />
-                <span>Log Out</span>
-              </Button>
+            </nav>
+          </div>
+          {/* Mobile dropdown panel */}
+          <div id="mobile-menu" className={`md:hidden transition-all duration-200 ease-out ${mobileOpen
+            ? "max-h-96 opacity-100" : "max-h-0 opacity-0 pointer-events-none"} overflow-hidden`}>
+            <div className="px-4 pb-3 pt-1 flex flex-col">
+              {/*
+        <NotificationAction /> */}
             </div>
           </div>
         </div>
@@ -755,41 +731,127 @@ const BakeryDashboard = () => {
         }}
       >
         <div className="seg-wrap">
-          <div className="seg">
-            <TabsList className="bg-transparent p-0 border-0">
+          <div className="seg justify-center">
+            <TabsList className="flex items-center gap-1 bg-transparent p-0 border-0 overflow-x-auto no-scrollbar">
               {visibleTabs.includes("dashboard") && (
-                <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+                <TabsTrigger value="dashboard" title="Dashboard"
+                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm">
+                  <LayoutDashboard className="w-4 h-4" />
+                  <span className="hidden sm:inline">Dashboard</span>
+                </TabsTrigger>
               )}
               {visibleTabs.includes("inventory") && (
-                <TabsTrigger value="inventory">Inventory</TabsTrigger>
+                <TabsTrigger value="inventory" title="Inventory"
+                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm">
+                  <PackageOpen className="w-4 h-4" />
+                  <span className="hidden sm:inline">Inventory</span>
+                </TabsTrigger>
               )}
               {visibleTabs.includes("donations") && (
-                <TabsTrigger value="donations">For Donations</TabsTrigger>
+                <TabsTrigger
+                  value="donations" title="For Donations"
+                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                >
+                  <HandCoins className="w-4 h-4" />
+                  <span className="hidden sm:inline">Donations</span>
+                </TabsTrigger>
               )}
               {visibleTabs.includes("DONATIONstatus") && (
-                <TabsTrigger value="DONATIONstatus">Donation Status</TabsTrigger>
+                <TabsTrigger
+                  value="DONATIONstatus" title="Donation Status"
+                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                >
+                  <ListCheck className="w-4 h-4" />
+                  <span className="hidden sm:inline">Donation Status</span>
+                </TabsTrigger>
               )}
               {visibleTabs.includes("employee") && (
-                <TabsTrigger value="employee">Employee</TabsTrigger>
+                <TabsTrigger
+                  value="employee" title="Employees"
+                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                >
+                  <Users className="w-4 h-4" />
+                  <span className="hidden sm:inline">Employees</span>
+                </TabsTrigger>
+
               )}
               {visibleTabs.includes("complaints") && (
-                <TabsTrigger value="complaints">Complaints</TabsTrigger>
+                <TabsTrigger
+                  value="complaints" title="Complaints"
+                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                >
+                  <MessageSquareWarning className="w-4 h-4" />
+                  <span className="hidden sm:inline">Complaints</span>
+                </TabsTrigger>
+
               )}
               {visibleTabs.includes("reports") && (
-                <TabsTrigger value="reports">Report Generation</TabsTrigger>
+                <TabsTrigger
+                  value="reports" title="Reports"
+                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                >
+                  <FileBarChart className="w-4 h-4" />
+                  <span className="hidden sm:inline">Reports</span>
+                </TabsTrigger>
               )}
               {visibleTabs.includes("feedback") && (
-                <TabsTrigger value="feedback">Feedback</TabsTrigger>
+                <TabsTrigger
+                  value="feedback" title="Feedback"
+                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                >
+                  <MessageSquareDot className="w-4 h-4" />
+                  <span className="hidden sm:inline">Feedback</span>
+                </TabsTrigger>
               )}
               {visibleTabs.includes("badges") && (
-                <TabsTrigger value="badges">Achievement Badges</TabsTrigger>
+                <TabsTrigger
+                  value="badges" title="Achievements"
+                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                >
+                  <Medal className="w-4 h-4" />
+                  <span className="hidden sm:inline">Achievements</span>
+                </TabsTrigger>
               )}
             </TabsList>
           </div>
         </div>
 
         {/* Content */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-2 py-2">
+          <div className="min-w-0">
+            {bakeryName ? (
+              <>
+                <h1 className="title-ink text-3xl sm:text-[32px] font-black truncate mb-1">
+                  {bakeryName}
+                </h1>
+                {isEmployeeMode && (
+                  <p className="text-xs font-medium tracking-wide uppercase" style={{
+                    color: "#a67c52",
+                    letterSpacing: "0.08em"
+                  }}>
+                    👤 {name}
+                  </p>
+                )}
+              </>
+            ) : (
+              <h1 className="title-ink text-2xl sm:text-[26px] truncate">
+                {name}
+              </h1>
+            )}
+            <div className="flex gap-2 mt-1">
+              <span className="status-chip">{statusText}</span>
+              {isEmployeeMode && employeeRole && (
+                <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full" style={{
+                  background: "linear-gradient(180deg, #E3F2FD, #BBDEFB)", color: "#1565C0", border: "1px solid #90CAF9"
+                  ,
+                }}>
+                  <Users className="w-3 h-3" />
+                  {employeeRole}
+                </span>
+              )}
+            </div>
+          </div>
+
           <TabsContent value="dashboard" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {/* Stat cards */}
@@ -1022,13 +1084,13 @@ const BakeryDashboard = () => {
                             "
                             title={
                               userBadge.badge_name &&
-                              userBadge.badge_name.trim() !== ""
+                                userBadge.badge_name.trim() !== ""
                                 ? userBadge.badge_name
                                 : userBadge.badge?.name
                             }
                           >
                             {userBadge.badge_name &&
-                            userBadge.badge_name.trim() !== ""
+                              userBadge.badge_name.trim() !== ""
                               ? userBadge.badge_name
                               : userBadge.badge?.name}
                           </span>

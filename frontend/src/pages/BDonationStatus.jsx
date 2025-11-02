@@ -299,6 +299,7 @@ const BDonationStatus = () => {
           role: "bakery",
           employeeName: decoded.employee_name,
           employeeRole: decoded.employee_role,
+          isEmployee: true, // Flag to identify employee
         });
         return;
       }
@@ -309,6 +310,7 @@ const BDonationStatus = () => {
         role: decoded.role.toLowerCase(),
         email: decoded.email || "",
         name: decoded.name || "",
+        isEmployee: false, // Flag to identify non-employee
       });
     } catch (err) {
       console.error("Failed to decode token:", err);
@@ -507,16 +509,19 @@ const BDonationStatus = () => {
     const showExpiry = Number.isFinite(left) && left >= 0;
     const stat = (d.tracking_status || d.status || "pending").toLowerCase();
     const theme = statusTheme(stat);
+    
+    // Only allow clicks for employees
+    const handleClick = currentUser?.isEmployee ? onClick : undefined;
+    const cursorClass = currentUser?.isEmployee ? "cursor-pointer" : "cursor-not-allowed opacity-60";
 
     return (
       <div
         id={`received-${d.donation_id || d.id}`}
-        onClick={onClick}
+        onClick={handleClick}
         className={`group rounded-2xl border border-[#f2e3cf] bg-white/70
                   shadow-[0_2px_10px_rgba(93,64,28,.05)]
-                  overflow-hidden transition-all duration-300 cursor-pointer
-                  hover:scale-[1.015] hover:shadow-[0_14px_32px_rgba(191,115,39,.18)]
-                  hover:ring-1 ${theme.hoverRing}
+                  overflow-hidden transition-all duration-300 ${cursorClass}
+                  ${currentUser?.isEmployee ? `hover:scale-[1.015] hover:shadow-[0_14px_32px_rgba(191,115,39,.18)] hover:ring-1 ${theme.hoverRing}` : ''}
                   ${highlightedId === (d.donation_id || d.id)
             ? `ring-2 ${theme.ring}`
             : ""
@@ -914,7 +919,8 @@ const BDonationStatus = () => {
               </div>
 
               {/* CTA*/}
-              {(selectedDonation.tracking_status === "preparing" ||
+              {currentUser?.isEmployee && 
+                (selectedDonation.tracking_status === "preparing" ||
                 selectedDonation.tracking_status === "ready_for_pickup") && (
                   <button
                     onClick={() =>

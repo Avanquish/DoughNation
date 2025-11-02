@@ -216,8 +216,11 @@ useEffect(() => {
       const res = await axios.get(`${API}/inventory`, { headers });
       const ok = (res.data || []).filter((it) => {
         const s = String(it.status || "").toLowerCase();
+        const isExpiredItem = isExpired(it.expiration_date, currentServerDate);
         return (
-          s !== "donated" && s !== "requested" && !isExpired(it.expiration_date, currentServerDate)
+          s !== "donated" && 
+          s !== "requested" && 
+          !isExpiredItem  // Filter out expired items
         );
       });
       setInventory(ok);
@@ -238,11 +241,11 @@ useEffect(() => {
     fetchDonations();
   }, []);
   useEffect(() => {
-    if (showDonate) {
+    if (showDonate && currentServerDate) {
       fetchInventory();
       fetchCharities();
     }
-  }, [showDonate]);
+  }, [showDonate, currentServerDate]);
 
   /* ---------- UX niceties ---------- */
   useEffect(() => {

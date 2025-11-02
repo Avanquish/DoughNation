@@ -1247,7 +1247,7 @@ const Styles = () => (
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  <BakeryInventory />
+                  <BakeryInventory isViewOnly={isViewOnly}/>
                 </CardContent>
               </Card>
             </div>
@@ -1270,7 +1270,7 @@ const Styles = () => (
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  <BDonationStatus />
+                  <BDonationStatus isViewOnly={isViewOnly} />
                 </CardContent>
               </Card>
             </div>

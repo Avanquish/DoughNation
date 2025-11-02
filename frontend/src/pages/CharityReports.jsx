@@ -2,7 +2,11 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Download, Printer } from "lucide-react";
+import { Download, Printer, HandCoins,
+  AlertTriangle,
+  Gift,
+  Users,
+  FileText,} from "lucide-react";
 import axios from "axios";
 import Swal from "sweetalert2";
 import {
@@ -38,10 +42,11 @@ export default function BakeryReports() {
   const COLORS_TYPE = ["#17a2b8", "#ffc107"]; // Direct vs Request
 
   const reportTypes = [
-    { key: "donation_history", label: "Donation History" },
-    { key: "bakery_list", label: "Bakery List" },
-    { key: "weekly", label: "Weekly Summary" },
-    { key: "monthly", label: "Monthly Summary" },
+    { key: "donation_history", label: "Donation History", icon: HandCoins },
+    { key: "expiry_loss", label: "Expiry Loss", icon: AlertTriangle },
+    { key: "top_items", label: "Top Donated Items", icon: Gift },
+    { key: "charity_list", label: "Charity List", icon: Users },
+    { key: "summary", label: "Period Summary", icon: FileText },
   ];
 
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -105,9 +110,8 @@ export default function BakeryReports() {
 
     return `
     <div style="text-align:center; font-family: Arial, sans-serif; margin-bottom:30px;">
-      ${
-        profileURL
-          ? `
+      ${profileURL
+        ? `
         <img src="${profileURL}" alt="Bakery Logo" style="
           width:120px;
           height:120px;
@@ -115,18 +119,16 @@ export default function BakeryReports() {
           border-radius:50%;
           margin-bottom:15px;
         "/>`
-          : ""
+        : ""
       }
-      <h1 style="margin:0; font-size:28px; font-weight:bold; color:#222;">${
-        charity.name || ""
+      <h1 style="margin:0; font-size:28px; font-weight:bold; color:#222;">${charity.name || ""
       }</h1>
       <p style="margin:5px 0; font-size:14px; color:#555;">
         ${charity.address || ""}
       </p>
       <p style="margin:2px 0; font-size:14px; color:#555;">
-        Contact: ${charity.contact_number || "N/A"} | Email: ${
-      charity.email || "N/A"
-    }
+        Contact: ${charity.contact_number || "N/A"} | Email: ${charity.email || "N/A"
+      }
       </p>
       <p style="margin:20px 0 5px 0; font-size:20px; font-weight:bold; color:#000;">
         ${reportType.replace(/_/g, " ").toUpperCase()} REPORT 
@@ -383,8 +385,7 @@ export default function BakeryReports() {
       });
       currentY += 10;
       doc.text(
-        `Contact: ${charityInfo?.contact_number || "N/A"} | Email: ${
-          charityInfo?.email || "N/A"
+        `Contact: ${charityInfo?.contact_number || "N/A"} | Email: ${charityInfo?.email || "N/A"
         }`,
         pageWidth / 2,
         currentY,
@@ -618,8 +619,7 @@ export default function BakeryReports() {
       });
       currentY += 10;
       doc.text(
-        `Contact: ${charityInfo?.contact_number || "N/A"} | Email: ${
-          charityInfo?.email || "N/A"
+        `Contact: ${charityInfo?.contact_number || "N/A"} | Email: ${charityInfo?.email || "N/A"
         }`,
         pageWidth / 2,
         currentY,
@@ -909,8 +909,7 @@ export default function BakeryReports() {
       });
       currentY += 10;
       doc.text(
-        `Contact: ${charityInfo?.contact_number || "N/A"} | Email: ${
-          charityInfo?.email || "N/A"
+        `Contact: ${charityInfo?.contact_number || "N/A"} | Email: ${charityInfo?.email || "N/A"
         }`,
         pageWidth / 2,
         currentY,
@@ -1196,8 +1195,7 @@ export default function BakeryReports() {
     });
     currentY += 10;
     doc.text(
-      `Contact: ${charityInfo?.contact_number || "N/A"} | Email: ${
-        charityInfo?.email || "N/A"
+      `Contact: ${charityInfo?.contact_number || "N/A"} | Email: ${charityInfo?.email || "N/A"
       }`,
       pageWidth / 2,
       currentY,
@@ -1400,16 +1398,15 @@ export default function BakeryReports() {
           </tr>
         </thead>
         <tbody>
-          ${
-            reportData.top_items && reportData.top_items.length > 0
-              ? reportData.top_items
-                  .map(
-                    (item) =>
-                      `<tr><td>${item.product_name}</td><td>${item.quantity}</td></tr>`
-                  )
-                  .join("")
-              : `<tr><td colspan="2">No top items for this week.</td></tr>`
-          }
+          ${reportData.top_items && reportData.top_items.length > 0
+          ? reportData.top_items
+            .map(
+              (item) =>
+                `<tr><td>${item.product_name}</td><td>${item.quantity}</td></tr>`
+            )
+            .join("")
+          : `<tr><td colspan="2">No top items for this week.</td></tr>`
+        }
         </tbody>
       </table>
     `;
@@ -1545,16 +1542,15 @@ export default function BakeryReports() {
           </tr>
         </thead>
         <tbody>
-          ${
-            reportData.top_items && reportData.top_items.length > 0
-              ? reportData.top_items
-                  .map(
-                    (item) =>
-                      `<tr><td>${item.product_name}</td><td>${item.quantity}</td></tr>`
-                  )
-                  .join("")
-              : `<tr><td colspan="2">No top items for this week.</td></tr>`
-          }
+          ${reportData.top_items && reportData.top_items.length > 0
+          ? reportData.top_items
+            .map(
+              (item) =>
+                `<tr><td>${item.product_name}</td><td>${item.quantity}</td></tr>`
+            )
+            .join("")
+          : `<tr><td colspan="2">No top items for this week.</td></tr>`
+        }
         </tbody>
       </table>
     `;
@@ -1676,16 +1672,15 @@ export default function BakeryReports() {
         </thead>
         <tbody>
           ${bakeries
-            .map(
-              (c) => `
+          .map(
+            (c) => `
               <tr>
                 <td>
                   <img 
-                    src="${
-                      c.bakery_profile
-                        ? `${API_URL}/${normalizePath(c.bakery_profile)}`
-                        : "/default_profile.png"
-                    }"
+                    src="${c.bakery_profile
+                ? `${API_URL}/${normalizePath(c.bakery_profile)}`
+                : "/default_profile.png"
+              }"
                     alt="${c.bakery_name}" 
                     style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;"
                   />
@@ -1699,32 +1694,26 @@ export default function BakeryReports() {
                 <td><strong>${c.total_transactions}</strong></td>
               </tr>
             `
-            )
-            .join("")}
+          )
+          .join("")}
         </tbody>
       </table>
 
       <h3>Grand Totals</h3>
       <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; text-align: center;">
         <tbody>
-          <tr><td><b>Total Direct Donations</b></td><td>${
-            totals.total_direct_count
-          }</td></tr>
-          <tr><td><b>Total Requests</b></td><td>${
-            totals.total_request_count
-          }</td></tr>
-          <tr><td><b>Total Direct Qty</b></td><td>${
-            totals.total_direct_qty
-          }</td></tr>
-          <tr><td><b>Total Request Qty</b></td><td>${
-            totals.total_request_qty
-          }</td></tr>
-          <tr><td><b>Total Received Qty</b></td><td>${
-            totals.total_received_qty
-          }</td></tr>
-          <tr><td><b>Total Transactions</b></td><td><strong>${
-            totals.total_transactions
-          }</strong></td></tr>
+          <tr><td><b>Total Direct Donations</b></td><td>${totals.total_direct_count
+        }</td></tr>
+          <tr><td><b>Total Requests</b></td><td>${totals.total_request_count
+        }</td></tr>
+          <tr><td><b>Total Direct Qty</b></td><td>${totals.total_direct_qty
+        }</td></tr>
+          <tr><td><b>Total Request Qty</b></td><td>${totals.total_request_qty
+        }</td></tr>
+          <tr><td><b>Total Received Qty</b></td><td>${totals.total_received_qty
+        }</td></tr>
+          <tr><td><b>Total Transactions</b></td><td><strong>${totals.total_transactions
+        }</strong></td></tr>
         </tbody>
       </table>
     `;
@@ -1744,22 +1733,21 @@ export default function BakeryReports() {
         </thead>
         <tbody>
           ${reportData
-            .map(
-              (row) => `
+          .map(
+            (row) => `
                 <tr>
                   ${headers
-                    .map((h) =>
-                      h.toLowerCase().includes("image")
-                        ? `<td><img src="${
-                            row[h] ? `${API_URL}/${normalizePath(row[h])}` : ""
-                          }" /></td>`
-                        : `<td>${row[h] ?? ""}</td>`
-                    )
-                    .join("")}
+                .map((h) =>
+                  h.toLowerCase().includes("image")
+                    ? `<td><img src="${row[h] ? `${API_URL}/${normalizePath(row[h])}` : ""
+                    }" /></td>`
+                    : `<td>${row[h] ?? ""}</td>`
+                )
+                .join("")}
                 </tr>
               `
-            )
-            .join("")}
+          )
+          .join("")}
         </tbody>
       </table>
     `;
@@ -1953,9 +1941,9 @@ export default function BakeryReports() {
   };
 
   return (
-    <div className="p-6 relative">
+    <div className="p-2 relative">
       <h1 className="text-3xl font-bold text-[#6b4b2b] mb-4">
-        Charity Report Generation
+        Report Generation
       </h1>
 
       {/* Controlled Tabs */}
@@ -1976,16 +1964,21 @@ export default function BakeryReports() {
       >
         {/* Pills */}
         <TabsList className="flex flex-wrap gap-2 bg-white/70 ring-1 ring-black/5 rounded-full px-2 py-1 shadow-sm">
-          {reportTypes.map((r) => (
-            <TabsTrigger
-              key={r.key}
-              value={r.key}
-              className="data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] rounded-full px-3 py-1 text-sm hover:bg-amber-50"
-            >
-              {r.label}
-            </TabsTrigger>
-          ))}
+          {reportTypes.map((r) => {
+            const Icon = r.icon;
+            return (
+              <TabsTrigger
+                key={r.key}
+                value={r.key}
+                className="flex items-center gap-1 data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] rounded-full px-3 py-1 text-sm hover:bg-amber-50"
+              >
+                <Icon className="w-4 h-4" />
+                <span className="hidden sm:inline">{r.label}</span>
+              </TabsTrigger>
+            );
+          })}
         </TabsList>
+
 
         {reportTypes.map((r) => (
           <TabsContent key={r.key} value={r.key}>
@@ -2131,7 +2124,7 @@ export default function BakeryReports() {
                               </thead>
                               <tbody>
                                 {reportData.top_items &&
-                                reportData.top_items.length ? (
+                                  reportData.top_items.length ? (
                                   reportData.top_items.map((item, idx) => (
                                     <tr
                                       key={idx}
@@ -2314,7 +2307,7 @@ export default function BakeryReports() {
                               </thead>
                               <tbody>
                                 {reportData.top_items &&
-                                reportData.top_items.length ? (
+                                  reportData.top_items.length ? (
                                   reportData.top_items.map((item, idx) => (
                                     <tr
                                       key={idx}

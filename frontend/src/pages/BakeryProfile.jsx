@@ -18,6 +18,7 @@ import {
   X,
   ChevronRight,
   ChevronLeft,
+  User, HandCoins, BarChart3
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Messages from "./Messages";
@@ -95,7 +96,7 @@ export default function BakeryProfile() {
   useEffect(() => {
     const employeeToken = localStorage.getItem("employeeToken");
     const bakeryToken = localStorage.getItem("token");
-    
+
     if (employeeToken) {
       try {
         const decoded = JSON.parse(atob(employeeToken.split(".")[1]));
@@ -122,11 +123,11 @@ export default function BakeryProfile() {
   // keep data fresh: inventory, employees
   useEffect(() => {
     if (!bakeryId) return;
-    
+
     const employeeToken = localStorage.getItem("employeeToken");
     const bakeryToken = localStorage.getItem("token");
     const token = employeeToken || bakeryToken;
-    
+
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
     const loadInventory = () =>
@@ -171,12 +172,12 @@ export default function BakeryProfile() {
   useEffect(() => {
     const fetchUser = async () => {
       if (!bakeryId) return;
-      
+
       try {
         const employeeToken = localStorage.getItem("employeeToken");
         const bakeryToken = localStorage.getItem("token");
         const token = employeeToken || bakeryToken;
-        
+
         if (!token) return;
 
         // For employees, fetch the bakery's information using bakery_id
@@ -199,7 +200,7 @@ export default function BakeryProfile() {
   // Fetch badges using bakery_id (shared for both owner and employees)
   useEffect(() => {
     if (!bakeryId) return;
-    
+
     axios
       .get(`${API}/badges/user/${bakeryId}`)
       .then((res) => setBadges(res.data))
@@ -215,12 +216,11 @@ export default function BakeryProfile() {
       const params = new URLSearchParams(window.location.search);
       if (params.get("sub") !== activeSubTab) {
         params.set("sub", activeSubTab);
-        const next = `${window.location.pathname}?${params.toString()}${
-          window.location.hash
-        }`;
+        const next = `${window.location.pathname}?${params.toString()}${window.location.hash
+          }`;
         window.history.replaceState({}, "", next);
       }
-    } catch {}
+    } catch { }
   }, [activeSubTab]);
 
   // calculate inventory status counts
@@ -533,6 +533,18 @@ export default function BakeryProfile() {
       .tile{ transition:transform .18s ease, box-shadow .18s ease; will-change: transform; }
       .tile:hover{ transform:translateY(-2px) scale(1.02); box-shadow:0 10px 28px rgba(201,124,44,.16); }
 
+      .seg-wrap{max-width: 80rem;margin: .75rem auto 0;}
+      .seg{display: flex;
+      gap: .4rem;
+      background: rgba(255, 255, 255, .94);
+      border: 1px solid rgba(0, 0, 0, .07);
+      border-radius: 12px;
+      padding: .3rem;
+      box-shadow: 0 8px 24px rgba(201, 124, 44, .10);}
+      .seg [role="tab"]{border-radius:10px; padding:.48rem .95rem; color:#6b4b2b; font-weight:700}
+      .seg [role="tab"][data-state="active"]{color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); box-shadow:0 8px 18px rgba(201,124,44,.28)}
+
+
       /* NOTIFICATION THEME — match with dashboard */
       .notif-card{ background:linear-gradient(180deg,#ffffff,#fff8ef); }
       .notif-head{ background:linear-gradient(90deg,#FFE7C5,#F6C17C,#E49A52); color:#572f00; }
@@ -722,10 +734,10 @@ export default function BakeryProfile() {
                   <li className="notif-section">Messages</li>
                   {messageNotifs.filter((m) => !readMessageIds.has(m.id))
                     .length === 0 && (
-                    <li className="p-6 text-sm text-muted-foreground">
-                      No message notifications.
-                    </li>
-                  )}
+                      <li className="p-6 text-sm text-muted-foreground">
+                        No message notifications.
+                      </li>
+                    )}
                   {messageNotifs
                     .filter((m) => !readMessageIds.has(m.id))
                     .map((m) => (
@@ -788,7 +800,7 @@ export default function BakeryProfile() {
           <div className="hero-bg" />
           <div className="hero-pattern" />
           <div className="relative p-6 sm:p-8">
-            <div className="flex flex-col md:flex-row md:items-end gap-6">
+            <div className="flex flex-col md:flex-row md:items-end gap-3">
               <div className="avatar-ring shrink-0">
                 <img
                   src={
@@ -968,16 +980,35 @@ export default function BakeryProfile() {
             {/* Subtabs (About / Donation History / Analytics) */}
             <div className="mt-6">
               <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
-                <div className="subseg">
-                  <TabsList className="bg-transparent p-0 border-0">
-                    <TabsTrigger value="about">About</TabsTrigger>
-                    <TabsTrigger value="history">Donation History</TabsTrigger>
-                    <TabsTrigger value="analytics">
-                      Analytics &amp; Badges
-                    </TabsTrigger>
-                  </TabsList>
-                </div>
+                <div className="seg-wrap">
+                  <div className="seg justify-center">
+                    <TabsList className="flex items-center gap-1 bg-transparent p-0 border-0 overflow-x-auto no-scrollbar">
+                      <TabsTrigger
+                        value="about"
+                        className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
+                      >
+                        <User className="w-4 h-4" />
+                        <span className="hidden sm:inline">About</span>
+                      </TabsTrigger>
 
+                      <TabsTrigger
+                        value="history"
+                        className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
+                      >
+                        <HandCoins className="w-4 h-4" />
+                        <span className="hidden sm:inline">Donation History</span>
+                      </TabsTrigger>
+
+                      <TabsTrigger
+                        value="analytics"
+                        className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
+                      >
+                        <BarChart3 className="w-4 h-4" />
+                        <span className="hidden sm:inline">Analytics &amp; Badges</span>
+                      </TabsTrigger>
+                    </TabsList>
+                  </div>
+                </div>
                 <TabsContent value="about" className="pt-6">
                   <div className="gwrap">
                     <Card className="glass-card shadow-none card-zoom">
@@ -1070,7 +1101,7 @@ export default function BakeryProfile() {
                               />
                               <span className="text-xs mt-1">
                                 {userBadge.badge_name &&
-                                userBadge.badge_name.trim() !== ""
+                                  userBadge.badge_name.trim() !== ""
                                   ? userBadge.badge_name
                                   : userBadge.badge?.name}
                               </span>
@@ -1181,7 +1212,7 @@ export default function BakeryProfile() {
                                       name: "Other",
                                       value: Math.max(
                                         statusCounts.total -
-                                          statusCounts.expired,
+                                        statusCounts.expired,
                                         0
                                       ),
                                     },

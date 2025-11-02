@@ -13,6 +13,13 @@ import {
   PackageCheck,
   LogOut,
   CheckCircle,
+  Gift,
+  LayoutGrid,
+  Clock,
+  HandCoins,
+  MessageSquare,
+  AlertTriangle,
+  FileText,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import CharityDonation from "./CharityDonation.jsx";
@@ -88,8 +95,14 @@ const Styles = () => (
       @keyframes ink{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
       .status-chip{display:inline-flex; align-items:center; gap:.5rem; margin-top:.15rem; padding:.28rem .6rem; font-size:.78rem; border-radius:9999px; color:#7a4f1c; background:linear-gradient(180deg,#FFE7C5,#F7C489); border:1px solid #fff3e0}
 
-      .seg-wrap{max-width:80rem; margin:.75rem auto 0; padding:0 1rem;}
-      .seg{display:flex; gap:.4rem; background:rgba(255,255,255,.94); border:1px solid rgba(0,0,0,.07); border-radius:12px; padding:.3rem; box-shadow:0 8px 24px rgba(201,124,44,.08); width:fit-content}
+      .seg-wrap{max-width: 80rem;margin: .75rem auto 0;}
+      .seg{display: flex;
+      gap: .4rem;
+      background: rgba(255, 255, 255, .94);
+      border: 1px solid rgba(0, 0, 0, .07);
+      border-radius: 12px;
+      padding: .3rem;
+      box-shadow: 0 8px 24px rgba(201, 124, 44, .10);}
       .seg [role="tab"]{border-radius:10px; padding:.48rem .95rem; color:#6b4b2b; font-weight:700}
       .seg [role="tab"][data-state="active"]{color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); box-shadow:0 8px 18px rgba(201,124,44,.28)}
 
@@ -124,7 +137,9 @@ const Styles = () => (
 const CharityDashboard = () => {
   const [name, setName] = useState("");
   const [isVerified, setIsVerified] = useState(false);
-
+  const [scrolled, setScrolled] = useState(false);
+  const [showTop, setShowTop] = useState(false);  // You used this inside useEffect
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -144,6 +159,17 @@ const CharityDashboard = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    const onScroll = () => {
+      const y = window.scrollY || document.documentElement.scrollTop;
+      setShowTop(y > 320);
+      setScrolled(y > 8);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
     try {
       if (!activeTab) return;
       localStorage.setItem(TAB_KEY, activeTab);
@@ -151,21 +177,19 @@ const CharityDashboard = () => {
       if (activeTab === "donation") {
         if (params.has("tab")) {
           params.delete("tab");
-          const next = `${window.location.pathname}${
-            params.toString() ? `?${params.toString()}` : ""
-          }${window.location.hash}`;
+          const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""
+            }${window.location.hash}`;
           window.history.replaceState({}, "", next);
         }
       } else {
         if (params.get("tab") !== activeTab) {
           params.set("tab", activeTab);
-          const next = `${window.location.pathname}?${params.toString()}${
-            window.location.hash
-          }`;
+          const next = `${window.location.pathname}?${params.toString()}${window.location.hash
+            }`;
           window.history.replaceState({}, "", next);
         }
       }
-    } catch {}
+    } catch { }
   }, [activeTab]);
 
   const [currentUser, setCurrentUser] = useState(null);
@@ -250,7 +274,7 @@ const CharityDashboard = () => {
         if (!res.ok) return;
         const data = await res.json();
         setTotals(data);
-      } catch {}
+      } catch { }
     };
     fetchTotals();
   }, []);
@@ -287,69 +311,76 @@ const CharityDashboard = () => {
       </div>
 
       {/* Header */}
-      <header className="head">
+      <header className="head fixed top-0 left-0 right-0 z-[80]">
         <div className="head-bg" />
-        <div className="head-inner">
-          {/* same alignment & cluster as bakery */}
-          <div className="flex justify-between items-center gap-4">
-            <div className="flex-1 min-w-0">
-              <div className="brand">
-                <div className="ring">
-                  <div>
-                    <HeartHandshake className="h-6 w-6 text-amber-700 logo" />
-                  </div>
+        <div className={`glass-soft header-gradient-line header-skin sticky-boost ${scrolled ? "is-scrolled" : ""}`}>
+          <div className="max-w-7xl mx-auto px-4 py-3 hdr-pad flex items-center justify-between relative">
+            <div className="flex items-center gap-3">
+              {/* DoughNation Logo - Disabled when logged in */}
+              {isVerified ? (
+                <div className="flex items-center gap-3 cursor-not-allowed opacity-60" title="You are already logged in">
+                  <img src="/images/DoughNationLogo.png" alt="DoughNation logo" className="shrink-0" style={{
+                    width: "28px",
+                    height: "28px", objectFit: "contain"
+                  }} />
+                  <span className="font-extrabold brand-pop" style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}>
+                    DoughNation
+                  </span>
                 </div>
-                <div className="min-w-0">
-                  <h1 className="title-ink text-2xl sm:text-[26px] truncate">
-                    {name}
-                  </h1>
-                  {verifiedPill && (
-                    <span className="status-chip">{verifiedPill}</span>
-                  )}
-                </div>
-              </div>
+              ) : (
+                <Link to="/" className="flex items-center gap-3">
+                  <img src="/images/DoughNationLogo.png" alt="DoughNation logo" className="shrink-0" style={{
+                    width: "28px",
+                    height: "28px", objectFit: "contain"
+                  }} />
+                  <span className="font-extrabold brand-pop" style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}>
+                    DoughNation
+                  </span>
+                </Link>
+              )}
             </div>
 
-            {/* Right icon cluster: search, messages, bell, profile, logout */}
-            <div className="iconbar">
-              <DashboardSearch size="sm" />
+            {/* Desktop nav */}
+            <nav className="items-center gap-5" style={{ fontSize: 15 }}>
+              <div className="pt-1 flex items-center gap-3 relative">
+                <div className="iconbar">
+                  <DashboardSearch size="sm" className="hidden md:flex" />
 
-              <div className="icon-btn">
-                <Messages1 currentUser={currentUser} compact />
+                  {/* Messages Button */}
+                  <Messages1 currentUser={currentUser} />
+
+                  {/* Notifications Bell */}
+                  <CharityNotification />
+
+                  {/* Profile Icon */}
+                  <button
+                    className="icon-btn"
+                    title="Profile"
+                    onClick={() =>
+                      navigate(`/charity-dashboard/${currentUser?.id || 0}/profile`)
+                    }
+                  >
+                    <span
+                      className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold"
+                      style={{
+                        background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
+                        color: "#7a4f1c",
+                        border: "1px solid #fff3e0",
+                      }}
+                    >
+                      {name?.trim()?.charAt(0).toUpperCase() || " "}
+                    </span>
+                  </button>
+
+                  <Button onClick={handleLogout} className="btn-logout flex items-center">
+                    <LogOut className="h-4 w-4" />
+                    <span className="hidden md:flex">Log Out</span>
+                  </Button>
+                </div>
               </div>
-
-              <div className="icon-btn">
-                <CharityNotification />
-              </div>
-
-              <button
-                className="icon-btn"
-                title="Profile"
-                onClick={() =>
-                  navigate(`/charity-dashboard/${currentUser?.id || 0}/profile`)
-                }
-              >
-                <span
-                  className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold"
-                  style={{
-                    background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
-                    color: "#7a4f1c",
-                    border: "1px solid #fff3e0",
-                  }}
-                >
-                  {name?.trim()?.charAt(0).toUpperCase() || " "}
-                </span>
-              </button>
-
-              <Button
-                onClick={handleLogout}
-                className="btn-logout flex items-center"
-              >
-                <LogOut className="h-4 w-4" />
-                <span>Log Out</span>
-              </Button>
-            </div>
+            </nav>
           </div>
+          {/* Mobile dropdown panel */}
         </div>
       </header>
 
@@ -361,21 +392,69 @@ const CharityDashboard = () => {
         }}
       >
         <div className="seg-wrap">
-          <div className="seg">
-            <TabsList className="bg-transparent p-0 border-0">
-              <TabsTrigger value="donation">Available Donation</TabsTrigger>
-              <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-              <TabsTrigger value="donationStatus">Donation Status</TabsTrigger>
-              <TabsTrigger value="received">Donation Received</TabsTrigger>
-              <TabsTrigger value="feedback">Feedback</TabsTrigger>
-              <TabsTrigger value="complaints">Complaints</TabsTrigger>
-              <TabsTrigger value="reports">Generate Reports</TabsTrigger>
+          <div className="seg justify-center">
+            <TabsList className="bg-transparent p-0 border-0 flex flex-wrap gap-2">
+              <TabsTrigger
+                value="donation"
+                className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
+              >
+                <Gift className="w-4 h-4" />
+                <span className="hidden sm:inline">Available Donation</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="dashboard"
+                className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
+              >
+                <LayoutGrid className="w-4 h-4" />
+                <span className="hidden sm:inline">Dashboard</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="donationStatus"
+                className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
+              >
+                <Clock className="w-4 h-4" />
+                <span className="hidden sm:inline">Donation Status</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="received"
+                className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
+              >
+                <HandCoins className="w-4 h-4" />
+                <span className="hidden sm:inline">Donation Received</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="feedback"
+                className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span className="hidden sm:inline">Feedback</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="complaints"
+                className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
+              >
+                <AlertTriangle className="w-4 h-4" />
+                <span className="hidden sm:inline">Complaints</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="reports"
+                className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
+              >
+                <FileText className="w-4 h-4" />
+                <span className="hidden sm:inline">Reports</span>
+              </TabsTrigger>
             </TabsList>
           </div>
         </div>
 
         {/* Content */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7">
+        <div className="max-w-7xl mx-auto px-1 py-4">
           {/* Dashboard */}
           <TabsContent value="dashboard" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6">
@@ -485,12 +564,20 @@ const CharityDashboard = () => {
 
           {/* Complaints */}
           <TabsContent value="complaints" className="reveal">
-            <Complaint />
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none p-4">
+                <Complaint />
+              </Card>
+            </div>
           </TabsContent>
 
           {/* Reports */}
           <TabsContent value="reports" className="reveal">
-            <CharityReports />
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none p-4">
+                <CharityReports />
+              </Card>
+            </div>
           </TabsContent>
         </div>
       </Tabs>

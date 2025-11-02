@@ -400,7 +400,7 @@ export default function CharityProfile() {
                 className="btn-logout flex items-center"
               >
                 <LogOut className="h-4 w-4" />
-                <span>Log Out</span>
+                <span className="hidden md:flex">Log Out</span>
               </Button>
             </div>
           </div>

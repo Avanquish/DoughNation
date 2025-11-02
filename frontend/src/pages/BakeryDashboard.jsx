@@ -144,64 +144,64 @@ const BakeryDashboard = () => {
 
   // Detect employee mode and set role
   useEffect(() => {
-    if (employee && employee.bakery_id === parseInt(id)) {
-      setIsEmployeeMode(true);
-      setEmployeeRole(employee.employee_role);
-      setName(employee.employee_name);
-      setIsVerified(true);
-      setIsViewOnly(false);
-
-      // 🏢 FETCH BAKERY NAME FROM TOKEN (most reliable source)
-      const employeeToken = localStorage.getItem("employeeToken");
-
-      if (employeeToken) {
-        try {
-          const decoded = JSON.parse(atob(employeeToken.split(".")[1]));
-          console.log("🔍 Decoded employee token:", decoded);
-
-          // Token includes bakery_name from backend
-          const bakeryNameFromToken = decoded.bakery_name;
-
-          if (bakeryNameFromToken) {
-            console.log("✅ Using bakery name from token:", bakeryNameFromToken);
-            setBakeryName(bakeryNameFromToken);
-          } else {
-            // Fallback: fetch from backend if not in token
-            console.log("⚠️ No bakery_name in token, fetching from backend...");
+      if (employee && employee.bakery_id === parseInt(id)) {
+        setIsEmployeeMode(true);
+        setEmployeeRole(employee.employee_role);
+        setName(employee.employee_name);
+        setIsVerified(true);
+        setIsViewOnly(false);
+        
+        // 🏢 FETCH BAKERY NAME FROM TOKEN (most reliable source)
+        const employeeToken = localStorage.getItem("employeeToken");
+        
+        if (employeeToken) {
+          try {
+            const decoded = JSON.parse(atob(employeeToken.split(".")[1]));
+            console.log("🔍 Decoded employee token:", decoded);
+            
+            // Token includes bakery_name from backend
+            const bakeryNameFromToken = decoded.bakery_name;
+            
+            if (bakeryNameFromToken) {
+              console.log("✅ Using bakery name from token:", bakeryNameFromToken);
+              setBakeryName(bakeryNameFromToken);
+            } else {
+              // Fallback: fetch from backend if not in token
+              console.log("⚠️ No bakery_name in token, fetching from backend...");
+              fetchBakeryNameFromBackend(employee.bakery_id);
+            }
+          } catch (err) {
+            console.error("❌ Failed to decode token:", err);
+            // Fallback to backend fetch
             fetchBakeryNameFromBackend(employee.bakery_id);
           }
-        } catch (err) {
-          console.error("❌ Failed to decode token:", err);
-          // Fallback to backend fetch
+        } else {
+          console.log("❌ No employee token found");
           fetchBakeryNameFromBackend(employee.bakery_id);
         }
-      } else {
-        console.log("❌ No employee token found");
-        fetchBakeryNameFromBackend(employee.bakery_id);
       }
-    }
-  }, [employee, id]);
+    }, [employee, id]);
 
-  // Helper function to fetch bakery name from backend
-  const fetchBakeryNameFromBackend = async (bakeryId) => {
-    try {
-      const employeeToken = localStorage.getItem("employeeToken");
-      const res = await axios.get(`${API}/users/${bakeryId}`, {
-        headers: { Authorization: `Bearer ${employeeToken}` }
-      });
-
-      if (res.data && res.data.name) {
-        console.log("✅ Fetched bakery name from backend:", res.data.name);
-        setBakeryName(res.data.name);
-      } else {
-        console.log("❌ No bakery name in response");
+    // Helper function to fetch bakery name from backend
+    const fetchBakeryNameFromBackend = async (bakeryId) => {
+      try {
+        const employeeToken = localStorage.getItem("employeeToken");
+        const res = await axios.get(`${API}/users/${bakeryId}`, {
+          headers: { Authorization: `Bearer ${employeeToken}` }
+        });
+        
+        if (res.data && res.data.name) {
+          console.log("✅ Fetched bakery name from backend:", res.data.name);
+          setBakeryName(res.data.name);
+        } else {
+          console.log("❌ No bakery name in response");
+          setBakeryName("Bakery");
+        }
+      } catch (err) {
+        console.error("❌ Failed to fetch bakery name:", err);
         setBakeryName("Bakery");
       }
-    } catch (err) {
-      console.error("❌ Failed to fetch bakery name:", err);
-      setBakeryName("Bakery");
-    }
-  };
+    };
 
   // Determine which tabs are visible based on role
   const getVisibleTabs = () => {
@@ -568,8 +568,8 @@ const BakeryDashboard = () => {
     );
   }
 
-  const Styles = () => (
-    <style>{`
+const Styles = () => (
+  <style>{`
     :root{
       --ink:#7a4f1c;
       --grad1:#FFF7EC; --grad2:#FFE7C8; --grad3:#FFD6A1; --grad4:#F3C27E;
@@ -716,7 +716,7 @@ const BakeryDashboard = () => {
       to{transform:translateX(100%)}
     }
   `}</style>
-  );
+);
 
   return (
     <div className="min-h-screen relative">
@@ -764,9 +764,9 @@ const BakeryDashboard = () => {
                       {name}
                     </span>
                     {employeeRole && (
-                      <span
+                      <span 
                         className="text-xs px-2 py-0.5 rounded-full"
-                        style={{
+                        style={{ 
                           background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
                           color: "#7a4f1c",
                           border: "1px solid #fff3e0"
@@ -933,14 +933,6 @@ const BakeryDashboard = () => {
 
         {/* Content */}
         <div className="max-w-7xl mx-auto px-2 sm:px-2 lg:px-2 py-2">
-          <div className="min-w-0">
-            <h1 className="title-ink text-2xl sm:text-[26px] truncate">
-              {name}
-            </h1>
-            {verifiedPill && (
-              <span className="status-chip">{verifiedPill}</span>
-            )}
-          </div>
           {/* View-Only Mode Banner for Bakery Owners */}
           {isViewOnly && (
             <div

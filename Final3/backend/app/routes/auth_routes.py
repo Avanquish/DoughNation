@@ -237,6 +237,8 @@ def check_email(data: dict, db: Session = Depends(database.get_db)):
 # Step 2: Verify registration date
 @router.post("/forgot-password/check-date")
 def check_date(data: dict, db: Session = Depends(database.get_db)):
+    from datetime import datetime, date
+    
     email = data.get("email")
     registration_date = data.get("registration_date")
 
@@ -244,8 +246,16 @@ def check_date(data: dict, db: Session = Depends(database.get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="Email not registered")
 
-    # Compare only the date part to avoid datetime mismatch
-    if str(user.created_at.date()) != str(registration_date):
+    # Handle both datetime and date objects
+    if isinstance(user.created_at, datetime):
+        user_date = user.created_at.date()
+    elif isinstance(user.created_at, date):
+        user_date = user.created_at
+    else:
+        user_date = str(user.created_at).split()[0]
+    
+    # Compare as strings in YYYY-MM-DD format
+    if str(user_date) != str(registration_date):
         raise HTTPException(status_code=400, detail="Registration date does not match")
 
     return {"valid": True}

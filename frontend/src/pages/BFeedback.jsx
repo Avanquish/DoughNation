@@ -116,21 +116,14 @@ export default function BakeryFeedback({ isViewOnly = false }) {
     <div
       ref={rootRef}
       className="min-h-[65vh] pb-10"
-      style={{
-        background:
-          "radial-gradient(1200px 600px at 10% -10%, #FFF7ED 0%, #FFF7ED 40%, rgba(255,255,255,0) 60%), radial-gradient(1000px 500px at 120% 10%, #FFEFD9 0%, #FFF9F1 50%, rgba(255,255,255,0) 65%)",
-      }}
     >
       {/* Header */}
       <div className="px-4 sm:px-6 pt-4">
-        <div className={`${headerWrap} px-6 py-5`}>
-          <h1
-            className="text-[34px] sm:text-[40px] md:text-[46px] leading-[1.1] font-extrabold tracking-tight"
-            style={{ color: brand.text }}
-          >
-            Feedback
-          </h1>
-        </div>
+        <div className="mb-6 flex items-center justify-between">
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-[#4A2F17]">
+          Feedback
+        </h2>
+      </div>
       </div>
 
       {/* Content */}

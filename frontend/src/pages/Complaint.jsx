@@ -115,7 +115,7 @@ export default function ComplaintModule({ isViewOnly = false }) {
   };
 
   return (
-    <div className="relative mx-auto max-w-[1280px] px-6 py-8">
+    <div className="relative mx-auto max-w-[1280px] p-2">
       {/* Title + trigger */}
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-3xl font-extrabold tracking-tight text-[#4A2F17]">

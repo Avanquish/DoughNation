@@ -330,14 +330,13 @@ useEffect(() => {
 
   /* ---------- UI ---------- */
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* header row */}
       <div className="flex items-center justify-between">
         <h2
-          className="text-3xl sm:text-4xl font-extrabold"
+          className="text-3xl sm:text-3xl font-extrabold"
           style={{ color: "#6B4B2B" }}
-        >
-          For Donations
+        >For Donations
         </h2>
         {!isViewOnly && (
           <button

@@ -110,9 +110,8 @@ export default function BakeryReports({ isViewOnly = false }) {
 
     return `
     <div style="text-align:center; font-family: Arial, sans-serif; margin-bottom:30px;">
-      ${
-        profileURL
-          ? `
+      ${profileURL
+        ? `
         <img src="${profileURL}" alt="Bakery Logo" style="
           width:120px;
           height:120px;
@@ -120,18 +119,16 @@ export default function BakeryReports({ isViewOnly = false }) {
           border-radius:50%;
           margin-bottom:15px;
         "/>`
-          : ""
+        : ""
       }
-      <h1 style="margin:0; font-size:28px; font-weight:bold; color:#222;">${
-        bakery.name || ""
+      <h1 style="margin:0; font-size:28px; font-weight:bold; color:#222;">${bakery.name || ""
       }</h1>
       <p style="margin:5px 0; font-size:14px; color:#555;">
         ${bakery.address || ""}
       </p>
       <p style="margin:2px 0; font-size:14px; color:#555;">
-        Contact: ${bakery.contact_number || "N/A"} | Email: ${
-      bakery.email || "N/A"
-    }
+        Contact: ${bakery.contact_number || "N/A"} | Email: ${bakery.email || "N/A"
+      }
       </p>
       <p style="margin:20px 0 5px 0; font-size:20px; font-weight:bold; color:#000;">
         ${reportType.replace(/_/g, " ").toUpperCase()} REPORT 
@@ -199,9 +196,9 @@ export default function BakeryReports({ isViewOnly = false }) {
   useEffect(() => {
     const employeeToken = localStorage.getItem("employeeToken");
     const bakeryToken = localStorage.getItem("token");
-    
+
     let name = "System";
-    
+
     if (employeeToken) {
       // Decode employee JWT token
       try {
@@ -219,7 +216,7 @@ export default function BakeryReports({ isViewOnly = false }) {
         console.error("Failed to decode bakery token", e);
       }
     }
-    
+
     setEmployeeName(name);
   }, []);
 
@@ -429,8 +426,7 @@ export default function BakeryReports({ isViewOnly = false }) {
       });
       currentY += 10;
       doc.text(
-        `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${
-          bakeryInfo?.email || "N/A"
+        `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${bakeryInfo?.email || "N/A"
         }`,
         pageWidth / 2,
         currentY,
@@ -732,8 +728,7 @@ export default function BakeryReports({ isViewOnly = false }) {
       });
       currentY += 10;
       doc.text(
-        `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${
-          bakeryInfo?.email || "N/A"
+        `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${bakeryInfo?.email || "N/A"
         }`,
         pageWidth / 2,
         currentY,
@@ -970,8 +965,7 @@ export default function BakeryReports({ isViewOnly = false }) {
       });
       currentY += 10;
       doc.text(
-        `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${
-          bakeryInfo?.email || "N/A"
+        `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${bakeryInfo?.email || "N/A"
         }`,
         pageWidth / 2,
         currentY,
@@ -1269,8 +1263,7 @@ export default function BakeryReports({ isViewOnly = false }) {
     });
     currentY += 10;
     doc.text(
-      `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${
-        bakeryInfo?.email || "N/A"
+      `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${bakeryInfo?.email || "N/A"
       }`,
       pageWidth / 2,
       currentY,
@@ -1473,16 +1466,15 @@ export default function BakeryReports({ isViewOnly = false }) {
           </tr>
         </thead>
         <tbody>
-          ${
-            reportData.top_items && reportData.top_items.length > 0
-              ? reportData.top_items
-                  .map(
-                    (item) =>
-                      `<tr><td>${item.product_name}</td><td>${item.quantity}</td></tr>`
-                  )
-                  .join("")
-              : `<tr><td colspan="2">No top items for this week.</td></tr>`
-          }
+          ${reportData.top_items && reportData.top_items.length > 0
+          ? reportData.top_items
+            .map(
+              (item) =>
+                `<tr><td>${item.product_name}</td><td>${item.quantity}</td></tr>`
+            )
+            .join("")
+          : `<tr><td colspan="2">No top items for this week.</td></tr>`
+        }
         </tbody>
       </table>
     `;
@@ -1628,16 +1620,15 @@ export default function BakeryReports({ isViewOnly = false }) {
           </tr>
         </thead>
         <tbody>
-          ${
-            reportData.top_items && reportData.top_items.length > 0
-              ? reportData.top_items
-                  .map(
-                    (item) =>
-                      `<tr><td>${item.product_name}</td><td>${item.quantity}</td></tr>`
-                  )
-                  .join("")
-              : `<tr><td colspan="2">No top items for this week.</td></tr>`
-          }
+          ${reportData.top_items && reportData.top_items.length > 0
+          ? reportData.top_items
+            .map(
+              (item) =>
+                `<tr><td>${item.product_name}</td><td>${item.quantity}</td></tr>`
+            )
+            .join("")
+          : `<tr><td colspan="2">No top items for this week.</td></tr>`
+        }
         </tbody>
       </table>
     `;
@@ -1769,16 +1760,15 @@ export default function BakeryReports({ isViewOnly = false }) {
         </thead>
         <tbody>
           ${charities
-            .map(
-              (c) => `
+          .map(
+            (c) => `
               <tr>
                 <td>
                   <img 
-                    src="${
-                      c.charity_profile
-                        ? `${API_URL}/${normalizePath(c.charity_profile)}`
-                        : "/default_profile.png"
-                    }"
+                    src="${c.charity_profile
+                ? `${API_URL}/${normalizePath(c.charity_profile)}`
+                : "/default_profile.png"
+              }"
                     alt="${c.charity_name}" 
                     style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;"
                   />
@@ -1792,32 +1782,26 @@ export default function BakeryReports({ isViewOnly = false }) {
                 <td><strong>${c.total_transactions}</strong></td>
               </tr>
             `
-            )
-            .join("")}
+          )
+          .join("")}
         </tbody>
       </table>
 
       <h3>Grand Totals</h3>
       <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; text-align: center;">
         <tbody>
-          <tr><td><b>Total Direct Donations</b></td><td>${
-            totals.total_direct_count
-          }</td></tr>
-          <tr><td><b>Total Requests</b></td><td>${
-            totals.total_request_count
-          }</td></tr>
-          <tr><td><b>Total Direct Qty</b></td><td>${
-            totals.total_direct_qty
-          }</td></tr>
-          <tr><td><b>Total Request Qty</b></td><td>${
-            totals.total_request_qty
-          }</td></tr>
-          <tr><td><b>Total Received Qty</b></td><td>${
-            totals.total_received_qty
-          }</td></tr>
-          <tr><td><b>Total Transactions</b></td><td><strong>${
-            totals.total_transactions
-          }</strong></td></tr>
+          <tr><td><b>Total Direct Donations</b></td><td>${totals.total_direct_count
+        }</td></tr>
+          <tr><td><b>Total Requests</b></td><td>${totals.total_request_count
+        }</td></tr>
+          <tr><td><b>Total Direct Qty</b></td><td>${totals.total_direct_qty
+        }</td></tr>
+          <tr><td><b>Total Request Qty</b></td><td>${totals.total_request_qty
+        }</td></tr>
+          <tr><td><b>Total Received Qty</b></td><td>${totals.total_received_qty
+        }</td></tr>
+          <tr><td><b>Total Transactions</b></td><td><strong>${totals.total_transactions
+        }</strong></td></tr>
         </tbody>
       </table>
     `;
@@ -1837,22 +1821,21 @@ export default function BakeryReports({ isViewOnly = false }) {
         </thead>
         <tbody>
           ${reportData
-            .map(
-              (row) => `
+          .map(
+            (row) => `
                 <tr>
                   ${headers
-                    .map((h) =>
-                      h.toLowerCase().includes("image")
-                        ? `<td><img src="${
-                            row[h] ? `${API_URL}/${normalizePath(row[h])}` : ""
-                          }" /></td>`
-                        : `<td>${row[h] ?? ""}</td>`
-                    )
-                    .join("")}
+                .map((h) =>
+                  h.toLowerCase().includes("image")
+                    ? `<td><img src="${row[h] ? `${API_URL}/${normalizePath(row[h])}` : ""
+                    }" /></td>`
+                    : `<td>${row[h] ?? ""}</td>`
+                )
+                .join("")}
                 </tr>
               `
-            )
-            .join("")}
+          )
+          .join("")}
         </tbody>
       </table>
     `;
@@ -2047,13 +2030,15 @@ export default function BakeryReports({ isViewOnly = false }) {
   };
 
   return (
-    <div className="p-6 relative">
-      <h1 className="text-3xl font-bold text-[#6b4b2b] mb-4">
-        Bakery Report Generation
+    <div className="space-y-2 relative">
+      <h1 className="text-3xl sm:text-3xl font-extrabold"
+        style={{ color: "#6B4B2B" }}
+      >
+        Report Generation
       </h1>
 
       {isViewOnly && (
-        <div 
+        <div
           className="mb-4 p-3 rounded-lg border-2 flex items-start gap-2 text-sm"
           style={{
             background: "linear-gradient(135deg, #FFF8E1 0%, #FFECB3 100%)",
@@ -2231,7 +2216,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                               </thead>
                               <tbody>
                                 {reportData.top_items &&
-                                reportData.top_items.length ? (
+                                  reportData.top_items.length ? (
                                   reportData.top_items.map((item, idx) => (
                                     <tr
                                       key={idx}
@@ -2430,7 +2415,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                               </thead>
                               <tbody>
                                 {reportData.top_items &&
-                                reportData.top_items.length ? (
+                                  reportData.top_items.length ? (
                                   reportData.top_items.map((item, idx) => (
                                     <tr
                                       key={idx}

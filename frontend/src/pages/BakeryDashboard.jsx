@@ -249,7 +249,7 @@ const BakeryDashboard = () => {
       if (!isEmployeeMode) {
         setName(decoded.name || "Madam Bakery");
         setBakeryName(decoded.name || "Bakery");
-        
+
         // ✅ If bakery owner (user with token, not employee), set view-only mode
         setIsViewOnly(true); // Bakery owners can only view, employees can perform CRUD
       }
@@ -622,11 +622,12 @@ const BakeryDashboard = () => {
   .chip svg{
   width:22px; height:22px;
   color:#8a5a25;
-}      .hover-lift{transition:transform .35s cubic-bezier(.22,.98,.4,1), box-shadow .35s}
-      .hover-lift:hover{transform:translateY(-4px); box-shadow:0 18px 38px rgba(201,124,44,.14)}
-      .reveal{opacity:0; transform:translateY(8px) scale(.985); animation:rise .6s ease forwards}
-      .r1{animation-delay:.05s}.r2{animation-delay:.1s}.r3{animation-delay:.15s}.r4{animation-delay:.2s}.r5{animation-delay:.25s}.r6{animation-delay:.3s}
-      @keyframes rise{to{opacity:1; transform:translateY(0) scale(1)}}
+}      
+    // .hover-lift{transition:transform .35s cubic-bezier(.22,.98,.4,1), box-shadow .35s}
+    //   .hover-lift:hover{transform:translateY(-4px); box-shadow:0 18px 38px rgba(201,124,44,.14)}
+    //   .reveal{opacity:0; transform:translateY(8px) scale(.985); animation:rise .6s ease forwards}
+    //   .r1{animation-delay:.05s}.r2{animation-delay:.1s}.r3{animation-delay:.15s}.r4{animation-delay:.2s}.r5{animation-delay:.25s}.r6{animation-delay:.3s}
+    //   @keyframes rise{to{opacity:1; transform:translateY(0) scale(1)}}
 
       .overlay-root{position:fixed; inset:0; z-index:50;}
       .overlay-bg{position:absolute; inset:0; background:rgba(0,0,0,.32); backdrop-filter: blur(6px); opacity:0; animation: showBg .2s ease forwards}
@@ -821,10 +822,10 @@ const BakeryDashboard = () => {
         </div>
 
         {/* Content */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7">
+        <div className="max-w-7xl mx-auto px-2 sm:px-2 lg:px-2 py-2">
           {/* View-Only Mode Banner for Bakery Owners */}
           {isViewOnly && (
-            <div 
+            <div
               className="mb-6 p-4 rounded-lg border-2 flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-500"
               style={{
                 background: "linear-gradient(135deg, #FFF8E1 0%, #FFECB3 100%)",
@@ -832,41 +833,41 @@ const BakeryDashboard = () => {
                 boxShadow: "0 4px 12px rgba(255, 152, 0, 0.15)"
               }}
             >
-              <AlertTriangle 
-                className="h-5 w-5 mt-0.5 flex-shrink-0" 
-                style={{ color: "#F57C00" }} 
+              <AlertTriangle
+                className="h-5 w-5 mt-0.5 flex-shrink-0"
+                style={{ color: "#F57C00" }}
               />
               <div className="flex-1">
-                <h3 
+                <h3
                   className="font-bold text-base mb-1"
                   style={{ color: "#E65100" }}
                 >
                   View-Only Mode
                 </h3>
-                <p 
+                <p
                   className="text-sm leading-relaxed"
                   style={{ color: "#7a4f1c" }}
                 >
                   You are logged in as a <strong>Bakery Account</strong>. All data modification operations are disabled for this account, including:
-                  <br/>
+                  <br />
                   • Cannot add, edit, or delete <strong>inventory items</strong>
-                  <br/>
+                  <br />
                   • Cannot send <strong>donations</strong>
-                  <br/>
+                  <br />
                   • Cannot add, edit, or delete <strong>employees</strong>
-                  <br/>
+                  <br />
                   • Cannot <strong>submit complaints</strong>
-                  <br/>
+                  <br />
                   • Cannot <strong>generate or download reports</strong>
-                  <br/>
+                  <br />
                   • Cannot <strong>reply to feedback</strong>
-                  <br/><br/>
+                  <br /><br />
                   Only <strong>employees</strong> can perform these operations. You can view all information but cannot make changes.
                 </p>
               </div>
             </div>
           )}
-          
+
           <TabsContent value="dashboard" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {/* Stat cards */}
@@ -1133,27 +1134,36 @@ const BakeryDashboard = () => {
           </TabsContent>
 
           <TabsContent value="inventory" className="reveal">
-            <BakeryInventory isViewOnly={isViewOnly} />
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  <BakeryInventory />
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="donations" className="reveal">
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
-                <CardHeader>
-                  <TabsContent value="donations" className="reveal">
-                    <BakeryDonation
-                      highlightedDonationId={highlightedDonationId}
-                      isViewOnly={isViewOnly}
-                    />
-                  </TabsContent>
-                </CardHeader>
-                <CardContent className="min-h-[120px]" />
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  <BakeryDonation
+                    highlightedDonationId={highlightedDonationId}
+                    isViewOnly={isViewOnly}
+                  />
+                </CardContent>
               </Card>
             </div>
           </TabsContent>
 
           <TabsContent value="DONATIONstatus" className="reveal">
-            <BDonationStatus />
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  <BDonationStatus />
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="employee" className="reveal">
@@ -1161,27 +1171,45 @@ const BakeryDashboard = () => {
           </TabsContent>
 
           <TabsContent value="complaints" className="reveal">
-            <Complaint isViewOnly={isViewOnly} />
-          </TabsContent>
-
-          <TabsContent value="reports" className="reveal">
-            <BakeryReports isViewOnly={isViewOnly} />
-          </TabsContent>
-
-          {/* Feedback */}
-          <TabsContent value="feedback">
-            <div className="gwrap">
+            <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
-                <CardHeader className="pb-2">
-                  <CardTitle style={{ color: "#6B4B2B" }}>Feedback</CardTitle>
-                </CardHeader>
-                <BFeedback isViewOnly={isViewOnly} />
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  <Complaint isViewOnly={isViewOnly} />
+                </CardContent>
               </Card>
             </div>
           </TabsContent>
 
+          <TabsContent value="reports" className="reveal">
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  <BakeryReports isViewOnly={isViewOnly} />
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Feedback */}
+          <TabsContent value="feedback">
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  <BFeedback isViewOnly={isViewOnly} />
+                </CardContent>
+              </Card>
+            </div>
+
+          </TabsContent>
+
           <TabsContent value="badges" className="reveal">
-            <AchievementBadges />
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  <AchievementBadges />
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </div>
       </Tabs>

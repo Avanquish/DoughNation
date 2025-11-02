@@ -291,7 +291,7 @@ const BDonationStatus = () => {
     if (!token) return;
     try {
       const decoded = JSON.parse(atob(token.split(".")[1]));
-      
+
       // Handle employee token
       if (decoded.type === "employee") {
         setCurrentUser({
@@ -302,7 +302,7 @@ const BDonationStatus = () => {
         });
         return;
       }
-      
+
       // Handle regular user token
       setCurrentUser({
         id: Number(decoded.sub),
@@ -502,124 +502,123 @@ const BDonationStatus = () => {
     </div>
   );
 
-const Card = ({ d, onClick }) => {
-  const left = daysUntil(d.expiration_date);
-  const showExpiry = Number.isFinite(left) && left >= 0;
-  const stat = (d.tracking_status || d.status || "pending").toLowerCase();
-  const theme = statusTheme(stat);
+  const Card = ({ d, onClick }) => {
+    const left = daysUntil(d.expiration_date);
+    const showExpiry = Number.isFinite(left) && left >= 0;
+    const stat = (d.tracking_status || d.status || "pending").toLowerCase();
+    const theme = statusTheme(stat);
 
-  return (
-    <div
-      id={`received-${d.donation_id || d.id}`}
-      onClick={onClick}
-      className={`group rounded-2xl border border-[#f2e3cf] bg-white/70
+    return (
+      <div
+        id={`received-${d.donation_id || d.id}`}
+        onClick={onClick}
+        className={`group rounded-2xl border border-[#f2e3cf] bg-white/70
                   shadow-[0_2px_10px_rgba(93,64,28,.05)]
                   overflow-hidden transition-all duration-300 cursor-pointer
                   hover:scale-[1.015] hover:shadow-[0_14px_32px_rgba(191,115,39,.18)]
                   hover:ring-1 ${theme.hoverRing}
-                  ${
-                    highlightedId === (d.donation_id || d.id)
-                      ? `ring-2 ${theme.ring}`
-                      : ""
-                  }`}
-    >
-      <div className="relative h-40 overflow-hidden">
-        {d.image ? (
-          <img
-            src={`${API}/${d.image}`}
-            alt={d.name}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-          />
-        ) : (
-          <div className="h-full w-full grid place-items-center bg-[#FFF6E9] text-[#b88a5a]">
-            No Image
-          </div>
-        )}
-        {showExpiry && (
-          <div className="absolute top-3 right-3 text-[11px] font-bold inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-[#fff8e6] border-[#ffe7bf] text-[#8a5a25]">
-            Expires in {left} {left === 1 ? "day" : "days"}
-          </div>
-        )}
-      </div>
-
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-2">
-          <h4 className="text-lg font-semibold text-[#3b2a18]">{d.name}</h4>
-          <StatusPill status={d.tracking_status || d.status} />
-        </div>
-
-        <div className="mt-2 flex flex-wrap gap-2">
-          <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#FFEFD9] border border-[#f3ddc0] text-[#6b4b2b]">
-            Qty: {d.quantity}
-          </span>
-          {d.threshold != null && (
-            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#FFF6E9] border border-[#f4e6cf] text-[#6b4b2b]">
-              Threshold: {d.threshold}
-            </span>
-          )}
-        </div>
-
-        {/* —— NEW: Requester / Charity block —— */}
-        <div className="mt-4">
-          {d.status === "pending" ? (
-            <>
-              <p className="text-[12px] font-semibold text-[#7b5836] mb-1">
-                Requested By:
-              </p>
-              {Array.isArray(d.requested_by) && d.requested_by.length > 0 ? (
-                <div className="space-y-2">
-                  {d.requested_by.map((req, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      {req.profile_picture ? (
-                        <img
-                          src={`${API}/${req.profile_picture}`}
-                          alt={req.name}
-                          className="w-8 h-8 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-gray-300 grid place-items-center text-gray-600">
-                          ?
-                        </div>
-                      )}
-                      <span className="text-sm font-medium text-[#4A2F17]">
-                        {req.name}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <span className="text-sm text-gray-500">No requests yet</span>
-              )}
-            </>
+                  ${highlightedId === (d.donation_id || d.id)
+            ? `ring-2 ${theme.ring}`
+            : ""
+          }`}
+      >
+        <div className="relative h-40 overflow-hidden">
+          {d.image ? (
+            <img
+              src={`${API}/${d.image}`}
+              alt={d.name}
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
           ) : (
-            <>
-              <p className="text-[12px] font-semibold text-[#7b5836] mb-1">
-                Donation For:
-              </p>
-              <div className="flex items-center gap-2">
-                {d.charity_profile_picture ? (
-                  <img
-                    src={`${API}/${d.charity_profile_picture}`}
-                    alt={d.charity_name || "Charity"}
-                    className="w-8 h-8 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-gray-300 grid place-items-center text-gray-600">
-                    ?
-                  </div>
-                )}
-                <span className="text-sm font-medium text-[#4A2F17]">
-                  {d.charity_name || "—"}
-                </span>
-              </div>
-            </>
+            <div className="h-full w-full grid place-items-center bg-[#FFF6E9] text-[#b88a5a]">
+              No Image
+            </div>
+          )}
+          {showExpiry && (
+            <div className="absolute top-3 right-3 text-[11px] font-bold inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-[#fff8e6] border-[#ffe7bf] text-[#8a5a25]">
+              Expires in {left} {left === 1 ? "day" : "days"}
+            </div>
           )}
         </div>
-        {/* —— END: Requester / Charity block —— */}
+
+        <div className="p-4">
+          <div className="flex items-start justify-between gap-2">
+            <h4 className="text-lg font-semibold text-[#3b2a18]">{d.name}</h4>
+            <StatusPill status={d.tracking_status || d.status} />
+          </div>
+
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#FFEFD9] border border-[#f3ddc0] text-[#6b4b2b]">
+              Qty: {d.quantity}
+            </span>
+            {d.threshold != null && (
+              <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#FFF6E9] border border-[#f4e6cf] text-[#6b4b2b]">
+                Threshold: {d.threshold}
+              </span>
+            )}
+          </div>
+
+          {/* —— NEW: Requester / Charity block —— */}
+          <div className="mt-4">
+            {d.status === "pending" ? (
+              <>
+                <p className="text-[12px] font-semibold text-[#7b5836] mb-1">
+                  Requested By:
+                </p>
+                {Array.isArray(d.requested_by) && d.requested_by.length > 0 ? (
+                  <div className="space-y-2">
+                    {d.requested_by.map((req, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        {req.profile_picture ? (
+                          <img
+                            src={`${API}/${req.profile_picture}`}
+                            alt={req.name}
+                            className="w-8 h-8 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gray-300 grid place-items-center text-gray-600">
+                            ?
+                          </div>
+                        )}
+                        <span className="text-sm font-medium text-[#4A2F17]">
+                          {req.name}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-sm text-gray-500">No requests yet</span>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-[12px] font-semibold text-[#7b5836] mb-1">
+                  Donation For:
+                </p>
+                <div className="flex items-center gap-2">
+                  {d.charity_profile_picture ? (
+                    <img
+                      src={`${API}/${d.charity_profile_picture}`}
+                      alt={d.charity_name || "Charity"}
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-gray-300 grid place-items-center text-gray-600">
+                      ?
+                    </div>
+                  )}
+                  <span className="text-sm font-medium text-[#4A2F17]">
+                    {d.charity_name || "—"}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+          {/* —— END: Requester / Charity block —— */}
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 
   const ScrollColumn = ({ title, items, emptyText, renderItem }) => (
@@ -668,10 +667,9 @@ const Card = ({ d, onClick }) => {
                     <div
                       className={`w-12 h-12 rounded-full grid place-items-center shadow transition-all duration-300
                         ${theme.text}
-                        ${
-                          active
-                            ? `translate-y-[-6px] ring-2 ${theme.ring} bg-white`
-                            : passed
+                        ${active
+                          ? `translate-y-[-6px] ring-2 ${theme.ring} bg-white`
+                          : passed
                             ? "bg-white"
                             : "bg-[#EADFCC]"
                         }`}
@@ -686,11 +684,10 @@ const Card = ({ d, onClick }) => {
                       />
                     </div>
                     <span
-                      className={`mt-2 text-[13px] ${
-                        active
+                      className={`mt-2 text-[13px] ${active
                           ? "font-semibold text-[#3b2a18]"
                           : "text-[#6b4b2b]"
-                      }`}
+                        }`}
                     >
                       {nice(s)}
                     </span>
@@ -707,11 +704,11 @@ const Card = ({ d, onClick }) => {
 
   /* ---------------- Render ---------------- */
   return (
-    <div className="relative mx-auto max-w-[1280px] px-6 py-8">
+    <div className="relative mx-auto max-w-[1280px] p-2">
       <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-3xl sm:text-4xl font-extrabold text-[#4A2F17]">
+        <h1 className="text-3xl sm:text-3xl font-extrabold" style={{ color: "#6B4B2B" }}>
           Donation Status
-        </h2>
+        </h1>
       </div>
 
       {/* Requested */}
@@ -853,7 +850,7 @@ const Card = ({ d, onClick }) => {
                   <span
                     className={`absolute right-3 top-3 text-xs font-semibold px-2 py-1 rounded-full border ${statusColor(
                       selectedDonation.tracking_status ||
-                        selectedDonation.status
+                      selectedDonation.status
                     )}`}
                   >
                     <span className="inline-flex items-center gap-1">
@@ -903,8 +900,8 @@ const Card = ({ d, onClick }) => {
                     <div className="text-lg font-semibold text-[#3b2a18]">
                       {selectedDonation.expiration_date
                         ? new Date(
-                            selectedDonation.expiration_date
-                          ).toLocaleDateString()
+                          selectedDonation.expiration_date
+                        ).toLocaleDateString()
                         : "—"}
                     </div>
                   </div>
@@ -919,24 +916,24 @@ const Card = ({ d, onClick }) => {
               {/* CTA*/}
               {(selectedDonation.tracking_status === "preparing" ||
                 selectedDonation.tracking_status === "ready_for_pickup") && (
-                <button
-                  onClick={() =>
-                    handleUpdateTracking(
-                      selectedDonation.id,
-                      selectedDonation.tracking_status,
-                      selectedDonation.btracking_status !== undefined
-                    )
-                  }
-                  className="mt-6 w-full rounded-full px-5 py-3 font-semibold text-white
+                  <button
+                    onClick={() =>
+                      handleUpdateTracking(
+                        selectedDonation.id,
+                        selectedDonation.tracking_status,
+                        selectedDonation.btracking_status !== undefined
+                      )
+                    }
+                    className="mt-6 w-full rounded-full px-5 py-3 font-semibold text-white
                            bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327]
                            shadow-[0_10px_26px_rgba(201,124,44,.25)]
                            hover:brightness-[1.05] transition"
-                >
-                  {selectedDonation.tracking_status === "preparing"
-                    ? "Mark as Ready for Pickup"
-                    : "Mark as In Transit"}
-                </button>
-              )}
+                  >
+                    {selectedDonation.tracking_status === "preparing"
+                      ? "Mark as Ready for Pickup"
+                      : "Mark as In Transit"}
+                  </button>
+                )}
             </div>
           </div>
         </div>

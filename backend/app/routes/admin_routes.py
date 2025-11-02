@@ -42,6 +42,24 @@ def reject_user(user_id: int, db: Session = Depends(database.get_db), admin=Depe
 def get_users(db: Session = Depends(database.get_db)):
     return db.query(models.User).filter(models.User.role != "Admin").all()
 
+@router.get("/bakeries")
+def get_bakeries(db: Session = Depends(database.get_db), admin=Depends(get_current_admin)):
+    """
+    Get all bakery users
+    Requires admin authentication
+    """
+    bakeries = db.query(models.User).filter(models.User.role == "Bakery").all()
+    return bakeries
+
+@router.get("/charities")
+def get_charities(db: Session = Depends(database.get_db), admin=Depends(get_current_admin)):
+    """
+    Get all charity users
+    Requires admin authentication
+    """
+    charities = db.query(models.User).filter(models.User.role == "Charity").all()
+    return charities
+
 @router.delete("/users/{user_id}")
 def delete_user(user_id: int, db: Session = Depends(database.get_db)):
     user = db.query(models.User).filter(models.User.id == user_id).first()

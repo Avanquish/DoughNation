@@ -1456,6 +1456,14 @@ thead{
               </TabsTrigger>
 
               <TabsTrigger
+                value="users" title="Users"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+              >
+                <Users className="w-4 h-4" />
+                <span className="hidden sm:inline">User Verification</span>
+              </TabsTrigger>
+
+              <TabsTrigger
                 value="bakeries" title="Bakeries"
                 className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
               >
@@ -1485,14 +1493,6 @@ thead{
               >
                 <FileBarChart className="w-4 h-4" />
                 <span className="hidden sm:inline">Reports</span>
-              </TabsTrigger>
-
-              <TabsTrigger
-                value="users" title="Users"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
-              >
-                <Users className="w-4 h-4" />
-                <span className="hidden sm:inline">Users</span>
               </TabsTrigger>
 
               <TabsTrigger

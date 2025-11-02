@@ -30,7 +30,7 @@ class UserOut(BaseModel):
         from_attributes = True
 
 class UserLogin(BaseModel):
-    email: EmailStr
+    email: str  # Changed from EmailStr to str - now accepts both email and employee name
     password: str
 
 class Token(BaseModel):
@@ -91,17 +91,30 @@ class BakeryInventoryUpdate(BaseModel):
 # ------------------ BAKERY EMPLOYEE ------------------
 class EmployeeBase(BaseModel):
     name: str
-    role: str
+    role: str  # Owner, Manager, Full-time, Part-time
     start_date: date
 
 class EmployeeCreate(EmployeeBase):
-    pass
+    password: Optional[str] = None  # Optional password for login
+
+class EmployeeLogin(BaseModel):
+    """Employee login with name and password"""
+    name: str
+    password: str
+    bakery_id: int
+
+class EmployeeChangePassword(BaseModel):
+    """Employee password change request"""
+    current_password: str
+    new_password: str
+    confirm_password: str
 
 class EmployeeUpdate(BaseModel):
     name: Optional[str] = None
     role: Optional[str] = None
     start_date: Optional[date] = None
     profile_picture: Optional[str] = None
+    password: Optional[str] = None  # Optional password update
 
 class EmployeeOut(BaseModel):
     id: int
@@ -109,11 +122,22 @@ class EmployeeOut(BaseModel):
     name: str
     role: str
     start_date: date
-    profile_picture: Optional[str]
+    profile_picture: Optional[str] = None
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
 
+class EmployeeTokenResponse(BaseModel):
+    """Employee login response with token"""
+    access_token: str
+    token_type: str
+    employee_id: int
+    employee_name: str
+    employee_role: str
+    bakery_id: int
+    bakery_name: str
+ 
 
 # ------------------ DONATION ------------------
 class DonationBase(BaseModel):

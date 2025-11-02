@@ -1,12 +1,23 @@
+import React from "react";
+import { useNavigate } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { User, UserCircle, LogOut } from "lucide-react";
 
 const UserMenu = () => {
-  const handleProfile = () => alert("Go to profile page");
+  const navigate = useNavigate(); // ✅ Added this line
+
+  const handleProfile = () => {
+    alert("Go to profile page");
+  };
+
   const handleLogout = () => {
-        localStorage.removeItem("token");
-        navigate("/");
-    };
+    // Clear both tokens (in case user is employee or bakery owner)
+    localStorage.removeItem("token");
+    localStorage.removeItem("employeeToken");
+    
+    // Navigate back to login page
+    navigate("/");
+  };
 
   return (
     <DropdownMenu.Root>
@@ -23,11 +34,11 @@ const UserMenu = () => {
         <DropdownMenu.Content
           align="end"
           sideOffset={8}
-          className="min-w-[160px] bg-white border border-gray-200 rounded-lg shadow-lg p-1"
+          className="min-w-[160px] bg-white border border-gray-200 rounded-lg shadow-lg p-1 z-50"
         >
           <DropdownMenu.Item
             onClick={handleProfile}
-            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-gray-700 hover:bg-gray-100 cursor-pointer outline-none"
           >
             <User className="w-4 h-4" />
             Profile
@@ -37,9 +48,10 @@ const UserMenu = () => {
 
           <DropdownMenu.Item
             onClick={handleLogout}
-            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-red-600 hover:bg-red-50 cursor-pointer"
+            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-red-600 hover:bg-red-50 cursor-pointer outline-none"
           >
-            <LogOut className="w-4 h-4" /> Logout
+            <LogOut className="w-4 h-4" />
+            Logout
           </DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>

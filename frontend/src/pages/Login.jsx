@@ -135,6 +135,17 @@ const Login = () => {
       
       const accountType = decoded.type; // "bakery", "charity", "admin", or "employee"
       
+      // ✅ VALIDATE: Employees can ONLY log in when slider is set to "Bakery"
+      if (accountType === "employee" && role !== "Bakery") {
+        Swal.fire({
+          icon: "error",
+          title: "Invalid Login Type",
+          text: "Employee login is only allowed when the login type is set to 'Bakery'. Please switch the slider to Bakery and try again.",
+          confirmButtonColor: "#A97142",
+        });
+        return; // Exit early - prevent login
+      }
+      
       // Store appropriate token
       if (accountType === "employee") {
         // Employee login - use EmployeeAuthContext

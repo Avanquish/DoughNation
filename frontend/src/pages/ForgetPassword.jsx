@@ -13,12 +13,15 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { Mail, Calendar, Lock, Eye, EyeOff } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Mail, Calendar, Lock, Eye, EyeOff, User, Store } from "lucide-react";
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
-  const [step, setStep] = useState(1); // 1=email, 2=date, 3=reset
-  const [email, setEmail] = useState("");
+  const [accountType, setAccountType] = useState("user"); // 'user' or 'employee'
+  const [step, setStep] = useState(1); // 1=email/name, 2=date, 3=reset
+  const [identifier, setIdentifier] = useState(""); // email for user, name for employee
+  const [bakeryName, setBakeryName] = useState(""); // For employee authentication
   const [registrationDate, setRegistrationDate] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -71,18 +74,34 @@ const ForgotPassword = () => {
   };
   const onMouseLeave = () => (targetRef.current = { x: 0, y: 0 });
 
-  // Handle steps
-  const handleValidateEmail = async (e) => {
+  // Reset form when account type changes
+  useEffect(() => {
+    setStep(1);
+    setIdentifier("");
+    setBakeryName("");
+    setRegistrationDate("");
+    setNewPassword("");
+    setConfirmPassword("");
+  }, [accountType]);
+
+  // Handle steps - UNIFIED for both user and employee
+  const handleValidateIdentifier = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post(
-        "http://localhost:8000/forgot-password/check-email",
-        { email }
-      );
+      const endpoint = accountType === "employee"
+        ? "http://localhost:8000/employee/forgot-password/check-name"
+        : "http://localhost:8000/forgot-password/check-email";
+      
+      const payload = accountType === "employee"
+        ? { name: identifier, bakery_name: bakeryName }
+        : { email: identifier };
+
+      const res = await axios.post(endpoint, payload);
+      
       if (res.data.valid) {
         Swal.fire({
           icon: "success",
-          title: "Email Found",
+          title: accountType === "employee" ? "Employee Found" : "Email Found",
           text: "Please confirm your registration date.",
           confirmButtonColor: "#16a34a",
         });
@@ -91,8 +110,11 @@ const ForgotPassword = () => {
     } catch (err) {
       Swal.fire({
         icon: "error",
-        title: "Email Not Found",
-        text: err.response?.data?.detail || "This email is not registered.",
+        title: accountType === "employee" ? "Employee Not Found" : "Email Not Found",
+        text: err.response?.data?.detail || 
+          (accountType === "employee" 
+            ? "Employee not found in the specified bakery." 
+            : "This email is not registered."),
         confirmButtonColor: "#dc2626",
       });
     }
@@ -101,10 +123,16 @@ const ForgotPassword = () => {
   const handleValidateDate = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post(
-        "http://localhost:8000/forgot-password/check-date",
-        { email, registration_date: registrationDate }
-      );
+      const endpoint = accountType === "employee"
+        ? "http://localhost:8000/employee/forgot-password/check-date"
+        : "http://localhost:8000/forgot-password/check-date";
+      
+      const payload = accountType === "employee"
+        ? { name: identifier, bakery_name: bakeryName, registration_date: registrationDate }
+        : { email: identifier, registration_date: registrationDate };
+
+      const res = await axios.post(endpoint, payload);
+      
       if (res.data.valid) {
         Swal.fire({
           icon: "success",
@@ -118,8 +146,7 @@ const ForgotPassword = () => {
       Swal.fire({
         icon: "error",
         title: "Invalid Date",
-        text:
-          err.response?.data?.detail || "The date you entered is incorrect.",
+        text: err.response?.data?.detail || "The date you entered is incorrect.",
         confirmButtonColor: "#dc2626",
       });
     }
@@ -136,14 +163,15 @@ const ForgotPassword = () => {
       });
     }
     try {
-      const res = await axios.post(
-        "http://localhost:8000/forgot-password/reset",
-        {
-          email,
-          new_password: newPassword,
-          confirm_password: confirmPassword,
-        }
-      );
+      const endpoint = accountType === "employee"
+        ? "http://localhost:8000/employee/forgot-password/reset"
+        : "http://localhost:8000/forgot-password/reset";
+      
+      const payload = accountType === "employee"
+        ? { name: identifier, bakery_name: bakeryName, new_password: newPassword, confirm_password: confirmPassword }
+        : { email: identifier, new_password: newPassword, confirm_password: confirmPassword };
+
+      const res = await axios.post(endpoint, payload);
 
       Swal.fire({
         icon: "success",
@@ -162,7 +190,7 @@ const ForgotPassword = () => {
   };
 
   const steps = [
-    { id: 1, label: "Verify Email", Icon: Mail },
+    { id: 1, label: accountType === "employee" ? "Verify Name" : "Verify Email", Icon: accountType === "employee" ? User : Mail },
     { id: 2, label: "Confirm Date", Icon: Calendar },
     { id: 3, label: "Set Password", Icon: Lock },
   ];
@@ -279,11 +307,34 @@ const ForgotPassword = () => {
                 fontSize: "var(--text)",
               }}
             >
-              {step === 1 && "Enter your registered email so we can verify it."}
+              {step === 1 && accountType === "employee" && "Enter your employee name so we can verify it."}
+              {step === 1 && accountType === "user" && "Enter your registered email so we can verify it."}
               {step === 2 && "Confirm your registration date for security."}
               {step === 3 && "Create a strong new password to get back in."}
             </CardDescription>
           </CardHeader>
+
+          {/* Account Type Tabs */}
+          <div className="px-5 sm:px-8 pt-2 pb-3">
+            <Tabs value={accountType} onValueChange={setAccountType} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 bg-[#FFE1BE]/40 p-1 rounded-xl">
+                <TabsTrigger 
+                  value="user" 
+                  className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#A66B2E] data-[state=active]:shadow-sm transition-all"
+                >
+                  <Mail className="h-4 w-4 mr-2" />
+                  User Account
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="employee" 
+                  className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#A66B2E] data-[state=active]:shadow-sm transition-all"
+                >
+                  <Store className="h-4 w-4 mr-2" />
+                  Employee
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
 
           {/* Stepper */}
           <div className="px-5 sm:px-8 pt-2">
@@ -334,29 +385,64 @@ const ForgotPassword = () => {
           <CardContent className="relative pt-5 pb-8 px-5 sm:px-8">
             {/* STEP 1 */}
             {step === 1 && (
-              <form onSubmit={handleValidateEmail} className="space-y-5">
+              <form onSubmit={handleValidateIdentifier} className="space-y-5">
+                {/* Bakery Name Field (Employee Only) */}
+                {accountType === "employee" && (
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor="bakeryName"
+                      className="text-[#8f642a]"
+                      style={{ fontSize: "var(--title-sm)" }}
+                    >
+                      Bakery Name
+                    </Label>
+                    <div className="relative">
+                      <Store className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#E3B57E]" />
+                      <Input
+                        id="bakeryName"
+                        type="text"
+                        placeholder="Your Bakery Name"
+                        value={bakeryName}
+                        onChange={(e) => setBakeryName(e.target.value)}
+                        required
+                        className="pl-11 h-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E] rounded-xl"
+                        style={{ fontSize: "var(--text)" }}
+                      />
+                    </div>
+                    <p className="text-xs text-[#a47134]/80 mt-1">
+                      Enter the exact name of the bakery you work for
+                    </p>
+                  </div>
+                )}
+                
+                {/* Employee Name / Email Field */}
                 <div className="space-y-1.5">
                   <Label
-                    htmlFor="email"
+                    htmlFor="identifier"
                     className="text-[#8f642a]"
                     style={{ fontSize: "var(--title-sm)" }}
                   >
-                    Registered Email
+                    {accountType === "employee" ? "Employee Name" : "Registered Email"}
                   </Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#E3B57E]" />
+                    {accountType === "employee" ? (
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#E3B57E]" />
+                    ) : (
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#E3B57E]" />
+                    )}
                     <Input
-                      id="email"
-                      type="email"
-                      placeholder="you@bakery.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      id="identifier"
+                      type={accountType === "employee" ? "text" : "email"}
+                      placeholder={accountType === "employee" ? "John Doe" : "you@bakery.com"}
+                      value={identifier}
+                      onChange={(e) => setIdentifier(e.target.value)}
                       required
                       className="pl-11 h-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E] rounded-xl"
                       style={{ fontSize: "var(--text)" }}
                     />
                   </div>
                 </div>
+                
                 <Button
                   type="submit"
                   className="w-full text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E] hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl transition-transform active:scale-[0.99]"

@@ -25,7 +25,8 @@ import {
   FileBarChart,
   MessageSquareWarning,
   MessageSquareDot,
-  Medal
+  Medal,
+  Store
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useEmployeeAuth } from "../context/EmployeeAuthContext";
@@ -666,15 +667,60 @@ const BakeryDashboard = () => {
         <div className="head-bg" />
         <div className={`glass-soft header-gradient-line header-skin sticky-boost ${scrolled ? "is-scrolled" : ""}`}>
           <div className="max-w-7xl mx-auto px-4 py-3 hdr-pad flex items-center justify-between relative">
-            <Link to="/" className="flex items-center gap-3">
-              <img src="/images/DoughNationLogo.png" alt="DoughNation logo" className="shrink-0" style={{
-                width: "28px",
-                height: "28px", objectFit: "contain"
-              }} />
-              <span className="font-extrabold brand-pop" style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}>
-                DoughNation
-              </span>
-            </Link>
+            <div className="flex items-center gap-3">
+              {/* DoughNation Logo - Disabled when logged in */}
+              {isVerified ? (
+                <div className="flex items-center gap-3 cursor-not-allowed opacity-60" title="You are already logged in">
+                  <img src="/images/DoughNationLogo.png" alt="DoughNation logo" className="shrink-0" style={{
+                    width: "28px",
+                    height: "28px", objectFit: "contain"
+                  }} />
+                  <span className="font-extrabold brand-pop" style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}>
+                    DoughNation
+                  </span>
+                </div>
+              ) : (
+                <Link to="/" className="flex items-center gap-3">
+                  <img src="/images/DoughNationLogo.png" alt="DoughNation logo" className="shrink-0" style={{
+                    width: "28px",
+                    height: "28px", objectFit: "contain"
+                  }} />
+                  <span className="font-extrabold brand-pop" style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}>
+                    DoughNation
+                  </span>
+                </Link>
+              )}
+
+              {/* Employee & Bakery Name Display - Beside DoughNation */}
+              {isEmployeeMode && (
+                <div className="hidden lg:flex flex-col items-start justify-center ml-4 pl-4 border-l-2" style={{ borderColor: "#E3B57E" }}>
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4" style={{ color: "#7a4f1c" }} />
+                    <span className="text-sm font-semibold" style={{ color: "#7a4f1c" }}>
+                      {name}
+                    </span>
+                    {employeeRole && (
+                      <span 
+                        className="text-xs px-2 py-0.5 rounded-full"
+                        style={{ 
+                          background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
+                          color: "#7a4f1c",
+                          border: "1px solid #fff3e0"
+                        }}
+                      >
+                        {employeeRole}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <Store className="h-3.5 w-3.5" style={{ color: "#a47134" }} />
+                    <span className="text-xs" style={{ color: "#a47134" }}>
+                      {bakeryName}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Desktop nav */}
             <nav className="items-center gap-5" style={{ fontSize: 15 }}>

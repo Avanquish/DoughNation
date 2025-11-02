@@ -174,25 +174,6 @@ const AdminDashboard = () => {
     })();
   }, []);
 
-  // Feedback / reports
-  useEffect(() => {
-    (async () => {
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
-      try {
-        const r1 = await axios.get("/admin/feedbacks", { headers });
-        setFeedbacks(r1.data || []);
-      } catch {
-        try {
-          const r2 = await axios.get("/feedbacks/pending", { headers });
-          setFeedbacks(r2.data || []);
-        } catch {
-          setFeedbacks([]);
-        }
-      }
-    })();
-  }, []);
-
   // Complaints
   useEffect(() => {
     (async () => {
@@ -1152,20 +1133,38 @@ thead{
             }`}
         >
           <div className="max-w-7xl mx-auto px-4 py-3 hdr-pad flex items-center justify-between relative">
-            <Link to="/" className="flex items-center gap-3">
-              <img
-                src="/images/DoughNationLogo.png"
-                alt="DoughNation logo"
-                className="shrink-0"
-                style={{ width: "28px", height: "28px", objectFit: "contain" }}
-              />
-              <span
-                className="font-extrabold brand-pop"
-                style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}
-              >
-                DoughNation
-              </span>
-            </Link>
+            {/* DoughNation Logo - Disabled when admin is logged in */}
+            {localStorage.getItem("token") ? (
+              <div className="flex items-center gap-3 cursor-not-allowed opacity-60" title="You are already logged in">
+                <img
+                  src="/images/DoughNationLogo.png"
+                  alt="DoughNation logo"
+                  className="shrink-0"
+                  style={{ width: "28px", height: "28px", objectFit: "contain" }}
+                />
+                <span
+                  className="font-extrabold brand-pop"
+                  style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}
+                >
+                  DoughNation
+                </span>
+              </div>
+            ) : (
+              <Link to="/" className="flex items-center gap-3">
+                <img
+                  src="/images/DoughNationLogo.png"
+                  alt="DoughNation logo"
+                  className="shrink-0"
+                  style={{ width: "28px", height: "28px", objectFit: "contain" }}
+                />
+                <span
+                  className="font-extrabold brand-pop"
+                  style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}
+                >
+                  DoughNation
+                </span>
+              </Link>
+            )}
 
             {/* Desktop nav */}
             <nav

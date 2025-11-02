@@ -268,6 +268,114 @@ def reset_password(data: dict, db: Session = Depends(database.get_db)):
     return {"message": "Password reset successful"}
 
 
+# ==================== EMPLOYEE FORGOT PASSWORD ====================
+
+# Step 1: Check if employee name exists with bakery verification
+@router.post("/employee/forgot-password/check-name")
+def check_employee_name(data: dict, db: Session = Depends(database.get_db)):
+    name = data.get("name")
+    bakery_name = data.get("bakery_name")
+    
+    if not bakery_name:
+        raise HTTPException(status_code=400, detail="Bakery name is required")
+    
+    # Find the bakery first
+    bakery = db.query(models.User).filter(
+        models.User.role == "Bakery",
+        models.User.name == bakery_name
+    ).first()
+    
+    if not bakery:
+        raise HTTPException(status_code=404, detail="Bakery not found")
+    
+    # Find employee associated with this bakery
+    employee = db.query(models.Employee).filter(
+        models.Employee.name == name,
+        models.Employee.bakery_id == bakery.id
+    ).first()
+    
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found in this bakery")
+    
+    return {"valid": True, "bakery_id": bakery.id}
+
+# Step 2: Verify employee registration date with bakery verification
+@router.post("/employee/forgot-password/check-date")
+def check_employee_date(data: dict, db: Session = Depends(database.get_db)):
+    name = data.get("name")
+    bakery_name = data.get("bakery_name")
+    registration_date = data.get("registration_date")
+    
+    if not bakery_name:
+        raise HTTPException(status_code=400, detail="Bakery name is required")
+
+    # Find the bakery first
+    bakery = db.query(models.User).filter(
+        models.User.role == "Bakery",
+        models.User.name == bakery_name
+    ).first()
+    
+    if not bakery:
+        raise HTTPException(status_code=404, detail="Bakery not found")
+    
+    # Find employee associated with this bakery
+    employee = db.query(models.Employee).filter(
+        models.Employee.name == name,
+        models.Employee.bakery_id == bakery.id
+    ).first()
+    
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found in this bakery")
+
+    # Compare only the date part - employee has created_at as DateTime
+    # Convert datetime to date for comparison
+    employee_date = employee.created_at.date() if hasattr(employee.created_at, 'date') else employee.created_at
+    
+    if str(employee_date) != str(registration_date):
+        raise HTTPException(status_code=400, detail="Registration date does not match")
+
+    return {"valid": True}
+
+# Step 3: Reset employee password with bakery verification
+@router.post("/employee/forgot-password/reset")
+def reset_employee_password(data: dict, db: Session = Depends(database.get_db)):
+    name = data.get("name")
+    bakery_name = data.get("bakery_name")
+    new_password = data.get("new_password")
+    confirm_password = data.get("confirm_password")
+    
+    if not bakery_name:
+        raise HTTPException(status_code=400, detail="Bakery name is required")
+
+    # Find the bakery first
+    bakery = db.query(models.User).filter(
+        models.User.role == "Bakery",
+        models.User.name == bakery_name
+    ).first()
+    
+    if not bakery:
+        raise HTTPException(status_code=404, detail="Bakery not found")
+    
+    # Find employee associated with this bakery
+    employee = db.query(models.Employee).filter(
+        models.Employee.name == name,
+        models.Employee.bakery_id == bakery.id
+    ).first()
+    
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found in this bakery")
+
+    if new_password != confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+
+    hashed_pw = pwd_context.hash(new_password)
+    employee.hashed_password = hashed_pw
+    db.commit()
+    db.refresh(employee)
+
+    return {"message": "Password reset successful"}
+
+
 # ==================== EMPLOYEE LOGIN ====================
 
 @router.get("/debug/bakeries")

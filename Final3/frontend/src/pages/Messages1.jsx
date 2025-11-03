@@ -87,8 +87,9 @@ const Styles = () => (
       box-shadow: 0 4px 12px rgba(0,0,0,.06);
     }
 
+
     .chatlist-dropdown{
-      width:360px; max-width:92vw; height:540px; max-height:calc(100vh - 96px);
+      width:360px; max-width:92vw; max-height:calc(100vh - 96px);
       background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 18px 40px rgba(0,0,0,.18);
       transform:translateY(-6px); opacity:0; animation:clpop .16s ease forwards;
       display:flex; flex-direction:column; overflow:hidden;
@@ -252,9 +253,36 @@ export default function Messages({ currentUser: currentUserProp }) {
 
   /* ---- Helper Functions ---- */
   const makeAuthOpts = () => {
-    const token = localStorage.getItem("token") || currentUser?.token;
+    // Check for employee token first, then bakery owner token
+    const employeeToken = localStorage.getItem("employeeToken");
+    const bakeryToken = localStorage.getItem("token");
+    const token = employeeToken || bakeryToken || currentUser?.token;
+
     return token ? { headers: { Authorization: `Bearer ${token}` } } : {};
   };
+
+  const getCurrentUserName = () => {
+  const employeeToken = localStorage.getItem("employeeToken");
+  const bakeryToken = localStorage.getItem("token");
+  const token = employeeToken || bakeryToken;
+
+  if (!token) return "Unknown";
+
+  try {
+    const decoded = JSON.parse(atob(token.split(".")[1]));
+    
+    if (decoded.type === "employee") {
+      // Employee token
+      return decoded.employee_name || decoded.name || "Employee";
+    } else {
+      // Bakery/Charity token
+      return decoded.name || "User";
+    }
+  } catch (err) {
+    console.error("Failed to decode token:", err);
+    return "Unknown";
+  }
+};
 
   /* ---- Fetch Functions ---- */
   const fetchInventoryStatus = async (bakeryInventoryId) => {
@@ -264,13 +292,13 @@ export default function Messages({ currentUser: currentUserProp }) {
         `${API_URL}/donation/inventory_status/${bakeryInventoryId}`,
         opts
       );
-      
+
       setInventoryStatuses((prev) => {
         const next = new Map(prev);
         next.set(bakeryInventoryId, res.data);
         return next;
       });
-      
+
       return res.data;
     } catch (err) {
       console.error("Error fetching inventory status:", err);
@@ -414,58 +442,58 @@ export default function Messages({ currentUser: currentUserProp }) {
   };
 
   const sendDonationCard = async (donation, peer = selectedUser) => {
-  if (!peer || !currentUser) return;
+    if (!peer || !currentUser) return;
 
-  // Include ALL fields needed for the donation card
-  const donationCard = {
-    ...donation,
-    id: donation.id,                           // Original donation ID
-    request_id: donation.id,                   // Request ID
-    donation_request_id: donation.id,
-    bakery_inventory_id: donation.bakery_inventory_id,  // CRITICAL: Include this
-    product_name: donation.product_name || donation.name,
-    name: donation.name,
-    image: donation.image,
-    quantity: donation.quantity || donation.donation_quantity,
-    expiration_date: donation.expiration_date,
-  };
+    // Include ALL fields needed for the donation card
+    const donationCard = {
+      ...donation,
+      id: donation.id,                           // Original donation ID
+      request_id: donation.id,                   // Request ID
+      donation_request_id: donation.id,
+      bakery_inventory_id: donation.bakery_inventory_id,  // CRITICAL: Include this
+      product_name: donation.product_name || donation.name,
+      name: donation.name,
+      image: donation.image,
+      quantity: donation.quantity || donation.donation_quantity,
+      expiration_date: donation.expiration_date,
+    };
 
-  const content = JSON.stringify({
-    type: "donation_card",
-    donation: donationCard,
-    originalCharityId: Number(currentUser.id),
-  });
+    const content = JSON.stringify({
+      type: "donation_card",
+      donation: donationCard,
+      originalCharityId: Number(currentUser.id),
+    });
 
-  try {
-    await axios.post(
-      `${API_URL}/messages/send`,
-      {
-        sender_id: Number(currentUser.id),
-        receiver_id: Number(peer.id),
-        content,
-      },
-      makeAuthOpts()
-    );
-
-    if (currentUser.role === "charity") {
-      setMessages((prev) => [
-        ...prev,
+    try {
+      await axios.post(
+        `${API_URL}/messages/send`,
         {
-          id: Date.now(),
           sender_id: Number(currentUser.id),
           receiver_id: Number(peer.id),
           content,
-          timestamp: new Date().toISOString(),
-          is_read: false,
         },
-      ]);
-    }
+        makeAuthOpts()
+      );
 
-    fetchActiveChats();
-  } catch (err) {
-    console.error("sendDonationCard failed:", err);
-  }
-};
+      if (currentUser.role === "charity") {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now(),
+            sender_id: Number(currentUser.id),
+            receiver_id: Number(peer.id),
+            content,
+            timestamp: new Date().toISOString(),
+            is_read: false,
+          },
+        ]);
+      }
+
+      fetchActiveChats();
+    } catch (err) {
+      console.error("sendDonationCard failed:", err);
+    }
+  };
 
   const acceptDonation = async (donationCardMessage) => {
     if (!donationCardMessage || !currentUser) return;
@@ -491,9 +519,14 @@ export default function Messages({ currentUser: currentUserProp }) {
         prev.map((m) => (m.id === donationCardMessage.id ? { ...m, accepted: true } : m))
       );
 
+      const userName = getCurrentUserName();
+
       const res = await axios.post(
         `${API_URL}/donation/accept/${donation.id}`,
-        { charity_id: originalCharityId },
+        { 
+          charity_id: originalCharityId,
+          donated_by: userName
+        },
         opts
       );
       const { accepted_charity_id, canceled_charities, donation_name, bakery_inventory_id } = res.data;
@@ -542,13 +575,13 @@ export default function Messages({ currentUser: currentUserProp }) {
 
       try {
         toast?.success?.(`You accepted the donation: ${donation_name}`);
-      } catch {}
+      } catch { }
       fetchActiveChats();
     } catch (err) {
       console.error("Failed to accept donation:", err);
       try {
         toast?.error?.("Failed to accept donation.");
-      } catch {}
+      } catch { }
     } finally {
       setDisabledDonations((prev) => {
         const copy = new Set(prev);
@@ -581,9 +614,14 @@ export default function Messages({ currentUser: currentUserProp }) {
         prev.map((m) => (m.id === donationCardMessage.id ? { ...m, cancelled: true } : m))
       );
 
+      const userName = getCurrentUserName();
+
       await axios.post(
         `${API_URL}/donation/cancel/${donation.id}`,
-        { charity_id: originalCharityId },
+        { 
+          charity_id: originalCharityId,
+          donated_by: userName
+        },
         opts
       );
 
@@ -687,14 +725,14 @@ export default function Messages({ currentUser: currentUserProp }) {
         // Check inventory status using bakery_inventory_id
         const inventoryId = d.bakery_inventory_id;
         const inventoryStatus = inventoryStatuses.get(inventoryId);
-        
+
         // DEBUG
         console.log(`[DONATION] Card ID: ${d.id}, Inventory ID: ${inventoryId}`, {
           inventoryStatus,
           allCachedInventoryIds: Array.from(inventoryStatuses.keys()),
           hasAccepted: inventoryStatus?.has_accepted
         });
-        
+
         // ✅ Hide buttons ONLY if ANY request for this inventory has been accepted
         const hasAccepted = inventoryStatus?.has_accepted || false;
 
@@ -712,15 +750,15 @@ export default function Messages({ currentUser: currentUserProp }) {
 
               {shouldShowButtons && iAmReceiver && (
                 <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                  <button 
-                    className="btn-mini accept" 
+                  <button
+                    className="btn-mini accept"
                     onClick={() => acceptDonation(m)}
                     disabled={disabledDonations.has(d.id)}
                   >
                     <Check className="w-4 h-4" /> Accept
                   </button>
-                  <button 
-                    className="btn-mini" 
+                  <button
+                    className="btn-mini"
                     onClick={() => cancelDonation(m)}
                     disabled={disabledDonations.has(d.id)}
                   >
@@ -935,14 +973,14 @@ export default function Messages({ currentUser: currentUserProp }) {
   // ✅ Fetch inventory statuses when messages change
   useEffect(() => {
     const inventoryIds = new Set();
-    
+
     messages.forEach((m) => {
       try {
         const parsed = typeof m.content === "string" ? JSON.parse(m.content) : m.content;
         if (parsed?.type === "donation_card" && parsed?.donation?.bakery_inventory_id) {
           inventoryIds.add(parsed.donation.bakery_inventory_id);
         }
-      } catch {}
+      } catch { }
     });
 
     inventoryIds.forEach((id) => {
@@ -957,14 +995,14 @@ export default function Messages({ currentUser: currentUserProp }) {
 
     const pollInterval = setInterval(() => {
       const inventoryIds = new Set();
-      
+
       filteredMessages.forEach((m) => {
         try {
           const parsed = typeof m.content === "string" ? JSON.parse(m.content) : m.content;
           if (parsed?.type === "donation_card" && parsed?.donation?.bakery_inventory_id) {
             inventoryIds.add(parsed.donation.bakery_inventory_id);
           }
-        } catch {}
+        } catch { }
       });
 
       inventoryIds.forEach((id) => {
@@ -1000,17 +1038,43 @@ export default function Messages({ currentUser: currentUserProp }) {
 
   useEffect(() => {
     if (currentUserProp) return;
-    const token = localStorage.getItem("token");
+
+    // Check for employee token first, then bakery owner token
+    const employeeToken = localStorage.getItem("employeeToken");
+    const bakeryToken = localStorage.getItem("token");
+    const token = employeeToken || bakeryToken;
+
     if (!token) return;
+
     try {
       const decoded = JSON.parse(atob(token.split(".")[1]));
-      setCurrentUser({
-        id: Number(decoded.sub),
-        role: decoded.role?.toLowerCase?.() || "",
-        email: decoded.email || "",
-        name: decoded.name || "",
-        token,
-      });
+
+      // Handle employee token
+      if (decoded.type === "employee") {
+        // IMPORTANT: Use bakery_id as the main ID so employees receive bakery messages
+        setCurrentUser({
+          id: Number(decoded.bakery_id), // ✅ Use bakery_id, not employee_id
+          role: "employee",
+          email: "",
+          name: decoded.employee_name || decoded.name || "",
+          token,
+          employee_id: Number(decoded.employee_id),
+          employee_role: decoded.employee_role,
+          bakery_id: Number(decoded.bakery_id),
+          is_employee: true, // Flag to identify employee users
+        });
+      }
+      // Handle bakery/charity/admin token
+      else {
+        setCurrentUser({
+          id: Number(decoded.sub),
+          role: decoded.role?.toLowerCase?.() || decoded.type || "",
+          email: decoded.email || "",
+          name: decoded.name || "",
+          token,
+          is_employee: false,
+        });
+      }
     } catch (err) {
       console.error("Failed to decode token:", err);
     }
@@ -1146,7 +1210,7 @@ export default function Messages({ currentUser: currentUserProp }) {
     });
   }, [selectedUser?.id, currentUser?.id]);
 
-useEffect(() => {
+  useEffect(() => {
     if (!selectedUser || !currentUser) {
       setPendingCards([]);
       return;
@@ -1158,7 +1222,7 @@ useEffect(() => {
     const cards = messages.filter((m) => {
       try {
         // Only include messages in THIS conversation
-        const isInConversation = 
+        const isInConversation =
           (Number(m.sender_id) === me && Number(m.receiver_id) === peer) ||
           (Number(m.sender_id) === peer && Number(m.receiver_id) === me);
 
@@ -1172,12 +1236,12 @@ useEffect(() => {
         // Check if this donation request has been canceled or accepted in the database
         // Try multiple ID fields to match
         const requestInDb = allDonationRequests.find(
-          (req) => 
-            req.id === donationId || 
+          (req) =>
+            req.id === donationId ||
             req.donation_id === donationId ||
             req.bakery_inventory_id === inventoryId
         );
-        
+
         // If found in DB, check its status
         if (requestInDb && (requestInDb.status === "canceled" || requestInDb.status === "accepted")) {
           console.log(`[PENDING] Filtering out donation ${donationId}, status: ${requestInDb.status}`);
@@ -1195,7 +1259,7 @@ useEffect(() => {
           p?.type === "donation_card" &&
           !m.accepted &&
           !m.cancelled &&
-          !cancelledDonationIds.has(donationId) && 
+          !cancelledDonationIds.has(donationId) &&
           !removedDonations.has(donationId) &&
           !acceptedDonations.has(donationId) &&
           !removedProducts.has(inventoryId)
@@ -1210,10 +1274,10 @@ useEffect(() => {
   useEffect(() => {
     const el = dockScrollRef.current;
     if (!el) return;
-    
+
     const messageCountChanged = filteredMessages.length !== prevMessageCountRef.current;
     prevMessageCountRef.current = filteredMessages.length;
-    
+
     if (messageCountChanged) {
       const s = () => {
         el.scrollTop = el.scrollHeight;
@@ -1378,8 +1442,8 @@ useEffect(() => {
                               parsed.type === "donation_card"
                                 ? "Donation Request"
                                 : parsed.type === "confirmed_donation"
-                                ? "Donation Request Confirmed"
-                                : parsed.message || last.content || "Donation Update";
+                                  ? "Donation Request Confirmed"
+                                  : parsed.message || last.content || "Donation Update";
                           } else {
                             const meId = Number(currentUser?.id);
                             const peerId = Number(u.id);
@@ -1435,8 +1499,8 @@ useEffect(() => {
                                     parsed.type === "donation_card"
                                       ? "Donation Request"
                                       : parsed.type === "confirmed_donation"
-                                      ? "Donation Request Confirmed"
-                                      : parsed.message || "Donation Update";
+                                        ? "Donation Request Confirmed"
+                                        : parsed.message || "Donation Update";
                                   found = true;
                                 } catch {
                                   snippet = "Start a conversation";
@@ -1524,7 +1588,7 @@ useEffect(() => {
                     let d = {};
                     try {
                       d = JSON.parse(card.content).donation || {};
-                    } catch {}
+                    } catch { }
                     const iAmReceiver = Number(card.receiver_id) === Number(currentUser?.id);
 
                     return (
@@ -1693,8 +1757,8 @@ useEffect(() => {
                         ? mediaFile.type?.startsWith("image/")
                           ? "Add a caption for your image…"
                           : mediaFile.type?.startsWith("video/")
-                          ? "Add a caption for your video…"
-                          : "Add a caption for your file…"
+                            ? "Add a caption for your video…"
+                            : "Add a caption for your file…"
                         : "Type a message…"
                     }
                   />
@@ -1710,4 +1774,4 @@ useEffect(() => {
         )}
     </>
   );
-}
+} 

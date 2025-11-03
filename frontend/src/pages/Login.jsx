@@ -149,6 +149,18 @@ const Login = () => {
       // Store appropriate token
       if (accountType === "employee") {
         // Employee login - use EmployeeAuthContext
+        
+        // 🚫 CHECK IF BAKERY IS VERIFIED
+        if (!decoded.bakery_verified) {
+          Swal.fire({
+            icon: "warning",
+            title: "Bakery Not Verified",
+            text: "Your bakery account is pending admin verification. Please wait until the bakery is verified before accessing the system.",
+            confirmButtonColor: "#A97142",
+          });
+          return; // Exit early - prevent login
+        }
+        
         employeeLogin(token); // ✅ This updates the context AND localStorage
         localStorage.setItem("bakery_id_for_employee_login", decoded.bakery_id);
         
@@ -189,6 +201,19 @@ const Login = () => {
         
         // Role-based redirection
         if (accountType === "bakery") {
+          // 🚫 CHECK IF BAKERY IS VERIFIED
+          if (!decoded.is_verified) {
+            Swal.fire({
+              icon: "warning",
+              title: "Account Not Verified",
+              text: "Your bakery account is pending admin verification. Please wait until an admin verifies your account before accessing the system.",
+              confirmButtonColor: "#A97142",
+            });
+            // Clear the token since they can't access yet
+            localStorage.removeItem("token");
+            return; // Exit early - prevent navigation
+          }
+          
           // Clear any stored tab preference
           localStorage.setItem("bakery_active_tab", "dashboard");
           navigate(`/bakery-dashboard/${userId}`);

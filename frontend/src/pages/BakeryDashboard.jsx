@@ -147,10 +147,9 @@ const BakeryDashboard = () => {
       setIsEmployeeMode(true);
       setEmployeeRole(employee.employee_role);
       setName(employee.employee_name);
-      setIsVerified(true);
       setIsViewOnly(false);
 
-      // 🏢 FETCH BAKERY NAME FROM TOKEN (most reliable source)
+      // 🏢 FETCH BAKERY NAME AND VERIFICATION STATUS FROM TOKEN
       const employeeToken = localStorage.getItem("employeeToken");
 
       if (employeeToken) {
@@ -158,8 +157,9 @@ const BakeryDashboard = () => {
           const decoded = JSON.parse(atob(employeeToken.split(".")[1]));
           console.log("🔍 Decoded employee token:", decoded);
 
-          // Token includes bakery_name from backend
+          // Token includes bakery_name and bakery_verified from backend
           const bakeryNameFromToken = decoded.bakery_name;
+          const bakeryVerifiedFromToken = decoded.bakery_verified;
 
           if (bakeryNameFromToken) {
             console.log(
@@ -172,14 +172,25 @@ const BakeryDashboard = () => {
             console.log("⚠️ No bakery_name in token, fetching from backend...");
             fetchBakeryNameFromBackend(employee.bakery_id);
           }
+          
+          // Set verification status from token
+          if (bakeryVerifiedFromToken !== undefined) {
+            console.log("✅ Using bakery verification status from token:", bakeryVerifiedFromToken);
+            setIsVerified(bakeryVerifiedFromToken);
+          } else {
+            console.log("⚠️ No bakery_verified in token, defaulting to false");
+            setIsVerified(false);
+          }
         } catch (err) {
           console.error("❌ Failed to decode token:", err);
           // Fallback to backend fetch
           fetchBakeryNameFromBackend(employee.bakery_id);
+          setIsVerified(false);
         }
       } else {
         console.log("❌ No employee token found");
         fetchBakeryNameFromBackend(employee.bakery_id);
+        setIsVerified(false);
       }
     }
   }, [employee, id]);
@@ -547,8 +558,8 @@ const BakeryDashboard = () => {
   }, [isEmployeeMode]);
 
   // If user is not verified, show "verification pending" screen
-  // BUT: Employees bypass this check since they're part of a verified bakery
-  if (!isVerified && !isEmployeeMode) {
+  // This now applies to BOTH bakery owners and employees of unverified bakeries
+  if (!isVerified) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-surface to-primary/5 p-6">
         <Card className="max-w-md shadow-elegant">
@@ -557,9 +568,18 @@ const BakeryDashboard = () => {
               Account Verification Required
             </CardTitle>
             <CardDescription style={{ color: "#7b5836" }}>
-              Hello {name}, your account is pending verification. Please wait
-              until an admin verifies your account before using the dashboard
-              features.
+              {isEmployeeMode ? (
+                <>
+                  Hello {name}, the bakery you work for (<strong>{bakeryName}</strong>) is pending admin verification. 
+                  Please wait until an admin verifies the bakery account before accessing the dashboard features.
+                </>
+              ) : (
+                <>
+                  Hello {name}, your account is pending verification. Please wait
+                  until an admin verifies your account before using the dashboard
+                  features.
+                </>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4">

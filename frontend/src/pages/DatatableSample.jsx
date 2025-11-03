@@ -886,7 +886,7 @@ export default function DataTable({
                 <MapContainer
                   center={[defaultCenter.lat, defaultCenter.lng]}
                   zoom={13}
-                  scrollWheelZoom={false}
+                  scrollWheelZoom={true}
                   style={{ height: "300px", width: "100%" }}
                 >
                   <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -1102,7 +1102,7 @@ export default function DataTable({
                       : [defaultCenter.lat, defaultCenter.lng]
                   }
                   zoom={13}
-                  scrollWheelZoom={false}
+                  scrollWheelZoom={true}
                   style={{ height: "300px", width: "100%" }}
                   key={editingItemId}
                 >

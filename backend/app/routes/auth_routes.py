@@ -184,6 +184,7 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
 
     bakery = db.query(models.User).filter(models.User.id == authenticated_employee.bakery_id).first()
     bakery_name = bakery.name if bakery else "Bakery"
+    bakery_verified = bakery.verified if bakery else False
 
     # 🔐 CHECK IF EMPLOYEE IS USING DEFAULT PASSWORD
     is_default_password = verify_password("Employee123!", authenticated_employee.hashed_password)
@@ -196,6 +197,7 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
         "employee_role": authenticated_employee.role,
         "bakery_id": authenticated_employee.bakery_id,
         "bakery_name": bakery_name,
+        "bakery_verified": bakery_verified,  # Include bakery verification status
         "sub": str(authenticated_employee.bakery_id),  # For compatibility
         "requires_password_change": is_default_password  # Flag for first-time login
     }

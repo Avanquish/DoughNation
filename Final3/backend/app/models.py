@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime, date
 import enum
+from enum import Enum as PyEnum
 
 class User(Base):
     __tablename__ = "users"
@@ -18,6 +19,7 @@ class User(Base):
     profile_picture = Column(String, nullable=True)  # path to uploaded image
     proof_of_validity = Column(String, nullable=True)  # path to uploaded document
     created_at = Column(Date, default=date.today)
+    about = Column(Text, nullable=True)
 
     # Geofencing
     latitude = Column(Float, nullable=True)   # Charity location
@@ -40,6 +42,9 @@ class User(Base):
     badges = relationship("UserBadge", back_populates="user", cascade="all, delete-orphan")
     badge_progress = relationship("BadgeProgress", back_populates="user", cascade="all, delete-orphan")
     created_badges = relationship("Badge", back_populates="creator")
+    
+    # System events relationship
+    events = relationship("SystemEvent", back_populates="user")
 
  
 class BakeryInventory(Base):
@@ -47,6 +52,7 @@ class BakeryInventory(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_by_employee_id = Column(Integer, ForeignKey("employees.id"), nullable=True)  # Track which employee created it
     product_id = Column(String, unique=True, index=True)
     name = Column(String, nullable=False)
     image = Column(String, nullable=True)
@@ -60,21 +66,36 @@ class BakeryInventory(Base):
 
 
     bakery = relationship("User", back_populates="inventory_items")
+    created_by_employee = relationship("Employee", back_populates="inventory_items")
     donations = relationship("Donation", back_populates="inventory_item", cascade="all, delete-orphan") 
     direct_donations = relationship("DirectDonation", back_populates="bakery_inventory", cascade="all, delete-orphan")
 
     
+class EmployeeRole(str, enum.Enum):
+    """Employee roles with access control levels"""
+    OWNER = "Owner"
+    MANAGER = "Manager"
+    FULL_TIME = "Full-time"
+    PART_TIME = "Part-time"
+
+
 class Employee(Base):
     __tablename__ = "employees"
 
     id = Column(Integer, primary_key=True, index=True)
-    bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
-    role = Column(String, nullable=False)  # Manager, Staff, etc.
+    role = Column(String, nullable=False)  # Owner, Manager, Full-time, Part-time
     start_date = Column(Date, nullable=False)
     profile_picture = Column(String, nullable=True)
+    hashed_password = Column(String, nullable=True)  # Password for employee login (optional, can be None for new employees)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    # Relationships
     bakery = relationship("User", backref="employees")
+    inventory_items = relationship("BakeryInventory", back_populates="created_by_employee")
+    donations = relationship("Donation", back_populates="created_by_employee")
 
 
 class Donation(Base):
@@ -83,6 +104,7 @@ class Donation(Base):
     id = Column(Integer, primary_key=True, index=True)
     bakery_inventory_id = Column(Integer, ForeignKey("bakery_inventory.id", ondelete="CASCADE"), nullable=False)
     bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_by_employee_id = Column(Integer, ForeignKey("employees.id"), nullable=True)  # Track which employee created it
     name = Column(String, nullable=False)
     image = Column(String, nullable=True)
     quantity = Column(Integer, nullable=False)
@@ -94,6 +116,7 @@ class Donation(Base):
 
 
     bakery = relationship("User", back_populates="donations")
+    created_by_employee = relationship("Employee", back_populates="donations")
     inventory_item = relationship("BakeryInventory", back_populates="donations")
 
 class DonationRequest(Base):
@@ -267,4 +290,17 @@ class BadgeProgress(Base):
 
     user = relationship("User", back_populates="badge_progress")
     badge = relationship("Badge")
+
+class SystemEvent(Base):
+    __tablename__ = "system_events"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    event_type = Column(String, index=True, nullable=False)  # "failed_login", "unauthorized_access", "sos_alert", "geofence_breach", "uptime", "downtime"
+    description = Column(String, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Nullable for system-wide events
+    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    severity = Column(String, default="info")  # "info", "warning", "critical"
+    event_metadata = Column(String, nullable=True)  # JSON string for additional data (IP address, location, etc.)
+    
+    user = relationship("User", back_populates="events")
     

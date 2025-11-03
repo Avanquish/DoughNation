@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Download, HandCoins, Printer, AlertTriangle, FileText, Users, Gift } from "lucide-react";
+import { Download, Printer } from "lucide-react";
 import axios from "axios";
 import Swal from "sweetalert2";
 import {
@@ -41,6 +41,17 @@ export default function BakeryReports({ isViewOnly = false }) {
   const [savedWeekEnd, setSavedWeekEnd] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState("");
   const [savedMonth, setSavedMonth] = useState(null);
+  
+  // Date filters for other reports
+  const [donationHistoryStart, setDonationHistoryStart] = useState("");
+  const [donationHistoryEnd, setDonationHistoryEnd] = useState("");
+  const [expiryLossStart, setExpiryLossStart] = useState("");
+  const [expiryLossEnd, setExpiryLossEnd] = useState("");
+  const [topItemsStart, setTopItemsStart] = useState("");
+  const [topItemsEnd, setTopItemsEnd] = useState("");
+  const [charityListStart, setCharityListStart] = useState("");
+  const [charityListEnd, setCharityListEnd] = useState("");
+  
   const [employees, setEmployees] = useState([]);
   const [employeeName, setEmployeeName] = useState("");
   const COLORS_STATUS = ["#28a745", "#007bff", "#dc3545"]; // Green, Blue, Red
@@ -48,11 +59,11 @@ export default function BakeryReports({ isViewOnly = false }) {
 
   // Top-level reports (summary replaces weekly/monthly here)
   const reportTypes = [
-    { key: "donation_history", label: "Donation History", icon: HandCoins },
-    { key: "expiry_loss", label: "Expiry Loss", icon: AlertTriangle },
-    { key: "top_items", label: "Top Donated Items", icon: Gift },
-    { key: "charity_list", label: "Charity List", icon: Users },
-    { key: "summary", label: "Period Summary", icon: FileText },
+    { key: "donation_history", label: "Donation History" },
+    { key: "expiry_loss", label: "Expiry Loss" },
+    { key: "top_items", label: "Top Donated Items" },
+    { key: "charity_list", label: "Charity List" },
+    { key: "summary", label: "Period Summary" },
   ];
 
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -77,7 +88,6 @@ export default function BakeryReports({ isViewOnly = false }) {
       localStorage.setItem("lastReportType", effType);
       localStorage.setItem("lastMonth", selectedMonth);
       setSavedMonth(selectedMonth);
-      setSelectedMonth("");
       setActiveReport("summary");
       setActiveSummary(effType);
     });
@@ -109,10 +119,37 @@ export default function BakeryReports({ isViewOnly = false }) {
 
       setSavedWeekStart(weekStart);
       setSavedWeekEnd(weekEnd);
-      setWeekStart("");
-      setWeekEnd("");
       setActiveReport("summary");
       setActiveSummary(effType);
+    });
+  };
+
+  // Handlers for other report filters
+  const handleDonationHistoryFilter = () => {
+    generateReport("donation_history", {
+      start_date: donationHistoryStart,
+      end_date: donationHistoryEnd,
+    });
+  };
+
+  const handleExpiryLossFilter = () => {
+    generateReport("expiry_loss", {
+      start_date: expiryLossStart,
+      end_date: expiryLossEnd,
+    });
+  };
+
+  const handleTopItemsFilter = () => {
+    generateReport("top_items", {
+      start_date: topItemsStart,
+      end_date: topItemsEnd,
+    });
+  };
+
+  const handleCharityListFilter = () => {
+    generateReport("charity_list", {
+      start_date: charityListStart,
+      end_date: charityListEnd,
     });
   };
 
@@ -124,8 +161,9 @@ export default function BakeryReports({ isViewOnly = false }) {
 
     return `
     <div style="text-align:center; font-family: Arial, sans-serif; margin-bottom:30px;">
-      ${profileURL
-        ? `
+      ${
+        profileURL
+          ? `
         <img src="${profileURL}" alt="Bakery Logo" style="
           width:120px;
           height:120px;
@@ -133,16 +171,18 @@ export default function BakeryReports({ isViewOnly = false }) {
           border-radius:50%;
           margin-bottom:15px;
         "/>`
-        : ""
+          : ""
       }
-      <h1 style="margin:0; font-size:28px; font-weight:bold; color:#222;">${bakery.name || ""
+      <h1 style="margin:0; font-size:28px; font-weight:bold; color:#222;">${
+        bakery.name || ""
       }</h1>
       <p style="margin:5px 0; font-size:14px; color:#555;">
         ${bakery.address || ""}
       </p>
       <p style="margin:2px 0; font-size:14px; color:#555;">
-        Contact: ${bakery.contact_number || "N/A"} | Email: ${bakery.email || "N/A"
-      }
+        Contact: ${bakery.contact_number || "N/A"} | Email: ${
+      bakery.email || "N/A"
+    }
       </p>
       <p style="margin:20px 0 5px 0; font-size:20px; font-weight:bold; color:#000;">
         ${reportType.replace(/_/g, " ").toUpperCase()} REPORT 
@@ -165,13 +205,27 @@ export default function BakeryReports({ isViewOnly = false }) {
     try {
       const token =
         localStorage.getItem("employeeToken") || localStorage.getItem("token");
+      
       let url = `${API_URL}/reports/${type}`;
 
-      if (type === "weekly" && param?.start && param?.end) {
-        url += `?start_date=${param.start}&end_date=${param.end}`;
+      // Use unified summary endpoint for weekly/monthly
+      if (type === "weekly" || type === "monthly") {
+        url = `${API_URL}/reports/summary?period=${type}`;
+        
+        if (type === "weekly" && param?.start && param?.end) {
+          url += `&start_date=${param.start}&end_date=${param.end}`;
+        }
+        if (type === "monthly" && param?.month) {
+          url += `&month=${param.month}`;
+        }
       }
-      if (type === "monthly" && param?.month) {
-        url += `?month=${param.month}`;
+      
+      // Add date filters for other report types
+      if (param?.start_date || param?.end_date) {
+        const params = new URLSearchParams();
+        if (param.start_date) params.append("start_date", param.start_date);
+        if (param.end_date) params.append("end_date", param.end_date);
+        url += `?${params.toString()}`;
       }
 
       const res = await axios.get(url, {
@@ -456,7 +510,8 @@ export default function BakeryReports({ isViewOnly = false }) {
       });
       currentY += 10;
       doc.text(
-        `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${bakeryInfo?.email || "N/A"
+        `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${
+          bakeryInfo?.email || "N/A"
         }`,
         pageWidth / 2,
         currentY,
@@ -698,7 +753,8 @@ export default function BakeryReports({ isViewOnly = false }) {
       });
       currentY += 10;
       doc.text(
-        `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${bakeryInfo?.email || "N/A"
+        `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${
+          bakeryInfo?.email || "N/A"
         }`,
         pageWidth / 2,
         currentY,
@@ -923,7 +979,8 @@ export default function BakeryReports({ isViewOnly = false }) {
       });
       currentY += 10;
       doc.text(
-        `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${bakeryInfo?.email || "N/A"
+        `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${
+          bakeryInfo?.email || "N/A"
         }`,
         pageWidth / 2,
         currentY,
@@ -1164,7 +1221,8 @@ export default function BakeryReports({ isViewOnly = false }) {
     });
     currentY += 10;
     doc.text(
-      `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${bakeryInfo?.email || "N/A"
+      `Contact: ${bakeryInfo?.contact_number || "N/A"} | Email: ${
+        bakeryInfo?.email || "N/A"
       }`,
       pageWidth / 2,
       currentY,
@@ -1367,15 +1425,16 @@ export default function BakeryReports({ isViewOnly = false }) {
           </tr>
         </thead>
         <tbody>
-          ${reportData.top_items && reportData.top_items.length > 0
-          ? reportData.top_items
-            .map(
-              (item) =>
-                `<tr><td>${item.product_name}</td><td>${item.quantity}</td></tr>`
-            )
-            .join("")
-          : `<tr><td colspan="2">No top items for this week.</td></tr>`
-        }
+          ${
+            reportData.top_items && reportData.top_items.length > 0
+              ? reportData.top_items
+                  .map(
+                    (item) =>
+                      `<tr><td>${item.product_name}</td><td>${item.quantity}</td></tr>`
+                  )
+                  .join("")
+              : `<tr><td colspan="2">No top items for this week.</td></tr>`
+          }
         </tbody>
       </table>
     `;
@@ -1514,15 +1573,16 @@ export default function BakeryReports({ isViewOnly = false }) {
           </tr>
         </thead>
         <tbody>
-          ${reportData.top_items && reportData.top_items.length
-          ? reportData.top_items
-            .map(
-              (item) =>
-                `<tr><td>${item.product_name}</td><td>${item.quantity}</td></tr>`
-            )
-            .join("")
-          : `<tr><td colspan="2">No top items for this week.</td></tr>`
-        }
+          ${
+            reportData.top_items && reportData.top_items.length
+              ? reportData.top_items
+                  .map(
+                    (item) =>
+                      `<tr><td>${item.product_name}</td><td>${item.quantity}</td></tr>`
+                  )
+                  .join("")
+              : `<tr><td colspan="2">No top items for this week.</td></tr>`
+          }
         </tbody>
       </table>
     `;
@@ -1638,21 +1698,22 @@ export default function BakeryReports({ isViewOnly = false }) {
         </thead>
         <tbody>
           ${reportData
-          .map(
-            (row) => `
+            .map(
+              (row) => `
                 <tr>
                   ${headers
-                .map((h) =>
-                  h.toLowerCase().includes("image")
-                    ? `<td><img src="${row[h] ? `${API_URL}/${normalizePath(row[h])}` : ""
-                    }" /></td>`
-                    : `<td>${row[h] ?? ""}</td>`
-                )
-                .join("")}
+                    .map((h) =>
+                      h.toLowerCase().includes("image")
+                        ? `<td><img src="${
+                            row[h] ? `${API_URL}/${normalizePath(row[h])}` : ""
+                          }" /></td>`
+                        : `<td>${row[h] ?? ""}</td>`
+                    )
+                    .join("")}
                 </tr>
               `
-          )
-          .join("")}
+            )
+            .join("")}
         </tbody>
       </table>
     `;
@@ -1875,118 +1936,361 @@ export default function BakeryReports({ isViewOnly = false }) {
         onValueChange={(val) => {
           if (isViewOnly) return;
           setActiveReport(val);
+          // Clear report data when switching tabs
+          setReportData(null);
+          // Only auto-generate for summary tab
           if (val === "summary") {
             generateReport(activeSummary).then(() =>
               setActiveReport("summary")
             );
-          } else {
-            generateReport(val);
           }
+          // For other tabs, wait for user to click "Generate Report"
         }}
       >
         {/* Pills */}
         <TabsList className="flex flex-wrap gap-2 bg-white/70 ring-1 ring-black/5 rounded-full px-2 py-1 shadow-sm">
-          {reportTypes.map((r) => {
-            const Icon = r.icon;
-            return (
-              <TabsTrigger
-                title={r.label}
-                key={r.key}
-                value={r.key}
-                className="flex items-center gap-1 data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] rounded-full px-3 py-1 text-sm hover:bg-amber-50"
-              >
-                <Icon className="w-4 h-4" title={r.label}/>
-                <span className="hidden sm:inline" title={r.label}>{r.label}</span>
-              </TabsTrigger>
-            );
-          })}
+          {reportTypes.map((r) => (
+            <TabsTrigger
+              key={r.key}
+              value={r.key}
+              className="data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] rounded-full px-3 py-1 text-sm hover:bg-amber-50"
+            >
+              {r.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
+        {/* Donation History Tab */}
+        <TabsContent value="donation_history">
+          <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
+            <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
+              <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
+                Donation History Report
+              </CardTitle>
+            </CardHeader>
 
-        {/* Other tabs (non-summary) */}
-        {reportTypes
-          .filter((r) => r.key !== "summary")
-          .map((r) => (
-            <TabsContent key={r.key} value={r.key}>
-              <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
-                <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
-                  <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
-                    {r.label} Report
-                  </CardTitle>
-                </CardHeader>
+            <CardContent className="p-5 sm:p-6">
+              {!isViewOnly && (
+                <div className="mb-4 flex flex-wrap gap-4 items-end">
+                  <div>
+                    <label className="block text-sm font-medium text-[#6b4b2b]">
+                      Start Date (Optional)
+                    </label>
+                    <input
+                      type="date"
+                      value={donationHistoryStart}
+                      onChange={(e) => setDonationHistoryStart(e.target.value)}
+                      className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#6b4b2b]">
+                      End Date (Optional)
+                    </label>
+                    <input
+                      type="date"
+                      value={donationHistoryEnd}
+                      onChange={(e) => setDonationHistoryEnd(e.target.value)}
+                      className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleDonationHistoryFilter}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                  >
+                    Generate Report
+                  </Button>
+                </div>
+              )}
 
-                <CardContent className="p-5 sm:p-6">
-                  {loading ? (
-                    <p className="text-[#6b4b2b]/70">Generating report...</p>
-                  ) : reportData ? (
-                    <div className="overflow-x-auto rounded-xl ring-1 ring-black/10 bg-white/70">
-                      {renderTable(reportData)}
-                    </div>
-                  ) : (
-                    <p className="text-[#6b4b2b]/70">
-                      Click tab to generate {r.label}.
-                    </p>
-                  )}
+              {loading ? (
+                <p className="text-[#6b4b2b]/70">Generating report...</p>
+              ) : reportData ? (
+                <div className="overflow-x-auto rounded-xl ring-1 ring-black/10 bg-white/70">
+                  {renderTable(reportData)}
+                </div>
+              ) : (
+                <p className="text-[#6b4b2b]/70">
+                  Select date range and click Generate Report.
+                </p>
+              )}
 
-                  {!isViewOnly && reportData && (
-                    <div className="flex flex-wrap gap-3 mt-5">
-                      <Button
-                        onClick={downloadReportCSV}
-                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
-                      >
-                        <Download size={16} /> Download CSV
-                      </Button>
-                      <Button
-                        onClick={() => downloadReportPDF(bakeryInfo)}
-                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
-                      >
-                        <Download size={16} /> Download PDF
-                      </Button>
-                      <Button
-                        onClick={() => printReport(bakeryInfo)}
-                        className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
-                      >
-                        <Printer size={16} /> Print
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          ))}
+              {!isViewOnly && reportData && (
+                <div className="flex flex-wrap gap-3 mt-5">
+                  <Button
+                    onClick={downloadReportCSV}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                  >
+                    <Download size={16} /> Download CSV
+                  </Button>
+                  <Button
+                    onClick={() => downloadReportPDF(bakeryInfo)}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                  >
+                    <Download size={16} /> Download PDF
+                  </Button>
+                  <Button
+                    onClick={() => printReport(bakeryInfo)}
+                    className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
+                  >
+                    <Printer size={16} /> Print
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-        {/* Summary tab (inner weekly/monthly) */}
+        {/* Expiry Loss Tab */}
+        <TabsContent value="expiry_loss">
+          <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
+            <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
+              <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
+                Expiry Loss Report
+              </CardTitle>
+            </CardHeader>
+
+            <CardContent className="p-5 sm:p-6">
+              {!isViewOnly && (
+                <div className="mb-4 flex flex-wrap gap-4 items-end">
+                  <div>
+                    <label className="block text-sm font-medium text-[#6b4b2b]">
+                      Start Date (Optional)
+                    </label>
+                    <input
+                      type="date"
+                      value={expiryLossStart}
+                      onChange={(e) => setExpiryLossStart(e.target.value)}
+                      className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#6b4b2b]">
+                      End Date (Optional)
+                    </label>
+                    <input
+                      type="date"
+                      value={expiryLossEnd}
+                      onChange={(e) => setExpiryLossEnd(e.target.value)}
+                      className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleExpiryLossFilter}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                  >
+                    Generate Report
+                  </Button>
+                </div>
+              )}
+
+              {loading ? (
+                <p className="text-[#6b4b2b]/70">Generating report...</p>
+              ) : reportData ? (
+                <div className="overflow-x-auto rounded-xl ring-1 ring-black/10 bg-white/70">
+                  {renderTable(reportData)}
+                </div>
+              ) : (
+                <p className="text-[#6b4b2b]/70">
+                  Select date range and click Generate Report.
+                </p>
+              )}
+
+              {!isViewOnly && reportData && (
+                <div className="flex flex-wrap gap-3 mt-5">
+                  <Button
+                    onClick={downloadReportCSV}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                  >
+                    <Download size={16} /> Download CSV
+                  </Button>
+                  <Button
+                    onClick={() => downloadReportPDF(bakeryInfo)}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                  >
+                    <Download size={16} /> Download PDF
+                  </Button>
+                  <Button
+                    onClick={() => printReport(bakeryInfo)}
+                    className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
+                  >
+                    <Printer size={16} /> Print
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Top Donated Items Tab */}
+        <TabsContent value="top_items">
+          <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
+            <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
+              <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
+                Top Donated Items Report
+              </CardTitle>
+            </CardHeader>
+
+            <CardContent className="p-5 sm:p-6">
+              {!isViewOnly && (
+                <div className="mb-4 flex flex-wrap gap-4 items-end">
+                  <div>
+                    <label className="block text-sm font-medium text-[#6b4b2b]">
+                      Start Date (Optional)
+                    </label>
+                    <input
+                      type="date"
+                      value={topItemsStart}
+                      onChange={(e) => setTopItemsStart(e.target.value)}
+                      className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#6b4b2b]">
+                      End Date (Optional)
+                    </label>
+                    <input
+                      type="date"
+                      value={topItemsEnd}
+                      onChange={(e) => setTopItemsEnd(e.target.value)}
+                      className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleTopItemsFilter}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                  >
+                    Generate Report
+                  </Button>
+                </div>
+              )}
+
+              {loading ? (
+                <p className="text-[#6b4b2b]/70">Generating report...</p>
+              ) : reportData ? (
+                <div className="overflow-x-auto rounded-xl ring-1 ring-black/10 bg-white/70">
+                  {renderTable(reportData)}
+                </div>
+              ) : (
+                <p className="text-[#6b4b2b]/70">
+                  Select date range and click Generate Report.
+                </p>
+              )}
+
+              {!isViewOnly && reportData && (
+                <div className="flex flex-wrap gap-3 mt-5">
+                  <Button
+                    onClick={downloadReportCSV}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                  >
+                    <Download size={16} /> Download CSV
+                  </Button>
+                  <Button
+                    onClick={() => downloadReportPDF(bakeryInfo)}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                  >
+                    <Download size={16} /> Download PDF
+                  </Button>
+                  <Button
+                    onClick={() => printReport(bakeryInfo)}
+                    className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
+                  >
+                    <Printer size={16} /> Print
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Charity List Tab */}
+        <TabsContent value="charity_list">
+          <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
+            <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
+              <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
+                Charity List Report
+              </CardTitle>
+            </CardHeader>
+
+            <CardContent className="p-5 sm:p-6">
+              {!isViewOnly && (
+                <div className="mb-4 flex flex-wrap gap-4 items-end">
+                  <div>
+                    <label className="block text-sm font-medium text-[#6b4b2b]">
+                      Start Date (Optional)
+                    </label>
+                    <input
+                      type="date"
+                      value={charityListStart}
+                      onChange={(e) => setCharityListStart(e.target.value)}
+                      className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#6b4b2b]">
+                      End Date (Optional)
+                    </label>
+                    <input
+                      type="date"
+                      value={charityListEnd}
+                      onChange={(e) => setCharityListEnd(e.target.value)}
+                      className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleCharityListFilter}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                  >
+                    Generate Report
+                  </Button>
+                </div>
+              )}
+
+              {loading ? (
+                <p className="text-[#6b4b2b]/70">Generating report...</p>
+              ) : reportData ? (
+                <div className="overflow-x-auto rounded-xl ring-1 ring-black/10 bg-white/70">
+                  {renderTable(reportData)}
+                </div>
+              ) : (
+                <p className="text-[#6b4b2b]/70">
+                  Select date range and click Generate Report.
+                </p>
+              )}
+
+              {!isViewOnly && reportData && (
+                <div className="flex flex-wrap gap-3 mt-5">
+                  <Button
+                    onClick={downloadReportCSV}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                  >
+                    <Download size={16} /> Download CSV
+                  </Button>
+                  <Button
+                    onClick={() => downloadReportPDF(bakeryInfo)}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                  >
+                    <Download size={16} /> Download PDF
+                  </Button>
+                  <Button
+                    onClick={() => printReport(bakeryInfo)}
+                    className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
+                  >
+                    <Printer size={16} /> Print
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Summary tab (unified period view) */}
         <TabsContent value="summary">
           <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
             <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
-              <CardTitle className="sr-only">Summary Report</CardTitle>
-
-              {/* Centered inner tabs */}
-              <div className="w-full flex justify-center">
-                <Tabs
-                  value={activeSummary}
-                  onValueChange={(v) => {
-                    if (isViewOnly) return;
-                    setActiveSummary(v);
-                    generateReport(v).then(() => setActiveReport("summary"));
-                  }}
-                >
-                  <TabsList className="mx-auto flex gap-2 bg-white/70 ring-1 ring-black/5 rounded-full px-2 py-1 shadow-sm">
-                    <TabsTrigger
-                      value="weekly"
-                      className="data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] rounded-full px-3 py-1 text-sm hover:bg-amber-50"
-                    >
-                      Weekly
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="monthly"
-                      className="data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] rounded-full px-3 py-1 text-sm hover:bg-amber-50"
-                    >
-                      Monthly
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
+              <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
+                Period Summary Report
+              </CardTitle>
             </CardHeader>
 
             <CardContent className="p-5 sm:p-6">
@@ -1994,60 +2298,82 @@ export default function BakeryReports({ isViewOnly = false }) {
                 <p className="text-[#6b4b2b]/70">Generating report...</p>
               ) : reportData ? (
                 <div>
-                  {/* Filters */}
-                  {activeSummary === "weekly" && !isViewOnly && (
+                  {/* Unified Filters */}
+                  {!isViewOnly && (
                     <div className="mb-4 flex flex-wrap gap-4 items-end">
                       <div>
                         <label className="block text-sm font-medium text-[#6b4b2b]">
-                          Week Start
+                          Period Type
                         </label>
-                        <input
-                          type="date"
-                          value={weekStart}
-                          onChange={(e) => setWeekStart(e.target.value)}
+                        <select
+                          value={activeSummary}
+                          onChange={(e) => {
+                            setActiveSummary(e.target.value);
+                            // Clear filters when switching period type
+                            setWeekStart("");
+                            setWeekEnd("");
+                            setSelectedMonth("");
+                          }}
                           className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                        />
+                        >
+                          <option value="weekly">Weekly</option>
+                          <option value="monthly">Monthly</option>
+                        </select>
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-[#6b4b2b]">
-                          Week End
-                        </label>
-                        <input
-                          type="date"
-                          value={weekEnd}
-                          onChange={(e) => setWeekEnd(e.target.value)}
-                          className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                        />
-                      </div>
-                      <Button
-                        onClick={handleWeeklyFilter}
-                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
-                      >
-                        Filter
-                      </Button>
-                    </div>
-                  )}
 
-                  {activeSummary === "monthly" && !isViewOnly && (
-                    <div className="mb-4 flex flex-wrap gap-4 items-end">
-                      <div>
-                        <label className="block text-sm font-medium text-[#6b4b2b]">
-                          Select Month
-                        </label>
-                        <input
-                          type="month"
-                          value={selectedMonth}
-                          onChange={(e) => setSelectedMonth(e.target.value)}
-                          max={new Date().toISOString().slice(0, 7)}
-                          className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                        />
-                      </div>
-                      <Button
-                        onClick={handleMonthlyFilter}
-                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
-                      >
-                        Filter
-                      </Button>
+                      {activeSummary === "weekly" ? (
+                        <>
+                          <div>
+                            <label className="block text-sm font-medium text-[#6b4b2b]">
+                              Week Start
+                            </label>
+                            <input
+                              type="date"
+                              value={weekStart}
+                              onChange={(e) => setWeekStart(e.target.value)}
+                              className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[#6b4b2b]">
+                              Week End
+                            </label>
+                            <input
+                              type="date"
+                              value={weekEnd}
+                              onChange={(e) => setWeekEnd(e.target.value)}
+                              className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                            />
+                          </div>
+                          <Button
+                            onClick={handleWeeklyFilter}
+                            className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                          >
+                            Generate Report
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <div>
+                            <label className="block text-sm font-medium text-[#6b4b2b]">
+                              Select Month
+                            </label>
+                            <input
+                              type="month"
+                              value={selectedMonth}
+                              onChange={(e) => setSelectedMonth(e.target.value)}
+                              max={new Date().toISOString().slice(0, 7)}
+                              className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                            />
+                          </div>
+                          <Button
+                            onClick={handleMonthlyFilter}
+                            className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                          >
+                            Generate Report
+                          </Button>
+                        </>
+                      )}
                     </div>
                   )}
 
@@ -2114,7 +2440,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                           </thead>
                           <tbody>
                             {reportData.top_items &&
-                              reportData.top_items.length ? (
+                            reportData.top_items.length ? (
                               reportData.top_items.map((item, idx) => (
                                 <tr
                                   key={idx}
@@ -2232,7 +2558,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                     </>
                   )}
 
-                  {/* Monthly Summary */}
+                  {/* Monthly Summary */} 
                   {activeSummary === "monthly" && (
                     <>
                       <div className="max-h-96 overflow-y-auto rounded-xl ring-1 ring-black/10 bg-white/70 mb-6">
@@ -2291,7 +2617,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                           </thead>
                           <tbody>
                             {reportData.top_items &&
-                              reportData.top_items.length ? (
+                            reportData.top_items.length ? (
                               reportData.top_items.map((item, idx) => (
                                 <tr
                                   key={idx}
@@ -2434,7 +2760,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                 </div>
               ) : (
                 <p className="text-[#6b4b2b]/70">
-                  Pick a sub-tab to generate the summary.
+                  Select a period type and date range, then click "Generate Report" to view the summary.
                 </p>
               )}
             </CardContent>

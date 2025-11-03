@@ -88,20 +88,23 @@ const ForgotPassword = () => {
   const handleValidateIdentifier = async (e) => {
     e.preventDefault();
     try {
-      const endpoint = accountType === "employee"
-        ? "http://localhost:8000/employee/forgot-password/check-name"
-        : "http://localhost:8000/forgot-password/check-email";
-      
-      const payload = accountType === "employee"
-        ? { name: identifier, bakery_name: bakeryName }
-        : { email: identifier };
+      const endpoint =
+        accountType === "employee"
+          ? "http://localhost:8000/employee/forgot-password/check-name"
+          : "http://localhost:8000/forgot-password/check-email";
+
+      const payload =
+        accountType === "employee"
+          ? { name: identifier, bakery_name: bakeryName }
+          : { email: identifier };
 
       const res = await axios.post(endpoint, payload);
-      
+
       if (res.data.valid) {
         Swal.fire({
           icon: "success",
-          title: accountType === "employee" ? "Employee Found" : "Email Found",
+          title:
+            accountType === "employee" ? "Employee Found" : "Email Found",
           text: "Please confirm your registration date.",
           confirmButtonColor: "#16a34a",
         });
@@ -110,10 +113,12 @@ const ForgotPassword = () => {
     } catch (err) {
       Swal.fire({
         icon: "error",
-        title: accountType === "employee" ? "Employee Not Found" : "Email Not Found",
-        text: err.response?.data?.detail || 
-          (accountType === "employee" 
-            ? "Employee not found in the specified bakery." 
+        title:
+          accountType === "employee" ? "Employee Not Found" : "Email Not Found",
+        text:
+          err.response?.data?.detail ||
+          (accountType === "employee"
+            ? "Employee not found in the specified bakery."
             : "This email is not registered."),
         confirmButtonColor: "#dc2626",
       });
@@ -123,16 +128,22 @@ const ForgotPassword = () => {
   const handleValidateDate = async (e) => {
     e.preventDefault();
     try {
-      const endpoint = accountType === "employee"
-        ? "http://localhost:8000/employee/forgot-password/check-date"
-        : "http://localhost:8000/forgot-password/check-date";
-      
-      const payload = accountType === "employee"
-        ? { name: identifier, bakery_name: bakeryName, registration_date: registrationDate }
-        : { email: identifier, registration_date: registrationDate };
+      const endpoint =
+        accountType === "employee"
+          ? "http://localhost:8000/employee/forgot-password/check-date"
+          : "http://localhost:8000/forgot-password/check-date";
+
+      const payload =
+        accountType === "employee"
+          ? {
+              name: identifier,
+              bakery_name: bakeryName,
+              registration_date: registrationDate,
+            }
+          : { email: identifier, registration_date: registrationDate };
 
       const res = await axios.post(endpoint, payload);
-      
+
       if (res.data.valid) {
         Swal.fire({
           icon: "success",
@@ -146,7 +157,8 @@ const ForgotPassword = () => {
       Swal.fire({
         icon: "error",
         title: "Invalid Date",
-        text: err.response?.data?.detail || "The date you entered is incorrect.",
+        text:
+          err.response?.data?.detail || "The date you entered is incorrect.",
         confirmButtonColor: "#dc2626",
       });
     }
@@ -163,13 +175,24 @@ const ForgotPassword = () => {
       });
     }
     try {
-      const endpoint = accountType === "employee"
-        ? "http://localhost:8000/employee/forgot-password/reset"
-        : "http://localhost:8000/forgot-password/reset";
-      
-      const payload = accountType === "employee"
-        ? { name: identifier, bakery_name: bakeryName, new_password: newPassword, confirm_password: confirmPassword }
-        : { email: identifier, new_password: newPassword, confirm_password: confirmPassword };
+      const endpoint =
+        accountType === "employee"
+          ? "http://localhost:8000/employee/forgot-password/reset"
+          : "http://localhost:8000/forgot-password/reset";
+
+      const payload =
+        accountType === "employee"
+          ? {
+              name: identifier,
+              bakery_name: bakeryName,
+              new_password: newPassword,
+              confirm_password: confirmPassword,
+            }
+          : {
+              email: identifier,
+              new_password: newPassword,
+              confirm_password: confirmPassword,
+            };
 
       const res = await axios.post(endpoint, payload);
 
@@ -190,7 +213,11 @@ const ForgotPassword = () => {
   };
 
   const steps = [
-    { id: 1, label: accountType === "employee" ? "Verify Name" : "Verify Email", Icon: accountType === "employee" ? User : Mail },
+    {
+      id: 1,
+      label: accountType === "employee" ? "Verify Name" : "Verify Email",
+      Icon: accountType === "employee" ? User : Mail,
+    },
     { id: 2, label: "Confirm Date", Icon: Calendar },
     { id: 3, label: "Set Password", Icon: Lock },
   ];
@@ -205,9 +232,43 @@ const ForgotPassword = () => {
     return s;
   })();
 
+  // ----- UI: Sliding indicator for the account-type tabs (like Login) -----
+  const tabsListRef = useRef(null);
+  const triggerRefs = useRef([]);
+  const [indicator, setIndicator] = useState({ left: 0, width: 0 });
+
+  const measureIndicator = () => {
+    const list = tabsListRef.current;
+    const i = accountType === "user" ? 0 : 1;
+    const btn = triggerRefs.current[i];
+    if (!list || !btn) return;
+    const listBox = list.getBoundingClientRect();
+    const btnBox = btn.getBoundingClientRect();
+    setIndicator({
+      left: Math.round(btnBox.left - listBox.left),
+      width: Math.round(btnBox.width),
+    });
+  };
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(measureIndicator);
+    const onResize = () => requestAnimationFrame(measureIndicator);
+    window.addEventListener("resize", onResize);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", onResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(measureIndicator);
+    return () => cancelAnimationFrame(raf);
+  }, [accountType]);
+  // -----------------------------------------------------------------------
+
   return (
     <div
-      className="relative min-h-screen overflow-hidden flex items-center justify-center"
+      className="relative min-h-screen overflow-hidden"
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
       style={{ padding: "clamp(1rem, 2.5vw, 1.5rem)" }}
@@ -223,18 +284,26 @@ const ForgotPassword = () => {
           --title-md: clamp(1.35rem, 1rem + 1.4vw, 2rem);
           --title-sm: clamp(1.1rem, .9rem + .8vw, 1.35rem);
           --text: clamp(.95rem, .85rem + .25vw, 1.05rem);
-          --radius: clamp(14px, 2vw, 20px);
+          --radius: clamp(20px, 2.4vw, 26px);
         }
-        @keyframes fadeUp { 0% { opacity: 0; transform: translateY(12px);} 100% { opacity:1; transform:translateY(0);} }
-        @keyframes brandPop { 0% { opacity:0; transform:translateY(8px) scale(.98); letter-spacing:.2px;}
-                              60% { opacity:1; transform:translateY(-4px) scale(1.02); letter-spacing:.5px;}
-                             100% { opacity:1; transform:translateY(0) scale(1); letter-spacing:0;} }
-        @keyframes titleBounce { 0% { opacity:0; transform:translateY(18px) scale(.96);}
-                                55% { opacity:1; transform:translateY(-6px) scale(1.04);}
-                               100% { opacity:1; transform:translateY(0) scale(1);} }
-        @keyframes subFade { 0% { opacity:0; transform:translateY(8px);} 100% { opacity:1; transform:translateY(0);} }
 
-        /* Hide native reveal buttons so only our eye icon shows */
+        @keyframes cardIn {
+          0% { opacity: 0; transform: translateY(18px) scale(.96); }
+          60%{ opacity: 1; transform: translateY(-6px) scale(1.01); }
+          100%{ opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes headPop {
+          0% { opacity:0; transform: translateY(12px) scale(.98); letter-spacing:.2px; }
+          55%{ opacity:1; transform: translateY(-6px) scale(1.02); letter-spacing:.4px; }
+          100%{ opacity:1; transform: translateY(0) scale(1); letter-spacing:0; }
+        }
+        @keyframes headBounce {
+          0% { opacity:0; transform: translateY(16px) scale(.96); }
+          55%{ opacity:1; transform: translateY(-4px) scale(1.03); }
+          100%{ opacity:1; transform: translateY(0) scale(1); }
+        }
+
+        /* Hide native password reveal buttons so only our eye icon shows */
         input[type="password"]::-ms-reveal,
         input[type="password"]::-ms-clear { display: none; }
         input[type="password"]::-webkit-credentials-auto-fill-button,
@@ -258,53 +327,41 @@ const ForgotPassword = () => {
       <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(120%_120%_at_50%_10%,rgba(0,0,0,0)_65%,rgba(0,0,0,0.10)_100%)]" />
 
       {/* Main card */}
-      <div
-        className="relative z-20 w-full"
-        style={{ maxWidth: "min(92vw, 720px)" }}
-      >
+      <div className="relative z-20 w-full flex items-center justify-center min-h-screen">
         <Card
-          className="relative backdrop-blur-2xl bg-white/55 border-white/60 shadow-[0_16px_56px_rgba(0,0,0,0.16)] overflow-hidden"
-          style={{
-            animation: "fadeUp 480ms ease-out both",
-            borderRadius: "var(--radius)",
-          }}
+          className="relative w-full max-w-[720px] rounded-[26px] backdrop-blur-2xl bg-white/55 border-white/60 shadow-[0_16px_56px_rgba(0,0,0,0.16)] overflow-hidden"
+          style={{ animation: "cardIn 720ms cubic-bezier(.2,.7,.2,1) both" }}
         >
-          <div className="absolute inset-0 pointer-events-none rounded-[inherit] bg-gradient-to-b from-[#FFF8F0]/45 via-transparent to-[#FFF8F0]/35" />
+          <div className="absolute inset-0 pointer-events-none rounded-[26px] bg-gradient-to-b from-[#FFF8F0]/50 via-transparent to-[#FFF0E0]/45" />
 
-          <CardHeader className="text-center relative pt-6 pb-4">
-            <div
-              className="flex items-center justify-center gap-2 mb-1"
-              style={{
-                animation: "brandPop 700ms cubic-bezier(0.34,1.56,0.64,1) both",
-                animationDelay: "40ms",
-              }}
-            >
-              <span
-                className="font-extrabold tracking-wide bg-gradient-to-r from-[#fed09b] via-[#e0a864] to-[#c38437] bg-clip-text text-transparent"
-                style={{ fontSize: "clamp(1.25rem, 1rem + 1vw, 1.5rem)" }}
-              >
-                DoughNation
-              </span>
+          <CardHeader className="text-center relative pt-6 pb-2">
+            <div className="absolute inset-x-6 -top-2 h-28 rounded-2xl bg-white/55 blur-xl -z-0" />
+            <div className="relative z-10 flex justify-center pt-1">
+              <img
+                src="/images/DoughNationLogo.png"
+                alt="DoughNation"
+                loading="eager"
+                decoding="async"
+                className="h-[56px] sm:h-[64px] md:h-[82px] w-auto max-w-[520px] object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,.06)]"
+                style={{ animation: "headPop 700ms cubic-bezier(.2,.7,.2,1) both" }}
+              />
             </div>
 
             <CardTitle
-              className="bg-gradient-to-r from-[#f8b86a] via-[#dd9f53] to-[#ce893b] bg-clip-text text-transparent"
+              className="relative z-10 mt-2 font-extrabold bg-gradient-to-r from-[#FFC66E] via-[#E88A1A] to-[#B86A1E] bg-clip-text text-transparent"
               style={{
-                animation:
-                  "titleBounce 800ms cubic-bezier(0.34,1.56,0.64,1) both",
-                animationDelay: "160ms",
-                fontSize: "var(--title-md)",
+                fontSize: "clamp(32px, 2.2rem + 2vw, 42px)",
+                animation: "headBounce 800ms cubic-bezier(.2,.7,.2,1) both 80ms",
               }}
             >
               Reset Password
             </CardTitle>
 
             <CardDescription
-              className="bg-gradient-to-r from-[#E3B57E] via-[#C39053] to-[#A66B2E] bg-clip-text text-transparent"
+              className="relative z-10 bg-gradient-to-r from-[#C17B2A] via-[#AD6A21] to-[#8E5216] bg-clip-text text-transparent"
               style={{
-                animation: "subFade 520ms ease-out both",
-                animationDelay: "320ms",
-                fontSize: "var(--text)",
+                fontSize: "clamp(16px, .9rem + .8vw, 18px)",
+                animation: "headPop 680ms cubic-bezier(.2,.7,.2,1) both 120ms",
               }}
             >
               {step === 1 && accountType === "employee" && "Enter your employee name so we can verify it."}
@@ -314,30 +371,48 @@ const ForgotPassword = () => {
             </CardDescription>
           </CardHeader>
 
-          {/* Account Type Tabs */}
-          <div className="px-5 sm:px-8 pt-2 pb-3">
+          {/* Account Type Tabs with sliding indicator */}
+          <div className="px-6 pt-2 pb-1">
             <Tabs value={accountType} onValueChange={setAccountType} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 bg-[#FFE1BE]/40 p-1 rounded-xl">
-                <TabsTrigger 
-                  value="user" 
-                  className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#A66B2E] data-[state=active]:shadow-sm transition-all"
+              <TabsList
+                ref={tabsListRef}
+                className="relative grid w-full grid-cols-2 h-12 p-1 rounded-full overflow-hidden bg-white/75 backdrop-blur border border-white/70"
+              >
+                <span
+                  aria-hidden
+                  className="absolute top-1 bottom-1 left-0 z-0 rounded-full bg-[linear-gradient(180deg,#FFE3B8_0%,#F6BE83_100%)] transition-[transform,width] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] pointer-events-none"
+                  style={{
+                    transform: `translateX(${indicator.left}px)`,
+                    width: indicator.width,
+                    willChange: "transform,width",
+                  }}
+                />
+                <TabsTrigger
+                  value="user"
+                  ref={(el) => (triggerRefs.current[0] = el)}
+                  className="relative z-10 h-full rounded-full flex items-center justify-center gap-2 px-4 text-[15px] font-medium text-[#B67B3C]
+                             hover:text-[#945c23] hover:scale-[1.02] active:scale-[.98]
+                             data-[state=active]:text-[#734515] transition-[color,transform]"
                 >
-                  <Mail className="h-4 w-4 mr-2" />
-                  User Account
+                  <Mail className="h-4 w-4" />
+                  <span>User Account</span>
                 </TabsTrigger>
-                <TabsTrigger 
-                  value="employee" 
-                  className="rounded-lg data-[state=active]:bg-white data-[state=active]:text-[#A66B2E] data-[state=active]:shadow-sm transition-all"
+                <TabsTrigger
+                  value="employee"
+                  ref={(el) => (triggerRefs.current[1] = el)}
+                  className="relative z-10 h-full rounded-full flex items-center justify-center gap-2 px-4 text-[15px] font-medium text-[#B67B3C]
+                             hover:text-[#945c23] hover:scale-[1.02] active:scale-[.98]
+                             data-[state=active]:text-[#734515] transition-[color,transform]"
                 >
-                  <Store className="h-4 w-4 mr-2" />
-                  Employee
+                  <Store className="h-4 w-4" />
+                  <span>Employee</span>
                 </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
 
           {/* Stepper */}
-          <div className="px-5 sm:px-8 pt-2">
+          <div className="px-6 pt-3">
             <ol className="flex items-center justify-between gap-2 sm:gap-3">
               {steps.map(({ id, label, Icon }) => {
                 const active = step === id;
@@ -382,7 +457,7 @@ const ForgotPassword = () => {
             </ol>
           </div>
 
-          <CardContent className="relative pt-5 pb-8 px-5 sm:px-8">
+          <CardContent className="relative pt-4 pb-7 px-6">
             {/* STEP 1 */}
             {step === 1 && (
               <form onSubmit={handleValidateIdentifier} className="space-y-5">
@@ -391,7 +466,7 @@ const ForgotPassword = () => {
                   <div className="space-y-1.5">
                     <Label
                       htmlFor="bakeryName"
-                      className="text-[#8f642a]"
+                      className="text-[#8f642a] font-medium"
                       style={{ fontSize: "var(--title-sm)" }}
                     >
                       Bakery Name
@@ -414,12 +489,12 @@ const ForgotPassword = () => {
                     </p>
                   </div>
                 )}
-                
+
                 {/* Employee Name / Email Field */}
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="identifier"
-                    className="text-[#8f642a]"
+                    className="text-[#8f642a] font-medium"
                     style={{ fontSize: "var(--title-sm)" }}
                   >
                     {accountType === "employee" ? "Employee Name" : "Registered Email"}
@@ -433,7 +508,9 @@ const ForgotPassword = () => {
                     <Input
                       id="identifier"
                       type={accountType === "employee" ? "text" : "email"}
-                      placeholder={accountType === "employee" ? "John Doe" : "you@bakery.com"}
+                      placeholder={
+                        accountType === "employee" ? "John Doe" : "you@bakery.com"
+                      }
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
                       required
@@ -442,12 +519,12 @@ const ForgotPassword = () => {
                     />
                   </div>
                 </div>
-                
+
                 <Button
                   type="submit"
-                  className="w-full text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E] hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl transition-transform active:scale-[0.99]"
+                  className="h-11 w-full text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E]
+                             hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl transition-transform active:scale-[0.99]"
                   style={{
-                    height: "clamp(2.75rem, 2.2rem + .8vw, 3rem)",
                     fontSize: "clamp(.92rem, .9rem + .2vw, 1.05rem)",
                   }}
                 >
@@ -462,7 +539,7 @@ const ForgotPassword = () => {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="registrationDate"
-                    className="text-[#8f642a]"
+                    className="text-[#8f642a] font-medium"
                     style={{ fontSize: "var(--title-sm)" }}
                   >
                     Date of Registration
@@ -482,9 +559,9 @@ const ForgotPassword = () => {
                 </div>
                 <Button
                   type="submit"
-                  className="w-full text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E] hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl transition-transform active:scale-[0.99]"
+                  className="h-11 w-full text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E]
+                             hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl transition-transform active:scale-[0.99]"
                   style={{
-                    height: "clamp(2.75rem, 2.2rem + .8vw, 3rem)",
                     fontSize: "clamp(.92rem, .9rem + .2vw, 1.05rem)",
                   }}
                 >
@@ -499,7 +576,7 @@ const ForgotPassword = () => {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="newPassword"
-                    className="text-[#8f642a]"
+                    className="text-[#8f642a] font-medium"
                     style={{ fontSize: "var(--title-sm)" }}
                   >
                     New Password
@@ -522,11 +599,7 @@ const ForgotPassword = () => {
                       aria-label={showNew ? "Hide password" : "Show password"}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A66B2E] hover:text-[#81531f]"
                     >
-                      {showNew ? (
-                        <EyeOff className="h-5 w-5" />
-                      ) : (
-                        <Eye className="h-5 w-5" />
-                      )}
+                      {showNew ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                     </button>
                   </div>
 
@@ -555,7 +628,7 @@ const ForgotPassword = () => {
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="confirmPassword"
-                    className="text-[#8f642a]"
+                    className="text-[#8f642a] font-medium"
                     style={{ fontSize: "var(--title-sm)" }}
                   >
                     Confirm Password
@@ -575,25 +648,19 @@ const ForgotPassword = () => {
                     <button
                       type="button"
                       onClick={() => setShowConfirm((s) => !s)}
-                      aria-label={
-                        showConfirm ? "Hide password" : "Show password"
-                      }
+                      aria-label={showConfirm ? "Hide password" : "Show password"}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A66B2E] hover:text-[#81531f]"
                     >
-                      {showConfirm ? (
-                        <EyeOff className="h-5 w-5" />
-                      ) : (
-                        <Eye className="h-5 w-5" />
-                      )}
+                      {showConfirm ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                     </button>
                   </div>
                 </div>
 
                 <Button
                   type="submit"
-                  className="w-full text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E] hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl transition-transform active:scale-[0.99]"
+                  className="h-11 w-full text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E]
+                             hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl transition-transform active:scale-[0.99]"
                   style={{
-                    height: "clamp(2.75rem, 2.2rem + .8vw, 3rem)",
                     fontSize: "clamp(.92rem, .9rem + .2vw, 1.05rem)",
                   }}
                 >
@@ -603,10 +670,7 @@ const ForgotPassword = () => {
             )}
 
             {/* Links */}
-            <div
-              className="text-center mt-6"
-              style={{ fontSize: "var(--text)" }}
-            >
+            <div className="text-center mt-6" style={{ fontSize: "var(--text)" }}>
               <Link
                 to="/login"
                 className="text-[#b88950] hover:text-[#8f5a1c] transition-colors"
@@ -614,10 +678,7 @@ const ForgotPassword = () => {
                 Back to Login
               </Link>
             </div>
-            <div
-              className="text-center mt-2"
-              style={{ fontSize: "var(--text)" }}
-            >
+            <div className="text-center mt-2" style={{ fontSize: "var(--text)" }}>
               <Link
                 to="/"
                 className="text-[#ad7631] hover:text-[#8f5a1c] transition-colors"

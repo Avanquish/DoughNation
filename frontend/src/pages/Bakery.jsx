@@ -15,6 +15,17 @@ const columns = [
     { accessorKey: "contact_person", header: "Contact Person", isHide: "false" },
     { accessorKey: "contact_number", header: "Contact Number", isHide: "false" },
     { accessorKey: "address", header: "Address", isHide: "false" },
+    { accessorKey: "created_at", header: "Created Date", isHide: "false",
+      cell: ({ row }) => {
+        const date = row.original.created_at;
+        if (!date) return "—";
+        return new Date(date).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      }
+    },
     { accessorKey: "verified", header: "Status", isHide: "false", 
       cell: ({ row }) => (
         <span className={`px-2 py-1 rounded-full text-xs font-semibold ${

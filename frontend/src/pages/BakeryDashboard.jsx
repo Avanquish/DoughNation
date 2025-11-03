@@ -26,7 +26,7 @@ import {
   MessageSquareWarning,
   MessageSquareDot,
   Medal,
-  Store
+  Store,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useEmployeeAuth } from "../context/EmployeeAuthContext";
@@ -90,7 +90,7 @@ const BakeryDashboard = () => {
   const [isEmployeeMode, setIsEmployeeMode] = useState(false);
   const [isViewOnly, setIsViewOnly] = useState(false); // TRUE for bakery owner login, FALSE for employee login
   const [scrolled, setScrolled] = useState(false);
-  const [showTop, setShowTop] = useState(false);  // You used this inside useEffect
+  const [showTop, setShowTop] = useState(false); // You used this inside useEffect
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -144,64 +144,67 @@ const BakeryDashboard = () => {
 
   // Detect employee mode and set role
   useEffect(() => {
-      if (employee && employee.bakery_id === parseInt(id)) {
-        setIsEmployeeMode(true);
-        setEmployeeRole(employee.employee_role);
-        setName(employee.employee_name);
-        setIsVerified(true);
-        setIsViewOnly(false);
-        
-        // 🏢 FETCH BAKERY NAME FROM TOKEN (most reliable source)
-        const employeeToken = localStorage.getItem("employeeToken");
-        
-        if (employeeToken) {
-          try {
-            const decoded = JSON.parse(atob(employeeToken.split(".")[1]));
-            console.log("🔍 Decoded employee token:", decoded);
-            
-            // Token includes bakery_name from backend
-            const bakeryNameFromToken = decoded.bakery_name;
-            
-            if (bakeryNameFromToken) {
-              console.log("✅ Using bakery name from token:", bakeryNameFromToken);
-              setBakeryName(bakeryNameFromToken);
-            } else {
-              // Fallback: fetch from backend if not in token
-              console.log("⚠️ No bakery_name in token, fetching from backend...");
-              fetchBakeryNameFromBackend(employee.bakery_id);
-            }
-          } catch (err) {
-            console.error("❌ Failed to decode token:", err);
-            // Fallback to backend fetch
+    if (employee && employee.bakery_id === parseInt(id)) {
+      setIsEmployeeMode(true);
+      setEmployeeRole(employee.employee_role);
+      setName(employee.employee_name);
+      setIsVerified(true);
+      setIsViewOnly(false);
+
+      // 🏢 FETCH BAKERY NAME FROM TOKEN (most reliable source)
+      const employeeToken = localStorage.getItem("employeeToken");
+
+      if (employeeToken) {
+        try {
+          const decoded = JSON.parse(atob(employeeToken.split(".")[1]));
+          console.log("🔍 Decoded employee token:", decoded);
+
+          // Token includes bakery_name from backend
+          const bakeryNameFromToken = decoded.bakery_name;
+
+          if (bakeryNameFromToken) {
+            console.log(
+              "✅ Using bakery name from token:",
+              bakeryNameFromToken
+            );
+            setBakeryName(bakeryNameFromToken);
+          } else {
+            // Fallback: fetch from backend if not in token
+            console.log("⚠️ No bakery_name in token, fetching from backend...");
             fetchBakeryNameFromBackend(employee.bakery_id);
           }
-        } else {
-          console.log("❌ No employee token found");
+        } catch (err) {
+          console.error("❌ Failed to decode token:", err);
+          // Fallback to backend fetch
           fetchBakeryNameFromBackend(employee.bakery_id);
         }
+      } else {
+        console.log("❌ No employee token found");
+        fetchBakeryNameFromBackend(employee.bakery_id);
       }
-    }, [employee, id]);
+    }
+  }, [employee, id]);
 
-    // Helper function to fetch bakery name from backend
-    const fetchBakeryNameFromBackend = async (bakeryId) => {
-      try {
-        const employeeToken = localStorage.getItem("employeeToken");
-        const res = await axios.get(`${API}/users/${bakeryId}`, {
-          headers: { Authorization: `Bearer ${employeeToken}` }
-        });
-        
-        if (res.data && res.data.name) {
-          console.log("✅ Fetched bakery name from backend:", res.data.name);
-          setBakeryName(res.data.name);
-        } else {
-          console.log("❌ No bakery name in response");
-          setBakeryName("Bakery");
-        }
-      } catch (err) {
-        console.error("❌ Failed to fetch bakery name:", err);
+  // Helper function to fetch bakery name from backend
+  const fetchBakeryNameFromBackend = async (bakeryId) => {
+    try {
+      const employeeToken = localStorage.getItem("employeeToken");
+      const res = await axios.get(`${API}/users/${bakeryId}`, {
+        headers: { Authorization: `Bearer ${employeeToken}` },
+      });
+
+      if (res.data && res.data.name) {
+        console.log("✅ Fetched bakery name from backend:", res.data.name);
+        setBakeryName(res.data.name);
+      } else {
+        console.log("❌ No bakery name in response");
         setBakeryName("Bakery");
       }
-    };
+    } catch (err) {
+      console.error("❌ Failed to fetch bakery name:", err);
+      setBakeryName("Bakery");
+    }
+  };
 
   // Determine which tabs are visible based on role
   const getVisibleTabs = () => {
@@ -251,15 +254,17 @@ const BakeryDashboard = () => {
       if (activeTab === "dashboard") {
         if (params.has("tab")) {
           params.delete("tab");
-          const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""
-            }${window.location.hash}`;
+          const next = `${window.location.pathname}${
+            params.toString() ? `?${params.toString()}` : ""
+          }${window.location.hash}`;
           window.history.replaceState({}, "", next);
         }
       } else {
         if (params.get("tab") !== activeTab) {
           params.set("tab", activeTab);
-          const next = `${window.location.pathname}?${params.toString()}${window.location.hash
-            }`;
+          const next = `${window.location.pathname}?${params.toString()}${
+            window.location.hash
+          }`;
           window.history.replaceState({}, "", next);
         }
       }
@@ -568,8 +573,8 @@ const BakeryDashboard = () => {
     );
   }
 
-const Styles = () => (
-  <style>{`
+  const Styles = () => (
+    <style>{`
     :root{
       --ink:#7a4f1c;
       --grad1:#FFF7EC; --grad2:#FFE7C8; --grad3:#FFD6A1; --grad4:#F3C27E;
@@ -716,7 +721,7 @@ const Styles = () => (
       to{transform:translateX(100%)}
     }
   `}</style>
-);
+  );
 
   return (
     <div className="min-h-screen relative">
@@ -729,27 +734,52 @@ const Styles = () => (
 
       <header className="head fixed top-0 left-0 right-0 z-[80]">
         <div className="head-bg" />
-        <div className={`glass-soft header-gradient-line header-skin sticky-boost ${scrolled ? "is-scrolled" : ""}`}>
+        <div
+          className={`glass-soft header-gradient-line header-skin sticky-boost ${
+            scrolled ? "is-scrolled" : ""
+          }`}
+        >
           <div className="max-w-7xl mx-auto px-4 py-3 hdr-pad flex items-center justify-between relative">
             <div className="flex items-center gap-3">
               {/* DoughNation Logo - Disabled when logged in */}
               {isVerified ? (
-                <div className="flex items-center gap-3 cursor-not-allowed opacity-60" title="You are already logged in">
-                  <img src="/images/DoughNationLogo.png" alt="DoughNation logo" className="shrink-0" style={{
-                    width: "28px",
-                    height: "28px", objectFit: "contain"
-                  }} />
-                  <span className="font-extrabold brand-pop" style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}>
+                <div
+                  className="flex items-center gap-3 cursor-not-allowed opacity-60"
+                  title="You are already logged in"
+                >
+                  <img
+                    src="/images/DoughNationLogo.png"
+                    alt="DoughNation logo"
+                    className="shrink-0"
+                    style={{
+                      width: "28px",
+                      height: "28px",
+                      objectFit: "contain",
+                    }}
+                  />
+                  <span
+                    className="font-extrabold brand-pop"
+                    style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}
+                  >
                     DoughNation
                   </span>
                 </div>
               ) : (
                 <Link to="/" className="flex items-center gap-3">
-                  <img src="/images/DoughNationLogo.png" alt="DoughNation logo" className="shrink-0" style={{
-                    width: "28px",
-                    height: "28px", objectFit: "contain"
-                  }} />
-                  <span className="font-extrabold brand-pop" style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}>
+                  <img
+                    src="/images/DoughNationLogo.png"
+                    alt="DoughNation logo"
+                    className="shrink-0"
+                    style={{
+                      width: "28px",
+                      height: "28px",
+                      objectFit: "contain",
+                    }}
+                  />
+                  <span
+                    className="font-extrabold brand-pop"
+                    style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}
+                  >
                     DoughNation
                   </span>
                 </Link>
@@ -757,19 +787,25 @@ const Styles = () => (
 
               {/* Employee & Bakery Name Display - Beside DoughNation */}
               {isEmployeeMode && (
-                <div className="hidden lg:flex flex-col items-start justify-center ml-4 pl-4 border-l-2" style={{ borderColor: "#E3B57E" }}>
+                <div
+                  className="hidden lg:flex flex-col items-start justify-center ml-4 pl-4 border-l-2"
+                  style={{ borderColor: "#E3B57E" }}
+                >
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4" style={{ color: "#7a4f1c" }} />
-                    <span className="text-sm font-semibold" style={{ color: "#7a4f1c" }}>
+                    <span
+                      className="text-sm font-semibold"
+                      style={{ color: "#7a4f1c" }}
+                    >
                       {name}
                     </span>
                     {employeeRole && (
-                      <span 
+                      <span
                         className="text-xs px-2 py-0.5 rounded-full"
-                        style={{ 
+                        style={{
                           background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
                           color: "#7a4f1c",
-                          border: "1px solid #fff3e0"
+                          border: "1px solid #fff3e0",
                         }}
                       >
                         {employeeRole}
@@ -777,7 +813,10 @@ const Styles = () => (
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 mt-1">
-                    <Store className="h-3.5 w-3.5" style={{ color: "#a47134" }} />
+                    <Store
+                      className="h-3.5 w-3.5"
+                      style={{ color: "#a47134" }}
+                    />
                     <span className="text-xs" style={{ color: "#a47134" }}>
                       {bakeryName}
                     </span>
@@ -799,20 +838,28 @@ const Styles = () => (
                   <BakeryNotification />
 
                   {/* Profile Icon */}
-                  <button className="icon-btn" aria-label="Open profile" onClick={() =>
-                    navigate(`/bakery-dashboard/${id}/profile`)}
+                  <button
+                    className="icon-btn"
+                    aria-label="Open profile"
+                    onClick={() => navigate(`/bakery-dashboard/${id}/profile`)}
                     title="Profile"
                   >
-                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold"
+                    <span
+                      className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold"
                       style={{
-                        background: "linear-gradient(180deg,#FFE7C5,#F7C489)", color: "#7a4f1c",
+                        background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
+                        color: "#7a4f1c",
                         border: "1px solid #fff3e0",
-                      }}>
+                      }}
+                    >
                       {name?.trim()?.charAt(0).toUpperCase() || " "}
                     </span>
                   </button>
 
-                  <Button onClick={handleLogout} className="btn-logout flex items-center">
+                  <Button
+                    onClick={handleLogout}
+                    className="btn-logout flex items-center"
+                  >
                     <LogOut className="h-4 w-4" />
                     <span className="hidden md:flex">Log Out</span>
                   </Button>
@@ -821,8 +868,14 @@ const Styles = () => (
             </nav>
           </div>
           {/* Mobile dropdown panel */}
-          <div id="mobile-menu" className={`md:hidden transition-all duration-200 ease-out ${mobileOpen
-            ? "max-h-96 opacity-100" : "max-h-0 opacity-0 pointer-events-none"} overflow-hidden`}>
+          <div
+            id="mobile-menu"
+            className={`md:hidden transition-all duration-200 ease-out ${
+              mobileOpen
+                ? "max-h-96 opacity-100"
+                : "max-h-0 opacity-0 pointer-events-none"
+            } overflow-hidden`}
+          >
             <div className="px-4 pb-3 pt-1 flex flex-col">
               {/*
         <NotificationAction /> */}
@@ -849,22 +902,29 @@ const Styles = () => (
           <div className="seg justify-center">
             <TabsList className="flex items-center gap-1 bg-transparent p-0 border-0 overflow-x-auto no-scrollbar">
               {visibleTabs.includes("dashboard") && (
-                <TabsTrigger value="dashboard" title="Dashboard"
-                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm">
+                <TabsTrigger
+                  value="dashboard"
+                  title="Dashboard"
+                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                >
                   <LayoutDashboard className="w-4 h-4" />
                   <span className="hidden sm:inline">Dashboard</span>
                 </TabsTrigger>
               )}
               {visibleTabs.includes("inventory") && (
-                <TabsTrigger value="inventory" title="Inventory"
-                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm">
+                <TabsTrigger
+                  value="inventory"
+                  title="Inventory"
+                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                >
                   <PackageOpen className="w-4 h-4" />
                   <span className="hidden sm:inline">Inventory</span>
                 </TabsTrigger>
               )}
               {visibleTabs.includes("donations") && (
                 <TabsTrigger
-                  value="donations" title="For Donations"
+                  value="donations"
+                  title="For Donations"
                   className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
                 >
                   <HandCoins className="w-4 h-4" />
@@ -873,7 +933,8 @@ const Styles = () => (
               )}
               {visibleTabs.includes("DONATIONstatus") && (
                 <TabsTrigger
-                  value="DONATIONstatus" title="Donation Status"
+                  value="DONATIONstatus"
+                  title="Donation Status"
                   className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
                 >
                   <ListCheck className="w-4 h-4" />
@@ -882,27 +943,28 @@ const Styles = () => (
               )}
               {visibleTabs.includes("employee") && (
                 <TabsTrigger
-                  value="employee" title="Employees"
+                  value="employee"
+                  title="Employees"
                   className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
                 >
                   <Users className="w-4 h-4" />
                   <span className="hidden sm:inline">Employees</span>
                 </TabsTrigger>
-
               )}
               {visibleTabs.includes("complaints") && (
                 <TabsTrigger
-                  value="complaints" title="Complaints"
+                  value="complaints"
+                  title="Complaints"
                   className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
                 >
                   <MessageSquareWarning className="w-4 h-4" />
                   <span className="hidden sm:inline">Complaints</span>
                 </TabsTrigger>
-
               )}
               {visibleTabs.includes("reports") && (
                 <TabsTrigger
-                  value="reports" title="Reports"
+                  value="reports"
+                  title="Reports"
                   className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
                 >
                   <FileBarChart className="w-4 h-4" />
@@ -911,7 +973,8 @@ const Styles = () => (
               )}
               {visibleTabs.includes("feedback") && (
                 <TabsTrigger
-                  value="feedback" title="Feedback"
+                  value="feedback"
+                  title="Feedback"
                   className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
                 >
                   <MessageSquareDot className="w-4 h-4" />
@@ -920,7 +983,8 @@ const Styles = () => (
               )}
               {visibleTabs.includes("badges") && (
                 <TabsTrigger
-                  value="badges" title="Achievements"
+                  value="badges"
+                  title="Achievements"
                   className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
                 >
                   <Medal className="w-4 h-4" />
@@ -940,7 +1004,7 @@ const Styles = () => (
               style={{
                 background: "linear-gradient(135deg, #FFF8E1 0%, #FFECB3 100%)",
                 borderColor: "#FFB74D",
-                boxShadow: "0 4px 12px rgba(255, 152, 0, 0.15)"
+                boxShadow: "0 4px 12px rgba(255, 152, 0, 0.15)",
               }}
             >
               <AlertTriangle
@@ -958,21 +1022,20 @@ const Styles = () => (
                   className="text-sm leading-relaxed"
                   style={{ color: "#7a4f1c" }}
                 >
-                  You are logged in as a <strong>Bakery Account</strong>. All data modification operations are disabled for this account, including:
+                  You are logged in as a <strong>Bakery Account</strong>. All
+                  data modification operations are disabled for this account,
+                  including:
+                  <br />• Cannot add, edit, or delete{" "}
+                  <strong>inventory items</strong>
+                  <br />• Cannot send <strong>donations</strong>
+                  <br />• Cannot add, edit, or delete <strong>employees</strong>
+                  <br />• Cannot <strong>submit complaints</strong>
+                  <br />• Cannot <strong>generate or download reports</strong>
+                  <br />• Cannot <strong>reply to feedback</strong>
                   <br />
-                  • Cannot add, edit, or delete <strong>inventory items</strong>
                   <br />
-                  • Cannot send <strong>donations</strong>
-                  <br />
-                  • Cannot add, edit, or delete <strong>employees</strong>
-                  <br />
-                  • Cannot <strong>submit complaints</strong>
-                  <br />
-                  • Cannot <strong>generate or download reports</strong>
-                  <br />
-                  • Cannot <strong>reply to feedback</strong>
-                  <br /><br />
-                  Only <strong>employees</strong> can perform these operations. You can view all information but cannot make changes.
+                  Only <strong>employees</strong> can perform these operations.
+                  You can view all information but cannot make changes.
                 </p>
               </div>
             </div>
@@ -1210,13 +1273,13 @@ const Styles = () => (
                             "
                             title={
                               userBadge.badge_name &&
-                                userBadge.badge_name.trim() !== ""
+                              userBadge.badge_name.trim() !== ""
                                 ? userBadge.badge_name
                                 : userBadge.badge?.name
                             }
                           >
                             {userBadge.badge_name &&
-                              userBadge.badge_name.trim() !== ""
+                            userBadge.badge_name.trim() !== ""
                               ? userBadge.badge_name
                               : userBadge.badge?.name}
                           </span>
@@ -1247,7 +1310,7 @@ const Styles = () => (
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  <BakeryInventory isViewOnly={isViewOnly}/>
+                  <BakeryInventory isViewOnly={isViewOnly} />
                 </CardContent>
               </Card>
             </div>
@@ -1309,7 +1372,6 @@ const Styles = () => (
                 </CardContent>
               </Card>
             </div>
-
           </TabsContent>
 
           <TabsContent value="badges" className="reveal">

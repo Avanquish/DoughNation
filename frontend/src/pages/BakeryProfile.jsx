@@ -18,7 +18,9 @@ import {
   X,
   ChevronRight,
   ChevronLeft,
-  User, HandCoins, BarChart3
+  User,
+  HandCoins,
+  BarChart3,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Messages from "./Messages";
@@ -36,7 +38,7 @@ import Swal from "sweetalert2";
 
 const API = "http://localhost:8000";
 
-// Helpers for product status
+/* ===== Helpers ===== */
 const parseDate = (s) => (s ? new Date(s) : null);
 const daysUntil = (dateStr) => {
   const d = parseDate(dateStr);
@@ -54,7 +56,6 @@ const statusOf = (item) => {
   return "fresh";
 };
 
-// Sub-tab state management
 const SUBTAB_KEY = "bakery_profile_active_subtab";
 const ALLOWED_SUBTABS = ["about", "history", "analytics"];
 const getInitialSubTab = () => {
@@ -62,10 +63,8 @@ const getInitialSubTab = () => {
     const params = new URLSearchParams(window.location.search);
     const fromUrl = params.get("sub");
     if (fromUrl && ALLOWED_SUBTABS.includes(fromUrl)) return fromUrl;
-
     const stored = localStorage.getItem(SUBTAB_KEY);
     if (stored && ALLOWED_SUBTABS.includes(stored)) return stored;
-
     return "about";
   } catch {
     return "about";
@@ -73,9 +72,8 @@ const getInitialSubTab = () => {
 };
 
 export default function BakeryProfile() {
-  // No need for id from params - we get bakeryId from token
   const [name, setName] = useState("Bakery Name");
-  const [activeSubTab, setActiveSubTab] = useState(getInitialSubTab); // <- changed
+  const [activeSubTab, setActiveSubTab] = useState(getInitialSubTab);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isMsgOpen, setIsMsgOpen] = useState(false);
   const [inventory, setInventory] = useState([]);
@@ -92,7 +90,7 @@ export default function BakeryProfile() {
 
   const navigate = useNavigate();
 
-  // Determine if user is an employee and get the bakery ID
+  /* ===== auth decode ===== */
   useEffect(() => {
     const employeeToken = localStorage.getItem("employeeToken");
     const bakeryToken = localStorage.getItem("token");
@@ -120,14 +118,13 @@ export default function BakeryProfile() {
     }
   }, []);
 
-  // keep data fresh: inventory, employees
+  /* ===== data refresh ===== */
   useEffect(() => {
     if (!bakeryId) return;
 
     const employeeToken = localStorage.getItem("employeeToken");
     const bakeryToken = localStorage.getItem("token");
     const token = employeeToken || bakeryToken;
-
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
     const loadInventory = () =>
@@ -172,20 +169,15 @@ export default function BakeryProfile() {
   useEffect(() => {
     const fetchUser = async () => {
       if (!bakeryId) return;
-
       try {
         const employeeToken = localStorage.getItem("employeeToken");
         const bakeryToken = localStorage.getItem("token");
         const token = employeeToken || bakeryToken;
-
         if (!token) return;
 
-        // For employees, fetch the bakery's information using bakery_id
-        // For bakery owners, fetch their own information
         const res = await axios.get(`${API}/information`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
         const user = res.data;
         setProfilePic(user.profile_picture);
         setName(user.name);
@@ -193,37 +185,32 @@ export default function BakeryProfile() {
         console.error("Failed to fetch user:", err);
       }
     };
-
     fetchUser();
   }, [bakeryId]);
 
-  // Fetch badges using bakery_id (shared for both owner and employees)
   useEffect(() => {
     if (!bakeryId) return;
-
     axios
       .get(`${API}/badges/user/${bakeryId}`)
       .then((res) => setBadges(res.data))
       .catch((err) => console.error(err));
   }, [bakeryId]);
 
-  // persist sub-tab across reloads
   useEffect(() => {
     try {
       if (!activeSubTab) return;
       localStorage.setItem(SUBTAB_KEY, activeSubTab);
-
       const params = new URLSearchParams(window.location.search);
       if (params.get("sub") !== activeSubTab) {
         params.set("sub", activeSubTab);
-        const next = `${window.location.pathname}?${params.toString()}${window.location.hash
-          }`;
+        const next = `${window.location.pathname}?${params.toString()}${
+          window.location.hash
+        }`;
         window.history.replaceState({}, "", next);
       }
-    } catch { }
+    } catch {}
   }, [activeSubTab]);
 
-  // calculate inventory status counts
   const statusCounts = useMemo(() => {
     const expired = inventory.filter((i) => statusOf(i) === "expired").length;
     const soon = inventory.filter((i) => statusOf(i) === "soon").length;
@@ -271,7 +258,6 @@ export default function BakeryProfile() {
     []
   );
 
-  // UX tweaks: prevent background scroll when notif open
   useEffect(() => {
     document.documentElement.style.overflow = isNotifOpen ? "hidden" : "";
     return () => {
@@ -280,7 +266,6 @@ export default function BakeryProfile() {
   }, [isNotifOpen]);
 
   const handleLogout = () => {
-    // Clear both token types (one will exist depending on user type)
     localStorage.removeItem("token");
     localStorage.removeItem("employeeToken");
     localStorage.removeItem("bakery_active_tab");
@@ -339,7 +324,6 @@ export default function BakeryProfile() {
 
       setIsEditOpen(false);
       window.dispatchEvent(new Event("profile:updated"));
-
       Swal.fire({
         icon: "success",
         title: "Profile Updated",
@@ -360,13 +344,11 @@ export default function BakeryProfile() {
   const handleChangePassword = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem("token");
-
     const data = {
       current_password: e.target.current_password.value,
       new_password: e.target.new_password.value,
       confirm_password: e.target.confirm_password.value,
     };
-
     if (data.new_password !== data.confirm_password) {
       Swal.fire({
         icon: "error",
@@ -375,7 +357,6 @@ export default function BakeryProfile() {
       });
       return;
     }
-
     try {
       await axios.put(`${API}/changepass`, data, {
         headers: {
@@ -383,7 +364,6 @@ export default function BakeryProfile() {
           "Content-Type": "application/json",
         },
       });
-
       setIsChangePassOpen(false);
       Swal.fire({
         icon: "success",
@@ -402,86 +382,84 @@ export default function BakeryProfile() {
     }
   };
 
-  // Styles
+  /* ===== CSS ===== */
   const Styles = () => (
     <style>{`
       :root{
         --ink:#7a4f1c;
-        --grad1:#FFFCF6; --grad2:#FFF3E3; --grad3:#FFE9CF; --grad4:#F9D9AE;
         --brand1:#F6C17C; --brand2:#E49A52; --brand3:#BF7327;
       }
 
-      .page-bg{position:fixed; inset:0; z-index:-10; overflow:hidden; pointer-events:none;}
-      .page-bg::before,.page-bg::after{content:""; position:absolute; inset:0}
-      .page-bg::before{
-        background:
-          radial-gradient(1200px 520px at 12% -10%, var(--grad1) 0%, var(--grad2) 45%, transparent 70%),
-          radial-gradient(900px 420px at 110% 18%, rgba(255,208,153,.28), transparent 70%),
-          linear-gradient(135deg, #FFFEFB 0%, #FFF8ED 60%, #FFEFD9 100%);
-        animation: drift 26s ease-in-out infinite alternate;
+      .page-bg{position:fixed; inset:0; z-index:-10; pointer-events:none;}
+      .page-bg::before{content:""; position:absolute; inset:0;
+        background:linear-gradient(135deg,#FFFEFB 0%, #FFF8ED 60%, #FFEFD9 100%);
       }
-              .page-bg::after{
-        background: repeating-linear-gradient(-35deg, rgba(201,124,44,.045) 0 8px, rgba(201,124,44,0) 8px 18px);
-        mix-blend-mode:multiply; opacity:.10; animation: pan 40s linear infinite;
-      }
-      .blob{position:absolute; width:420px; height:420px; border-radius:50%; filter:blur(36px); mix-blend-mode:multiply; opacity:.14}
-      .blob.a{left:-120px; top:30%; background:radial-gradient(circle at 35% 35%, #ffd9aa, transparent 60%); animation: blob 18s ease-in-out infinite alternate;}
-      .blob.b{right:-140px; top:6%; background:radial-gradient(circle at 60% 40%, #ffc985, transparent 58%); animation: blob 20s 2s ease-in-out infinite alternate;}
-      @keyframes drift{from{transform:translate3d(0,0,0)}to{transform:translate3d(0,-18px,0)}}
-      @keyframes pan{from{transform:translate3d(0,0,0)}to{transform:translate3d(-6%,-6%,0)}}
-      @keyframes blob{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(24px,-20px,0) scale(1.04)}}
 
-      .head{position:sticky; top:0; z-index:40; border-bottom:1px solid rgba(0,0,0,.06); backdrop-filter: blur(10px);}
-      .head-bg{position:absolute; inset:0; z-index:-1; opacity:.96;
-        background: linear-gradient(110deg, #ffffff 0%, #fff9f1 28%, #ffefd9 55%, #ffe5c2 100%);
+      /* ====== HEADER styles aligned to BakeryDashboard ====== */
+      .head{position:sticky; top:0; z-index:80; border-bottom:1px solid rgba(0,0,0,.06);}
+      .head-bg{position:absolute; inset:0; z-index:-1; opacity:.92;
+        background: linear-gradient(110deg, #ffffff 0%, #fff8ec 28%, #ffeccd 55%, #ffd7a6 100%);
         background-size: 220% 100%;
         animation: headerSlide 18s linear infinite;
       }
       @keyframes headerSlide{0%{background-position:0% 50%}100%{background-position:100% 50%}}
-      .head-inner{max-width:80rem; margin:0 auto; padding:.9rem 1rem;}
-      .brand{display:flex; gap:.8rem; align-items:center}
-      .ring{width:48px; height:48px; border-radius:9999px; padding:2px; background:conic-gradient(from 210deg,#F7C789,#E8A765,#C97C2C,#E8A765,#F7C789); animation: spin 10s linear infinite; box-shadow:0 10px 24px rgba(201,124,44,.16)}
-      .ring>div{width:100%; height:100%; border-radius:9999px; background:#fff; display:flex; align-items:center; justify-content:center}
-      @keyframes spin{to{transform:rotate(360deg)}}
-      .bread{transform-origin:50% 60%; animation: float 6s ease-in-out infinite}
-      @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
-      .title-ink{font-weight:800; letter-spacing:.2px; background:linear-gradient(90deg,#F3B56F,#E59B50,#C97C2C); -webkit-background-clip:text; background-clip:text; color:transparent}
+      .hdr-container{max-width:80rem; margin:0 auto; padding:.9rem 1rem; display:flex; align-items:center; justify-content:space-between; gap:1rem;}
 
-      /* 'Profile' pill */
-      .status-chip{display:inline-flex; align-items:center; gap:.5rem; margin-top:.15rem; padding:.30rem .72rem; font-size:.82rem; border-radius:9999px; color:#7a4f1c; background:linear-gradient(180deg,#FFE7C5,#F7C489); border:1px solid #fff3e0; font-weight:800;}
+      .brand-left{display:flex; align-items:center; gap:.75rem;}
+      .brand-left img{width:28px; height:28px; object-fit:contain;}
+      .brand-pop {
+        background: linear-gradient(90deg, #E3B57E 0%, #F3C27E 25%, #E59B50 50%, #C97C2C 75%, #E3B57E 100%);
+        background-size: 300% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        color: transparent;
+        animation: brandShimmer 6s ease-in-out infinite;
+        letter-spacing:.2px;
+        font-weight:800;
+        font-size: clamp(1.15rem, 1rem + 1vw, 1.6rem);
+      }
+      @keyframes brandShimmer{
+        0%{background-position:0% 50%}
+        50%{background-position:100% 50%}
+        100%{background-position:0% 50%}
+      }
 
       .iconbar{display:flex; align-items:center; gap:.5rem}
       .icon-btn{position:relative; display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:9999px; background:rgba(255,255,255,.92); border:1px solid rgba(0,0,0,.06); box-shadow:0 6px 16px rgba(201,124,44,.14); transition:transform .18s ease, box-shadow .18s ease}
       .icon-btn:hover{transform:translateY(-1px); box-shadow:0 10px 22px rgba(201,124,44,.20)}
 
-      /* Buttons */
-.btn-logout{
-  position:relative; overflow:hidden;
-  border-radius:9999px; padding:.58rem .95rem; gap:.5rem;
-  background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3));
-  color:#fff; border:1px solid rgba(255,255,255,.6);
-  box-shadow:0 8px 26px rgba(201,124,44,.25);
-  transition:transform .18s ease, box-shadow .18s ease, filter .18s ease;
-}
-.btn-logout:before{
-  content:""; position:absolute; top:-40%; bottom:-40%; left:-70%; width:60%;
-  transform:rotate(10deg);
-  background:linear-gradient(90deg, rgba(255,255,255,.26), rgba(255,255,255,0) 55%);
-  animation: shine 3.2s linear infinite;
-}
-@keyframes shine { from{ left:-70% } to{ left:120% } }
-.btn-logout:hover{
-  transform:translateY(-1px) scale(1.02);
-  box-shadow:0 12px 34px rgba(201,124,44,.32);
-  filter:saturate(1.05);
-}
+      .btn-logout{
+        position:relative; overflow:hidden;
+        border-radius:9999px; padding:.58rem .95rem; gap:.5rem;
+        background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3));
+        color:#fff; border:1px solid rgba(255,255,255,.6);
+        box-shadow:0 8px 26px rgba(201,124,44,.25);
+        transition:transform .18s ease, box-shadow .18s ease, filter .18s ease;
+      }
+      .btn-logout:hover{transform:translateY(-1px) scale(1.02); box-shadow:0 12px 34px rgba(201,124,44,.32); filter:saturate(1.05);}
 
-      .btn-pill{
-        position:relative; overflow:hidden; border-radius:9999px; padding:.65rem 1.05rem;
+      /* ===== HERO & BACK FAB ===== */
+      .hero{position:relative; border-radius:16px; overflow:hidden; box-shadow:0 12px 34px rgba(201,124,44,.10)}
+      .hero-bg{position:absolute; inset:0; background:linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,.0)), linear-gradient(135deg,#fbeedc,#f7cea1);}
+      .avatar-ring{position:relative; width:120px; height:120px; border-radius:9999px; padding:3px; background:conic-gradient(from 210deg,#F7C789,#E8A765,#C97C2C,#E8A765,#F7C789)}
+      .avatar-ring>img{width:100%; height:100%; object-fit:cover; border-radius:9999px; background:#fff}
+
+      .back-fab-hero{
+        position:absolute; right:16px; top:16px;
+        width:46px; height:46px; border-radius:9999px;
+        display:flex; align-items:center; justify-content:center;
+        background:#fff; border:1px solid rgba(0,0,0,.06);
+        box-shadow:0 10px 22px rgba(201,124,44,.18);
+        transition:transform .18s ease, box-shadow .18s ease;
+        z-index: 50; /* ensure always clickable */
+      }
+      .back-fab-hero:hover{transform:translateY(-1px); box-shadow:0 14px 30px rgba(201,124,44,.24);}
+
+      .btn-pill{position:relative; overflow:hidden; border-radius:9999px; padding:.65rem 1.05rem;
         background:linear-gradient(135deg,#F6C17C,#BF7327); color:#fff; font-weight:700;
         border:1px solid rgba(255,255,255,.65); box-shadow:0 10px 28px rgba(201,124,44,.28);
-        transition:transform .18s ease, box-shadow .18s ease;
-      }
+        transition:transform .18s ease, box-shadow .18s ease;}
       .btn-pill:hover{ transform:translateY(-1px) scale(1.02); box-shadow:0 14px 36px rgba(201,124,44,.34); }
       .btn-change{
         border-radius:9999px; padding:.65rem 1.05rem; font-weight:800; color:var(--ink);
@@ -492,63 +470,28 @@ export default function BakeryProfile() {
       }
       .btn-change:hover{ transform:translateY(-1px) scale(1.02); background:linear-gradient(180deg,#fffaf2,#ffe4c6); box-shadow:inset 0 1px 0 #ffffff, 0 12px 30px rgba(201,124,44,.24); }
 
-      /* hero + avatar */
-      .hero{position:relative; border-radius:16px; overflow:hidden; box-shadow:0 12px 34px rgba(201,124,44,.10)}
-      .hero-bg{position:absolute; inset:0; background:linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,.0)), linear-gradient(135deg,#fbeedc,#f7cea1);}
-      .hero-pattern{position:absolute; inset:0; opacity:.10}
-      .avatar-ring{position:relative; width:120px; height:120px; border-radius:9999px; padding:3px; background:conic-gradient(from 210deg,#F7C789,#E8A765,#C97C2C,#E8A765,#F7C789)}
-      .avatar-ring>img{width:100%; height:100%; object-fit:cover; border-radius:9999px; background:#fff}
+      .seg-wrap{max-width:80rem; margin:.75rem auto 0;}
+      .seg{display:flex; gap:.4rem; background:rgba(255,255,255,.94); border:1px solid rgba(0,0,0,.07); border-radius:12px; padding:.3rem; box-shadow:0 8px 24px rgba(201,124,44,.10);}
+      .seg [role="tab"]{border-radius:10px; padding:.48rem .95rem; color:#6b4b2b; font-weight:700}
+      .seg [role="tab"][data-state="active"]{color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); box-shadow:0 8px 18px rgba(201,124,44,.28)}
 
-      /* inner segment tabs like dashboard seg */
-      .subseg{display:flex; gap:.4rem; background:rgba(255,255,255,.94); border:1px solid rgba(0,0,0,.07); border-radius:12px; padding:.3rem; box-shadow:0 8px 24px rgba(201,124,44,.08); width:fit-content}
-      .subseg [role="tab"]{border-radius:10px; padding:.48rem .95rem; color:#6b4b2b; font-weight:700}
-      .subseg [role="tab"][data-state="active"]{color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); box-shadow:0 8px 18px rgba(201,124,44,.28)}
+      .glass-card{border-radius:15px; background:rgba(255,255,255,.94); backdrop-filter:blur(8px)}
+      .gwrap{position:relative; border-radius:16px; padding:1px; background:linear-gradient(135deg, rgba(247,199,137,.9), rgba(201,124,44,.55));}
+      .tile{transition:transform .18s ease, box-shadow .18s ease;}
+      .tile:hover{transform:translateY(-2px) scale(1.02); box-shadow:0 10px 28px rgba(201,124,44,.16);}
 
-      /* overlay + modals */
-      .overlay-root{position:fixed; inset:0; z-index:50;}
+      .brown-title{color:#7a4f1c;}
+
+      .overlay-root{position:fixed; inset:0; z-index:60;}
       .overlay-bg{position:absolute; inset:0; background:rgba(0,0,0,.32); backdrop-filter: blur(6px); opacity:0; animation: showBg .2s ease forwards}
       @keyframes showBg{to{opacity:1}}
       .overlay-panel{position:relative; margin:6rem auto 2rem; width:min(92%, 560px); border-radius:16px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,.18)}
       .overlay-enter{transform:translateY(10px) scale(.98); opacity:0; animation: pop .22s ease forwards}
       @keyframes pop{to{transform:translateY(0) scale(1); opacity:1}}
-
-      .modal-card{background:rgba(255,255,255,.96); backdrop-filter: blur(8px); border-radius:16px; border:1px solid rgba(0,0,0,.06); transition: transform .2s ease, box-shadow .2s ease;}
-      .modal-card:hover{transform: scale(1.01); box-shadow: 0 28px 70px rgba(0,0,0,.22);}
+      .modal-card{background:rgba(255,255,255,.96); backdrop-filter: blur(8px); border-radius:16px; border:1px solid rgba(0,0,0,.06);}
       .modal-head{background:linear-gradient(180deg,#fff,#fff8ef); border-bottom:1px solid rgba(0,0,0,.06)}
       .modal-input{border-radius:10px; padding:.65rem .8rem; border:1px solid rgba(0,0,0,.18)}
       .modal-input:focus{outline:none; border-color:#E49A52; box-shadow:0 0 0 3px rgba(228,154,82,.2)}
-
-      /* titles */
-      .brown-title { color: #7a4f1c; }
-
-      /* dashboard-like wrappers + chips for tiles */
-      .gwrap{position:relative; border-radius:16px; padding:1px; background:linear-gradient(135deg, rgba(247,199,137,.9), rgba(201,124,44,.55)); background-size:200% 200%; animation:borderShift 8s ease-in-out infinite}
-      @keyframes borderShift{0%{background-position:0% 0%}50%{background-position:100% 100%}100%{background-position:0% 0%}}
-      .glass-card{border-radius:15px; background:rgba(255,255,255,.94); backdrop-filter:blur(8px)}
-      .chip{width:46px; height:46px; display:flex; align-items:center; justify-content:center; border-radius:9999px; background:linear-gradient(180deg,#FFE7C5,#F7C489); color:#8a5a25; border:1px solid #fff3e0; box-shadow:0 6px 18px rgba(201,124,44,.18)}
-
-      /* hover zooms */
-      .card-zoom{ transition:transform .18s ease, box-shadow .18s ease; will-change: transform; }
-      .card-zoom:hover{ transform:translateY(-2px) scale(1.02); box-shadow:0 18px 44px rgba(201,124,44,.18); }
-      .tile{ transition:transform .18s ease, box-shadow .18s ease; will-change: transform; }
-      .tile:hover{ transform:translateY(-2px) scale(1.02); box-shadow:0 10px 28px rgba(201,124,44,.16); }
-
-      .seg-wrap{max-width: 80rem;margin: .75rem auto 0;}
-      .seg{display: flex;
-      gap: .4rem;
-      background: rgba(255, 255, 255, .94);
-      border: 1px solid rgba(0, 0, 0, .07);
-      border-radius: 12px;
-      padding: .3rem;
-      box-shadow: 0 8px 24px rgba(201, 124, 44, .10);}
-      .seg [role="tab"]{border-radius:10px; padding:.48rem .95rem; color:#6b4b2b; font-weight:700}
-      .seg [role="tab"][data-state="active"]{color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); box-shadow:0 8px 18px rgba(201,124,44,.28)}
-
-
-      /* NOTIFICATION THEME — match with dashboard */
-      .notif-card{ background:linear-gradient(180deg,#ffffff,#fff8ef); }
-      .notif-head{ background:linear-gradient(90deg,#FFE7C5,#F6C17C,#E49A52); color:#572f00; }
-      .notif-section{ padding:.6rem .9rem; font-size:.78rem; font-weight:800; color:#7a4f1c; background:linear-gradient(180deg,#fff7ec,#ffefd9); }
     `}</style>
   );
 
@@ -561,244 +504,47 @@ export default function BakeryProfile() {
   return (
     <div className="min-h-screen relative">
       <Styles />
-      <div className="page-bg">
-        <span className="blob a" />
-        <span className="blob b" />
-      </div>
+      <div className="page-bg" />
 
-      {/* Header */}
+      {/* ===== HEADER ===== */}
       <header className="head">
         <div className="head-bg" />
-        <div className="head-inner">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <div className="brand gap-2">
-                {/* Go Back beside rotating logo */}
-                <button
-                  className="icon-btn"
-                  aria-label="Back to dashboard"
-                  title="Back to Dashboard"
-                  onClick={() =>
-                    navigate(`/bakery-dashboard/${bakeryId}?tab=dashboard`)
-                  }
-                >
-                  <ChevronLeft className="h-[18px] w-[18px]" />
-                </button>
+        <div className="hdr-container">
+          <div className="brand-left">
+            <img src="/images/DoughNationLogo.png" alt="DoughNation" />
+            <span className="brand-pop">DoughNation</span>
+          </div>
 
-                {/* Rotating ring + bread glyph */}
-                <div className="ring">
-                  <div>
-                    <svg
-                      width="28"
-                      height="28"
-                      viewBox="0 0 64 48"
-                      aria-hidden="true"
-                      className="bread"
-                    >
-                      <rect
-                        x="4"
-                        y="12"
-                        rx="12"
-                        ry="12"
-                        width="56"
-                        height="28"
-                        fill="#E8B06A"
-                      />
-                      <path
-                        d="M18 24c0-3 3-5 7-5s7 2 7 5m4 0c0-3 3-5 7-5s7 2 7 5"
-                        stroke="#9A5E22"
-                        strokeWidth="2.2"
-                        strokeLinecap="round"
-                        fill="none"
-                      />
-                    </svg>
-                  </div>
-                </div>
-
-                <div className="min-w-0 ml-1">
-                  <h1 className="title-ink text-2xl sm:text-[26px] truncate">
-                    {name}
-                  </h1>
-                  <span className="status-chip">Profile</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Right-side actions */}
-            <div className="pt-1 iconbar">
-              <Messages currentUser={currentUser} />
-              <BakeryNotification />
-              <Button
-                onClick={handleLogout}
-                className="btn-logout flex items-center"
-              >
-                <LogOut className="h-4 w-4" />
-                <span>Log Out</span>
-              </Button>
-            </div>
+          <div className="iconbar">
+            <Messages currentUser={currentUser} />
+            <BakeryNotification />
+            <Button
+              onClick={handleLogout}
+              className="btn-logout flex items-center"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden md:flex">Log Out</span>
+            </Button>
           </div>
         </div>
       </header>
 
-      {/* Notifications overlay */}
-      {isNotifOpen && (
-        <div
-          className="overlay-root"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Notifications"
-        >
-          <div className="overlay-bg" onClick={() => setIsNotifOpen(false)} />
-          <div className="overlay-panel overlay-enter">
-            <Card className="modal-card notif-card">
-              <CardHeader className="pb-2 modal-head notif-head">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="brown-title">Notifications</CardTitle>
-                    <CardDescription>
-                      Product alerts & message notifications
-                    </CardDescription>
-                  </div>
-                  <button
-                    className="rounded-md p-2 hover:bg-black/5"
-                    aria-label="Close notifications"
-                    onClick={() => setIsNotifOpen(false)}
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <ul className="max-h-[60vh] overflow-auto divide-y divide-[rgba(0,0,0,.06)]">
-                  <li className="notif-section">Inventory</li>
-                  {productAlerts.length === 0 && (
-                    <li className="p-6 text-sm text-muted-foreground">
-                      No inventory alerts.
-                    </li>
-                  )}
-                  {productAlerts
-                    .filter((n) => !readProductIds.has(n.id))
-                    .map((n) => (
-                      <li
-                        key={n.id}
-                        className="p-4 hover:bg黑/5 cursor-pointer"
-                        onClick={() => handleClickProductNotification(n)}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="chip mt-0.5">
-                            {n.status === "expired" ? (
-                              <AlertTriangle className="h-4 w-4" />
-                            ) : (
-                              <Clock className="h-4 w-4" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="font-semibold truncate">{n.name}</p>
-                              <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                {n.dateText}
-                              </span>
-                            </div>
-                            <p className="text-sm text-muted-foreground">
-                              {n.status === "expired"
-                                ? `${n.quantity} item(s) expired`
-                                : `${n.quantity} item(s) expiring in ${n.days} day(s)`}
-                            </p>
-                            <div
-                              className="mt-1 inline-flex items-center gap-2 text-xs font-medium px-2 py-1 rounded-full border"
-                              style={{
-                                background:
-                                  n.status === "expired"
-                                    ? "#fff1f0"
-                                    : "#fff8e6",
-                                borderColor:
-                                  n.status === "expired"
-                                    ? "#ffd6d6"
-                                    : "#ffe7bf",
-                                color:
-                                  n.status === "expired"
-                                    ? "#c92a2a"
-                                    : "#8a5a25",
-                              }}
-                            >
-                              {n.status === "expired"
-                                ? "Expired"
-                                : "Expires Soon"}
-                            </div>
-                          </div>
-                          <ChevronRight className="h-4 w-4 ml-auto text-muted-foreground" />
-                        </div>
-                      </li>
-                    ))}
-
-                  <li className="notif-section">Messages</li>
-                  {messageNotifs.filter((m) => !readMessageIds.has(m.id))
-                    .length === 0 && (
-                      <li className="p-6 text-sm text-muted-foreground">
-                        No message notifications.
-                      </li>
-                    )}
-                  {messageNotifs
-                    .filter((m) => !readMessageIds.has(m.id))
-                    .map((m) => (
-                      <li
-                        key={m.id}
-                        className="p-4 hover:bg黑/5 cursor-pointer"
-                        onClick={() => handleClickMessageNotification(m)}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="chip mt-0.5">
-                            <MessageSquareText className="h-4 w-4" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-semibold truncate">{m.title}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {m.snippet}
-                            </p>
-                          </div>
-                          <ChevronRight className="h-4 w-4 ml-auto text-muted-foreground" />
-                        </div>
-                      </li>
-                    ))}
-
-                  <li className="p-4 bg-[#fff9f0]">
-                    <div className="flex items-center gap-3">
-                      <div className="chip">
-                        <Package className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <p className="font-semibold">Inventory Alerts</p>
-                        <p className="text-sm text-muted-foreground">
-                          Expired: {statusCounts.expired} • Nearing Expiration:{" "}
-                          {statusCounts.soon}
-                        </p>
-                      </div>
-                    </div>
-                  </li>
-                </ul>
-                <div className="p-3 flex justify-end gap-2">
-                  <Button variant="ghost" onClick={() => setIsNotifOpen(false)}>
-                    Close
-                  </Button>
-                  <Button
-                    onClick={() =>
-                      navigate(`/bakery-dashboard/${bakeryId}?tab=inventory`)
-                    }
-                  >
-                    View Inventory
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      )}
-
-      {/* hero + subtabs */}
+      {/* ===== HERO ===== */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7 space-y-6">
         <div className="hero">
           <div className="hero-bg" />
-          <div className="hero-pattern" />
+
+          <button
+            className="back-fab-hero"
+            aria-label="Back to dashboard"
+            title="Back"
+            onClick={() =>
+              navigate(`/bakery-dashboard/${bakeryId}?tab=dashboard`)
+            }
+          >
+            <ChevronLeft className="h-[18px] w-[18px]" />
+          </button>
+
           <div className="relative p-6 sm:p-8">
             <div className="flex flex-col md:flex-row md:items-end gap-3">
               <div className="avatar-ring shrink-0">
@@ -806,8 +552,7 @@ export default function BakeryProfile() {
                   src={
                     profilePic ? `${API}/${profilePic}` : "/default-avatar.png"
                   }
-                  alt="Profile Picture"
-                  className="h-32 w-32 rounded-full object-cover"
+                  alt="Profile"
                 />
               </div>
 
@@ -835,7 +580,7 @@ export default function BakeryProfile() {
               </div>
             </div>
 
-            {/* Edit Profile Modal */}
+            {/* ===== Edit Profile Modal ===== */}
             {isEditOpen && (
               <div className="overlay-root" role="dialog">
                 <div
@@ -912,7 +657,7 @@ export default function BakeryProfile() {
               </div>
             )}
 
-            {/* Change Password Modal */}
+            {/* ===== Change Password Modal ===== */}
             {isChangePassOpen && (
               <div className="overlay-root" role="dialog">
                 <div
@@ -977,7 +722,7 @@ export default function BakeryProfile() {
               </div>
             )}
 
-            {/* Subtabs (About / Donation History / Analytics) */}
+            {/* ===== Subtabs ===== */}
             <div className="mt-6">
               <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
                 <div className="seg-wrap">
@@ -996,7 +741,9 @@ export default function BakeryProfile() {
                         className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
                       >
                         <HandCoins className="w-4 h-4" />
-                        <span className="hidden sm:inline">Donation History</span>
+                        <span className="hidden sm:inline">
+                          Donation History
+                        </span>
                       </TabsTrigger>
 
                       <TabsTrigger
@@ -1004,11 +751,15 @@ export default function BakeryProfile() {
                         className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
                       >
                         <BarChart3 className="w-4 h-4" />
-                        <span className="hidden sm:inline">Analytics &amp; Badges</span>
+                        <span className="hidden sm:inline">
+                          Analytics &amp; Badges
+                        </span>
                       </TabsTrigger>
                     </TabsList>
                   </div>
                 </div>
+
+                {/* About */}
                 <TabsContent value="about" className="pt-6">
                   <div className="gwrap">
                     <Card className="glass-card shadow-none card-zoom">
@@ -1054,7 +805,7 @@ export default function BakeryProfile() {
                   </div>
                 </TabsContent>
 
-                {/* Donation History */}
+                {/* History */}
                 <TabsContent value="history" className="pt-6">
                   <div className="gwrap">
                     <Card className="glass-card shadow-none h-[560px] flex flex-col card-zoom">
@@ -1075,12 +826,12 @@ export default function BakeryProfile() {
                   </div>
                 </TabsContent>
 
+                {/* Analytics */}
                 <TabsContent value="analytics" className="pt-6 space-y-6">
                   <div className="gwrap">
                     <Card className="glass-card shadow-none card-zoom">
                       <CardHeader className="pb-2">
                         <CardTitle className="brown-title">Badges</CardTitle>
-                        <CardDescription />
                       </CardHeader>
                       <CardContent className="min-h-[80px] flex flex-wrap gap-4">
                         {badges && badges.length > 0 ? (
@@ -1101,7 +852,7 @@ export default function BakeryProfile() {
                               />
                               <span className="text-xs mt-1">
                                 {userBadge.badge_name &&
-                                  userBadge.badge_name.trim() !== ""
+                                userBadge.badge_name.trim() !== ""
                                   ? userBadge.badge_name
                                   : userBadge.badge?.name}
                               </span>
@@ -1212,7 +963,7 @@ export default function BakeryProfile() {
                                       name: "Other",
                                       value: Math.max(
                                         statusCounts.total -
-                                        statusCounts.expired,
+                                          statusCounts.expired,
                                         0
                                       ),
                                     },
@@ -1240,6 +991,168 @@ export default function BakeryProfile() {
           </div>
         </div>
       </div>
+
+      {/* ===== Notifications overlay ===== */}
+      {isNotifOpen && (
+        <div
+          className="overlay-root"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Notifications"
+        >
+          <div className="overlay-bg" onClick={() => setIsNotifOpen(false)} />
+          <div className="overlay-panel overlay-enter">
+            <Card className="modal-card">
+              <CardHeader className="pb-2 modal-head">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="brown-title">Notifications</CardTitle>
+                    <CardDescription>
+                      Product alerts & message notifications
+                    </CardDescription>
+                  </div>
+                  <button
+                    className="rounded-md p-2 hover:bg-black/5"
+                    aria-label="Close"
+                    onClick={() => setIsNotifOpen(false)}
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ul className="max-h-[60vh] overflow-auto divide-y divide-[rgba(0,0,0,.06)]">
+                  <li className="px-4 py-2 text-xs font-bold text-[var(--ink)] bg-[#fff7ec]">
+                    Inventory
+                  </li>
+
+                  {productAlerts.length === 0 && (
+                    <li className="p-6 text-sm text-muted-foreground">
+                      No inventory alerts.
+                    </li>
+                  )}
+
+                  {productAlerts
+                    .filter((n) => !readProductIds.has(n.id))
+                    .map((n) => (
+                      <li
+                        key={n.id}
+                        className="p-4 hover:bg-black/5 cursor-pointer"
+                        onClick={() => handleClickProductNotification(n)}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-11 h-11 rounded-full flex items-center justify-center border bg-[#FFF1DE] text-[#8a5a25]">
+                            {n.status === "expired" ? (
+                              <AlertTriangle className="h-4 w-4" />
+                            ) : (
+                              <Clock className="h-4 w-4" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="font-semibold truncate">{n.name}</p>
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                {n.dateText}
+                              </span>
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              {n.status === "expired"
+                                ? `${n.quantity} item(s) expired`
+                                : `${n.quantity} item(s) expiring in ${n.days} day(s)`}
+                            </p>
+                            <div
+                              className="mt-1 inline-flex items-center gap-2 text-xs font-medium px-2 py-1 rounded-full border"
+                              style={{
+                                background:
+                                  n.status === "expired"
+                                    ? "#fff1f0"
+                                    : "#fff8e6",
+                                borderColor:
+                                  n.status === "expired"
+                                    ? "#ffd6d6"
+                                    : "#ffe7bf",
+                                color:
+                                  n.status === "expired"
+                                    ? "#c92a2a"
+                                    : "#8a5a25",
+                              }}
+                            >
+                              {n.status === "expired"
+                                ? "Expired"
+                                : "Expires Soon"}
+                            </div>
+                          </div>
+                          <ChevronRight className="h-4 w-4 ml-auto text-muted-foreground" />
+                        </div>
+                      </li>
+                    ))}
+
+                  <li className="px-4 py-2 text-xs font-bold text-[var(--ink)] bg-[#fff7ec]">
+                    Messages
+                  </li>
+
+                  {messageNotifs.filter((m) => !readMessageIds.has(m.id))
+                    .length === 0 && (
+                    <li className="p-6 text-sm text-muted-foreground">
+                      No message notifications.
+                    </li>
+                  )}
+
+                  {messageNotifs
+                    .filter((m) => !readMessageIds.has(m.id))
+                    .map((m) => (
+                      <li
+                        key={m.id}
+                        className="p-4 hover:bg-black/5 cursor-pointer"
+                        onClick={() => handleClickMessageNotification(m)}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-11 h-11 rounded-full flex items-center justify-center border bg-[#FFF1DE] text-[#8a5a25]">
+                            <MessageSquareText className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold truncate">{m.title}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {m.snippet}
+                            </p>
+                          </div>
+                          <ChevronRight className="h-4 w-4 ml-auto text-muted-foreground" />
+                        </div>
+                      </li>
+                    ))}
+
+                  <li className="p-4 bg-[#fff9f0]">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-full flex items-center justify-center border bg-[#FFF1DE] text-[#8a5a25]">
+                        <Package className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="font-semibold">Inventory Alerts</p>
+                        <p className="text-sm text-muted-foreground">
+                          Expired: {statusCounts.expired} • Nearing Expiration:{" "}
+                          {statusCounts.soon}
+                        </p>
+                      </div>
+                    </div>
+                  </li>
+                </ul>
+                <div className="p-3 flex justify-end gap-2">
+                  <Button variant="ghost" onClick={() => setIsNotifOpen(false)}>
+                    Close
+                  </Button>
+                  <Button
+                    onClick={() =>
+                      navigate(`/bakery-dashboard/${bakeryId}?tab=inventory`)
+                    }
+                  >
+                    View Inventory
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

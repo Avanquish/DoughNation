@@ -51,6 +51,7 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     print(f"🔐 UNIFIED LOGIN ATTEMPT")
     print(f"   Identifier: '{user.email}'")
     print(f"   Password: {'*' * len(user.password)}")
+    print(f"   Expected Role (from slider): {user.role if user.role else 'Not specified'}")
     
     identifier = user.email.strip()
     
@@ -58,6 +59,26 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     db_user = db.query(models.User).filter(models.User.email == identifier).first()
     
     if db_user:
+        # ✅ VALIDATE ROLE MATCHES SLIDER SELECTION
+        if user.role and db_user.role != user.role:
+            print(f"❌ Role mismatch - User is {db_user.role}, but slider shows {user.role}")
+            print(f"{'='*80}\n")
+            
+            # Log failed login attempt (role mismatch)
+            log_system_event(
+                db=db,
+                event_type="failed_login",
+                description=f"Failed login attempt - Role mismatch: User {db_user.email} is {db_user.role}, attempted login as {user.role}",
+                severity="warning",
+                user_id=db_user.id,
+                metadata={"email": db_user.email, "actual_role": db_user.role, "attempted_role": user.role, "reason": "role_mismatch"}
+            )
+            
+            raise HTTPException(
+                status_code=403, 
+                detail=f"Account role mismatch. This account is registered as '{db_user.role}'. Please select '{db_user.role}' on the login slider and try again."
+            )
+        
         # Found a User account - verify password
         if not verify_password(user.password, db_user.hashed_password):
             print(f"❌ Invalid password for User account")
@@ -76,6 +97,7 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
         print(f"✅ User authenticated: {db_user.name} (Role: {db_user.role})")
+        print(f"   Role validation: PASSED")
         print(f"{'='*80}\n")
         
         # Generate token with type based on role

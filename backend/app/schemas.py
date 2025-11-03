@@ -32,6 +32,7 @@ class UserOut(BaseModel):
 class UserLogin(BaseModel):
     email: str  # Changed from EmailStr to str - now accepts both email and employee name
     password: str
+    role: str | None = None  # Optional role for validation (Bakery, Charity, Admin)
 
 class Token(BaseModel):
     access_token: str

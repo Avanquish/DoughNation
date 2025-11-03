@@ -2205,7 +2205,8 @@ const handleWeeklyFilter = () => {
                                 "Week End",
                                 "Total Direct Donations",
                                 "Total Request Donations",
-                                "Total Donations",
+                                "Total Received Quantity",
+                                "Total Transactions",
                                 
                               ].map((h) => (
                                 <th key={h} className="px-4 py-2 font-semibold">
@@ -2230,6 +2231,9 @@ const handleWeeklyFilter = () => {
                               </td>
                               <td className="px-4 py-2 border-t border-[#f2d4b5]">
                                 {reportData.total_donations}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_transactions}
                               </td>
                             </tr>
                           </tbody>
@@ -2329,7 +2333,8 @@ const handleWeeklyFilter = () => {
                                 "Month",
                                 "Total Direct Donations",
                                 "Total Request Donations",
-                                "Total Donations",
+                                "Total Received Quantity",
+                                "Total Transactions",
                               ].map((h) => (
                                 <th key={h} className="px-4 py-2 font-semibold">
                                   {h}
@@ -2350,6 +2355,9 @@ const handleWeeklyFilter = () => {
                               </td>
                               <td className="px-4 py-2 border-t border-[#f2d4b5]">
                                 {reportData.total_donations}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_transactions}
                               </td>
                             </tr>
                           </tbody>

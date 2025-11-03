@@ -1,6 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, UploadFile, Form, File, HTTPException
 from sqlalchemy.orm import Session
+from datetime import date
 from app import crud, auth, database, schemas, models
 from app.auth import create_access_token, get_current_user, verify_password
 from app.event_logger import log_system_event
@@ -50,6 +51,7 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     print(f"🔐 UNIFIED LOGIN ATTEMPT")
     print(f"   Identifier: '{user.email}'")
     print(f"   Password: {'*' * len(user.password)}")
+    print(f"   Expected Role (from slider): {user.role if user.role else 'Not specified'}")
     
     identifier = user.email.strip()
     
@@ -57,6 +59,26 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     db_user = db.query(models.User).filter(models.User.email == identifier).first()
     
     if db_user:
+        # ✅ VALIDATE ROLE MATCHES SLIDER SELECTION
+        if user.role and db_user.role != user.role:
+            print(f"❌ Role mismatch - User is {db_user.role}, but slider shows {user.role}")
+            print(f"{'='*80}\n")
+            
+            # Log failed login attempt (role mismatch)
+            log_system_event(
+                db=db,
+                event_type="failed_login",
+                description=f"Failed login attempt - Role mismatch: User {db_user.email} is {db_user.role}, attempted login as {user.role}",
+                severity="warning",
+                user_id=db_user.id,
+                metadata={"email": db_user.email, "actual_role": db_user.role, "attempted_role": user.role, "reason": "role_mismatch"}
+            )
+            
+            raise HTTPException(
+                status_code=403, 
+                detail=f"Account role mismatch. This account is registered as '{db_user.role}'. Please select '{db_user.role}' on the login slider and try again."
+            )
+        
         # Found a User account - verify password
         if not verify_password(user.password, db_user.hashed_password):
             print(f"❌ Invalid password for User account")
@@ -75,6 +97,7 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
         print(f"✅ User authenticated: {db_user.name} (Role: {db_user.role})")
+        print(f"   Role validation: PASSED")
         print(f"{'='*80}\n")
         
         # Generate token with type based on role
@@ -194,7 +217,7 @@ async def edit_user(
     name: Optional[str] = Form(None),
     contact_person: Optional[str] = Form(None),
     contact_number: Optional[str] = Form(None),
-    address: Optional[str] = Form(None),
+    about: Optional[str] = Form(None),
     profile_picture: UploadFile = File(None),
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(get_current_user)
@@ -205,7 +228,7 @@ async def edit_user(
         name,
         contact_person,
         contact_number,
-        address,
+        about,
         profile_picture
     )
 
@@ -834,4 +857,239 @@ def employee_change_password(
         "employee_name": employee.name,
         "access_token": new_token,  # Return new token
         "token_type": "bearer"
+    }
+
+
+# ================== ADMIN MANUAL REGISTRATION ==================
+@router.post("/admin/register-user")
+async def admin_manual_register(
+    role: str = Form(...),
+    name: str = Form(...),
+    email: str = Form(...),
+    contact_person: str = Form(...),
+    contact_number: str = Form(...),
+    address: str = Form(...),
+    password: str = Form(...),
+    confirm_password: str = Form(...),
+    latitude: float = Form(None),
+    longitude: float = Form(None),
+    profile_picture: UploadFile = File(None),
+    proof_of_validity: UploadFile = File(None),
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(database.get_db)
+):
+    """
+    Admin manual user registration - creates fully verified accounts
+    Only admins can use this endpoint
+    Follows same format as regular registration but bypasses verification
+    """
+    # Verify that current user is an admin
+    if current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Only admins can manually register users")
+    
+    # Validate role
+    if role not in ["Bakery", "Charity"]:
+        raise HTTPException(status_code=400, detail="Role must be either 'Bakery' or 'Charity'")
+    
+    # Check if email already exists
+    existing_user = db.query(models.User).filter(models.User.email == email).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Validate passwords match
+    if password != confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+    
+    # Validate password length
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    
+    # Hash password
+    hashed_password = pwd_context.hash(password)
+    
+    # Handle file uploads (same as regular registration)
+    import os
+    import uuid
+    from pathlib import Path
+    
+    profile_picture_path = None
+    proof_of_validity_path = None
+    
+    if profile_picture and profile_picture.filename:
+        upload_dir = Path("uploads/profile_pictures")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        ext = os.path.splitext(profile_picture.filename)[1]
+        filename = f"{uuid.uuid4()}{ext}"
+        file_path = upload_dir / filename
+        with open(file_path, "wb") as f:
+            f.write(await profile_picture.read())
+        profile_picture_path = str(file_path)
+    
+    if proof_of_validity and proof_of_validity.filename:
+        upload_dir = Path("uploads/proofs")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        ext = os.path.splitext(proof_of_validity.filename)[1]
+        filename = f"{uuid.uuid4()}{ext}"
+        file_path = upload_dir / filename
+        with open(file_path, "wb") as f:
+            f.write(await proof_of_validity.read())
+        proof_of_validity_path = str(file_path)
+    
+    # Create new user
+    new_user = models.User(
+        role=role,
+        name=name,
+        email=email,
+        contact_person=contact_person,
+        contact_number=contact_number,
+        address=address,
+        hashed_password=hashed_password,
+        profile_picture=profile_picture_path,
+        proof_of_validity=proof_of_validity_path,
+        latitude=latitude,
+        longitude=longitude,
+        verified=True,  # Admin-created accounts are auto-verified
+        created_at=date.today()
+    )
+    
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    # Log the event
+    log_system_event(
+        db=db,
+        event_type="ADMIN_MANUAL_REGISTRATION",
+        description=f"Admin {current_user.name} manually registered {role} account: {name} ({email})",
+        severity="info",
+        user_id=current_user.id
+    )
+    
+    return {
+        "message": f"{role} account created successfully",
+        "user_id": new_user.id,
+        "name": new_user.name,
+        "email": new_user.email,
+        "verified": new_user.verified
+    }
+
+
+@router.put("/admin/update-user/{user_id}")
+def admin_update_user(
+    user_id: int,
+    name: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
+    contact_person: Optional[str] = Form(None),
+    contact_number: Optional[str] = Form(None),
+    address: Optional[str] = Form(None),
+    latitude: Optional[float] = Form(None),
+    longitude: Optional[float] = Form(None),
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(database.get_db)
+):
+    """
+    Admin update user information
+    Only admins can use this endpoint
+    """
+    # Verify that current user is an admin
+    if current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Only admins can update users")
+    
+    # Find the user to update
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Update fields if provided
+    if name:
+        user.name = name
+    if email:
+        # Check if email is already taken by another user
+        existing = db.query(models.User).filter(
+            models.User.email == email,
+            models.User.id != user_id
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already in use")
+        user.email = email
+    if contact_person:
+        user.contact_person = contact_person
+    if contact_number:
+        user.contact_number = contact_number
+    if address:
+        user.address = address
+    if latitude is not None:
+        user.latitude = latitude
+    if longitude is not None:
+        user.longitude = longitude
+    
+    db.commit()
+    db.refresh(user)
+    
+    # Log the event
+    log_system_event(
+        db=db,
+        event_type="ADMIN_UPDATE_USER",
+        description=f"Admin {current_user.name} updated user {user.name} (ID: {user_id})",
+        severity="info",
+        user_id=current_user.id
+    )
+    
+    return {
+        "message": "User updated successfully",
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "contact_person": user.contact_person,
+            "contact_number": user.contact_number,
+            "address": user.address
+        }
+    }
+
+
+@router.delete("/admin/delete-user/{user_id}")
+def admin_delete_user(
+    user_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(database.get_db)
+):
+    """
+    Admin delete user account
+    Only admins can use this endpoint
+    """
+    # Verify that current user is an admin
+    if current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Only admins can delete users")
+    
+    # Find the user to delete
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Prevent deleting admin accounts
+    if user.role == "Admin":
+        raise HTTPException(status_code=403, detail="Cannot delete admin accounts")
+    
+    # Store user info for logging before deletion
+    user_name = user.name
+    user_email = user.email
+    user_role = user.role
+    
+    # Delete the user
+    db.delete(user)
+    db.commit()
+    
+    # Log the event
+    log_system_event(
+        db=db,
+        event_type="ADMIN_DELETE_USER",
+        description=f"Admin {current_user.name} deleted {user_role} account: {user_name} ({user_email})",
+        severity="warning",
+        user_id=current_user.id
+    )
+    
+    return {
+        "message": f"User {user_name} deleted successfully"
     }

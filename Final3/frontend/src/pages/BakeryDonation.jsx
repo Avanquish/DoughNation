@@ -116,8 +116,31 @@ const leftBadge = (d) => {
   return { tone: d <= 3 ? "warn" : "good", label: `Expires in ${d} days` };
 };
 
+const getCurrentUserName = () => {
+  const employeeToken = localStorage.getItem("employeeToken");
+  const bakeryToken = localStorage.getItem("token");
+  const token = employeeToken || bakeryToken;
+
+  if (!token) return "Unknown";
+
+  try {
+    const decoded = JSON.parse(atob(token.split(".")[1]));
+    
+    if (decoded.type === "employee") {
+      // Employee token
+      return decoded.employee_name || decoded.name || "Employee";
+    } else {
+      // Bakery/Charity token
+      return decoded.name || "User";
+    }
+  } catch (err) {
+    console.error("Failed to decode token:", err);
+    return "Unknown";
+  }
+};
+
 /* ---------- main component ---------- */
-const BakeryDonation = ({ highlightedDonationId }) => {
+const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
   const [donations, setDonations] = useState([]);
   const [loading, setLoading] = useState(true);
   const highlightedRef = useRef(null);
@@ -216,8 +239,11 @@ useEffect(() => {
       const res = await axios.get(`${API}/inventory`, { headers });
       const ok = (res.data || []).filter((it) => {
         const s = String(it.status || "").toLowerCase();
+        const isExpiredItem = isExpired(it.expiration_date, currentServerDate);
         return (
-          s !== "donated" && s !== "requested" && !isExpired(it.expiration_date, currentServerDate)
+          s !== "donated" && 
+          s !== "requested" && 
+          !isExpiredItem  // Filter out expired items
         );
       });
       setInventory(ok);
@@ -238,11 +264,11 @@ useEffect(() => {
     fetchDonations();
   }, []);
   useEffect(() => {
-    if (showDonate) {
+    if (showDonate && currentServerDate) {
       fetchInventory();
       fetchCharities();
     }
-  }, [showDonate]);
+  }, [showDonate, currentServerDate]);
 
   /* ---------- UX niceties ---------- */
   useEffect(() => {
@@ -330,21 +356,22 @@ useEffect(() => {
 
   /* ---------- UI ---------- */
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* header row */}
       <div className="flex items-center justify-between">
         <h2
-          className="text-3xl sm:text-4xl font-extrabold"
+          className="text-3xl sm:text-3xl font-extrabold"
           style={{ color: "#6B4B2B" }}
-        >
-          For Donations
+        >For Donations
         </h2>
-        <button
-          onClick={() => setShowDonate(true)}
-          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-6 py-2.5 font-semibold shadow-[0_10px_26px_rgba(201,124,44,.25)] ring-1 ring-white/60 hover:-translate-y-0.5 active:scale-95 transition"
-        >
-          Donate Now!
-        </button>
+        {!isViewOnly && (
+          <button
+            onClick={() => setShowDonate(true)}
+            className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-6 py-2.5 font-semibold shadow-[0_10px_26px_rgba(201,124,44,.25)] ring-1 ring-white/60 hover:-translate-y-0.5 active:scale-95 transition"
+          >
+            Donate Now!
+          </button>
+        )}
       </div>
 
       {/* cards */}
@@ -526,6 +553,9 @@ useEffect(() => {
                   fd.append("description", form.description || "");
                   fd.append("charity_id", parseInt(form.charity_id, 10));
                   if (form.image_file) fd.append("image", form.image_file);
+
+                  const donatedBy = getCurrentUserName();
+                  fd.append("donated_by", donatedBy);
 
                   await axios.post(`${API}/direct`, fd, {
                     headers: {

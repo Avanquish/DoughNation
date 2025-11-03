@@ -927,8 +927,9 @@ export default function BakeryInventory({ isViewOnly = false }) {
             </button>
           </>
         )}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+<div className="w-full sm:w-auto sm:ml-auto flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 sm:gap-4">
           <div className="flex items-center gap-2 bg-white/80 rounded-full px-2 py-1 ring-1 ring-black/5 shadow-sm">
+           
             {" "}
             {[
               { key: "all", label: "All", tone: "bg-white" },
@@ -1010,7 +1011,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
           </div>
 
           {/* Name filter */}
-          <div className="relative">
+          <div className="relative w-full sm:w-[260px] sm:ml-auto">
             <input
               type="text"
               value={query}

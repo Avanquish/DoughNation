@@ -225,6 +225,8 @@ class DirectDonationResponse(DirectDonationBase):
     btracking_status: Optional[str] = None 
     bakery_name: Optional[str] = None              
     bakery_profile_picture: Optional[str] = None
+    donated_by: Optional[str] = None  # Add this field
+
 
     class Config:
         from_attributes = True

@@ -138,6 +138,7 @@ class DonationRequest(Base):
     donation_image = Column(String, nullable=True)
     donation_quantity = Column(Integer, nullable=True)
     donation_expiration = Column(DateTime, nullable=True)
+    rdonated_by = Column(String, nullable=True)
 
     donation = relationship("Donation", backref="requests", passive_deletes=True)
     inventory_item = relationship("BakeryInventory")
@@ -171,6 +172,7 @@ class DirectDonation(Base):
     btracking_status = Column(String, default="preparing")
     btracking_completed_at = Column(Date, nullable=True)
     feedback_submitted = Column(Boolean, default=False)
+    donated_by = Column(String, nullable=True) 
 
     created_at = Column(DateTime, default=datetime.utcnow)
 

@@ -35,6 +35,13 @@ export default function BakeryReports() {
   const [savedWeekEnd, setSavedWeekEnd] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState("");
   const [savedMonth, setSavedMonth] = useState(null);
+  
+  // Date filters for other reports
+  const [donationHistoryStart, setDonationHistoryStart] = useState("");
+  const [donationHistoryEnd, setDonationHistoryEnd] = useState("");
+  const [bakeryListStart, setBakeryListStart] = useState("");
+  const [bakeryListEnd, setBakeryListEnd] = useState("");
+  
   const COLORS_STATUS = ["#28a745", "#007bff", "#dc3545"]; // Green, Blue, Red
   const COLORS_TYPE = ["#17a2b8", "#ffc107"]; // Direct vs Request
 
@@ -51,26 +58,23 @@ export default function BakeryReports() {
   const formatHeader = (h) =>
     h.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
-  const handleMonthlyFilter = () => {
-  const effType = "monthly";
-  if (!selectedMonth) {
-    Swal.fire("Error", "Please select a month.", "error");
-    return;
-  }
-
-  generateReport(effType, { month: selectedMonth }).then(() => {
-    localStorage.setItem("lastReportType", effType);
-    localStorage.setItem("lastMonth", selectedMonth);
-    setSavedMonth(selectedMonth);
-    setActiveReport("summary"); // Navigate to summary tab
-    setActiveSummary(effType); // Set inner tab to monthly
-  });
-};
-
 const handleWeeklyFilter = () => {
   const effType = "weekly";
   if (!weekStart || !weekEnd) {
     Swal.fire("Error", "Please select both start and end dates.", "error");
+    return;
+  }
+
+  // Validate future dates
+  const today = new Date().toISOString().split("T")[0];
+  
+  if (weekStart > today) {
+    Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
+    return;
+  }
+  
+  if (weekEnd > today) {
+    Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
     return;
   }
 
@@ -94,6 +98,72 @@ const handleWeeklyFilter = () => {
     setSavedWeekEnd(weekEnd);
     setActiveReport("summary"); // Navigate to summary tab
     setActiveSummary(effType); // Set inner tab to weekly
+  });
+};
+
+const handleMonthlyFilter = () => {
+  const effType = "monthly";
+  if (!selectedMonth) {
+    Swal.fire("Error", "Please select a month.", "error");
+    return;
+  }
+
+  // Validate future month
+  const today = new Date();
+  const currentMonth = today.toISOString().slice(0, 7); // Format: YYYY-MM
+  
+  if (selectedMonth > currentMonth) {
+    Swal.fire("Invalid Date", "Selected month cannot be in the future.", "error");
+    return;
+  }
+
+  generateReport(effType, { month: selectedMonth }).then(() => {
+    localStorage.setItem("lastReportType", effType);
+    localStorage.setItem("lastMonth", selectedMonth);
+    setSavedMonth(selectedMonth);
+    setActiveReport("summary"); // Navigate to summary tab
+    setActiveSummary(effType); // Set inner tab to monthly
+  });
+};
+
+// Handlers for other report filters
+const handleDonationHistoryFilter = () => {
+  // Validate future dates
+  const today = new Date().toISOString().split("T")[0];
+  
+  if (donationHistoryStart && donationHistoryStart > today) {
+    Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
+    return;
+  }
+  
+  if (donationHistoryEnd && donationHistoryEnd > today) {
+    Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
+    return;
+  }
+  
+  generateReport("donation_history", {
+    start_date: donationHistoryStart,
+    end_date: donationHistoryEnd,
+  });
+};
+
+const handleBakeryListFilter = () => {
+  // Validate future dates
+  const today = new Date().toISOString().split("T")[0];
+  
+  if (bakeryListStart && bakeryListStart > today) {
+    Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
+    return;
+  }
+  
+  if (bakeryListEnd && bakeryListEnd > today) {
+    Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
+    return;
+  }
+  
+  generateReport("bakery_list", {
+    start_date: bakeryListStart,
+    end_date: bakeryListEnd,
   });
 };
 
@@ -163,6 +233,14 @@ const handleWeeklyFilter = () => {
           url += `&month=${param.month}`;
         }
       }
+      
+      // Add date filters for other report types
+      if (param?.start_date || param?.end_date) {
+        const params = new URLSearchParams();
+        if (param.start_date) params.append("start_date", param.start_date);
+        if (param.end_date) params.append("end_date", param.end_date);
+        url += `?${params.toString()}`;
+      }
 
       const res = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` },
@@ -202,15 +280,14 @@ const handleWeeklyFilter = () => {
     if (savedType === "weekly" && savedStart && savedEnd) {
       setSavedWeekStart(savedStart);
       setSavedWeekEnd(savedEnd);
-      generateReport("weekly", { start: savedStart, end: savedEnd }).then(
-        () => setActiveReport("summary")
-      );
+      setWeekStart(savedStart);
+      setWeekEnd(savedEnd);
+      // Don't auto-generate, just restore state
     }
     if (savedType === "monthly" && savedMonthLocal) {
       setSavedMonth(savedMonthLocal);
-      generateReport("monthly", { month: savedMonthLocal }).then(() =>
-        setActiveReport("summary")
-      );
+      setSelectedMonth(savedMonthLocal);
+      // Don't auto-generate, just restore state
     }
     return;
   }
@@ -221,7 +298,7 @@ const handleWeeklyFilter = () => {
 
   setActiveReport(savedType || "");
   if (savedData) setReportData(JSON.parse(savedData));
-  if (savedType && savedType !== "summary") generateReport(savedType);
+  // Don't auto-generate on load
 }, []);
 
   const downloadReportCSV = () => {
@@ -1985,15 +2062,8 @@ const handleWeeklyFilter = () => {
         value={activeReport}
         onValueChange={(val) => {
           setActiveReport(val);
-          if (val === "weekly") {
-            const savedStart = localStorage.getItem("lastWeekStart");
-            const savedEnd = localStorage.getItem("lastWeekEnd");
-            if (savedStart && savedEnd) {
-              generateReport("weekly", savedStart, savedEnd);
-              return;
-            }
-          }
-          generateReport(val);
+          // Don't auto-generate reports on tab change
+          // User must click "Generate Report" button
         }}
       >
         {/* Pills */}
@@ -2017,6 +2087,40 @@ const handleWeeklyFilter = () => {
             </CardHeader>
 
             <CardContent className="p-5 sm:p-6">
+              {/* Date Filter */}
+              <div className="mb-4 flex flex-wrap gap-4 items-end">
+                <div>
+                  <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
+                    Start Date (Optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={donationHistoryStart}
+                    onChange={(e) => setDonationHistoryStart(e.target.value)}
+                    max={new Date().toISOString().split("T")[0]}
+                    className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
+                    End Date (Optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={donationHistoryEnd}
+                    onChange={(e) => setDonationHistoryEnd(e.target.value)}
+                    max={new Date().toISOString().split("T")[0]}
+                    className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                  />
+                </div>
+                <Button
+                  onClick={handleDonationHistoryFilter}
+                  className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                >
+                  Generate Report
+                </Button>
+              </div>
+
               {loading ? (
                 <p className="text-[#6b4b2b]/70">Generating report...</p>
               ) : reportData ? (
@@ -2025,7 +2129,7 @@ const handleWeeklyFilter = () => {
                 </div>
               ) : (
                 <p className="text-[#6b4b2b]/70">
-                  Click to generate Donation History report.
+                  Select date range (optional) and click "Generate Report" to view the report.
                 </p>
               )}
 
@@ -2065,6 +2169,40 @@ const handleWeeklyFilter = () => {
             </CardHeader>
 
             <CardContent className="p-5 sm:p-6">
+              {/* Date Filter */}
+              <div className="mb-4 flex flex-wrap gap-4 items-end">
+                <div>
+                  <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
+                    Start Date (Optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={bakeryListStart}
+                    onChange={(e) => setBakeryListStart(e.target.value)}
+                    max={new Date().toISOString().split("T")[0]}
+                    className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
+                    End Date (Optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={bakeryListEnd}
+                    onChange={(e) => setBakeryListEnd(e.target.value)}
+                    max={new Date().toISOString().split("T")[0]}
+                    className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                  />
+                </div>
+                <Button
+                  onClick={handleBakeryListFilter}
+                  className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                >
+                  Generate Report
+                </Button>
+              </div>
+
               {loading ? (
                 <p className="text-[#6b4b2b]/70">Generating report...</p>
               ) : reportData ? (
@@ -2073,7 +2211,7 @@ const handleWeeklyFilter = () => {
                 </div>
               ) : (
                 <p className="text-[#6b4b2b]/70">
-                  Click to generate Bakery List report.
+                  Select date range (optional) and click "Generate Report" to view the report.
                 </p>
               )}
 
@@ -2148,6 +2286,7 @@ const handleWeeklyFilter = () => {
                             type="date"
                             value={weekStart}
                             onChange={(e) => setWeekStart(e.target.value)}
+                            max={new Date().toISOString().split("T")[0]}
                             className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                           />
                         </div>
@@ -2159,6 +2298,7 @@ const handleWeeklyFilter = () => {
                             type="date"
                             value={weekEnd}
                             onChange={(e) => setWeekEnd(e.target.value)}
+                            max={new Date().toISOString().split("T")[0]}
                             className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                           />
                         </div>
@@ -2205,7 +2345,8 @@ const handleWeeklyFilter = () => {
                                 "Week End",
                                 "Total Direct Donations",
                                 "Total Request Donations",
-                                "Total Donations",
+                                "Total Received Quantity",
+                                "Total Transactions",
                                 
                               ].map((h) => (
                                 <th key={h} className="px-4 py-2 font-semibold">
@@ -2230,6 +2371,9 @@ const handleWeeklyFilter = () => {
                               </td>
                               <td className="px-4 py-2 border-t border-[#f2d4b5]">
                                 {reportData.total_donations}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_transactions}
                               </td>
                             </tr>
                           </tbody>
@@ -2329,7 +2473,8 @@ const handleWeeklyFilter = () => {
                                 "Month",
                                 "Total Direct Donations",
                                 "Total Request Donations",
-                                "Total Donations",
+                                "Total Received Quantity",
+                                "Total Transactions",
                               ].map((h) => (
                                 <th key={h} className="px-4 py-2 font-semibold">
                                   {h}
@@ -2350,6 +2495,9 @@ const handleWeeklyFilter = () => {
                               </td>
                               <td className="px-4 py-2 border-t border-[#f2d4b5]">
                                 {reportData.total_donations}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_transactions}
                               </td>
                             </tr>
                           </tbody>

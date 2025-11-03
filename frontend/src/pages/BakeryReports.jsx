@@ -84,6 +84,15 @@ export default function BakeryReports({ isViewOnly = false }) {
       return;
     }
 
+    // Validate future month
+    const today = new Date();
+    const currentMonth = today.toISOString().slice(0, 7); // Format: YYYY-MM
+    
+    if (selectedMonth > currentMonth) {
+      Swal.fire("Invalid Date", "Selected month cannot be in the future.", "error");
+      return;
+    }
+
     generateReport(effType, { month: selectedMonth }).then(() => {
       localStorage.setItem("lastReportType", effType);
       localStorage.setItem("lastMonth", selectedMonth);
@@ -97,6 +106,19 @@ export default function BakeryReports({ isViewOnly = false }) {
     const effType = "weekly";
     if (!weekStart || !weekEnd) {
       Swal.fire("Error", "Please select both start and end dates.", "error");
+      return;
+    }
+
+    // Validate future dates
+    const today = new Date().toISOString().split("T")[0];
+    
+    if (weekStart > today) {
+      Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
+      return;
+    }
+    
+    if (weekEnd > today) {
+      Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
       return;
     }
 
@@ -126,6 +148,19 @@ export default function BakeryReports({ isViewOnly = false }) {
 
   // Handlers for other report filters
   const handleDonationHistoryFilter = () => {
+    // Validate future dates
+    const today = new Date().toISOString().split("T")[0];
+    
+    if (donationHistoryStart && donationHistoryStart > today) {
+      Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
+      return;
+    }
+    
+    if (donationHistoryEnd && donationHistoryEnd > today) {
+      Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
+      return;
+    }
+    
     generateReport("donation_history", {
       start_date: donationHistoryStart,
       end_date: donationHistoryEnd,
@@ -133,6 +168,19 @@ export default function BakeryReports({ isViewOnly = false }) {
   };
 
   const handleExpiryLossFilter = () => {
+    // Validate future dates
+    const today = new Date().toISOString().split("T")[0];
+    
+    if (expiryLossStart && expiryLossStart > today) {
+      Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
+      return;
+    }
+    
+    if (expiryLossEnd && expiryLossEnd > today) {
+      Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
+      return;
+    }
+    
     generateReport("expiry_loss", {
       start_date: expiryLossStart,
       end_date: expiryLossEnd,
@@ -140,6 +188,19 @@ export default function BakeryReports({ isViewOnly = false }) {
   };
 
   const handleTopItemsFilter = () => {
+    // Validate future dates
+    const today = new Date().toISOString().split("T")[0];
+    
+    if (topItemsStart && topItemsStart > today) {
+      Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
+      return;
+    }
+    
+    if (topItemsEnd && topItemsEnd > today) {
+      Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
+      return;
+    }
+    
     generateReport("top_items", {
       start_date: topItemsStart,
       end_date: topItemsEnd,
@@ -147,6 +208,19 @@ export default function BakeryReports({ isViewOnly = false }) {
   };
 
   const handleCharityListFilter = () => {
+    // Validate future dates
+    const today = new Date().toISOString().split("T")[0];
+    
+    if (charityListStart && charityListStart > today) {
+      Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
+      return;
+    }
+    
+    if (charityListEnd && charityListEnd > today) {
+      Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
+      return;
+    }
+    
     generateReport("charity_list", {
       start_date: charityListStart,
       end_date: charityListEnd,
@@ -1980,6 +2054,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                       type="date"
                       value={donationHistoryStart}
                       onChange={(e) => setDonationHistoryStart(e.target.value)}
+                      max={new Date().toISOString().split("T")[0]}
                       className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                     />
                   </div>
@@ -1991,6 +2066,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                       type="date"
                       value={donationHistoryEnd}
                       onChange={(e) => setDonationHistoryEnd(e.target.value)}
+                      max={new Date().toISOString().split("T")[0]}
                       className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                     />
                   </div>
@@ -2061,6 +2137,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                       type="date"
                       value={expiryLossStart}
                       onChange={(e) => setExpiryLossStart(e.target.value)}
+                      max={new Date().toISOString().split("T")[0]}
                       className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                     />
                   </div>
@@ -2072,6 +2149,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                       type="date"
                       value={expiryLossEnd}
                       onChange={(e) => setExpiryLossEnd(e.target.value)}
+                      max={new Date().toISOString().split("T")[0]}
                       className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                     />
                   </div>
@@ -2142,6 +2220,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                       type="date"
                       value={topItemsStart}
                       onChange={(e) => setTopItemsStart(e.target.value)}
+                      max={new Date().toISOString().split("T")[0]}
                       className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                     />
                   </div>
@@ -2153,6 +2232,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                       type="date"
                       value={topItemsEnd}
                       onChange={(e) => setTopItemsEnd(e.target.value)}
+                      max={new Date().toISOString().split("T")[0]}
                       className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                     />
                   </div>
@@ -2223,6 +2303,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                       type="date"
                       value={charityListStart}
                       onChange={(e) => setCharityListStart(e.target.value)}
+                      max={new Date().toISOString().split("T")[0]}
                       className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                     />
                   </div>
@@ -2234,6 +2315,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                       type="date"
                       value={charityListEnd}
                       onChange={(e) => setCharityListEnd(e.target.value)}
+                      max={new Date().toISOString().split("T")[0]}
                       className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                     />
                   </div>
@@ -2331,6 +2413,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                               type="date"
                               value={weekStart}
                               onChange={(e) => setWeekStart(e.target.value)}
+                              max={new Date().toISOString().split("T")[0]}
                               className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                             />
                           </div>
@@ -2342,6 +2425,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                               type="date"
                               value={weekEnd}
                               onChange={(e) => setWeekEnd(e.target.value)}
+                              max={new Date().toISOString().split("T")[0]}
                               className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                             />
                           </div>

@@ -23,6 +23,13 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import html2canvas from "html2canvas";
+import {
+  History,
+  AlertTriangle,
+  Trophy,
+  HeartHandshake,
+  ChartPie as ReportsIcon,
+} from "lucide-react";
 
 export default function BakeryReports({ isViewOnly = false }) {
   const [reportData, setReportData] = useState(null);
@@ -41,7 +48,7 @@ export default function BakeryReports({ isViewOnly = false }) {
   const [savedWeekEnd, setSavedWeekEnd] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState("");
   const [savedMonth, setSavedMonth] = useState(null);
-  
+
   // Date filters for other reports
   const [donationHistoryStart, setDonationHistoryStart] = useState("");
   const [donationHistoryEnd, setDonationHistoryEnd] = useState("");
@@ -51,7 +58,7 @@ export default function BakeryReports({ isViewOnly = false }) {
   const [topItemsEnd, setTopItemsEnd] = useState("");
   const [charityListStart, setCharityListStart] = useState("");
   const [charityListEnd, setCharityListEnd] = useState("");
-  
+
   const [employees, setEmployees] = useState([]);
   const [employeeName, setEmployeeName] = useState("");
   const COLORS_STATUS = ["#28a745", "#007bff", "#dc3545"]; // Green, Blue, Red
@@ -59,11 +66,11 @@ export default function BakeryReports({ isViewOnly = false }) {
 
   // Top-level reports (summary replaces weekly/monthly here)
   const reportTypes = [
-    { key: "donation_history", label: "Donation History" },
-    { key: "expiry_loss", label: "Expiry Loss" },
-    { key: "top_items", label: "Top Donated Items" },
-    { key: "charity_list", label: "Charity List" },
-    { key: "summary", label: "Period Summary" },
+    { key: "donation_history", label: "Donation History", icon: History },
+    { key: "expiry_loss", label: "Expiry Loss", icon: AlertTriangle },
+    { key: "top_items", label: "Top Donated Items", icon: Trophy },
+    { key: "charity_list", label: "Charity List", icon: HeartHandshake },
+    { key: "summary", label: "Period Summary", icon: ReportsIcon },
   ];
 
   const API_URL = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
@@ -87,9 +94,13 @@ export default function BakeryReports({ isViewOnly = false }) {
     // Validate future month
     const today = new Date();
     const currentMonth = today.toISOString().slice(0, 7); // Format: YYYY-MM
-    
+
     if (selectedMonth > currentMonth) {
-      Swal.fire("Invalid Date", "Selected month cannot be in the future.", "error");
+      Swal.fire(
+        "Invalid Date",
+        "Selected month cannot be in the future.",
+        "error"
+      );
       return;
     }
 
@@ -111,12 +122,12 @@ export default function BakeryReports({ isViewOnly = false }) {
 
     // Validate future dates
     const today = new Date().toISOString().split("T")[0];
-    
+
     if (weekStart > today) {
       Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
       return;
     }
-    
+
     if (weekEnd > today) {
       Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
       return;
@@ -150,17 +161,17 @@ export default function BakeryReports({ isViewOnly = false }) {
   const handleDonationHistoryFilter = () => {
     // Validate future dates
     const today = new Date().toISOString().split("T")[0];
-    
+
     if (donationHistoryStart && donationHistoryStart > today) {
       Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
       return;
     }
-    
+
     if (donationHistoryEnd && donationHistoryEnd > today) {
       Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
       return;
     }
-    
+
     generateReport("donation_history", {
       start_date: donationHistoryStart,
       end_date: donationHistoryEnd,
@@ -170,17 +181,17 @@ export default function BakeryReports({ isViewOnly = false }) {
   const handleExpiryLossFilter = () => {
     // Validate future dates
     const today = new Date().toISOString().split("T")[0];
-    
+
     if (expiryLossStart && expiryLossStart > today) {
       Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
       return;
     }
-    
+
     if (expiryLossEnd && expiryLossEnd > today) {
       Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
       return;
     }
-    
+
     generateReport("expiry_loss", {
       start_date: expiryLossStart,
       end_date: expiryLossEnd,
@@ -190,17 +201,17 @@ export default function BakeryReports({ isViewOnly = false }) {
   const handleTopItemsFilter = () => {
     // Validate future dates
     const today = new Date().toISOString().split("T")[0];
-    
+
     if (topItemsStart && topItemsStart > today) {
       Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
       return;
     }
-    
+
     if (topItemsEnd && topItemsEnd > today) {
       Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
       return;
     }
-    
+
     generateReport("top_items", {
       start_date: topItemsStart,
       end_date: topItemsEnd,
@@ -210,17 +221,17 @@ export default function BakeryReports({ isViewOnly = false }) {
   const handleCharityListFilter = () => {
     // Validate future dates
     const today = new Date().toISOString().split("T")[0];
-    
+
     if (charityListStart && charityListStart > today) {
       Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
       return;
     }
-    
+
     if (charityListEnd && charityListEnd > today) {
       Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
       return;
     }
-    
+
     generateReport("charity_list", {
       start_date: charityListStart,
       end_date: charityListEnd,
@@ -279,13 +290,13 @@ export default function BakeryReports({ isViewOnly = false }) {
     try {
       const token =
         localStorage.getItem("employeeToken") || localStorage.getItem("token");
-      
+
       let url = `${API_URL}/reports/${type}`;
 
       // Use unified summary endpoint for weekly/monthly
       if (type === "weekly" || type === "monthly") {
         url = `${API_URL}/reports/summary?period=${type}`;
-        
+
         if (type === "weekly" && param?.start && param?.end) {
           url += `&start_date=${param.start}&end_date=${param.end}`;
         }
@@ -293,7 +304,7 @@ export default function BakeryReports({ isViewOnly = false }) {
           url += `&month=${param.month}`;
         }
       }
-      
+
       // Add date filters for other report types
       if (param?.start_date || param?.end_date) {
         const params = new URLSearchParams();
@@ -2022,16 +2033,26 @@ export default function BakeryReports({ isViewOnly = false }) {
         }}
       >
         {/* Pills */}
-        <TabsList className="flex flex-wrap gap-2 bg-white/70 ring-1 ring-black/5 rounded-full px-2 py-1 shadow-sm">
-          {reportTypes.map((r) => (
-            <TabsTrigger
-              key={r.key}
-              value={r.key}
-              className="data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] rounded-full px-3 py-1 text-sm hover:bg-amber-50"
-            >
-              {r.label}
-            </TabsTrigger>
-          ))}
+        <TabsList className="flex flex-wrap gap-2 bg-white/70 ring-1 ring-black/5 rounded-full px-2 py-1 shadow-sm overflow-x-auto scrollbar-hide">
+          {reportTypes.map((r) => {
+            const Icon = r.icon;
+            return (
+              <TabsTrigger
+                key={r.key}
+                value={r.key}
+                title={r.label}
+                aria-label={r.label}
+                className="data-[state=active]:text-white data-[state=active]:shadow
+                   data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C]
+                   data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327]
+                   text-[#6b4b2b] rounded-full px-2 lg:px-3 py-1
+                   hover:bg-amber-50 inline-flex items-center gap-1.5"
+              >
+                {Icon && <Icon className="w-4 h-4 lg:w-5 lg:h-5" />}
+                <span className="hidden lg:inline">{r.label}</span>
+              </TabsTrigger>
+            );
+          })}
         </TabsList>
 
         {/* Donation History Tab */}
@@ -2642,7 +2663,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                     </>
                   )}
 
-                  {/* Monthly Summary */} 
+                  {/* Monthly Summary */}
                   {activeSummary === "monthly" && (
                     <>
                       <div className="max-h-96 overflow-y-auto rounded-xl ring-1 ring-black/10 bg-white/70 mb-6">
@@ -2844,7 +2865,8 @@ export default function BakeryReports({ isViewOnly = false }) {
                 </div>
               ) : (
                 <p className="text-[#6b4b2b]/70">
-                  Select a period type and date range, then click "Generate Report" to view the summary.
+                  Select a period type and date range, then click "Generate
+                  Report" to view the summary.
                 </p>
               )}
             </CardContent>
@@ -2853,4 +2875,4 @@ export default function BakeryReports({ isViewOnly = false }) {
       </Tabs>
     </div>
   );
-} 
+}

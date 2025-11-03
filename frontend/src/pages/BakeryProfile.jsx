@@ -21,6 +21,9 @@ import {
   User,
   HandCoins,
   BarChart3,
+  Info,
+  Phone,
+  User as UserIcon,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Messages1 from "./Messages1";
@@ -177,8 +180,6 @@ export default function BakeryProfile() {
 
         if (!token) return;
 
-        // For employees, fetch the bakery's information using bakery_id
-        // For bakery owners, fetch their own information
         const res = await axios.get(`${API}/information`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -186,20 +187,15 @@ export default function BakeryProfile() {
         const user = res.data;
         setProfilePic(user.profile_picture);
         setName(user.name);
-        setCurrentUser(user); //Set the full user object
+        setCurrentUser(user); // full user object
       } catch (err) {
         console.error("Failed to fetch user:", err);
       }
     };
 
     fetchUser();
-    
-    //ADD EVENT LISTENER to refetch when profile is updated
     window.addEventListener("profile:updated", fetchUser);
-    
-    return () => {
-      window.removeEventListener("profile:updated", fetchUser);
-    };
+    return () => window.removeEventListener("profile:updated", fetchUser);
   }, [bakeryId]);
 
   useEffect(() => {
@@ -273,11 +269,12 @@ export default function BakeryProfile() {
   );
 
   useEffect(() => {
-    document.documentElement.style.overflow = isNotifOpen ? "hidden" : "";
+    const anyOverlayOpen = isEditOpen || isChangePassOpen || isNotifOpen;
+    document.documentElement.style.overflow = anyOverlayOpen ? "hidden" : "";
     return () => {
       document.documentElement.style.overflow = "";
     };
-  }, [isNotifOpen]);
+  }, [isEditOpen, isChangePassOpen, isNotifOpen]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -303,64 +300,65 @@ export default function BakeryProfile() {
   };
 
   const handleEditSubmit = async (e) => {
-  e.preventDefault();
-  const employeeToken = localStorage.getItem("employeeToken");
-  const bakeryToken = localStorage.getItem("token");
-  const token = employeeToken || bakeryToken;
+    e.preventDefault();
+    const employeeToken = localStorage.getItem("employeeToken");
+    const bakeryToken = localStorage.getItem("token");
+    const token = employeeToken || bakeryToken;
 
-  const formData = new FormData();
-  const name = e.target.name?.value;
-  const contactPerson = e.target.contact_person?.value;
-  const contactNumber = e.target.contact_number?.value;
-  const about = e.target.about?.value;
-  const profilePicture = e.target.profile_picture?.files[0];
+    const formData = new FormData();
+    const name = e.target.name?.value;
+    const contactPerson = e.target.contact_person?.value;
+    const contactNumber = e.target.contact_number?.value;
+    const about = e.target.about?.value;
+    const profilePicture = e.target.profile_picture?.files[0];
 
-  if (name) formData.append("name", name);
-  if (contactPerson) formData.append("contact_person", contactPerson);
-  if (contactNumber) formData.append("contact_number", contactNumber);
-  if (about) formData.append("about", about);
-  if (profilePicture) formData.append("profile_picture", profilePicture);
+    if (name) formData.append("name", name);
+    if (contactPerson) formData.append("contact_person", contactPerson);
+    if (contactNumber) formData.append("contact_number", contactNumber);
+    if (about) formData.append("about", about);
+    if (profilePicture) formData.append("profile_picture", profilePicture);
 
-  if (formData.keys().next().done) {
-    Swal.fire({
-      icon: "warning",
-      title: "No changes",
-      text: "Please fill at least one field to save changes.",
-    });
-    return;
-  }
+    if (formData.keys().next().done) {
+      Swal.fire({
+        icon: "warning",
+        title: "No changes",
+        text: "Please fill at least one field to save changes.",
+      });
+      return;
+    }
 
-  try {
-    await axios.put(`${API}/edit`, formData, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    try {
+      await axios.put(`${API}/edit`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
+      });
 
-    setIsEditOpen(false);
-    window.dispatchEvent(new Event("profile:updated"));
+      setIsEditOpen(false);
+      window.dispatchEvent(new Event("profile:updated"));
 
-    Swal.fire({
-      icon: "success",
-      title: "Profile Updated",
-      text: "Your changes have been saved successfully.",
-      timer: 2500,
-      showConfirmButton: false,
-    });
-  } catch (err) {
-    console.error("Failed to update profile:", err);
-    
-    //Show specific error message from backend
-    const errorMessage = err.response?.data?.detail || "There was an error saving your changes. Please try again.";
-    
-    Swal.fire({
-      icon: "error",
-      title: "Update Failed",
-      text: errorMessage,
-    });
-  }
-};
+      Swal.fire({
+        icon: "success",
+        title: "Profile Updated",
+        text: "Your changes have been saved successfully.",
+        timer: 2500,
+        showConfirmButton: false,
+      });
+    } catch (err) {
+      console.error("Failed to update profile:", err);
+
+      const errorMessage =
+        err.response?.data?.detail ||
+        "There was an error saving your changes. Please try again.";
+
+      Swal.fire({
+        icon: "error",
+        title: "Update Failed",
+        text: errorMessage,
+      });
+    }
+  };
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
@@ -415,6 +413,55 @@ export default function BakeryProfile() {
       :root{
         --ink:#7a4f1c;
         --brand1:#F6C17C; --brand2:#E49A52; --brand3:#BF7327;
+        --stat-bg1:#fff7ec;
+        --stat-bg2:#ffe8cb;  
+        --stat-border:#e7b072;
+      }
+
+      .stat-card{
+        background: linear-gradient(180deg, var(--stat-bg1), var(--stat-bg2));
+        border: 1px solid var(--stat-border);
+        border-radius: 12px;
+        box-shadow: inset 0 1px 0 #ffffff, 0 10px 28px rgba(201,124,44,.12);
+      }
+      .stat-card:hover{
+        transform: translateY(-2px) scale(1.02);
+        box-shadow: inset 0 1px 0 #ffffff, 0 14px 36px rgba(201,124,44,.18);
+      }
+
+      /* ===== About & Contacts blocks (icons + tidy alignment) ===== */
+      .info-wrap{display:grid; gap:14px;}
+      .info-block{
+        background:linear-gradient(180deg,#ffffff,#fff8ef);
+        border:1px solid rgba(0,0,0,.08);
+        border-radius:12px;
+        padding:12px 14px;
+        box-shadow:inset 0 1px 0 #fff;
+      }
+      .info-title{
+        display:flex; align-items:center; gap:.6rem;
+        font-weight:800; color:var(--ink);
+      }
+      .info-text{
+        margin-top:.45rem;
+        font-size:15px; line-height:1.65;
+        white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word;
+        max-height:240px; overflow:auto;
+      }
+
+      .dl{display:flex; flex-direction:column; gap:.5rem; margin-top:.5rem;}
+      .dlrow{
+        display:grid;
+        grid-template-columns: 36px 1fr;
+        align-items:center;
+        gap:.75rem;
+        padding:.35rem .2rem;
+        border-radius:10px;
+      }
+      .icon-badge{
+        width:28px; height:28px; border-radius:9999px;
+        display:inline-flex; align-items:center; justify-content:center;
+        background:#fff4e6; border:1px solid #e7b072; box-shadow:inset 0 1px 0 #fff;
       }
 
       .page-bg{position:fixed; inset:0; z-index:-10; pointer-events:none;}
@@ -422,7 +469,6 @@ export default function BakeryProfile() {
         background:linear-gradient(135deg,#FFFEFB 0%, #FFF8ED 60%, #FFEFD9 100%);
       }
 
-      /* ====== HEADER styles aligned to BakeryDashboard ====== */
       .head{position:sticky; top:0; z-index:80; border-bottom:1px solid rgba(0,0,0,.06);}
       .head-bg{position:absolute; inset:0; z-index:-1; opacity:.92;
         background: linear-gradient(110deg, #ffffff 0%, #fff8ec 28%, #ffeccd 55%, #ffd7a6 100%);
@@ -437,27 +483,15 @@ export default function BakeryProfile() {
       .brand-pop {
         background: linear-gradient(90deg, #E3B57E 0%, #F3C27E 25%, #E59B50 50%, #C97C2C 75%, #E3B57E 100%);
         background-size: 300% 100%;
-        -webkit-background-clip: text;
-        background-clip: text;
-        -webkit-text-fill-color: transparent;
-        color: transparent;
+        -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
         animation: brandShimmer 6s ease-in-out infinite;
-        letter-spacing:.2px;
-        font-weight:800;
-        font-size: clamp(1.15rem, 1rem + 1vw, 1.6rem);
+        letter-spacing:.2px; font-weight:800; font-size: clamp(1.15rem, 1rem + 1vw, 1.6rem);
       }
-      @keyframes brandShimmer{
-        0%{background-position:0% 50%}
-        50%{background-position:100% 50%}
-        100%{background-position:0% 50%}
-      }
+      @keyframes brandShimmer{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
 
       .iconbar{display:flex; align-items:center; gap:.5rem}
-      .icon-btn{position:relative; display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:9999px; background:rgba(255,255,255,.92); border:1px solid rgba(0,0,0,.06); box-shadow:0 6px 16px rgba(201,124,44,.14); transition:transform .18s ease, box-shadow .18s ease}
-      .icon-btn:hover{transform:translateY(-1px); box-shadow:0 10px 22px rgba(201,124,44,.20)}
 
       .btn-logout{
-        position:relative; overflow:hidden;
         border-radius:9999px; padding:.58rem .95rem; gap:.5rem;
         background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3));
         color:#fff; border:1px solid rgba(255,255,255,.6);
@@ -466,7 +500,6 @@ export default function BakeryProfile() {
       }
       .btn-logout:hover{transform:translateY(-1px) scale(1.02); box-shadow:0 12px 34px rgba(201,124,44,.32); filter:saturate(1.05);}
 
-      /* ===== HERO & BACK FAB ===== */
       .hero{position:relative; border-radius:16px; overflow:hidden; box-shadow:0 12px 34px rgba(201,124,44,.10)}
       .hero-bg{position:absolute; inset:0; background:linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,.0)), linear-gradient(135deg,#fbeedc,#f7cea1);}
       .avatar-ring{position:relative; width:120px; height:120px; border-radius:9999px; padding:3px; background:conic-gradient(from 210deg,#F7C789,#E8A765,#C97C2C,#E8A765,#F7C789)}
@@ -479,15 +512,18 @@ export default function BakeryProfile() {
         background:#fff; border:1px solid rgba(0,0,0,.06);
         box-shadow:0 10px 22px rgba(201,124,44,.18);
         transition:transform .18s ease, box-shadow .18s ease;
-        z-index: 50; /* ensure always clickable */
+        z-index:50; /* important para hindi matakpan */
       }
       .back-fab-hero:hover{transform:translateY(-1px); box-shadow:0 14px 30px rgba(201,124,44,.24);}
 
-      .btn-pill{position:relative; overflow:hidden; border-radius:9999px; padding:.65rem 1.05rem;
+      .btn-pill{
+        position:relative; overflow:hidden; border-radius:9999px; padding:.65rem 1.05rem;
         background:linear-gradient(135deg,#F6C17C,#BF7327); color:#fff; font-weight:700;
         border:1px solid rgba(255,255,255,.65); box-shadow:0 10px 28px rgba(201,124,44,.28);
-        transition:transform .18s ease, box-shadow .18s ease;}
+        transition:transform .18s ease, box-shadow .18s ease;
+      }
       .btn-pill:hover{ transform:translateY(-1px) scale(1.02); box-shadow:0 14px 36px rgba(201,124,44,.34); }
+
       .btn-change{
         border-radius:9999px; padding:.65rem 1.05rem; font-weight:800; color:var(--ink);
         background:linear-gradient(180deg,#ffffff,#fff6ea);
@@ -509,12 +545,29 @@ export default function BakeryProfile() {
 
       .brown-title{color:#7a4f1c;}
 
-      .overlay-root{position:fixed; inset:0; z-index:60;}
-      .overlay-bg{position:absolute; inset:0; background:rgba(0,0,0,.32); backdrop-filter: blur(6px); opacity:0; animation: showBg .2s ease forwards}
-      @keyframes showBg{to{opacity:1}}
-      .overlay-panel{position:relative; margin:6rem auto 2rem; width:min(92%, 560px); border-radius:16px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,.18)}
-      .overlay-enter{transform:translateY(10px) scale(.98); opacity:0; animation: pop .22s ease forwards}
-      @keyframes pop{to{transform:translateY(0) scale(1); opacity:1}}
+      .overlay-root{position:fixed; inset:0; z-index:100;} /* mas mataas para di matakpan */
+      .overlay-bg{
+        position:absolute; inset:0;
+        background:rgba(0,0,0,.45);         /* darken */
+        backdrop-filter: blur(6px);          /* blur the page behind */
+        -webkit-backdrop-filter: blur(6px);
+        opacity:0; animation: overlayFade .22s ease forwards;
+      }
+      @keyframes overlayFade{to{opacity:1}}
+
+      .overlay-panel{
+        position:relative;
+        margin:6rem auto 2rem;
+        width:min(92%, 560px);
+        border-radius:16px; overflow:hidden;
+        box-shadow:0 24px 64px rgba(0,0,0,.18);
+      }
+      .overlay-enter{
+        transform:translateY(10px) scale(.98);
+        opacity:0; animation: modalPop .22s ease forwards;
+      }
+      @keyframes modalPop{to{transform:translateY(0) scale(1); opacity:1}}
+
       .modal-card{background:rgba(255,255,255,.96); backdrop-filter: blur(8px); border-radius:16px; border:1px solid rgba(0,0,0,.06);}
       .modal-head{background:linear-gradient(180deg,#fff,#fff8ef); border-bottom:1px solid rgba(0,0,0,.06)}
       .modal-input{border-radius:10px; padding:.65rem .8rem; border:1px solid rgba(0,0,0,.18)}
@@ -606,11 +659,14 @@ export default function BakeryProfile() {
 
             {/* ===== Edit Profile Modal ===== */}
             {isEditOpen && (
-              <div className="overlay-root" role="dialog">
+              <div className="overlay-root" role="dialog" aria-modal="true">
+                {/* dark + blur background; click to close */}
                 <div
                   className="overlay-bg"
                   onClick={() => setIsEditOpen(false)}
                 />
+
+                {/* animated panel */}
                 <div className="overlay-panel overlay-enter">
                   <Card className="modal-card">
                     <CardHeader className="modal-head">
@@ -618,7 +674,9 @@ export default function BakeryProfile() {
                         Edit Profile
                       </CardTitle>
                     </CardHeader>
+
                     <CardContent>
+                      {/* --- KEEP your existing form exactly as-is below --- */}
                       <form className="space-y-3" onSubmit={handleEditSubmit}>
                         <div className="flex flex-col">
                           <p className="brown-title">Bakery Name</p>
@@ -629,6 +687,7 @@ export default function BakeryProfile() {
                             className="w-full modal-input"
                           />
                         </div>
+
                         <div className="flex flex-col">
                           <p className="brown-title">Contact Person</p>
                           <input
@@ -637,6 +696,7 @@ export default function BakeryProfile() {
                             className="w-full modal-input"
                           />
                         </div>
+
                         <div className="flex flex-col">
                           <p className="brown-title">Contact Number</p>
                           <input
@@ -645,6 +705,7 @@ export default function BakeryProfile() {
                             className="w-full modal-input"
                           />
                         </div>
+
                         <div className="flex flex-col">
                           <p className="brown-title">About Your Bakery</p>
                           <textarea
@@ -653,6 +714,7 @@ export default function BakeryProfile() {
                             className="w-full modal-input resize-none"
                           />
                         </div>
+
                         <div className="flex flex-col">
                           <p className="brown-title">Profile Picture</p>
                           <input
@@ -662,6 +724,7 @@ export default function BakeryProfile() {
                             className="w-full modal-input"
                           />
                         </div>
+
                         <div className="flex justify-end gap-2 pt-1">
                           <Button
                             type="button"
@@ -675,6 +738,7 @@ export default function BakeryProfile() {
                           </Button>
                         </div>
                       </form>
+                      {/* --- END: keep your form --- */}
                     </CardContent>
                   </Card>
                 </div>
@@ -683,11 +747,14 @@ export default function BakeryProfile() {
 
             {/* ===== Change Password Modal ===== */}
             {isChangePassOpen && (
-              <div className="overlay-root" role="dialog">
+              <div className="overlay-root" role="dialog" aria-modal="true">
+                {/* dark + blur background; click to close */}
                 <div
                   className="overlay-bg"
                   onClick={() => setIsChangePassOpen(false)}
                 />
+
+                {/* animated panel */}
                 <div className="overlay-panel overlay-enter">
                   <Card className="modal-card">
                     <CardHeader className="modal-head">
@@ -695,7 +762,9 @@ export default function BakeryProfile() {
                         Change Password
                       </CardTitle>
                     </CardHeader>
+
                     <CardContent>
+                      {/* --- KEEP your existing form exactly as-is below --- */}
                       <form
                         className="space-y-3"
                         onSubmit={handleChangePassword}
@@ -709,6 +778,7 @@ export default function BakeryProfile() {
                             className="w-full modal-input"
                           />
                         </div>
+
                         <div className="flex flex-col">
                           <p className="brown-title">New Password</p>
                           <input
@@ -718,6 +788,7 @@ export default function BakeryProfile() {
                             className="w-full modal-input"
                           />
                         </div>
+
                         <div className="flex flex-col">
                           <p className="brown-title">Confirm New Password</p>
                           <input
@@ -727,6 +798,7 @@ export default function BakeryProfile() {
                             className="w-full modal-input"
                           />
                         </div>
+
                         <div className="flex justify-end gap-2 pt-1">
                           <Button
                             type="button"
@@ -740,6 +812,7 @@ export default function BakeryProfile() {
                           </Button>
                         </div>
                       </form>
+                      {/* --- END: keep your form --- */}
                     </CardContent>
                   </Card>
                 </div>
@@ -789,31 +862,61 @@ export default function BakeryProfile() {
                     <Card className="glass-card shadow-none card-zoom">
                       <CardHeader className="pb-2">
                         <CardTitle className="brown-title">About</CardTitle>
-                        <CardDescription className="text-[15px] leading-relaxed whitespace-pre-wrap">
-                          {currentUser?.about || "Tell more about your bakery. Update this section in Edit Profile to display your story, mission, and donation preferences."}
-                        </CardDescription>
                       </CardHeader>
-                      <CardContent className="space-y-3">
-                        {/* Contact Information */}
-                        {(currentUser?.contact_person || currentUser?.contact_number) && (
-                          <div className="space-y-3 pt-3 border-t">
-                            {currentUser?.contact_person && (
-                              <div>
-                                <p className="text-base font-semibold text-[var(--ink)]">Contact Person</p>
-                                <p className="text-sm text-muted-foreground">{currentUser.contact_person}</p>
-                              </div>
-                            )}
-                            {currentUser?.contact_number && (
-                              <div>
-                                <p className="text-base font-semibold text-[var(--ink)]">Contact Number</p>
-                                <p className="text-sm text-muted-foreground">{currentUser.contact_number}</p>
-                              </div>
-                            )}
+                      <CardContent className="space-y-5">
+                        <div className="info-wrap">
+                          {/* About Your Bakery (icon + text) */}
+                          <div className="info-block">
+                            <div className="info-title">
+                              <span className="icon-badge" aria-hidden>
+                                <Info className="w-4 h-4" />
+                              </span>
+                              <span>About Your Bakery</span>
+                            </div>
+                            <div className="info-text">
+                              {currentUser?.about ||
+                                "Tell more about your bakery. Update this section in Edit Profile to display your story, mission, and donation preferences."}
+                            </div>
                           </div>
-                        )}
 
+                          {/* Contact Details title (text) with icon rows */}
+                          {(currentUser?.contact_person ||
+                            currentUser?.contact_number) && (
+                            <div className="info-block">
+                              <div className="info-title">
+                                <span>Contact Details</span>
+                              </div>
+                              <div className="dl">
+                                <div className="dlrow">
+                                  <span
+                                    className="icon-badge"
+                                    title="Contact Person"
+                                  >
+                                    <UserIcon className="w-4 h-4" />
+                                  </span>
+                                  <span className="text-[15px] text-[#5b4632] break-words">
+                                    {currentUser?.contact_person || "—"}
+                                  </span>
+                                </div>
+                                <div className="dlrow">
+                                  <span
+                                    className="icon-badge"
+                                    title="Contact Number"
+                                  >
+                                    <Phone className="w-4 h-4" />
+                                  </span>
+                                  <span className="text-[15px] text-[#5b4632] break-words">
+                                    {currentUser?.contact_number || "—"}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Stats tiles */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          <div className="tile p-4 rounded-lg border bg-white/70">
+                          <div className="tile stat-card p-4 rounded-lg border">
                             <div className="text-sm text-muted-foreground">
                               Employees
                             </div>
@@ -821,7 +924,7 @@ export default function BakeryProfile() {
                               {employeeCount}
                             </div>
                           </div>
-                          <div className="tile p-4 rounded-lg border bg-white/70">
+                          <div className="tile stat-card p-4 rounded-lg border">
                             <div className="text-sm text-muted-foreground">
                               Products Tracked
                             </div>
@@ -829,7 +932,7 @@ export default function BakeryProfile() {
                               {statusCounts.total}
                             </div>
                           </div>
-                          <div className="tile p-4 rounded-lg border bg-white/70">
+                          <div className="tile stat-card p-4 rounded-lg border">
                             <div className="text-sm text-muted-foreground">
                               Active Alerts
                             </div>
@@ -916,7 +1019,7 @@ export default function BakeryProfile() {
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div className="tile p-4 rounded-lg border bg-white/70">
+                        <div className="tile stat-card p-4 rounded-lg border">
                           <div className="text-sm text-muted-foreground mb-2">
                             Total
                           </div>
@@ -954,7 +1057,7 @@ export default function BakeryProfile() {
                           </div>
                         </div>
 
-                        <div className="tile p-4 rounded-lg border bg-white/70">
+                        <div className="tile stat-card p-4 rounded-lg border">
                           <div className="text-sm text-muted-foreground mb-2">
                             Fresh vs Soon
                           </div>
@@ -984,7 +1087,7 @@ export default function BakeryProfile() {
                           </div>
                         </div>
 
-                        <div className="tile p-4 rounded-lg border bg-white/70">
+                        <div className="tile stat-card p-4 rounded-lg border">
                           <div className="text-sm text-muted-foreground mb-2">
                             Expired Share
                           </div>
@@ -1126,7 +1229,7 @@ export default function BakeryProfile() {
                     ))}
 
                   <li className="px-4 py-2 text-xs font-bold text-[var(--ink)] bg-[#fff7ec]">
-                    Messages1
+                    Messages
                   </li>
 
                   {messageNotifs.filter((m) => !readMessageIds.has(m.id))

@@ -631,6 +631,13 @@ const BakeryDashboard = () => {
     box-shadow: 0 8px 24px rgba(201, 124, 44, .10);}
     .seg [role="tab"]{border-radius:10px; padding:.48rem .95rem; color:#6b4b2b; font-weight:700}
     .seg [role="tab"][data-state="active"]{color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); box-shadow:0 8px 18px rgba(201,124,44,.28)}
+    .seg [role="tab"]:hover{
+      background:#FFF2E0;
+    }
+    .seg [role="tab"][data-state="active"]{
+    color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3));
+    box-shadow:0 8px 18px rgba(201,124,44,.28)
+    }
 
     .iconbar{display:flex; align-items:center; gap:.5rem}
     .icon-btn{position:relative; display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:9999px; background:rgba(255,255,255,.9); border:1px solid rgba(0,0,0,.06); box-shadow:0 6px 16px rgba(201,124,44,.14); transition:transform .18s ease, box-shadow .18s ease}
@@ -904,7 +911,7 @@ const BakeryDashboard = () => {
                 <TabsTrigger
                   value="dashboard"
                   title="Dashboard"
-                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full text-[#6b4b2b] hover:bg-amber-50"
                 >
                   <LayoutDashboard className="w-4 h-4" />
                   <span className="hidden sm:inline">Dashboard</span>
@@ -914,7 +921,7 @@ const BakeryDashboard = () => {
                 <TabsTrigger
                   value="inventory"
                   title="Inventory"
-                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full text-[#6b4b2b] hover:bg-amber-50"
                 >
                   <PackageOpen className="w-4 h-4" />
                   <span className="hidden sm:inline">Inventory</span>
@@ -924,7 +931,7 @@ const BakeryDashboard = () => {
                 <TabsTrigger
                   value="donations"
                   title="For Donations"
-                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full text-[#6b4b2b] hover:bg-amber-50"
                 >
                   <HandCoins className="w-4 h-4" />
                   <span className="hidden sm:inline">Donations</span>
@@ -934,7 +941,7 @@ const BakeryDashboard = () => {
                 <TabsTrigger
                   value="DONATIONstatus"
                   title="Donation Status"
-                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full text-[#6b4b2b] hover:bg-amber-50"
                 >
                   <ListCheck className="w-4 h-4" />
                   <span className="hidden sm:inline">Donation Status</span>
@@ -944,7 +951,7 @@ const BakeryDashboard = () => {
                 <TabsTrigger
                   value="employee"
                   title="Employees"
-                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full text-[#6b4b2b] hover:bg-amber-50"
                 >
                   <Users className="w-4 h-4" />
                   <span className="hidden sm:inline">Employees</span>
@@ -954,7 +961,7 @@ const BakeryDashboard = () => {
                 <TabsTrigger
                   value="complaints"
                   title="Complaints"
-                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full text-[#6b4b2b] hover:bg-amber-50"
                 >
                   <MessageSquareWarning className="w-4 h-4" />
                   <span className="hidden sm:inline">Complaints</span>
@@ -964,7 +971,7 @@ const BakeryDashboard = () => {
                 <TabsTrigger
                   value="reports"
                   title="Reports"
-                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full text-[#6b4b2b] hover:bg-amber-50"
                 >
                   <FileBarChart className="w-4 h-4" />
                   <span className="hidden sm:inline">Reports</span>
@@ -974,7 +981,7 @@ const BakeryDashboard = () => {
                 <TabsTrigger
                   value="feedback"
                   title="Feedback"
-                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full text-[#6b4b2b] hover:bg-amber-50"
                 >
                   <MessageSquareDot className="w-4 h-4" />
                   <span className="hidden sm:inline">Feedback</span>
@@ -984,7 +991,7 @@ const BakeryDashboard = () => {
                 <TabsTrigger
                   value="badges"
                   title="Achievements"
-                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                  className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full text-[#6b4b2b] hover:bg-amber-50"
                 >
                   <Medal className="w-4 h-4" />
                   <span className="hidden sm:inline">Achievements</span>

@@ -22,6 +22,7 @@ import {
 } from "recharts";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { History, Building2, ChartPie as PieChartIcon } from "lucide-react";
 
 export default function BakeryReports() {
   const [reportData, setReportData] = useState(null);
@@ -35,20 +36,20 @@ export default function BakeryReports() {
   const [savedWeekEnd, setSavedWeekEnd] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState("");
   const [savedMonth, setSavedMonth] = useState(null);
-  
+
   // Date filters for other reports
   const [donationHistoryStart, setDonationHistoryStart] = useState("");
   const [donationHistoryEnd, setDonationHistoryEnd] = useState("");
   const [bakeryListStart, setBakeryListStart] = useState("");
   const [bakeryListEnd, setBakeryListEnd] = useState("");
-  
+
   const COLORS_STATUS = ["#28a745", "#007bff", "#dc3545"]; // Green, Blue, Red
   const COLORS_TYPE = ["#17a2b8", "#ffc107"]; // Direct vs Request
 
   const reportTypes = [
-    { key: "donation_history", label: "Donation History" },
-    { key: "bakery_list", label: "Bakery List" },
-    { key: "summary", label: "Period Summary" },
+    { key: "donation_history", label: "Donation History", icon: History },
+    { key: "bakery_list", label: "Bakery List", icon: Building2 },
+    { key: "summary", label: "Period Summary", icon: PieChartIcon },
   ];
 
   const API_URL = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
@@ -58,114 +59,118 @@ export default function BakeryReports() {
   const formatHeader = (h) =>
     h.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
-const handleWeeklyFilter = () => {
-  const effType = "weekly";
-  if (!weekStart || !weekEnd) {
-    Swal.fire("Error", "Please select both start and end dates.", "error");
-    return;
-  }
+  const handleWeeklyFilter = () => {
+    const effType = "weekly";
+    if (!weekStart || !weekEnd) {
+      Swal.fire("Error", "Please select both start and end dates.", "error");
+      return;
+    }
 
-  // Validate future dates
-  const today = new Date().toISOString().split("T")[0];
-  
-  if (weekStart > today) {
-    Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
-    return;
-  }
-  
-  if (weekEnd > today) {
-    Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
-    return;
-  }
+    // Validate future dates
+    const today = new Date().toISOString().split("T")[0];
 
-  const start = new Date(weekStart);
-  const end = new Date(weekEnd);
+    if (weekStart > today) {
+      Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
+      return;
+    }
 
-  const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-  if (diffDays > 7) {
-    Swal.fire(
-      "Invalid Date",
-      "Please select a date range within 1 week.",
-      "error"
-    );
-    return;
-  }
+    if (weekEnd > today) {
+      Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
+      return;
+    }
 
-  generateReport(effType, { start: weekStart, end: weekEnd }).then(() => {
-    localStorage.setItem("lastWeekStart", weekStart);
-    localStorage.setItem("lastWeekEnd", weekEnd);
-    setSavedWeekStart(weekStart);
-    setSavedWeekEnd(weekEnd);
-    setActiveReport("summary"); // Navigate to summary tab
-    setActiveSummary(effType); // Set inner tab to weekly
-  });
-};
+    const start = new Date(weekStart);
+    const end = new Date(weekEnd);
 
-const handleMonthlyFilter = () => {
-  const effType = "monthly";
-  if (!selectedMonth) {
-    Swal.fire("Error", "Please select a month.", "error");
-    return;
-  }
+    const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+    if (diffDays > 7) {
+      Swal.fire(
+        "Invalid Date",
+        "Please select a date range within 1 week.",
+        "error"
+      );
+      return;
+    }
 
-  // Validate future month
-  const today = new Date();
-  const currentMonth = today.toISOString().slice(0, 7); // Format: YYYY-MM
-  
-  if (selectedMonth > currentMonth) {
-    Swal.fire("Invalid Date", "Selected month cannot be in the future.", "error");
-    return;
-  }
+    generateReport(effType, { start: weekStart, end: weekEnd }).then(() => {
+      localStorage.setItem("lastWeekStart", weekStart);
+      localStorage.setItem("lastWeekEnd", weekEnd);
+      setSavedWeekStart(weekStart);
+      setSavedWeekEnd(weekEnd);
+      setActiveReport("summary"); // Navigate to summary tab
+      setActiveSummary(effType); // Set inner tab to weekly
+    });
+  };
 
-  generateReport(effType, { month: selectedMonth }).then(() => {
-    localStorage.setItem("lastReportType", effType);
-    localStorage.setItem("lastMonth", selectedMonth);
-    setSavedMonth(selectedMonth);
-    setActiveReport("summary"); // Navigate to summary tab
-    setActiveSummary(effType); // Set inner tab to monthly
-  });
-};
+  const handleMonthlyFilter = () => {
+    const effType = "monthly";
+    if (!selectedMonth) {
+      Swal.fire("Error", "Please select a month.", "error");
+      return;
+    }
 
-// Handlers for other report filters
-const handleDonationHistoryFilter = () => {
-  // Validate future dates
-  const today = new Date().toISOString().split("T")[0];
-  
-  if (donationHistoryStart && donationHistoryStart > today) {
-    Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
-    return;
-  }
-  
-  if (donationHistoryEnd && donationHistoryEnd > today) {
-    Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
-    return;
-  }
-  
-  generateReport("donation_history", {
-    start_date: donationHistoryStart,
-    end_date: donationHistoryEnd,
-  });
-};
+    // Validate future month
+    const today = new Date();
+    const currentMonth = today.toISOString().slice(0, 7); // Format: YYYY-MM
 
-const handleBakeryListFilter = () => {
-  // Validate future dates
-  const today = new Date().toISOString().split("T")[0];
-  
-  if (bakeryListStart && bakeryListStart > today) {
-    Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
-    return;
-  }
-  
-  if (bakeryListEnd && bakeryListEnd > today) {
-    Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
-    return;
-  }
-  
-  generateReport("bakery_list", {
-    start_date: bakeryListStart,
-    end_date: bakeryListEnd,
-  });
-};
+    if (selectedMonth > currentMonth) {
+      Swal.fire(
+        "Invalid Date",
+        "Selected month cannot be in the future.",
+        "error"
+      );
+      return;
+    }
+
+    generateReport(effType, { month: selectedMonth }).then(() => {
+      localStorage.setItem("lastReportType", effType);
+      localStorage.setItem("lastMonth", selectedMonth);
+      setSavedMonth(selectedMonth);
+      setActiveReport("summary"); // Navigate to summary tab
+      setActiveSummary(effType); // Set inner tab to monthly
+    });
+  };
+
+  // Handlers for other report filters
+  const handleDonationHistoryFilter = () => {
+    // Validate future dates
+    const today = new Date().toISOString().split("T")[0];
+
+    if (donationHistoryStart && donationHistoryStart > today) {
+      Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
+      return;
+    }
+
+    if (donationHistoryEnd && donationHistoryEnd > today) {
+      Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
+      return;
+    }
+
+    generateReport("donation_history", {
+      start_date: donationHistoryStart,
+      end_date: donationHistoryEnd,
+    });
+  };
+
+  const handleBakeryListFilter = () => {
+    // Validate future dates
+    const today = new Date().toISOString().split("T")[0];
+
+    if (bakeryListStart && bakeryListStart > today) {
+      Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
+      return;
+    }
+
+    if (bakeryListEnd && bakeryListEnd > today) {
+      Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
+      return;
+    }
+
+    generateReport("bakery_list", {
+      start_date: bakeryListStart,
+      end_date: bakeryListEnd,
+    });
+  };
 
   const getCharityHeaderHTML = (charity, reportType) => {
     const dateStr = new Date().toLocaleString();
@@ -210,7 +215,7 @@ const handleBakeryListFilter = () => {
 
   // Helper: which type should be used for fetching/exports?
   const getEffectiveReportType = () =>
-  activeReport === "summary" ? activeSummary : activeReport;
+    activeReport === "summary" ? activeSummary : activeReport;
 
   const generateReport = async (type, param = null) => {
     setLoading(true);
@@ -225,7 +230,7 @@ const handleBakeryListFilter = () => {
       // Use unified summary endpoint for weekly/monthly
       if (type === "weekly" || type === "monthly") {
         url = `${API_URL}/report/summary?period=${type}`;
-        
+
         if (type === "weekly" && param?.start && param?.end) {
           url += `&start_date=${param.start}&end_date=${param.end}`;
         }
@@ -233,7 +238,7 @@ const handleBakeryListFilter = () => {
           url += `&month=${param.month}`;
         }
       }
-      
+
       // Add date filters for other report types
       if (param?.start_date || param?.end_date) {
         const params = new URLSearchParams();
@@ -265,41 +270,41 @@ const handleBakeryListFilter = () => {
     }
   };
 
- useEffect(() => {
-  const savedType = localStorage.getItem("lastReportType");
-  const savedData = localStorage.getItem("lastReportData");
-  const savedStart = localStorage.getItem("lastWeekStart");
-  const savedEnd = localStorage.getItem("lastWeekEnd");
-  const savedMonthLocal = localStorage.getItem("lastMonth");
+  useEffect(() => {
+    const savedType = localStorage.getItem("lastReportType");
+    const savedData = localStorage.getItem("lastReportData");
+    const savedStart = localStorage.getItem("lastWeekStart");
+    const savedEnd = localStorage.getItem("lastWeekEnd");
+    const savedMonthLocal = localStorage.getItem("lastMonth");
 
-  if (savedType === "weekly" || savedType === "monthly") {
-    // open Summary and the correct inner tab
-    setActiveReport("summary");
-    setActiveSummary(savedType);
+    if (savedType === "weekly" || savedType === "monthly") {
+      // open Summary and the correct inner tab
+      setActiveReport("summary");
+      setActiveSummary(savedType);
+      if (savedData) setReportData(JSON.parse(savedData));
+      if (savedType === "weekly" && savedStart && savedEnd) {
+        setSavedWeekStart(savedStart);
+        setSavedWeekEnd(savedEnd);
+        setWeekStart(savedStart);
+        setWeekEnd(savedEnd);
+        // Don't auto-generate, just restore state
+      }
+      if (savedType === "monthly" && savedMonthLocal) {
+        setSavedMonth(savedMonthLocal);
+        setSelectedMonth(savedMonthLocal);
+        // Don't auto-generate, just restore state
+      }
+      return;
+    }
+
+    // Otherwise, validate and open the saved top tab if any
+    const validReport = reportTypes.find((r) => r.key === savedType);
+    if (!validReport) return;
+
+    setActiveReport(savedType || "");
     if (savedData) setReportData(JSON.parse(savedData));
-    if (savedType === "weekly" && savedStart && savedEnd) {
-      setSavedWeekStart(savedStart);
-      setSavedWeekEnd(savedEnd);
-      setWeekStart(savedStart);
-      setWeekEnd(savedEnd);
-      // Don't auto-generate, just restore state
-    }
-    if (savedType === "monthly" && savedMonthLocal) {
-      setSavedMonth(savedMonthLocal);
-      setSelectedMonth(savedMonthLocal);
-      // Don't auto-generate, just restore state
-    }
-    return;
-  }
-
-  // Otherwise, validate and open the saved top tab if any
-  const validReport = reportTypes.find((r) => r.key === savedType);
-  if (!validReport) return;
-
-  setActiveReport(savedType || "");
-  if (savedData) setReportData(JSON.parse(savedData));
-  // Don't auto-generate on load
-}, []);
+    // Don't auto-generate on load
+  }, []);
 
   const downloadReportCSV = () => {
     const effectiveType = getEffectiveReportType();
@@ -2067,17 +2072,37 @@ const handleBakeryListFilter = () => {
         }}
       >
         {/* Pills */}
-        <TabsList className="flex flex-wrap gap-2 bg-white/70 ring-1 ring-black/5 rounded-full px-2 py-1 shadow-sm">
-          {reportTypes.map((r) => (
-            <TabsTrigger
-              key={r.key}
-              value={r.key}
-              className="data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] rounded-full px-3 py-1 text-sm hover:bg-amber-50"
-            >
-              {r.label}
-            </TabsTrigger>
-          ))}
+        <TabsList
+          aria-label="Reports"
+          className="flex flex-wrap gap-2 bg-white/70 ring-1 ring-black/5 rounded-full px-1.5 py-1 shadow-sm overflow-x-auto scrollbar-hide"
+        >
+          {reportTypes.map((r) => {
+            const Icon = r.icon;
+            return (
+              <TabsTrigger
+                key={r.key}
+                value={r.key}
+                title={r.label} // tooltip + a11y
+                aria-label={r.label} // screen readers on mobile
+                className="inline-flex items-center gap-1.5 rounded-full
+                   px-2 lg:px-3 py-1 min-h-8
+                   text-[#6b4b2b] hover:bg-amber-50
+                   motion-safe:transition
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E49A52] focus-visible:ring-offset-2
+                   data-[state=active]:text-white data-[state=active]:shadow
+                   data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C]
+                   data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327]"
+              >
+                {Icon && (
+                  <Icon className="w-4 h-4 lg:w-5 lg:h-5" aria-hidden="true" />
+                )}
+                {/* hide label on mobile/tablet, show on lg+ */}
+                <span className="hidden lg:inline">{r.label}</span>
+              </TabsTrigger>
+            );
+          })}
         </TabsList>
+
         <TabsContent value="donation_history">
           <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
             <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
@@ -2129,7 +2154,8 @@ const handleBakeryListFilter = () => {
                 </div>
               ) : (
                 <p className="text-[#6b4b2b]/70">
-                  Select date range (optional) and click "Generate Report" to view the report.
+                  Select date range (optional) and click "Generate Report" to
+                  view the report.
                 </p>
               )}
 
@@ -2211,7 +2237,8 @@ const handleBakeryListFilter = () => {
                 </div>
               ) : (
                 <p className="text-[#6b4b2b]/70">
-                  Select date range (optional) and click "Generate Report" to view the report.
+                  Select date range (optional) and click "Generate Report" to
+                  view the report.
                 </p>
               )}
 
@@ -2347,7 +2374,6 @@ const handleBakeryListFilter = () => {
                                 "Total Request Donations",
                                 "Total Received Quantity",
                                 "Total Transactions",
-                                
                               ].map((h) => (
                                 <th key={h} className="px-4 py-2 font-semibold">
                                   {h}
@@ -2390,13 +2416,19 @@ const handleBakeryListFilter = () => {
                               <th className="px-4 py-2 font-semibold">
                                 Product Name
                               </th>
-                              <th className="px-4 py-2 font-semibold">Quantity</th>
+                              <th className="px-4 py-2 font-semibold">
+                                Quantity
+                              </th>
                             </tr>
                           </thead>
                           <tbody>
-                            {reportData.top_items && reportData.top_items.length ? (
+                            {reportData.top_items &&
+                            reportData.top_items.length ? (
                               reportData.top_items.map((item, idx) => (
-                                <tr key={idx} className="odd:bg-white even:bg-white/60">
+                                <tr
+                                  key={idx}
+                                  className="odd:bg-white even:bg-white/60"
+                                >
                                   <td className="px-4 py-2 border-t border-[#f2d4b5]">
                                     {item.product_name}
                                   </td>
@@ -2433,11 +2465,13 @@ const handleBakeryListFilter = () => {
                                   data={[
                                     {
                                       name: "Direct",
-                                      value: reportData.total_direct_donations || 0,
+                                      value:
+                                        reportData.total_direct_donations || 0,
                                     },
                                     {
                                       name: "Request",
-                                      value: reportData.total_request_donations || 0,
+                                      value:
+                                        reportData.total_request_donations || 0,
                                     },
                                   ]}
                                   dataKey="value"
@@ -2511,14 +2545,22 @@ const handleBakeryListFilter = () => {
                         <table className="min-w-full text-center">
                           <thead className="bg-[#EADBC8] text-[#4A2F17]">
                             <tr>
-                              <th className="px-4 py-2 font-semibold">Product Name</th>
-                              <th className="px-4 py-2 font-semibold">Quantity</th>
+                              <th className="px-4 py-2 font-semibold">
+                                Product Name
+                              </th>
+                              <th className="px-4 py-2 font-semibold">
+                                Quantity
+                              </th>
                             </tr>
                           </thead>
                           <tbody>
-                            {reportData.top_items && reportData.top_items.length ? (
+                            {reportData.top_items &&
+                            reportData.top_items.length ? (
                               reportData.top_items.map((item, idx) => (
-                                <tr key={idx} className="odd:bg-white even:bg-white/60">
+                                <tr
+                                  key={idx}
+                                  className="odd:bg-white even:bg-white/60"
+                                >
                                   <td className="px-4 py-2 border-t border-[#f2d4b5]">
                                     {item.product_name}
                                   </td>
@@ -2555,11 +2597,13 @@ const handleBakeryListFilter = () => {
                                   data={[
                                     {
                                       name: "Direct",
-                                      value: reportData.total_direct_donations || 0,
+                                      value:
+                                        reportData.total_direct_donations || 0,
                                     },
                                     {
                                       name: "Request",
-                                      value: reportData.total_request_donations || 0,
+                                      value:
+                                        reportData.total_request_donations || 0,
                                     },
                                   ]}
                                   dataKey="value"
@@ -2607,7 +2651,8 @@ const handleBakeryListFilter = () => {
                 </div>
               ) : (
                 <p className="text-[#6b4b2b]/70">
-                  Select a period type and date range, then click "Generate Report" to view the summary.
+                  Select a period type and date range, then click "Generate
+                  Report" to view the summary.
                 </p>
               )}
             </CardContent>

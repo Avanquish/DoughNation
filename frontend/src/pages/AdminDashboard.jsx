@@ -474,6 +474,13 @@ const AdminDashboard = () => {
 @media (max-width: 640px) {.seg .TabsList{justify-content:center;}}
 .seg [role="tab"]{border-radius:10px; padding:.48rem .95rem; color:#6b4b2b; font-weight:700}
 .seg [role="tab"][data-state="active"]{color:#fff; background:linear-gradient(90deg,#F6C17C,#E49A52,#BF7327); box-shadow:0 8px 18px rgba(201,124,44,.28)}
+.seg [role="tab"]:hover{ background:#FFF2E0; }
+.seg [role="tab"][data-state="active"]{
+  color:#fff;
+  background:linear-gradient(90deg,#F6C17C,#E49A52,#BF7327);
+  box-shadow:0 8px 18px rgba(201,124,44,.28);
+}
+
 
 .btn-logout{position:relative; overflow:hidden; border-radius:9999px; padding:.58rem .95rem; gap:.5rem; background:linear-gradient(90deg,#F6C17C,#E49A52,#BF7327); color:#fff; border:1px solid rgba(255,255,255,.6); box-shadow:0 8px 26px rgba(201,124,44,.25); transition:transform .18s ease, box-shadow .18s ease, filter .18s ease}
 .btn-logout:before{content:""; position:absolute; top:-40%; bottom:-40%; left:-70%; width:60%; transform:rotate(10deg); background:linear-gradient(90deg, rgba(255,255,255,.26), rgba(255,255,255,0) 55%); animation: shine 3.2s linear infinite}
@@ -891,7 +898,7 @@ thead{ background:#EADBC8; color:#4A2F17; }
               <TabsTrigger
                 value="dashboard"
                 title="Dashboard"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full text-[#6b4b2b] hover:bg-amber-50"
               >
                 <LayoutDashboard className="w-4 h-4" />
                 <span className="hidden sm:inline">Dashboard</span>

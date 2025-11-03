@@ -14,7 +14,7 @@ from app.crud import update_user_badges
 
 from app import models, schemas, database, auth
 from app.routes.binventory_routes import check_threshold_and_create_donation
-
+ 
 # Define your upload directory
 UPLOAD_DIR = "static/uploads/direct_donations"
 
@@ -27,6 +27,7 @@ async def create_direct_donation(
     bakery_inventory_id: int = Form(...),
     charity_id: int = Form(...),
     quantity: int = Form(...),
+    donated_by: str = Form(...),  # ✅ Add this parameter
     db: Session = Depends(database.get_db),
     current_auth=Depends(auth.get_current_user_or_employee),
 ):
@@ -57,11 +58,10 @@ async def create_direct_donation(
     if existing_request:
         raise HTTPException(status_code=400, detail="Item already requested for donation")
     
-
     if quantity > inventory_item.quantity:
         raise HTTPException(status_code=400, detail="Quantity exceeds available inventory")
 
-    # Create DirectDonation record
+    # ✅ Create DirectDonation record WITH donated_by
     direct_donation = models.DirectDonation(
         bakery_inventory_id=inventory_item.id,
         charity_id=charity_id,
@@ -72,18 +72,17 @@ async def create_direct_donation(
         expiration_date=inventory_item.expiration_date,
         description=inventory_item.description,
         image=inventory_item.image,
-        btracking_status="preparing"
+        btracking_status="preparing",
+        donated_by=donated_by  # ✅ Store who created the donation
     )
     db.add(direct_donation)
 
     # Reduce inventory quantity
     inventory_item.quantity -= quantity
     if inventory_item.quantity == 0:
-        inventory_item.status = "donated"  # mark as fully donated
+        inventory_item.status = "donated"
     else:
         inventory_item.status = "available"
-
-        # Remove from auto-donation if exists
         donation_record = db.query(models.Donation).filter(
             models.Donation.bakery_inventory_id == inventory_item.id
         ).first()
@@ -92,9 +91,7 @@ async def create_direct_donation(
             print(f"Removed auto-donation for fully donated item: {inventory_item.name}")
 
     db.commit()
-    # Schedule donation check in background
     check_threshold_and_create_donation(db)
-
     db.refresh(direct_donation)
 
     return direct_donation
@@ -105,13 +102,11 @@ def get_direct_donations_for_bakery(
     db: Session = Depends(database.get_db),
     current_auth=Depends(auth.get_current_user_or_employee),
 ):
-    # Extract bakery_id from either employee or bakery token
     bakery_id = auth.get_bakery_id_from_auth(current_auth)
     
     if not bakery_id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    # Only get donations where the inventory belongs to the current bakery
     donations = (
         db.query(models.DirectDonation)
         .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
@@ -121,7 +116,7 @@ def get_direct_donations_for_bakery(
 
     result = []
     for d in donations:
-        inventory_item = d.bakery_inventory  # already available via relationship
+        inventory_item = d.bakery_inventory
         bakery_owner = d.bakery_inventory.bakery if inventory_item else None
         charity_user = d.charity 
         
@@ -138,11 +133,12 @@ def get_direct_donations_for_bakery(
             "charity_id": d.charity_id,
             "image": d.image,
             "btracking_status": d.btracking_status or "preparing",
-            "btracking_completed_at":  d.btracking_completed_at.isoformat() if d. btracking_completed_at else None,
+            "btracking_completed_at": d.btracking_completed_at.isoformat() if d.btracking_completed_at else None,
             "bakery_name": bakery_owner.name if bakery_owner else None,
             "bakery_profile_picture": bakery_owner.profile_picture if bakery_owner else None,
             "charity_name": charity_user.name if charity_user else None,
             "charity_profile_picture": charity_user.profile_picture if charity_user else None,
+            "donated_by": d.donated_by,  # ✅ Include donated_by in response
         })
 
     return result

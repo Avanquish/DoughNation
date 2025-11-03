@@ -1077,6 +1077,9 @@ const hideButtons = requestsForDonation.length > 0
 
   const isTaken = acceptedDonations.has(d.bakery_inventory_id);
 
+  // Check if user is an employee (not bakery owner)
+  const employeeToken = localStorage.getItem("employeeToken");
+  
   return {
     isMedia: false,
     body: (
@@ -1087,14 +1090,22 @@ const hideButtons = requestsForDonation.length > 0
         </div>
 
         {!hideButtons && !accepted && iAmReceiver && !isTaken && (
-          <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-            <button className="btn-mini accept" onClick={() => acceptDonation(m)}>
-              <Check className="w-4 h-4" /> Accept
-            </button>
-            <button className="btn-mini" onClick={() => cancelDonation(m)}>
-              <XCircle className="w-4 h-4" /> Cancel
-            </button>
-          </div>
+          <>
+            {employeeToken ? (
+              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                <button className="btn-mini accept" onClick={() => acceptDonation(m)}>
+                  <Check className="w-4 h-4" /> Accept
+                </button>
+                <button className="btn-mini" onClick={() => cancelDonation(m)}>
+                  <XCircle className="w-4 h-4" /> Cancel
+                </button>
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: "#7a4f1c", marginTop: 4, fontStyle: "italic" }}>
+                Only employees can accept donation requests
+              </div>
+            )}
+          </>
         )}
       </div>
     ),
@@ -1377,6 +1388,9 @@ const hideButtons = requestsForDonation.length > 0
                   try { d = JSON.parse(card.content).donation || {}; } catch {}
                   const iAmReceiver = Number(card.receiver_id) === Number(currentUser?.id);
 
+                  // Check if user is an employee (not bakery owner)
+                  const employeeToken = localStorage.getItem("employeeToken");
+                  
                   return (
                     <div key={`pend-${card.id}`} className="pend-row">
                       <div className="pend-meta">
@@ -1385,7 +1399,7 @@ const hideButtons = requestsForDonation.length > 0
                       </div>
                       <div className="pend-actions">
                         <button className="btn-mini" onClick={() => {jumpTo(card.id); setPendingOpen(false);}}>Open</button>
-                        {iAmReceiver && (
+                        {iAmReceiver && employeeToken && (
                           <>
                             <button
                               className="btn-mini accept"

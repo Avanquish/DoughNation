@@ -56,7 +56,7 @@ def donation_history(
         query_requests
         .options(
             joinedload(models.DonationRequest.charity),
-            joinedload(models.DonationRequest.inventory_item).joinedload(models.BakeryInventory.created_by_employee)
+            joinedload(models.DonationRequest.inventory_item)
         )
         .all()
     )
@@ -85,28 +85,13 @@ def donation_history(
         query_direct
         .options(
             joinedload(models.DirectDonation.charity),
-            joinedload(models.DirectDonation.bakery_inventory).joinedload(models.BakeryInventory.created_by_employee)
+            joinedload(models.DirectDonation.bakery_inventory)
         )
         .all()
     )
 
     # Add donation requests
     for d in donation_requests:
-        employee_name = "Bakery Owner"
-        # Check if inventory_item exists and has created_by_employee
-        if d.inventory_item:
-            if d.inventory_item.created_by_employee_id:
-                # Explicitly fetch the employee if not loaded
-                if d.inventory_item.created_by_employee:
-                    employee_name = d.inventory_item.created_by_employee.name
-                else:
-                    # Fallback: query employee directly
-                    employee = db.query(models.Employee).filter(
-                        models.Employee.id == d.inventory_item.created_by_employee_id
-                    ).first()
-                    if employee:
-                        employee_name = employee.name
-        
         results.append({
             "id": d.id,
             "type": "request",
@@ -116,26 +101,11 @@ def donation_history(
             ),
             "quantity": d.donation_quantity or 0,
             "charity_name": d.charity.name if d.charity else "Unknown",
-            "donated_by": employee_name,
+            "donated_by": d.rdonated_by or "Unknown",
         })
 
     # Add direct donations
     for d in direct_donations:
-        employee_name = "Bakery Owner"
-        # Check if bakery_inventory exists and has created_by_employee
-        if d.bakery_inventory:
-            if d.bakery_inventory.created_by_employee_id:
-                # Explicitly fetch the employee if not loaded
-                if d.bakery_inventory.created_by_employee:
-                    employee_name = d.bakery_inventory.created_by_employee.name
-                else:
-                    # Fallback: query employee directly
-                    employee = db.query(models.Employee).filter(
-                        models.Employee.id == d.bakery_inventory.created_by_employee_id
-                    ).first()
-                    if employee:
-                        employee_name = employee.name
-        
         results.append({
             "id": d.id,
             "type": "direct",
@@ -143,7 +113,7 @@ def donation_history(
             "product_name": d.name or "Unknown",
             "quantity": d.quantity or 0,
             "charity_name": d.charity.name if d.charity else "Unknown",
-            "donated_by": employee_name,
+            "donated_by": d.donated_by or "Unknown",  
         })
 
     # Sort latest first

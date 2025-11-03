@@ -116,6 +116,29 @@ const leftBadge = (d) => {
   return { tone: d <= 3 ? "warn" : "good", label: `Expires in ${d} days` };
 };
 
+const getCurrentUserName = () => {
+  const employeeToken = localStorage.getItem("employeeToken");
+  const bakeryToken = localStorage.getItem("token");
+  const token = employeeToken || bakeryToken;
+
+  if (!token) return "Unknown";
+
+  try {
+    const decoded = JSON.parse(atob(token.split(".")[1]));
+    
+    if (decoded.type === "employee") {
+      // Employee token
+      return decoded.employee_name || decoded.name || "Employee";
+    } else {
+      // Bakery/Charity token
+      return decoded.name || "User";
+    }
+  } catch (err) {
+    console.error("Failed to decode token:", err);
+    return "Unknown";
+  }
+};
+
 /* ---------- main component ---------- */
 const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
   const [donations, setDonations] = useState([]);
@@ -530,6 +553,9 @@ useEffect(() => {
                   fd.append("description", form.description || "");
                   fd.append("charity_id", parseInt(form.charity_id, 10));
                   if (form.image_file) fd.append("image", form.image_file);
+
+                  const donatedBy = getCurrentUserName();
+                  fd.append("donated_by", donatedBy);
 
                   await axios.post(`${API}/direct`, fd, {
                     headers: {

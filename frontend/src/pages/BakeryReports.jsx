@@ -2769,4 +2769,4 @@ export default function BakeryReports({ isViewOnly = false }) {
       </Tabs>
     </div>
   );
-}
+} 

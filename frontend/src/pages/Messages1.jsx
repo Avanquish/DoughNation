@@ -261,6 +261,29 @@ export default function Messages({ currentUser: currentUserProp }) {
     return token ? { headers: { Authorization: `Bearer ${token}` } } : {};
   };
 
+  const getCurrentUserName = () => {
+  const employeeToken = localStorage.getItem("employeeToken");
+  const bakeryToken = localStorage.getItem("token");
+  const token = employeeToken || bakeryToken;
+
+  if (!token) return "Unknown";
+
+  try {
+    const decoded = JSON.parse(atob(token.split(".")[1]));
+    
+    if (decoded.type === "employee") {
+      // Employee token
+      return decoded.employee_name || decoded.name || "Employee";
+    } else {
+      // Bakery/Charity token
+      return decoded.name || "User";
+    }
+  } catch (err) {
+    console.error("Failed to decode token:", err);
+    return "Unknown";
+  }
+};
+
   /* ---- Fetch Functions ---- */
   const fetchInventoryStatus = async (bakeryInventoryId) => {
     try {
@@ -496,9 +519,14 @@ export default function Messages({ currentUser: currentUserProp }) {
         prev.map((m) => (m.id === donationCardMessage.id ? { ...m, accepted: true } : m))
       );
 
+      const userName = getCurrentUserName();
+
       const res = await axios.post(
         `${API_URL}/donation/accept/${donation.id}`,
-        { charity_id: originalCharityId },
+        { 
+          charity_id: originalCharityId,
+          donated_by: userName
+        },
         opts
       );
       const { accepted_charity_id, canceled_charities, donation_name, bakery_inventory_id } = res.data;
@@ -586,9 +614,14 @@ export default function Messages({ currentUser: currentUserProp }) {
         prev.map((m) => (m.id === donationCardMessage.id ? { ...m, cancelled: true } : m))
       );
 
+      const userName = getCurrentUserName();
+
       await axios.post(
         `${API_URL}/donation/cancel/${donation.id}`,
-        { charity_id: originalCharityId },
+        { 
+          charity_id: originalCharityId,
+          donated_by: userName
+        },
         opts
       );
 
@@ -705,6 +738,8 @@ export default function Messages({ currentUser: currentUserProp }) {
 
         // Show buttons if NOT accepted (and status data has loaded)
         const shouldShowButtons = !hasAccepted && inventoryStatus;
+        // Check if user is an employee (not bakery owner)
+        const employeeToken = localStorage.getItem("employeeToken");
 
         return {
           isMedia: false,
@@ -716,22 +751,30 @@ export default function Messages({ currentUser: currentUserProp }) {
               </div>
 
               {shouldShowButtons && iAmReceiver && (
-                <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                  <button
-                    className="btn-mini accept"
-                    onClick={() => acceptDonation(m)}
-                    disabled={disabledDonations.has(d.id)}
-                  >
-                    <Check className="w-4 h-4" /> Accept
-                  </button>
-                  <button
-                    className="btn-mini"
-                    onClick={() => cancelDonation(m)}
-                    disabled={disabledDonations.has(d.id)}
-                  >
-                    <XCircle className="w-4 h-4" /> Cancel
-                  </button>
-                </div>
+                <>
+                  {employeeToken ? (
+                    <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                      <button
+                        className="btn-mini accept"
+                        onClick={() => acceptDonation(m)}
+                        disabled={disabledDonations.has(d.id)}
+                      >
+                        <Check className="w-4 h-4" /> Accept
+                      </button>
+                      <button
+                        className="btn-mini"
+                        onClick={() => cancelDonation(m)}
+                        disabled={disabledDonations.has(d.id)}
+                      >
+                        <XCircle className="w-4 h-4" /> Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12, color: "#7a4f1c", marginTop: 4, fontStyle: "italic" }}>
+                      Only employees can accept donation requests
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ),
@@ -1557,6 +1600,8 @@ export default function Messages({ currentUser: currentUserProp }) {
                       d = JSON.parse(card.content).donation || {};
                     } catch { }
                     const iAmReceiver = Number(card.receiver_id) === Number(currentUser?.id);
+                    // Check if user is an employee (not bakery owner)
+                    const employeeToken = localStorage.getItem("employeeToken");
 
                     return (
                       <div key={`pend-${card.id}`} className="pend-row">
@@ -1568,7 +1613,7 @@ export default function Messages({ currentUser: currentUserProp }) {
                           <button className="btn-mini" onClick={() => { jumpTo(card.id); setPendingOpen(false); }}>
                             Open
                           </button>
-                          {iAmReceiver && (
+                          {iAmReceiver && employeeToken && (
                             <>
                               <button
                                 className="btn-mini accept"
@@ -1741,4 +1786,4 @@ export default function Messages({ currentUser: currentUserProp }) {
         )}
     </>
   );
-}
+} 

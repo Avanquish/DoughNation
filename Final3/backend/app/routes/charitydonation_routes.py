@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile, Body
+from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile, Body, Header
 from sqlalchemy.orm import Session, joinedload
 from datetime import date, datetime
 from typing import List, Optional
@@ -178,10 +178,13 @@ def request_donation(
 @router.post("/donation/cancel/{request_id}")
 def cancel_donation_request(
     request_id: int,
-    charity_id: int = None,
+    payload: dict = Body(...),  # ✅ Accept body payload
     db: Session = Depends(get_db),
     current_user: models.User = Depends(ensure_verified_user)
 ):
+    charity_id = payload.get("charity_id")
+    donated_by = payload.get("donated_by")  # ✅ Get name from frontend
+    
     query = db.query(models.DonationRequest).filter(
         models.DonationRequest.id == request_id
     )
@@ -197,10 +200,10 @@ def cancel_donation_request(
     request_obj = query.first()
 
     if not request_obj or request_obj.status != "pending":
-        alt = db.query(models.DonationRequest).filter(models.DonationRequest.id == request_id).first()
-        print("[DEBUG] cancel lookup alt:", None if not alt else {"id": alt.id, "charity_id": alt.charity_id, "bakery_id": getattr(alt,'bakery_id',None), "status": alt.status, "tracking_status": alt.tracking_status})
         raise HTTPException(status_code=404, detail="Pending request not found or you are not authorized")
 
+    # ✅ Store who canceled it
+    request_obj.rdonated_by = donated_by or current_user.name or "Unknown"
     request_obj.status = "canceled"
     bakery_inventory_id = request_obj.bakery_inventory_id
     db.commit()
@@ -209,9 +212,9 @@ def cancel_donation_request(
     
     return {
         "message": "Donation request canceled",
-        "bakery_inventory_id": bakery_inventory_id
+        "bakery_inventory_id": bakery_inventory_id,
+        "rdonated_by": request_obj.rdonated_by
     }
-
 
 @router.get("/donation/my_requests", response_model=List[schemas.DonationRequestRead])
 def my_requests(
@@ -233,8 +236,13 @@ def accept_donation(
     current_user: models.User = Depends(ensure_verified_user)
 ):
     charity_id = payload.get("charity_id")
+    donated_by = payload.get("donated_by")  # ✅ Get name from frontend
+    
     if not charity_id:
         raise HTTPException(status_code=400, detail="charity_id required")
+    
+    if not donated_by:
+        raise HTTPException(status_code=400, detail="donated_by (employee/owner name) required")
 
     donation_request = db.query(models.DonationRequest).filter(
         models.DonationRequest.id == request_id,
@@ -246,7 +254,6 @@ def accept_donation(
     if not donation_request:
         raise HTTPException(status_code=404, detail="Pending donation request not found")
 
-    # ✅ CRITICAL: Double-check no other request for this inventory has been accepted
     has_accepted = db.query(models.DonationRequest).filter(
         models.DonationRequest.bakery_inventory_id == donation_request.bakery_inventory_id,
         models.DonationRequest.status == "accepted",
@@ -259,8 +266,9 @@ def accept_donation(
             detail="This donation has already been accepted by another charity"
         )
 
-    # Accept this request
+    # ✅ Store who accepted it
     donation_request.status = "accepted"
+    donation_request.rdonated_by = donated_by or current_user.name or "Unknown"
 
     new_check = models.DonationCardChecking(
         donor_id=donation_request.bakery_id,
@@ -270,7 +278,7 @@ def accept_donation(
     )
     db.add(new_check)
 
-    # Cancel all other requests for same bakery_inventory_id
+    # ✅ Auto-cancel other requests
     other_requests = db.query(models.DonationRequest).filter(
         models.DonationRequest.bakery_inventory_id == donation_request.bakery_inventory_id,
         models.DonationRequest.id != donation_request.id,
@@ -279,6 +287,7 @@ def accept_donation(
     canceled_charity_ids = []
     for r in other_requests:
         r.status = "canceled"
+        r.rdonated_by = f"Auto-canceled (Accepted by {donation_request.rdonated_by})"
         canceled_charity_ids.append(r.charity_id)
 
     db.commit()
@@ -292,9 +301,9 @@ def accept_donation(
         "canceled_charities": canceled_charity_ids,
         "request_id": request_id,
         "donation_name": donation_request.donation_name,
-        "bakery_inventory_id": donation_request.bakery_inventory_id
+        "bakery_inventory_id": donation_request.bakery_inventory_id,
+        "rdonated_by": donation_request.rdonated_by
     }
-
 
 @router.get("/donation/received")
 def received_donations(

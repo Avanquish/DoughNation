@@ -22,6 +22,7 @@ class UserOut(BaseModel):
     email: EmailStr
     contact_person: str
     contact_number: str
+    about: Optional[str] = None 
     address: str
     profile_picture: Optional[str] = None
     proof_of_validity: Optional[str] = None
@@ -30,8 +31,9 @@ class UserOut(BaseModel):
         from_attributes = True
 
 class UserLogin(BaseModel):
-    email: EmailStr
+    email: str  # Changed from EmailStr to str - now accepts both email and employee name
     password: str
+    role: str | None = None  # Optional role for validation (Bakery, Charity, Admin)
 
 class Token(BaseModel):
     access_token: str
@@ -91,17 +93,30 @@ class BakeryInventoryUpdate(BaseModel):
 # ------------------ BAKERY EMPLOYEE ------------------
 class EmployeeBase(BaseModel):
     name: str
-    role: str
+    role: str  # Owner, Manager, Full-time, Part-time
     start_date: date
 
 class EmployeeCreate(EmployeeBase):
-    pass
+    password: Optional[str] = None  # Optional password for login
+
+class EmployeeLogin(BaseModel):
+    """Employee login with name and password"""
+    name: str
+    password: str
+    bakery_id: int
+
+class EmployeeChangePassword(BaseModel):
+    """Employee password change request"""
+    current_password: str
+    new_password: str
+    confirm_password: str
 
 class EmployeeUpdate(BaseModel):
     name: Optional[str] = None
     role: Optional[str] = None
     start_date: Optional[date] = None
     profile_picture: Optional[str] = None
+    password: Optional[str] = None  # Optional password update
 
 class EmployeeOut(BaseModel):
     id: int
@@ -109,11 +124,21 @@ class EmployeeOut(BaseModel):
     name: str
     role: str
     start_date: date
-    profile_picture: Optional[str]
+    profile_picture: Optional[str] = None
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
 
+class EmployeeTokenResponse(BaseModel):
+    """Employee login response with token"""
+    access_token: str
+    token_type: str
+    employee_id: int
+    employee_name: str
+    employee_role: str
+    bakery_id: int
+    bakery_name: str
 
 # ------------------ DONATION ------------------
 class DonationBase(BaseModel):
@@ -164,8 +189,15 @@ class DonationRequestRead(BaseModel):
     donation_id: Optional[int]
     charity_id: int
     bakery_id: int
+    bakery_inventory_id: int  # ← ADD THIS
     timestamp: datetime
     status: str
+    donation_name: Optional[str] = None
+    donation_image: Optional[str] = None
+    donation_quantity: Optional[int] = None
+    donation_expiration: Optional[datetime] = None
+    bakery_name: Optional[str] = None
+    bakery_profile_picture: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -193,6 +225,8 @@ class DirectDonationResponse(DirectDonationBase):
     btracking_status: Optional[str] = None 
     bakery_name: Optional[str] = None              
     bakery_profile_picture: Optional[str] = None
+    donated_by: Optional[str] = None  # Add this field
+
 
     class Config:
         from_attributes = True
@@ -433,4 +467,4 @@ class AnalyticsResponse(BaseModel):
     inventory: List[InventoryItem]
     donations: List[DonationItem]
     employees: List[EmployeeItem]
-    badges: List[BadgeItem]
+    badges: List[BadgeItem] 

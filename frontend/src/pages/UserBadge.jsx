@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { Award } from "lucide-react";
 
-const API = "https://api.doughnationhq.cloud";
+const API = "http://localhost:8000";
 
 const UserBadge = ({ currentUser }) => {
   const [badges, setBadges] = useState([]);

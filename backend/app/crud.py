@@ -5,10 +5,11 @@ import os
 import shutil
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 
 from app import schemas
 from . import models, auth
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from app.routes.geofence import geocode_address, get_coordinates_osm
 
@@ -109,8 +110,57 @@ def create_user(
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+    
+    print(f"\n🔍 DEBUG: User created")
+    print(f"   ID: {db_user.id}")
+    print(f"   Name: {db_user.name}")
+    print(f"   Email: {db_user.email}")
+    print(f"   Role (db): {db_user.role}")
+    print(f"   Role (variable): {role}")
+    print(f"   Contact Person: {contact_person}")
+    print(f"   Role check: role.lower() == 'bakery' => {role.lower()} == 'bakery' => {role.lower() == 'bakery'}")
+    
+    # 🆕 If bakery, automatically create contact person as first employee
+    if role.lower() == "bakery":
+        try:
+            print(f"\n✅ ROLE CHECK PASSED - Creating first employee for bakery {db_user.id}: {contact_person}")
+            # Default password for first employee
+            default_password = "Employee123!"
+            hashed_emp_password = pwd_context.hash(default_password)
+            
+            # Verify the employee doesn't already exist
+            existing_emp = db.query(models.Employee).filter(
+                models.Employee.bakery_id == db_user.id,
+                models.Employee.name == contact_person
+            ).first()
+            
+            if existing_emp:
+                print(f"⚠️  Employee already exists: {existing_emp.name}")
+                return db_user
+            
+            first_employee = models.Employee(
+                bakery_id=db_user.id,
+                name=contact_person,
+                role="Owner",
+                start_date=date.today(),  # ✅ Set start date to today
+                hashed_password=hashed_emp_password
+            )
+            db.add(first_employee)
+            db.commit()
+            db.refresh(first_employee)
+            print(f"✅ EMPLOYEE CREATED: {first_employee.name} (ID: {first_employee.id}, bakery_id: {first_employee.bakery_id}, password_set: {bool(first_employee.hashed_password)})")
+        except Exception as e:
+            print(f"❌ ERROR creating first employee: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Failed to create first employee: {str(e)}")
+    else:
+        print(f"❌ ROLE CHECK FAILED - role.lower()={role.lower()}, not 'bakery', skipping employee creation")
+    
     return db_user
 
+#Update User Information
 #Update User Information
 def update_user_info(
     db: Session,
@@ -118,7 +168,7 @@ def update_user_info(
     name: Optional[str] = None,
     contact_person: Optional[str] = None,
     contact_number: Optional[str] = None,
-    address: Optional[str] = None,
+    about: Optional[str] = None,
     profile_picture: UploadFile = None
 ):
     user = db.query(models.User).filter(models.User.id == user_id).first()
@@ -128,18 +178,32 @@ def update_user_info(
     if user.role.lower() == "admin":
         raise HTTPException(status_code=403, detail="Admin information cannot be edited")
 
-    if name is not None and name != "":
+    # VALIDATE contact_person if being changed (only for bakeries)
+    if contact_person is not None and contact_person != "" and user.role.lower() == "bakery":
+        # Check if the new contact person exists as an employee
+        employee = db.query(models.Employee).filter(
+            models.Employee.bakery_id == user_id,
+            models.Employee.name == contact_person
+        ).first()
+        
+        if not employee:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Employee '{contact_person}' not found in your bakery. Please add them as an employee first."
+            )
+        
+        # Employee found, update contact person
+        user.contact_person = contact_person
+
+    if name is not None and name != "": 
         user.name = name
-    if contact_person is not None and contact_person != "":
+    # Only update contact_person if not already handled above
+    if contact_person is not None and contact_person != "" and user.role.lower() != "bakery":
         user.contact_person = contact_person
     if contact_number is not None and contact_number != "":
         user.contact_number = contact_number
-    if address is not None and address != "":
-        user.address = address
-    latitude, longitude = get_coordinates_osm(address)
-    if latitude and longitude:
-        user.latitude = latitude
-        user.longitude = longitude
+    if about is not None and about != "":
+        user.about = about
     if profile_picture:
         os.makedirs("uploads/profile_pictures", exist_ok=True)
         profile_pic_path = f"uploads/profile_pictures/{profile_picture.filename}"
@@ -212,6 +276,7 @@ def generate_product_id(name: str):
     unique = str(int(datetime.now().timestamp()))[-6:] + str(random.randint(100, 999))
     return f"{prefix}-{unique}"
 
+
 def create_inventory(
     db: Session,
     bakery_id: int,
@@ -224,7 +289,12 @@ def create_inventory(
     uploaded: str,
     description: str = None
 ):
-    from datetime import datetime
+    from datetime import datetime, timezone, timedelta
+    import random
+
+    # Use Philippine timezone (UTC+8) to match the rest of the system
+    philippine_tz = timezone(timedelta(hours=8))
+    server_creation_date = datetime.now(philippine_tz).date()
 
     image_path = None
     if image:
@@ -242,7 +312,7 @@ def create_inventory(
         name=name,
         image=image_path,
         quantity=quantity,
-        creation_date=datetime.strptime(creation_date, "%Y-%m-%d").date(),
+        creation_date=server_creation_date,
         expiration_date=datetime.strptime(expiration_date, "%Y-%m-%d").date() if expiration_date else None,
         threshold=threshold,
         uploaded=uploaded,
@@ -256,6 +326,7 @@ def create_inventory(
 
 def list_inventory(db: Session, bakery_id: int):
     return db.query(models.BakeryInventory).filter(models.BakeryInventory.bakery_id == bakery_id).all()
+
 
 def update_inventory(
     db: Session,
@@ -284,7 +355,6 @@ def update_inventory(
     # Update basic fields
     item.name = name
     item.quantity = quantity
-    item.creation_date = datetime.strptime(creation_date, "%Y-%m-%d").date()
     item.expiration_date = datetime.strptime(expiration_date, "%Y-%m-%d").date() if expiration_date else None
     item.threshold = threshold
     item.uploaded = uploaded
@@ -652,23 +722,39 @@ def get_completed_donation_count(db: Session, user_id: int) -> int:
     return direct_count + request_count
 
 # ---------------- Helper ----------------
+def get_philippine_time():
+    """Get current time in Philippine timezone (UTC+8)."""
+    philippine_tz = timezone(timedelta(hours=8))
+    return datetime.now(philippine_tz)
+
 def to_datetime(value):
-    """Convert date or datetime to datetime."""
+    """Convert date or datetime to datetime with Philippine timezone awareness."""
+    philippine_tz = timezone(timedelta(hours=8))
+    
     if value is None:
-        return datetime.utcnow()
+        return get_philippine_time()
+    
     if isinstance(value, datetime):
-        return value
+        # If already timezone-aware, convert to Philippine time
+        if value.tzinfo is not None:
+            return value.astimezone(philippine_tz)
+        # If naive datetime, assume it's already in Philippine time
+        return value.replace(tzinfo=philippine_tz)
+    
     if isinstance(value, date):
-        return datetime.combine(value, datetime.min.time())
+        # Convert date to datetime at midnight Philippine time
+        dt = datetime.combine(value, datetime.min.time())
+        return dt.replace(tzinfo=philippine_tz)
+    
     return value  # fallback
 
 def donation_date(donation):
-    """Get the main date of a donation object."""
+    """Get the main date of a donation object in Philippine time."""
     if hasattr(donation, "timestamp"):
         return to_datetime(donation.timestamp)  # DonationRequest
     if hasattr(donation, "creation_date"):
         return to_datetime(donation.creation_date)  # DirectDonation
-    return datetime.utcnow()
+    return get_philippine_time()
 
 
 # ---------------- Main Badge Update ----------------
@@ -748,7 +834,8 @@ def update_user_badges(db: Session, user_id: int):
         db.add(models.UserBadge(user_id=user_id, badge_id=1))
 
     # Weekly Giver (donated at least once per week for last 4 weeks)
-    one_month_ago = datetime.utcnow() - timedelta(days=30)
+    current_time = get_philippine_time()
+    one_month_ago = current_time - timedelta(days=30)
     weekly_donations = [d for d in completed_donations if donation_date(d) >= one_month_ago]
     donation_weeks = set()
     
@@ -761,7 +848,7 @@ def update_user_badges(db: Session, user_id: int):
         db.add(models.UserBadge(user_id=user_id, badge_id=2))
 
     # Monthly Habit - donated every month for last 3 months
-    three_months_ago = datetime.utcnow() - timedelta(days=90)
+    three_months_ago = current_time - timedelta(days=90)
     monthly_donations = [d for d in completed_donations if donation_date(d) >= three_months_ago]
     donation_months = set()
     
@@ -834,7 +921,7 @@ def update_user_badges(db: Session, user_id: int):
 
     on_time_donations = [
         d for d in donations
-        if (to_datetime(getattr(d, "expiration_date", datetime.utcnow())) - donation_date(d)) >= timedelta(hours=24)
+        if (to_datetime(getattr(d, "expiration_date", get_philippine_time())) - donation_date(d)) >= timedelta(hours=24)
     ]
     if on_time_donations and not has_badge(14):
         db.add(models.UserBadge(user_id=user_id, badge_id=14))  # Right on Time
@@ -846,7 +933,7 @@ def update_user_badges(db: Session, user_id: int):
     # ---------------- 5. Milestone/Anniversary Badges ----------------
     first_donation_date = min((donation_date(d) for d in donations), default=None)
     if first_donation_date:
-        days_active = (datetime.utcnow() - first_donation_date).days
+        days_active = (current_time - first_donation_date).days
         milestones = [
             (16, 30),   # One Month Donator
             (17, 180),  # Six-Month Supporter

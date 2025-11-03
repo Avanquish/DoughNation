@@ -15,7 +15,7 @@ import {
 import Swal from "sweetalert2";
 import { Megaphone, FileText, CheckCircle2, Clock } from "lucide-react";
 
-export default function ComplaintModule() {
+export default function ComplaintModule({ isViewOnly = false }) {
   const [formData, setFormData] = useState({ subject: "", description: "" });
   const [loading, setLoading] = useState(false);
   const [complaints, setComplaints] = useState([]);
@@ -30,8 +30,9 @@ export default function ComplaintModule() {
 
   const fetchComplaints = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get("https://api.doughnationhq.cloud/complaints/me", {
+      // Get the appropriate token (employee token takes priority if it exists)
+      const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
+      const res = await axios.get("http://127.0.0.1:8000/complaints/me", {
         headers: { Authorization: `Bearer ${token}` },
       });
       setComplaints(res.data || []);
@@ -53,8 +54,9 @@ export default function ComplaintModule() {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem("token");
-      await axios.post("https://api.doughnationhq.cloud/complaints/", formData, {
+      // Get the appropriate token (employee token takes priority if it exists)
+      const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
+      await axios.post("http://127.0.0.1:8000/complaints/", formData, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -113,23 +115,24 @@ export default function ComplaintModule() {
   };
 
   return (
-    <div className="relative mx-auto max-w-[1280px] px-6 py-8">
+    <div className="relative mx-auto max-w-[1280px] p-2">
       {/* Title + trigger */}
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-3xl font-extrabold tracking-tight text-[#4A2F17]">
           Complaints
         </h1>
 
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button
-              className="rounded-full px-5 py-2 text-white shadow-md
-                         bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327]
-                         hover:brightness-[1.03]"
-            >
-              Submit Complaint
-            </Button>
-          </DialogTrigger>
+        {!isViewOnly && (
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button
+                className="rounded-full px-5 py-2 text-white shadow-md
+                           bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327]
+                           hover:brightness-[1.03]"
+              >
+                Submit Complaint
+              </Button>
+            </DialogTrigger>
 
           {/* Submit dialog (unchanged logic; refreshed look) */}
           <DialogContent
@@ -217,6 +220,7 @@ export default function ComplaintModule() {
             </form>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {/* === Enhanced list === */}

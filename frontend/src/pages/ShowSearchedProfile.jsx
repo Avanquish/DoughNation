@@ -11,7 +11,7 @@ import {
 import { ChevronLeft, HeartHandshake, MessageSquareText } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
-const API = "https://api.doughnationhq.cloud";
+const API = "http://localhost:8000";
 
 export default function ShowSearchedProfile({ id, onBack }) {
   const [profile, setProfile] = useState(null);
@@ -205,9 +205,6 @@ export default function ShowSearchedProfile({ id, onBack }) {
                 <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[var(--ink)]">
                   {profile.name}
                 </h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {role === "bakery" ? "Public bakery profile" : "Public charity profile"}
-                </p>
 
                 <div className="mt-3">
                   <button className="msg-btn" onClick={handleMessageClick}>
@@ -228,72 +225,67 @@ export default function ShowSearchedProfile({ id, onBack }) {
                 <TabsContent value="about" className="pt-6">
                   <div className="gwrap">
                     <Card className="glass-card shadow-none card-zoom">
-                      <CardHeader className="pb-0 sm:pb-1 pt-5 sm:pt-6 px-5 sm:px-7">
+                      <CardHeader className="pb-2">
                         <CardTitle className="about-title" style={{ color: "#7a4f1c" }}>About</CardTitle>
-                          <CardDescription className="about-body">
-                            {role === "bakery" ? (
-                              <>
-                                This bakery tracks products and donations.{" "}
-                                {profile.contact_person && profile.contact_number && (
-                                  <>
-                                    For inquiries, contact <strong>{profile.contact_person}</strong> at{" "}
-                                    <strong>{profile.contact_number}</strong>.
-                                  </>
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                This charity receives donations and supports communities.{" "}
-                                {profile.contact_person && profile.contact_number && (
-                                  <>
-                                    <br /><br />
-                                    For inquiries, contact <strong>{profile.contact_person}</strong> at{" "}
-                                    <strong>{profile.contact_number}</strong>.
-                                  </>
-                                )}
-                              </>
-                            )}
-                          </CardDescription>
+                        <CardDescription className="text-[15px] leading-relaxed whitespace-pre-wrap">
+                          {profile?.about || (role === "bakery"
+                            ? "This bakery tracks products and donations."
+                            : "This charity receives donations and supports communities.")}
+                        </CardDescription>
                       </CardHeader>
 
-                      {role === "bakery" && (
-                        <CardContent className="section-pad">
-                          <h3 className="text-[var(--ink)] text-lg font-semibold">Badges</h3>
-
-                          <div className="badges-wrap">
-                            {badges && badges.length > 0 ? (
-                              <div className="badge-grid">
-                                {badges.map((userBadge) => (
-                                  <div key={userBadge.id} className="badge-item">
-                                    <img
-                                      src={
-                                        userBadge.badge?.icon_url
-                                          ? `${API}/${String(userBadge.badge.icon_url).replace(/^\//, "")}`
-                                          : "/placeholder-badge.png"
-                                      }
-                                      alt={userBadge.badge?.name}
-                                      title={userBadge.badge?.name}
-                                    />
-                                    <span>
-                                      {userBadge.badge_name && userBadge.badge_name.trim() !== ""
-                                        ? userBadge.badge_name
-                                        : userBadge.badge?.name}
-                                    </span>
-                                  </div>
-                                ))}
+                      <CardContent className="space-y-6">
+                        {/* Contact Information */}
+                        {(profile?.contact_person || profile?.contact_number) && (
+                          <div className="space-y-3">
+                            {profile?.contact_person && (
+                              <div>
+                                <p className="text-base font-semibold text-[var(--ink)]">Contact Person</p>
+                                <p className="text-sm text-muted-foreground">{profile.contact_person}</p>
                               </div>
-                            ) : (
-                              <p className="text-muted-foreground text-sm">No badges unlocked yet.</p>
+                            )}
+                            {profile?.contact_number && (
+                              <div>
+                                <p className="text-base font-semibold text-[var(--ink)]">Contact Number</p>
+                                <p className="text-sm text-muted-foreground">{profile.contact_number}</p>
+                              </div>
                             )}
                           </div>
-                        </CardContent>
-                      )}
+                        )}
 
-                      {role !== "bakery" && (
-                        <CardContent className="section-pad">
-                      
-                        </CardContent>
-                      )}
+                        {/* Badges for Bakery */}
+                        {role === "bakery" && (
+                          <div>
+                            <h3 className="text-[var(--ink)] text-lg font-semibold mb-3">Badges</h3>
+                            <div className="badges-wrap">
+                              {badges && badges.length > 0 ? (
+                                <div className="badge-grid">
+                                  {badges.map((userBadge) => (
+                                    <div key={userBadge.id} className="badge-item">
+                                      <img
+                                        src={
+                                          userBadge.badge?.icon_url
+                                            ? `${API}/${String(userBadge.badge.icon_url).replace(/^\//, "")}`
+                                            : "/placeholder-badge.png"
+                                        }
+                                        alt={userBadge.badge?.name}
+                                        title={userBadge.badge?.name}
+                                      />
+                                      <span>
+                                        {userBadge.badge_name && userBadge.badge_name.trim() !== ""
+                                          ? userBadge.badge_name
+                                          : userBadge.badge?.name}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-muted-foreground text-sm">No badges unlocked yet.</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
                     </Card>
                   </div>
                 </TabsContent>

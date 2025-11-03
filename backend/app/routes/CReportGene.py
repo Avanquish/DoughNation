@@ -190,6 +190,169 @@ def bakery_list_report(
 
     return result
 
+@router.get("/summary")
+def period_summary(
+    period: str = Query("weekly", description="Period type: 'weekly' or 'monthly'"),
+    start_date: str | None = Query(None, description="Start date YYYY-MM-DD (for weekly)"),
+    end_date: str | None = Query(None, description="End date YYYY-MM-DD (for weekly)"),
+    month: str | None = Query(None, description="Month YYYY-MM (for monthly), e.g. 2025-09"),
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(check_charity)
+):
+    """
+    Combined summary report endpoint that handles both weekly and monthly reports.
+    Use 'period' parameter to switch between 'weekly' and 'monthly'.
+    
+    For weekly: optionally provide start_date and end_date (YYYY-MM-DD)
+    For monthly: optionally provide month (YYYY-MM)
+    """
+    today = datetime.utcnow().date()
+    
+    # Determine date range based on period
+    if period == "weekly":
+        week_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else today - timedelta(days=7)
+        week_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else today
+        period_start = week_start
+        period_end = week_end
+        period_label = f"{week_start} to {week_end}"
+    elif period == "monthly":
+        if month:
+            try:
+                period_start = datetime.strptime(month + "-01", "%Y-%m-%d").date()
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid month format. Use YYYY-MM.")
+        else:
+            period_start = today.replace(day=1)  # first day of current month
+        
+        # Calculate last day of month
+        if period_start.month == 12:
+            period_end = period_start.replace(year=period_start.year + 1, month=1, day=1) - timedelta(days=1)
+        else:
+            period_end = period_start.replace(month=period_start.month + 1, day=1) - timedelta(days=1)
+        
+        period_label = period_start.strftime("%Y-%m")
+    else:
+        raise HTTPException(status_code=400, detail="Invalid period. Use 'weekly' or 'monthly'.")
+    
+    # Include full end date by adding 1 day
+    period_end_inclusive = period_end + timedelta(days=1)
+
+    # --- Direct Donations (completed in period) ---
+    direct_donations = (
+        db.query(func.coalesce(func.sum(models.DirectDonation.quantity), 0))
+        .filter(
+            models.DirectDonation.charity_id == current_user.id,
+            models.DirectDonation.btracking_status == "complete",
+            models.DirectDonation.btracking_completed_at != None,
+            models.DirectDonation.btracking_completed_at >= period_start,
+            models.DirectDonation.btracking_completed_at < period_end_inclusive
+        )
+        .scalar()
+    )
+
+    # Count of direct donation transactions
+    direct_count = (
+        db.query(func.count(models.DirectDonation.id))
+        .filter(
+            models.DirectDonation.charity_id == current_user.id,
+            models.DirectDonation.btracking_status == "complete",
+            models.DirectDonation.btracking_completed_at != None,
+            models.DirectDonation.btracking_completed_at >= period_start,
+            models.DirectDonation.btracking_completed_at < period_end_inclusive
+        )
+        .scalar() or 0
+    )
+
+    # --- Donation Requests (completed in period) ---
+    request_donations = (
+        db.query(func.coalesce(func.sum(models.DonationRequest.donation_quantity), 0))
+        .filter(
+            models.DonationRequest.charity_id == current_user.id,
+            models.DonationRequest.tracking_status == "complete",
+            models.DonationRequest.tracking_completed_at != None,
+            models.DonationRequest.tracking_completed_at >= period_start,
+            models.DonationRequest.tracking_completed_at < period_end_inclusive
+        )
+        .scalar()
+    )
+
+    # Count of donation request transactions
+    request_count = (
+        db.query(func.count(models.DonationRequest.id))
+        .filter(
+            models.DonationRequest.charity_id == current_user.id,
+            models.DonationRequest.tracking_status == "complete",
+            models.DonationRequest.tracking_completed_at != None,
+            models.DonationRequest.tracking_completed_at >= period_start,
+            models.DonationRequest.tracking_completed_at < period_end_inclusive
+        )
+        .scalar() or 0
+    )
+
+    # --- Top donated items ---
+    top_items = (
+        db.query(
+            models.DonationRequest.donation_name.label("product_name"),
+            func.sum(models.DonationRequest.donation_quantity).label("quantity"),
+        )
+        .filter(
+            models.DonationRequest.charity_id == current_user.id,
+            models.DonationRequest.tracking_status == "complete",
+            models.DonationRequest.tracking_completed_at != None,
+            models.DonationRequest.tracking_completed_at >= period_start,
+            models.DonationRequest.tracking_completed_at < period_end_inclusive
+        )
+        .group_by(models.DonationRequest.donation_name)
+        .union_all(
+            db.query(
+                models.DirectDonation.name.label("product_name"),
+                func.sum(models.DirectDonation.quantity).label("quantity"),
+            )
+            .filter(
+                models.DirectDonation.charity_id == current_user.id,
+                models.DirectDonation.btracking_status == "complete",
+                models.DirectDonation.btracking_completed_at != None,
+                models.DirectDonation.btracking_completed_at >= period_start,
+                models.DirectDonation.btracking_completed_at < period_end_inclusive
+            )
+            .group_by(models.DirectDonation.name)
+        )
+        .all()
+    )
+
+    # Merge duplicates and return top 10
+    merged_top = {}
+    for row in top_items:
+        merged_top[row.product_name] = merged_top.get(row.product_name, 0) + int(row.quantity or 0)
+
+    top_10_items = sorted(
+        [{"product_name": name, "quantity": qty} for name, qty in merged_top.items()],
+        key=lambda x: x["quantity"],
+        reverse=True
+    )[:10]
+
+    # Build response based on period type
+    response = {
+        "charity_id": current_user.id,
+        "charity_name": current_user.name,
+        "period": period,
+        "period_label": period_label,
+        "total_direct_donations": direct_donations or 0,
+        "total_request_donations": request_donations or 0,
+        "total_donations": (direct_donations or 0) + (request_donations or 0),
+        "total_transactions": direct_count + request_count,
+        "top_items": top_10_items
+    }
+    
+    # Add period-specific fields
+    if period == "weekly":
+        response["week_start"] = str(period_start)
+        response["week_end"] = str(period_end)
+    elif period == "monthly":
+        response["month"] = period_start.strftime("%Y-%m")
+    
+    return response
+
 @router.get("/weekly")
 def weekly_summary(
     start_date: str | None = Query(None, description="Week start date YYYY-MM-DD"),
@@ -217,6 +380,19 @@ def weekly_summary(
         .scalar()
     )
 
+    # Count of direct donation transactions
+    direct_count = (
+        db.query(func.count(models.DirectDonation.id))
+        .filter(
+            models.DirectDonation.charity_id == current_user.id,
+            models.DirectDonation.btracking_status == "complete",
+            models.DirectDonation.btracking_completed_at != None,
+            models.DirectDonation.btracking_completed_at >= week_start,
+            models.DirectDonation.btracking_completed_at < week_end_inclusive
+        )
+        .scalar() or 0
+    )
+
     # --- Donation Requests (completed this week) ---
     request_donations = (
         db.query(func.coalesce(func.sum(models.DonationRequest.donation_quantity), 0))
@@ -228,6 +404,19 @@ def weekly_summary(
             models.DonationRequest.tracking_completed_at < week_end_inclusive
         )
         .scalar()
+    )
+
+    # Count of donation request transactions
+    request_count = (
+        db.query(func.count(models.DonationRequest.id))
+        .filter(
+            models.DonationRequest.charity_id == current_user.id,
+            models.DonationRequest.tracking_status == "complete",
+            models.DonationRequest.tracking_completed_at != None,
+            models.DonationRequest.tracking_completed_at >= week_start,
+            models.DonationRequest.tracking_completed_at < week_end_inclusive
+        )
+        .scalar() or 0
     )
 
     # --- Expired products (exclude donated/complete items) ---
@@ -300,6 +489,7 @@ def weekly_summary(
         "total_direct_donations": direct_donations or 0,
         "total_request_donations": request_donations or 0,
         "total_donations": (direct_donations or 0) + (request_donations or 0),
+        "total_transactions": direct_count + request_count,
         "top_items": top_10_items,
         "expired_products": expired_total,
         "available_products": available_total 
@@ -342,6 +532,19 @@ def monthly_summary(
         .scalar()
     )
 
+    # Count of direct donation transactions
+    direct_count = (
+        db.query(func.count(models.DirectDonation.id))
+        .filter(
+            models.DirectDonation.charity_id == current_user.id,
+            models.DirectDonation.btracking_status == "complete",
+            models.DirectDonation.btracking_completed_at != None,
+            models.DirectDonation.btracking_completed_at >= start_date,
+            models.DirectDonation.btracking_completed_at < end_date_inclusive
+        )
+        .scalar() or 0
+    )
+
     # --- Donation Requests (completed this month) ---
     request_donations = (
         db.query(func.coalesce(func.sum(models.DonationRequest.donation_quantity), 0))
@@ -353,6 +556,19 @@ def monthly_summary(
             models.DonationRequest.tracking_completed_at < end_date_inclusive
         )
         .scalar()
+    )
+
+    # Count of donation request transactions
+    request_count = (
+        db.query(func.count(models.DonationRequest.id))
+        .filter(
+            models.DonationRequest.charity_id == current_user.id,
+            models.DonationRequest.tracking_status == "complete",
+            models.DonationRequest.tracking_completed_at != None,
+            models.DonationRequest.tracking_completed_at >= start_date,
+            models.DonationRequest.tracking_completed_at < end_date_inclusive
+        )
+        .scalar() or 0
     )
 
     # --- Top donated items (completed this month) ---
@@ -418,11 +634,11 @@ def monthly_summary(
         "total_direct_donations": direct_donations or 0,
         "total_request_donations": request_donations or 0,
         "total_donations": (direct_donations or 0) + (request_donations or 0),
+        "total_transactions": direct_count + request_count,
         "expired_products": expired_total,
         "available_products": available_total,
         "top_items": top_10_items
     }
-
 
 @router.get("/charity-info")
 def charity_info(current_user: models.User = Depends(check_charity)):
@@ -432,4 +648,4 @@ def charity_info(current_user: models.User = Depends(check_charity)):
         "address": current_user.address,
         "contact_number": current_user.contact_number,
         "email": current_user.email
-    }
+    } 

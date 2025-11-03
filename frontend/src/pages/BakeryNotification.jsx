@@ -17,7 +17,7 @@ function UnreadCircle({ read }) {
   );
 }
 
-const API = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const STORAGE_KEY = "readNotifications";
 const CARD_WIDTH = 340;
 
@@ -49,7 +49,8 @@ export default function BakeryNotification() {
   // fetch notifs
   const fetchNotifications = async () => {
     try {
-      const token = localStorage.getItem("token");
+      // Get the appropriate token (employee token takes priority if it exists)
+      const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
       const opts = token
         ? { headers: { Authorization: `Bearer ${token}` } }
         : { withCredentials: true };
@@ -97,7 +98,8 @@ export default function BakeryNotification() {
     try {
       markAsRead(notif.id);
 
-      const token = localStorage.getItem("token");
+      // Get the appropriate token (employee token takes priority if it exists)
+      const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
       const opts = token
         ? { headers: { Authorization: `Bearer ${token}` } }
         : { withCredentials: true };
@@ -162,7 +164,8 @@ export default function BakeryNotification() {
         const match = messages.find((m) => m.sender_id === peer.id);
         if (!match) return;
 
-        const token = localStorage.getItem("token");
+        // Get the appropriate token (employee token takes priority if it exists)
+        const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
         const opts = token
           ? { headers: { Authorization: `Bearer ${token}` } }
           : { withCredentials: true };
@@ -192,7 +195,8 @@ export default function BakeryNotification() {
     localStorage.setItem("open_chat_with", JSON.stringify(peer));
 
     try {
-      const token = localStorage.getItem("token");
+      // Get the appropriate token (employee token takes priority if it exists)
+      const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
       const opts = token
         ? { headers: { Authorization: `Bearer ${token}` } }
         : { withCredentials: true };

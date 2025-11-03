@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from app.database import get_db
 from app.models import DonationRequest, DirectDonation, User
-from app.auth import get_current_user
+from app.auth import get_current_user_or_employee, get_bakery_id_from_auth
 
 router = APIRouter()
 
@@ -11,9 +11,16 @@ router = APIRouter()
 def recent_donations(
     user_id: int = None,  # optional user_id
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_auth = Depends(get_current_user_or_employee),
 ):
-    target_user_id = user_id or current_user.id
+    # Determine target user ID
+    if isinstance(current_auth, dict):
+        # Employee - use bakery_id
+        target_user_id = user_id or current_auth.get("bakery_id")
+    else:
+        # Bakery owner
+        target_user_id = user_id or current_auth.id
+        
     today = datetime.utcnow()
     seven_days_ago = today - timedelta(days=7)
     results = []

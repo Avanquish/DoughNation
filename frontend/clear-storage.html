@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear Storage - DoughNation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        p {
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        .info-box {
+            background: #f0f4f8;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 30px;
+            text-align: left;
+            border-radius: 8px;
+        }
+        .info-box h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        .info-box ul {
+            list-style: none;
+            color: #555;
+            font-size: 14px;
+        }
+        .info-box li {
+            padding: 5px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+        .info-box li:before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: #667eea;
+            font-weight: bold;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 5px;
+            min-width: 200px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        .danger {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .success {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            display: none;
+            font-weight: 600;
+        }
+        #status.show {
+            display: block;
+        }
+        #status.success-msg {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        #status.error-msg {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .storage-info {
+            background: #fff8dc;
+            border-left: 4px solid #ffa500;
+            padding: 15px;
+            margin-top: 20px;
+            text-align: left;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #555;
+        }
+        .storage-info pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 Clear Browser Storage</h1>
+        <p>Use this tool to clear localStorage and sessionStorage for DoughNation</p>
+        
+        <div class="info-box">
+            <h3>Why clear storage?</h3>
+            <ul>
+                <li>Fix "Invalid token" errors</li>
+                <li>Remove conflicting authentication data</li>
+                <li>Start fresh after major updates</li>
+                <li>Resolve login issues</li>
+            </ul>
+        </div>
+
+        <button onclick="showStorage()">📦 Show Current Storage</button>
+        <button onclick="clearStorage()" class="danger">🗑️ Clear All Storage</button>
+        <button onclick="removeConflicts()" class="success">⚡ Remove Conflicts Only</button>
+
+        <div id="status"></div>
+        
+        <div id="storageInfo" class="storage-info" style="display: none;">
+            <strong>Current Storage Contents:</strong>
+            <pre id="storageContent"></pre>
+        </div>
+
+        <p style="margin-top: 30px; font-size: 14px; color: #888;">
+            After clearing, you'll need to log in again.
+        </p>
+    </div>
+
+    <script>
+        function showStatus(message, isSuccess) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'show ' + (isSuccess ? 'success-msg' : 'error-msg');
+            setTimeout(() => {
+                status.classList.remove('show');
+            }, 5000);
+        }
+
+        function showStorage() {
+            const storageInfo = document.getElementById('storageInfo');
+            const storageContent = document.getElementById('storageContent');
+            
+            let content = 'localStorage:\n';
+            if (localStorage.length === 0) {
+                content += '  (empty)\n';
+            } else {
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    const value = localStorage.getItem(key);
+                    
+                    // Try to decode if it's a JWT token
+                    if (key.includes('token') || key.includes('Token')) {
+                        try {
+                            const parts = value.split('.');
+                            if (parts.length === 3) {
+                                const decoded = JSON.parse(atob(parts[1]));
+                                content += `  ${key}: (JWT token)\n`;
+                                content += `    - type: ${decoded.type || 'N/A'}\n`;
+                                content += `    - name: ${decoded.name || decoded.employee_name || 'N/A'}\n`;
+                                if (decoded.role) content += `    - role: ${decoded.role}\n`;
+                                continue;
+                            }
+                        } catch (e) {
+                            // Not a valid JWT, fall through
+                        }
+                    }
+                    
+                    // Regular value
+                    const displayValue = value.length > 50 ? value.substring(0, 50) + '...' : value;
+                    content += `  ${key}: ${displayValue}\n`;
+                }
+            }
+            
+            content += '\nsessionStorage:\n';
+            if (sessionStorage.length === 0) {
+                content += '  (empty)\n';
+            } else {
+                for (let i = 0; i < sessionStorage.length; i++) {
+                    const key = sessionStorage.key(i);
+                    const value = sessionStorage.getItem(key);
+                    const displayValue = value.length > 50 ? value.substring(0, 50) + '...' : value;
+                    content += `  ${key}: ${displayValue}\n`;
+                }
+            }
+            
+            storageContent.textContent = content;
+            storageInfo.style.display = 'block';
+            showStatus('✅ Storage contents displayed above', true);
+        }
+
+        function clearStorage() {
+            try {
+                const hadItems = localStorage.length > 0 || sessionStorage.length > 0;
+                
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                if (hadItems) {
+                    showStatus('✅ All storage cleared! You can now close this tab and login again.', true);
+                    document.getElementById('storageInfo').style.display = 'none';
+                } else {
+                    showStatus('ℹ️ Storage was already empty.', true);
+                }
+            } catch (error) {
+                showStatus('❌ Error clearing storage: ' + error.message, false);
+            }
+        }
+
+        function removeConflicts() {
+            try {
+                let removed = [];
+                
+                // Check for conflicting tokens
+                const hasEmployeeToken = localStorage.getItem('employeeToken');
+                const hasRegularToken = localStorage.getItem('token');
+                
+                if (hasEmployeeToken && hasRegularToken) {
+                    // Remove the regular token (keep employee token)
+                    localStorage.removeItem('token');
+                    removed.push('token (conflicting with employeeToken)');
+                }
+                
+                // Remove any other potentially conflicting keys
+                const keysToCheck = ['user', 'userData', 'authToken', 'auth'];
+                keysToCheck.forEach(key => {
+                    if (localStorage.getItem(key)) {
+                        localStorage.removeItem(key);
+                        removed.push(key);
+                    }
+                });
+                
+                if (removed.length > 0) {
+                    showStatus(`✅ Removed conflicts: ${removed.join(', ')}`, true);
+                } else {
+                    showStatus('ℹ️ No conflicts found. Storage looks good!', true);
+                }
+                
+                // Refresh storage display if it's visible
+                if (document.getElementById('storageInfo').style.display === 'block') {
+                    showStorage();
+                }
+            } catch (error) {
+                showStatus('❌ Error removing conflicts: ' + error.message, false);
+            }
+        }
+
+        // Show storage on load
+        window.addEventListener('load', () => {
+            showStorage();
+        });
+    </script>
+</body>
+</html>

@@ -18,7 +18,7 @@ function UnreadCircle({ read }) {
   );
 }
 
-const API = "https://api.doughnationhq.cloud";
+const API = "http://localhost:8000";
 const STORAGE_KEY = "readNotifications";
 
 export default function NotificationBell() {
@@ -168,37 +168,37 @@ export default function NotificationBell() {
     path ? `${API}/${path}` : fallback;
 
   // --- Click Handlers ---
-  const handleNormalDonationClick = (d) => {
-    // remove it from the state
+  const handleDonationClick = (d) => {
+  // Priority geofence data sometimes uses donation_id, sometimes just id
+  const donationId = d.donation_id || d.linked_donation || d.donation?.id || d.id;
+
+  if (!donationId) {
+    console.warn("⚠️ No donation_id found for:", d);
+    return;
+  }
+
+  // Remove from lists
+  if (d.priority || d.status === "pending") {
+    setPriorityDonations((prev) => prev.filter((don) => don.id !== d.id));
+  } else {
     setDonations((prev) => prev.filter((don) => don.id !== d.id));
+  }
 
-    // still navigate + mark read
-    localStorage.setItem("highlight_donation", d.donation_id || d.id);
-    window.dispatchEvent(new CustomEvent("switch_to_donation_tab"));
-    setTimeout(
-      () => window.dispatchEvent(new Event("highlight_donation")),
-      100
+  // Switch to Available Donations tab
+  window.dispatchEvent(new CustomEvent("switch_to_donation_tab"));
+
+  // Wait for tab to load, then zoom the donation
+  setTimeout(() => {
+    window.dispatchEvent(
+      new CustomEvent("highlight_donation", {
+        detail: { donation_id: donationId },
+      })
     );
-    markNotificationAsRead(d.id);
-    setOpen(false);
-  };
+  }, 800);
 
-  const handlePriorityDonationClick = (d) => {
-    if (d.status === "pending") {
-      // remove if pending
-      setPriorityDonations((prev) => prev.filter((don) => don.id !== d.id));
-    }
-
-    // navigate + mark read
-    localStorage.setItem("highlight_donation", d.id);
-    window.dispatchEvent(new CustomEvent("switch_to_donation_tab"));
-    setTimeout(
-      () => window.dispatchEvent(new Event("highlight_donation")),
-      100
-    );
-    markNotificationAsRead(d.id);
-    setOpen(false);
-  };
+  markNotificationAsRead(d.id);
+  setOpen(false);
+};
 
   return (
     <div className="relative inline-block">
@@ -302,7 +302,10 @@ export default function NotificationBell() {
                                   ? "bg-white hover:bg-[#fff6ec]"
                                   : "bg-[rgba(255,230,230,1)]"
                               }`}
-                              onClick={() => handlePriorityDonationClick(d)}
+                              onClick={() => {
+                                console.log("🧭 [Priority Click] donation object:", d);
+                                handleDonationClick({ ...d, priority: true });
+                              }}
                             >
                               <UnreadCircle read={d.read} />
                               <img
@@ -359,24 +362,7 @@ export default function NotificationBell() {
                                   ? "bg-white hover:bg-[#fff6ec]"
                                   : "bg-[rgba(255,246,236,1)]"
                               }`}
-                              onClick={() => {
-                                localStorage.setItem(
-                                  "highlight_donation",
-                                  d.donation_id || d.id
-                                );
-                                window.dispatchEvent(
-                                  new CustomEvent("switch_to_donation_tab")
-                                );
-                                setTimeout(
-                                  () =>
-                                    window.dispatchEvent(
-                                      new Event("highlight_donation")
-                                    ),
-                                  100
-                                );
-                                markNotificationAsRead(d.id);
-                                setOpen(false);
-                              }}
+                             onClick={() => handleDonationClick(d)}
                             >
                               <UnreadCircle read={d.read} />
                               <img

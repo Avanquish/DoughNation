@@ -16,14 +16,21 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import {
-  HeartHandshake,
   PackageCheck,
   LogOut,
   CheckCircle,
+  Gift,
+  LayoutGrid,
+  Clock,
+  HandCoins,
+  MessageSquare,
+  AlertTriangle,
+  FileText,
+  Users,
+  Store,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import CharityDonation from "./CharityDonation.jsx";
-import Messages from "./Messages.jsx";
 import CharityReceived from "./CharityReceived.jsx";
 import CharityNotification from "./CharityNotification.jsx";
 import CDonationStatus from "./CDonationStatus.jsx";
@@ -32,6 +39,7 @@ import RecentDonations from "./RecentDonations.jsx";
 import DashboardSearch from "./DashboardSearch.jsx";
 import Complaint from "./Complaint.jsx";
 import CharityReports from "./CharityReports.jsx";
+import Messages1 from "./Messages1.jsx";
 
 const API = "http://localhost:8000";
 const TAB_KEY = "charity_active_tab";
@@ -84,133 +92,90 @@ const Styles = () => (
     @keyframes pan{from{transform:translate3d(0,0,0)}to{transform:translate3d(-6%,-6%,0)}}
     @keyframes blob{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(24px,-20px,0) scale(1.04)}}
 
-    /* Header */
-    .head{position:sticky; top:0; z-index:40; border-bottom:1px solid rgba(0,0,0,.06); backdrop-filter: blur(10px);}
-    .head-bg{position:absolute; inset:0; z-index:-1; opacity:.92;
-      background: linear-gradient(110deg, #ffffff 0%, #fff8ec 28%, #ffeccd 55%, #ffd7a6 100%);
-      background-size: 220% 100%;
-      animation: headerSlide 18s linear infinite;
-    }
-    @keyframes headerSlide{0%{background-position:0% 50%}100%{background-position:100% 50%}}
-    .head-inner{max-width:80rem; margin:0 auto; padding:.6rem 1rem;}
-    .brand{display:flex; gap:.6rem; align-items:center}
-    .ring{width:40px; height:40px; border-radius:9999px; padding:2px; background:conic-gradient(from 210deg, #F7C789, #E8A765, #C97C2C, #E8A765, #F7C789); box-shadow:0 10px 24px rgba(201,124,44,.16); animation: spin 10s linear infinite; will-change: transform}
-    .ring>div{width:100%; height:100%; border-radius:9999px; background:#fff; display:flex; align-items:center; justify-content:center}
-    .logo{transform-origin:50% 60%;}
-    @keyframes spin{to{transform:rotate(360deg)}}
+      .head{position:sticky; top:0; z-index:40; border-bottom:1px solid rgba(0,0,0,.06); backdrop-filter: blur(10px);}
+      .head-bg{position:absolute; inset:0; z-index:-1; opacity:.92;
+        background:
+          linear-gradient(110deg, #ffffff 0%, #fff8ec 28%, #ffeccd 55%, #ffd7a6 100%);
+        background-size: 220% 100%;
+        animation: headerSlide 18s linear infinite;
+      }
+      @keyframes headerSlide{0%{background-position:0% 50%}100%{background-position:100% 50%}}
+      .head-inner{max-width:80rem; margin:0 auto; padding:.9rem 1rem;}
+      .brand{display:flex; gap:.8rem; align-items:center}
+      .ring{width:48px; height:48px; border-radius:9999px; padding:2px; background:conic-gradient(from 210deg, #F7C789, #E8A765, #C97C2C, #E8A765, #F7C789); box-shadow:0 10px 24px rgba(201,124,44,.16); animation: spin 10s linear infinite; will-change: transform}
+      .ring>div{width:100%; height:100%; border-radius:9999px; background:#fff; display:flex; align-items:center; justify-content:center}
+      .logo{transform-origin:50% 60%;}
+      @keyframes spin{to{transform:rotate(360deg)}}
+      .title-ink{font-weight:800; letter-spacing:.2px; background:linear-gradient(90deg,#F3B56F,#E59B50,#C97C2C); background-size:200% auto; -webkit-background-clip:text; background-clip:text; color:transparent; animation: ink 9s ease infinite}
+      @keyframes ink{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+      .status-chip{display:inline-flex; align-items:center; gap:.5rem; margin-top:.15rem; padding:.28rem .6rem; font-size:.78rem; border-radius:9999px; color:#7a4f1c; background:linear-gradient(180deg,#FFE7C5,#F7C489); border:1px solid #fff3e0}
 
-    .title-ink{font-weight:800; letter-spacing:.2px; background:linear-gradient(90deg,#F3B56F,#E59B50,#C97C2C); background-size:200% auto; -webkit-background-clip:text; background-clip:text; color:transparent; animation: ink 9s ease infinite;
-      font-size: clamp(1.05rem, 2.2vw, 1.6rem);
-    }
-    @keyframes ink{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
-    .status-chip{display:inline-flex; align-items:center; gap:.45rem; margin-top:.15rem; padding:.24rem .56rem; font-size:.76rem; border-radius:9999px; color:#7a4f1c; background:linear-gradient(180deg,#FFE7C5,#F7C489); border:1px solid #fff3e0}
+      .seg-wrap{max-width:80rem; margin:.75rem auto 0; padding:0 1rem;}
+      .seg{display:flex; gap:.4rem; background:rgba(255,255,255,.94); border:1px solid rgba(0,0,0,.07); border-radius:12px; padding:.3rem; box-shadow:0 8px 24px rgba(201,124,44,.08); width:fit-content}
+      .seg [role="tab"]{border-radius:10px; padding:.48rem .95rem; color:#6b4b2b; font-weight:700}
+      .seg [role="tab"][data-state="active"]{color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); box-shadow:0 8px 18px rgba(201,124,44,.28)}
 
-    /* Tabs segment */
-    .seg-wrap{max-width:80rem; margin:.5rem auto 0; padding:0 .75rem;}
-    .seg{
-  display:inline-flex; gap:.4rem; background:rgba(255,255,255,.94);
-  border:1px solid rgba(0,0,0,.07); border-radius:12px; padding:.3rem;
-  box-shadow:0 8px 24px rgba(201,124,44,.08);
-  width:auto;               /* not full-width */
-  max-width:100%;           /* stop at container */
-  overflow:auto;            /* scroll if super long */
-  -webkit-overflow-scrolling:touch;
-}
-    .seg [role="tab"]{
-      border-radius:10px; padding:.46rem .9rem; color:#6b4b2b; font-weight:700;
-      white-space:nowrap; scroll-snap-align:start;
-      min-width:max-content;
-    }
-    .seg [role="tab"][data-state="active"]{color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); box-shadow:0 8px 18px rgba(201,124,44,.28)}
+      .iconbar{display:flex; align-items:center; gap:.5rem}
+      .icon-btn{position:relative; display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:9999px; background:rgba(255,255,255,.9); border:1px solid rgba(0,0,0,.06); box-shadow:0 6px 16px rgba(201,124,44,.14); transition:transform .18s ease, box-shadow .18s ease}
+      .icon-btn:hover{transform:translateY(-1px); box-shadow:0 10px 22px rgba(201,124,44,.20)}
+      .badge{position:absolute; top:-4px; right:-4px; min-width:18px; height:18px; padding:0 4px; border-radius:9999px; background:linear-gradient(180deg,#ff6b6b,#e03131); color:#fff; font-size:11px; line-height:18px; text-align:center; font-weight:800; box-shadow:0 4px 10px rgba(224,49,49,.35)}
 
-/* Themed mobile dropdown (trigger) */
-.select-trigger{
-  height: 2.9rem;
-  border-radius: 12px;
-  border: 1px solid rgba(234,179,8,.35);            /* amber border */
-  background: linear-gradient(180deg,#FFF9EF,#FFE8C9);
-  color:#6B4B2B;
-  box-shadow: 0 8px 16px rgba(201,124,44,.10), inset 0 1px 0 rgba(255,255,255,.65);
-}
+      .btn-logout{position:relative; overflow:hidden; border-radius:9999px; padding:.58rem .95rem; gap:.5rem; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); color:#fff; border:1px solid rgba(255,255,255,.6); box-shadow:0 8px 26px rgba(201,124,44,.25); transition:transform .18s ease, box-shadow .18s ease, filter .18s ease}
+      .btn-logout:before{content:""; position:absolute; top:-40%; bottom:-40%; left:-70%; width:60%; transform:rotate(10deg); background:linear-gradient(90deg, rgba(255,255,255,.26), rgba(255,255,255,0) 55%); animation: shine 3.2s linear infinite}
+      @keyframes shine{from{left:-70%}to{left:120%}}
+      .btn-logout:hover{transform:translateY(-1px) scale(1.02); box-shadow:0 12px 34px rgba(201,124,44,.32); filter:saturate(1.05)}
 
-/* Popup panel */
-.select-content{
-  border-radius: 14px;
-  border: 1px solid rgba(234,179,8,.35);
-  background: linear-gradient(180deg,#FFFFFF,#FFF3E2);
-  box-shadow: 0 22px 44px rgba(201,124,44,.20);
-  overflow:hidden; /* so header blends with corners */
-}
+      .gwrap{position:relative; border-radius:16px; padding:1px; background:linear-gradient(135deg, rgba(247,199,137,.9), rgba(201,124,44,.55)); background-size:200% 200%; animation:borderShift 8s ease-in-out infinite}
+      @keyframes borderShift{0%{background-position:0% 0%}50%{background-position:100% 100%}100%{background-position:0% 0%}}
+      .glass-card{border-radius:15px; background:rgba(255,255,255,.94); backdrop-filter:blur(8px)}
+      .chip{width:54px; height:54px; display:grid; place-items:center; border-radius:9999px; background: radial-gradient(120% 120% at 30% 25%, #ffe6c6 0%, #f7c489 55%, #e8a765 100%); box-shadow: 0 10px 24px rgba(201,124,44,.20), inset 0 1px 0 rgba(255,255,255,.8); border: 1px solid rgba(255,255,255,.8);}
+      .chip svg{width:22px; height:22px; color:#8a5a25}
 
-/* Cream header row inside the panel */
-.select-label{
-  font-weight:700; color:#6B4B2B;
-  padding:.75rem 1rem;
-  background:linear-gradient(180deg,#FFF7EC,#FFE6C8);
-  border-bottom:1px solid rgba(0,0,0,.06);
-}
-
-/* Items + hover/checked to warm amber */
-.select-content [data-highlighted="true"],
-.select-content [data-state="checked"]{
-  background:linear-gradient(90deg,var(--brand1),var(--brand2));
-  color:#fff;
-}
-
-    /* Icon cluster */
-    .iconbar{display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; justify-content:flex-end}
-    .icon-btn{position:relative; display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:9999px; background:rgba(255,255,255,.9); border:1px solid rgba(0,0,0,.06); box-shadow:0 6px 16px rgba(201,124,44,.14); transition:transform .18s ease, box-shadow .18s ease}
-    .icon-btn:hover{transform:translateY(-1px); box-shadow:0 10px 22px rgba(201,124,44,.20)}
-    .badge{position:absolute; top:-4px; right:-4px; min-width:18px; height:18px; padding:0 4px; border-radius:9999px; background:linear-gradient(180deg,#ff6b6b,#e03131); color:#fff; font-size:11px; line-height:18px; text-align:center; font-weight:800; box-shadow:0 4px 10px rgba(224,49,49,.35)}
-
-    .btn-logout{position:relative; overflow:hidden; border-radius:9999px; padding:.5rem .85rem; gap:.45rem; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); color:#fff; border:1px solid rgba(255,255,255,.6); box-shadow:0 8px 26px rgba(201,124,44,.25); transition:transform .18s ease, box-shadow .18s ease, filter .18s ease; white-space:nowrap}
-    .btn-logout:before{content:""; position:absolute; top:-40%; bottom:-40%; left:-70%; width:60%; transform:rotate(10deg); background:linear-gradient(90deg, rgba(255,255,255,.26), rgba(255,255,255,0) 55%); animation: shine 3.2s linear infinite}
-    @keyframes shine{from{left:-70%}to{left:120%}}
-    .btn-logout:hover{transform:translateY(-1px) scale(1.02); box-shadow:0 12px 34px rgba(201,124,44,.32); filter:saturate(1.05)}
-
-    /* Cards / chrome */
-    .gwrap{position:relative; border-radius:16px; padding:1px; background:linear-gradient(135deg, rgba(247,199,137,.9), rgba(201,124,44,.55)); background-size:200% 200%; animation:borderShift 8s ease-in-out infinite}
-    @keyframes borderShift{0%{background-position:0% 0%}50%{background-position:100% 100%}100%{background-position:0% 0%}}
-.glass-card{
-  border-radius:15px;
-  background:rgba(255,255,255,.94);
-  backdrop-filter:blur(8px);
-  overflow:visible;            
-}   
-   .chip{width:50px; height:50px; display:grid; place-items:center; border-radius:9999px; background: radial-gradient(120% 120% at 30% 25%, #ffe6c6 0%, #f7c489 55%, #e8a765 100%); box-shadow: 0 10px 24px rgba(201,124,44,.20), inset 0 1px 0 rgba(255,255,255,.8); border: 1px solid rgba(255,255,255,.8);}
-    .chip svg{width:22px; height:22px; color:#8a5a25}
-
-    .hover-lift{transition:transform .35s cubic-bezier(.22,.98,.4,1), box-shadow .35s}
-    .hover-lift:hover{transform:translateY(-4px); box-shadow:0 18px 38px rgba(201,124,44,.14)}
-    .reveal{opacity:0; transform:translateY(8px) scale(.985); animation:rise .6s ease forwards}
-    .r1{animation-delay:.05s}.r2{animation-delay:.1s}.r3{animation-delay:.15s}.r4{animation-delay:.2s}.r5{animation-delay:.25s}.r6{animation-delay:.3s}
-    @keyframes rise{to{opacity:1; transform:translateY(0) scale(1)}}
-
-    /* Responsive tweaks */
-    @media (max-width: 640px){
-      .head-inner{padding:.5rem .75rem;}
-      .ring{width:32px; height:32px;}
-      .chip{width:44px; height:44px;}
-      .icon-btn{width:34px; height:34px;}
-      .btn-logout{padding:.45rem .65rem; font-size:.9rem}
-      .status-chip{font-size:.72rem}
-      .seg-wrap{padding:0 .5rem}
-      .glass-card{border-radius:12px}
-    }
-
-    /* Motion preferences */
-    .ring{animation: spin 10s linear infinite; will-change: transform}
-    @media (prefers-reduced-motion: reduce){ .ring{animation:none} }
+      .hover-lift{transition:transform .35s cubic-bezier(.22,.98,.4,1), box-shadow .35s}
+      .hover-lift:hover{transform:translateY(-4px); box-shadow:0 18px 38px rgba(201,124,44,.14)}
+      .reveal{opacity:0; transform:translateY(8px) scale(.985); animation:rise .6s ease forwards}
+      .r1{animation-delay:.05s}.r2{animation-delay:.1s}.r3{animation-delay:.15s}.r4{animation-delay:.2s}.r5{animation-delay:.25s}.r6{animation-delay:.3s}
+      @keyframes rise{to{opacity:1; transform:translateY(0) scale(1)}}
+      /* ensure rotating ring like bakery */
+      .ring{animation: spin 10s linear infinite; will-change: transform}
+      @keyframes spin{to{transform:rotate(360deg)}}
+      @media (prefers-reduced-motion: reduce){ .ring{animation:none} }
   `}</style>
 );
 
 const CharityDashboard = () => {
   const [name, setName] = useState("");
   const [isVerified, setIsVerified] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [showTop, setShowTop] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const fromUrl = params.get("tab");
+      if (fromUrl && ALLOWED_TABS.includes(fromUrl)) return fromUrl;
 
-  const [activeTab, setActiveTab] = useState("donation");
+      const fromStorage = localStorage.getItem(TAB_KEY);
+      if (fromStorage && ALLOWED_TABS.includes(fromStorage)) return fromStorage;
+
+      return "donation";
+    } catch {
+      return "donation";
+    }
+  });
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const onScroll = () => {
+      const y = window.scrollY || document.documentElement.scrollTop;
+      setShowTop(y > 320);
+      setScrolled(y > 8);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
     try {
@@ -251,11 +216,8 @@ const CharityDashboard = () => {
         const decoded = JSON.parse(atob(token.split(".")[1]));
         setName(decoded.name || "FoodCharity");
         setIsVerified(decoded.is_verified);
-        // keep currentUser if you already set it elsewhere; we don't change logic beyond UI
         setCurrentUser((prev) => prev || { id: decoded.sub || decoded.id });
-      } catch (error) {
-        console.error("Failed to decode token:", error);
-      }
+      } catch {}
     }
   }, []);
 
@@ -284,14 +246,21 @@ const CharityDashboard = () => {
     navigate("/");
   };
 
+  // Chip text = current tab (instead of "Owner")
   const statusText = useMemo(() => {
     switch (activeTab) {
       case "donation":
         return "Donation";
+      case "donationStatus":
+        return "Donation Status";
       case "received":
         return "Received";
       case "feedback":
         return "Feedback";
+      case "complaints":
+        return "Complaints";
+      case "reports":
+        return "Reports";
       default:
         return "Dashboard";
     }
@@ -356,11 +325,11 @@ const CharityDashboard = () => {
       </div>
 
       {/* Header */}
-      <header className="head">
+      <header className="head fixed top-0 left-0 right-0 z-[80]">
         <div className="head-bg" />
         <div className="head-inner">
           {/* same alignment & cluster as bakery */}
-          <div className="flex justify-between items-center gap-3 flex-wrap sm:flex-nowrap">
+          <div className="flex justify-between items-center gap-4">
             <div className="flex-1 min-w-0">
               <div className="brand">
                 <div className="ring">
@@ -368,68 +337,128 @@ const CharityDashboard = () => {
                     <HeartHandshake className="h-6 w-6 text-amber-700 logo" />
                   </div>
                 </div>
-                <div className="min-w-0">
-                  <h1 className="title-ink text-2xl sm:text-[26px] truncate">
+              ) : (
+                <Link to="/" className="flex items-center gap-3">
+                  <img
+                    src="/images/DoughNationLogo.png"
+                    alt="DoughNation logo"
+                    className="shrink-0"
+                    style={{
+                      width: "28px",
+                      height: "28px",
+                      objectFit: "contain",
+                    }}
+                  />
+                  <span
+                    className="font-extrabold brand-pop"
+                    style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}
+                  >
+                    DoughNation
+                  </span>
+                </Link>
+              )}
+
+              {/* Identity block to the right of divider */}
+              <div
+                className="hidden lg:flex flex-col items-start justify-center ml-4 pl-4 border-l-2"
+                style={{ borderColor: "#E3B57E" }}
+              >
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4" style={{ color: "#7a4f1c" }} />
+                  <span
+                    className="text-sm font-semibold"
+                    style={{ color: "#7a4f1c" }}
+                  >
                     {name}
-                  </h1>
-                  {verifiedPill && (
-                    <span className="status-chip">{verifiedPill}</span>
-                  )}
+                  </span>
+                  <span
+                    className="text-xs px-2 py-0.5 rounded-full"
+                    style={{
+                      background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
+                      color: "#7a4f1c",
+                      border: "1px solid #fff3e0",
+                    }}
+                  >
+                    {statusText}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <Store className="h-3.5 w-3.5" style={{ color: "#a47134" }} />
+                  <span className="text-xs" style={{ color: "#a47134" }}>
+                    Charity
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* Right icon cluster: search, messages, bell, profile, logout */}
-            <div className="iconbar">
-              <DashboardSearch size="sm" />
+            {/* Desktop nav */}
+            <nav className="items-center gap-5" style={{ fontSize: 15 }}>
+              <div className="pt-1 flex items-center gap-3 relative">
+                <div className="iconbar">
+                  <DashboardSearch size="sm" className="hidden md:flex" />
 
-              <div className="icon-btn">
-                <Messages currentUser={currentUser} compact />
+                  {/* Messages Button */}
+                  <Messages1 currentUser={currentUser} />
+
+                  {/* Notifications Bell */}
+                  <CharityNotification />
+
+                  {/* Profile Icon */}
+                  <button
+                    className="icon-btn"
+                    title="Profile"
+                    onClick={() =>
+                      navigate(
+                        `/charity-dashboard/${currentUser?.id || 0}/profile`
+                      )
+                    }
+                  >
+                    <span
+                      className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold"
+                      style={{
+                        background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
+                        color: "#7a4f1c",
+                        border: "1px solid #fff3e0",
+                      }}
+                    >
+                      {name?.trim()?.charAt(0).toUpperCase() || " "}
+                    </span>
+                  </button>
+
+                  <Button
+                    onClick={handleLogout}
+                    className="btn-logout flex items-center"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span className="hidden md:flex">Log Out</span>
+                  </Button>
+                </div>
               </div>
+            </nav>
+          </div>
 
-              <div className="icon-btn">
-                <CharityNotification />
-              </div>
-
-              <button
-                className="icon-btn"
-                title="Profile"
-                onClick={() =>
-                  navigate(`/charity-dashboard/${currentUser?.id || 0}/profile`)
-                }
-              >
-                <span
-                  className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold"
-                  style={{
-                    background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
-                    color: "#7a4f1c",
-                    border: "1px solid #fff3e0",
-                  }}
-                >
-                  {name?.trim()?.charAt(0).toUpperCase() || " "}
-                </span>
-              </button>
-
-              <Button
-                onClick={handleLogout}
-                className="btn-logout flex items-center"
-              >
-                <LogOut className="h-4 w-4" />
-                <span>Log Out</span>
-              </Button>
-            </div>
+          {/* Mobile dropdown panel */}
+          <div
+            id="mobile-menu"
+            className={`md:hidden transition-all duration-200 ease-out ${
+              mobileOpen
+                ? "max-h-96 opacity-100"
+                : "max-h-0 opacity-0 pointer-events-none"
+            } overflow-hidden`}
+          >
+            <div className="px-4 pb-3 pt-1 flex flex-col">{/* reserved */}</div>
           </div>
         </div>
       </header>
 
-      {/* Tabs styled like bakery */}
+      {/* Tabs */}
       <Tabs
         value={activeTab}
         onValueChange={(v) => {
           if (ALLOWED_TABS.includes(v)) setActiveTab(v);
         }}
       >
-        <div className="seg-wrap hidden md:block">
+        <div className="seg-wrap">
           <div className="seg">
             <TabsList className="bg-transparent p-0 border-0">
               <TabsTrigger value="donation">Available Donation</TabsTrigger>
@@ -467,34 +496,35 @@ const CharityDashboard = () => {
         </div>
 
         {/* Content */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7">
+        <div className="max-w-7xl mx-auto px-1 py-4">
           {/* Dashboard */}
           <TabsContent value="dashboard" className="space-y-6">
-            {/* metric card — same shell/width as other sections */}
-            <div className="gwrap hover-lift reveal">
-              <Card className="glass-card shadow-none h-full flex flex-col">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle style={{ color: "#6B4B2B", fontWeight: 700 }}>
-                        Total Donations Received
-                      </CardTitle>
-                      <div
-                        className="font-extrabold"
-                        style={{
-                          color: "#2b1a0b",
-                          fontSize: "clamp(1.25rem, 5vw, 1.875rem)",
-                        }}
-                      >
-                        {totals.grand_total}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6">
+              {/* metric card */}
+              <div className="gwrap reveal r1 hover-lift">
+                <Card className="glass-card shadow-none">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle
+                          style={{ color: "#6B4B2B", fontWeight: 700 }}
+                        >
+                          Total Donations Received
+                        </CardTitle>
+                        <div
+                          className="text-3xl font-extrabold"
+                          style={{ color: "#2b1a0b" }}
+                        >
+                          {totals.grand_total}
+                        </div>
+                      </div>
+                      <div className="chip">
+                        <PackageCheck className="h-5 w-5" />
                       </div>
                     </div>
-                    <div className="chip">
-                      <PackageCheck className="h-5 w-5" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -576,12 +606,20 @@ const CharityDashboard = () => {
 
           {/* Complaints */}
           <TabsContent value="complaints" className="reveal">
-            <Complaint />
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none p-4">
+                <Complaint />
+              </Card>
+            </div>
           </TabsContent>
 
           {/* Reports */}
           <TabsContent value="reports" className="reveal">
-            <CharityReports />
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none p-4">
+                <CharityReports />
+              </Card>
+            </div>
           </TabsContent>
         </div>
       </Tabs>

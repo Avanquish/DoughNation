@@ -26,7 +26,8 @@ import autoTable from "jspdf-autotable";
 export default function BakeryReports() {
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [activeReport, setActiveReport] = useState();
+  const [activeReport, setActiveReport] = useState("donation");
+  const [activeSummary, setActiveSummary] = useState("weekly");
   const [charityInfo, setCharityInfo] = useState(null);
   const [weekStart, setWeekStart] = useState("");
   const [weekEnd, setWeekEnd] = useState("");
@@ -34,68 +35,137 @@ export default function BakeryReports() {
   const [savedWeekEnd, setSavedWeekEnd] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState("");
   const [savedMonth, setSavedMonth] = useState(null);
+  
+  // Date filters for other reports
+  const [donationHistoryStart, setDonationHistoryStart] = useState("");
+  const [donationHistoryEnd, setDonationHistoryEnd] = useState("");
+  const [bakeryListStart, setBakeryListStart] = useState("");
+  const [bakeryListEnd, setBakeryListEnd] = useState("");
+  
   const COLORS_STATUS = ["#28a745", "#007bff", "#dc3545"]; // Green, Blue, Red
   const COLORS_TYPE = ["#17a2b8", "#ffc107"]; // Direct vs Request
 
   const reportTypes = [
     { key: "donation_history", label: "Donation History" },
     { key: "bakery_list", label: "Bakery List" },
-    { key: "weekly", label: "Weekly Summary" },
-    { key: "monthly", label: "Monthly Summary" },
+    { key: "summary", label: "Period Summary" },
   ];
 
-  const API_URL = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   const normalizePath = (path) => path.replace(/\\/g, "/");
 
   const formatHeader = (h) =>
     h.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
-  const handleMonthlyFilter = () => {
-    if (!selectedMonth) {
-      Swal.fire("Error", "Please select a month.", "error");
-      return;
-    }
+const handleWeeklyFilter = () => {
+  const effType = "weekly";
+  if (!weekStart || !weekEnd) {
+    Swal.fire("Error", "Please select both start and end dates.", "error");
+    return;
+  }
 
-    generateReport("monthly", { month: selectedMonth }).then(() => {
-      localStorage.setItem("lastReportType", "monthly");
-      localStorage.setItem("lastMonth", selectedMonth);
+  // Validate future dates
+  const today = new Date().toISOString().split("T")[0];
+  
+  if (weekStart > today) {
+    Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
+    return;
+  }
+  
+  if (weekEnd > today) {
+    Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
+    return;
+  }
 
-      setSavedMonth(selectedMonth); // persist applied filter
-      setSelectedMonth(""); // clear input
-    });
-  };
+  const start = new Date(weekStart);
+  const end = new Date(weekEnd);
 
-  const handleWeeklyFilter = () => {
-    if (!weekStart || !weekEnd) {
-      Swal.fire("Error", "Please select both start and end dates.", "error");
-      return;
-    }
+  const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+  if (diffDays > 7) {
+    Swal.fire(
+      "Invalid Date",
+      "Please select a date range within 1 week.",
+      "error"
+    );
+    return;
+  }
 
-    const start = new Date(weekStart);
-    const end = new Date(weekEnd);
+  generateReport(effType, { start: weekStart, end: weekEnd }).then(() => {
+    localStorage.setItem("lastWeekStart", weekStart);
+    localStorage.setItem("lastWeekEnd", weekEnd);
+    setSavedWeekStart(weekStart);
+    setSavedWeekEnd(weekEnd);
+    setActiveReport("summary"); // Navigate to summary tab
+    setActiveSummary(effType); // Set inner tab to weekly
+  });
+};
 
-    const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-    if (diffDays > 7) {
-      Swal.fire(
-        "Invalid Date",
-        "Please select a date range within 1 week.",
-        "error"
-      );
-      return;
-    }
+const handleMonthlyFilter = () => {
+  const effType = "monthly";
+  if (!selectedMonth) {
+    Swal.fire("Error", "Please select a month.", "error");
+    return;
+  }
 
-    generateReport("weekly", { start: weekStart, end: weekEnd }).then(() => {
-      localStorage.setItem("lastWeekStart", weekStart);
-      localStorage.setItem("lastWeekEnd", weekEnd);
+  // Validate future month
+  const today = new Date();
+  const currentMonth = today.toISOString().slice(0, 7); // Format: YYYY-MM
+  
+  if (selectedMonth > currentMonth) {
+    Swal.fire("Invalid Date", "Selected month cannot be in the future.", "error");
+    return;
+  }
 
-      setSavedWeekStart(weekStart); // persist applied filter
-      setSavedWeekEnd(weekEnd);
+  generateReport(effType, { month: selectedMonth }).then(() => {
+    localStorage.setItem("lastReportType", effType);
+    localStorage.setItem("lastMonth", selectedMonth);
+    setSavedMonth(selectedMonth);
+    setActiveReport("summary"); // Navigate to summary tab
+    setActiveSummary(effType); // Set inner tab to monthly
+  });
+};
 
-      setWeekStart(""); // clear input only
-      setWeekEnd("");
-    });
-  };
+// Handlers for other report filters
+const handleDonationHistoryFilter = () => {
+  // Validate future dates
+  const today = new Date().toISOString().split("T")[0];
+  
+  if (donationHistoryStart && donationHistoryStart > today) {
+    Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
+    return;
+  }
+  
+  if (donationHistoryEnd && donationHistoryEnd > today) {
+    Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
+    return;
+  }
+  
+  generateReport("donation_history", {
+    start_date: donationHistoryStart,
+    end_date: donationHistoryEnd,
+  });
+};
+
+const handleBakeryListFilter = () => {
+  // Validate future dates
+  const today = new Date().toISOString().split("T")[0];
+  
+  if (bakeryListStart && bakeryListStart > today) {
+    Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
+    return;
+  }
+  
+  if (bakeryListEnd && bakeryListEnd > today) {
+    Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
+    return;
+  }
+  
+  generateReport("bakery_list", {
+    start_date: bakeryListStart,
+    end_date: bakeryListEnd,
+  });
+};
 
   const getCharityHeaderHTML = (charity, reportType) => {
     const dateStr = new Date().toLocaleString();
@@ -138,18 +208,38 @@ export default function BakeryReports() {
   `;
   };
 
+  // Helper: which type should be used for fetching/exports?
+  const getEffectiveReportType = () =>
+  activeReport === "summary" ? activeSummary : activeReport;
+
   const generateReport = async (type, param = null) => {
     setLoading(true);
-    setActiveReport(type);
+    if (type !== "weekly" && type !== "monthly") {
+      setActiveReport(type);
+    }
+
     try {
       const token = localStorage.getItem("token");
       let url = `${API_URL}/report/${type}`;
 
-      if (type === "weekly" && param?.start && param?.end) {
-        url += `?start_date=${param.start}&end_date=${param.end}`;
+      // Use unified summary endpoint for weekly/monthly
+      if (type === "weekly" || type === "monthly") {
+        url = `${API_URL}/report/summary?period=${type}`;
+        
+        if (type === "weekly" && param?.start && param?.end) {
+          url += `&start_date=${param.start}&end_date=${param.end}`;
+        }
+        if (type === "monthly" && param?.month) {
+          url += `&month=${param.month}`;
+        }
       }
-      if (type === "monthly" && param?.month) {
-        url += `?month=${param.month}`;
+      
+      // Add date filters for other report types
+      if (param?.start_date || param?.end_date) {
+        const params = new URLSearchParams();
+        if (param.start_date) params.append("start_date", param.start_date);
+        if (param.end_date) params.append("end_date", param.end_date);
+        url += `?${params.toString()}`;
       }
 
       const res = await axios.get(url, {
@@ -175,36 +265,44 @@ export default function BakeryReports() {
     }
   };
 
-  useEffect(() => {
-    const savedType = localStorage.getItem("lastReportType");
-    const savedData = localStorage.getItem("lastReportData");
-    const savedStart = localStorage.getItem("lastWeekStart");
-    const savedEnd = localStorage.getItem("lastWeekEnd");
-    const savedMonth = localStorage.getItem("lastMonth");
+ useEffect(() => {
+  const savedType = localStorage.getItem("lastReportType");
+  const savedData = localStorage.getItem("lastReportData");
+  const savedStart = localStorage.getItem("lastWeekStart");
+  const savedEnd = localStorage.getItem("lastWeekEnd");
+  const savedMonthLocal = localStorage.getItem("lastMonth");
 
-    if (savedType) setActiveReport(savedType);
-    if (savedType && savedData) {
-      setReportData(JSON.parse(savedData));
-
-      if (savedType === "weekly" && savedStart && savedEnd) {
-        setSavedWeekStart(savedStart);
-        setSavedWeekEnd(savedEnd);
-        // only load once, don’t overwrite new filters
-        if (!weekStart && !weekEnd) {
-          generateReport("weekly", { start: savedStart, end: savedEnd });
-        }
-      }
-
-      if (savedType === "monthly" && savedMonth) {
-        setSavedMonth(savedMonth);
-        if (!selectedMonth) {
-          generateReport("monthly", { month: savedMonth });
-        }
-      }
+  if (savedType === "weekly" || savedType === "monthly") {
+    // open Summary and the correct inner tab
+    setActiveReport("summary");
+    setActiveSummary(savedType);
+    if (savedData) setReportData(JSON.parse(savedData));
+    if (savedType === "weekly" && savedStart && savedEnd) {
+      setSavedWeekStart(savedStart);
+      setSavedWeekEnd(savedEnd);
+      setWeekStart(savedStart);
+      setWeekEnd(savedEnd);
+      // Don't auto-generate, just restore state
     }
-  }, []);
+    if (savedType === "monthly" && savedMonthLocal) {
+      setSavedMonth(savedMonthLocal);
+      setSelectedMonth(savedMonthLocal);
+      // Don't auto-generate, just restore state
+    }
+    return;
+  }
+
+  // Otherwise, validate and open the saved top tab if any
+  const validReport = reportTypes.find((r) => r.key === savedType);
+  if (!validReport) return;
+
+  setActiveReport(savedType || "");
+  if (savedData) setReportData(JSON.parse(savedData));
+  // Don't auto-generate on load
+}, []);
 
   const downloadReportCSV = () => {
+    const effectiveType = getEffectiveReportType();
     if (!reportData) return;
 
     Swal.fire({
@@ -220,7 +318,7 @@ export default function BakeryReports() {
         : [reportData];
 
       // Handle Bakery List (new)
-      if (activeReport === "bakery_list" && reportData?.bakeries) {
+      if (effectiveType === "bakery_list" && reportData?.bakeries) {
         const bakeries = reportData.bakeries;
         if (bakeries.length === 0) {
           Swal.close();
@@ -263,7 +361,7 @@ export default function BakeryReports() {
 
         const link = document.createElement("a");
         link.href = url;
-        link.download = `${activeReport}_report.csv`;
+        link.download = `${effectiveType}_report.csv`;
         link.click();
         URL.revokeObjectURL(url);
 
@@ -297,7 +395,7 @@ export default function BakeryReports() {
 
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${activeReport}_report.csv`;
+      link.download = `${effectiveType}_report.csv`;
       link.click();
       URL.revokeObjectURL(url);
 
@@ -306,6 +404,7 @@ export default function BakeryReports() {
   };
 
   const downloadReportPDF = async (includeImages = true) => {
+    const effectiveType = getEffectiveReportType();
     if (!reportData || reportData.length === 0) {
       alert("No data to download.");
       return;
@@ -319,7 +418,7 @@ export default function BakeryReports() {
     });
 
     // Generate pdf for charity list
-    if (activeReport === "bakery_list") {
+    if (effectiveType === "bakery_list") {
       const doc = new jsPDF("landscape", "pt", "a4");
       const pageWidth = doc.internal.pageSize.getWidth();
       let currentY = 40;
@@ -396,7 +495,7 @@ export default function BakeryReports() {
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
       doc.text(
-        `${activeReport.replace(/_/g, " ").toUpperCase()} REPORT`,
+        `${effectiveType.replace(/_/g, " ").toUpperCase()} REPORT`,
         pageWidth / 2,
         currentY,
         { align: "center" }
@@ -554,7 +653,7 @@ export default function BakeryReports() {
     }
 
     // Weekly UI snapshot
-    if (activeReport === "weekly") {
+    if (effectiveType === "weekly") {
       const doc = new jsPDF("landscape", "pt", "a4");
       const pageWidth = doc.internal.pageSize.getWidth();
       let currentY = 40;
@@ -631,7 +730,7 @@ export default function BakeryReports() {
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
       doc.text(
-        `${activeReport.replace(/_/g, " ").toUpperCase()} REPORT`,
+        `${effectiveType.replace(/_/g, " ").toUpperCase()} REPORT`,
         pageWidth / 2,
         currentY,
         { align: "center" }
@@ -845,7 +944,7 @@ export default function BakeryReports() {
     }
 
     // Monthly UI snapshot
-    if (activeReport === "monthly") {
+    if (effectiveType === "monthly") {
       const doc = new jsPDF("landscape", "pt", "a4");
       const pageWidth = doc.internal.pageSize.getWidth();
       let currentY = 40;
@@ -922,7 +1021,7 @@ export default function BakeryReports() {
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
       doc.text(
-        `${activeReport.replace(/_/g, " ").toUpperCase()} REPORT`,
+        `${effectiveType.replace(/_/g, " ").toUpperCase()} REPORT`,
         pageWidth / 2,
         currentY,
         { align: "center" }
@@ -1209,7 +1308,7 @@ export default function BakeryReports() {
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.text(
-      `${activeReport.replace(/_/g, " ").toUpperCase()} REPORT`,
+      `${effectiveType.replace(/_/g, " ").toUpperCase()} REPORT`,
       pageWidth / 2,
       currentY,
       { align: "center" }
@@ -1343,14 +1442,14 @@ export default function BakeryReports() {
       },
     });
 
-    doc.save(`${activeReport}_report.pdf`);
+    doc.save(`${effectiveType}_report.pdf`);
     Swal.close();
   };
 
   const printReport = async (charity) => {
     if (!reportData) return;
 
-    const API_URL = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
+    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
     const headerHTML = getCharityHeaderHTML(charity, activeReport);
     const formatHeader = (h) => h.replace(/_/g, " ").toUpperCase();
     const normalizePath = (p) => p.replace(/\\/g, "/");
@@ -1853,7 +1952,7 @@ export default function BakeryReports() {
                 <th className="px-4 py-2">Requests Donations</th>
                 <th className="px-4 py-2">Direct Donation Qty</th>
                 <th className="px-4 py-2">Request Donation Qty</th>
-                <th className="px-4 py-2">Total Donated Qty</th>
+                <th className="px-4 py-2">Total Received Qty</th>
                 <th className="px-4 py-2">Total Transactions</th>
               </tr>
             </thead>
@@ -1877,7 +1976,7 @@ export default function BakeryReports() {
                   <td className="px-4 py-2">{b.direct_qty}</td>
                   <td className="px-4 py-2">{b.request_qty}</td>
                   <td className="px-4 py-2 font-medium">
-                    {b.total_donated_qty}
+                    {b.total_received_qty}
                   </td>
                   <td className="px-4 py-2 font-bold text-gray-800">
                     {b.total_transactions}
@@ -1902,7 +2001,7 @@ export default function BakeryReports() {
             <p>
               Total Donated Qty (Request Donations): {totals.total_request_qty}
             </p>
-            <p>Total Donated Qty Overall: {totals.total_donated_qty}</p>
+            <p>Total Received Qty Overall: {totals.total_received_qty}</p>
             <p className="font-bold text-lg">
               Total Transactions: {totals.total_transactions}
             </p>
@@ -1963,15 +2062,8 @@ export default function BakeryReports() {
         value={activeReport}
         onValueChange={(val) => {
           setActiveReport(val);
-          if (val === "weekly") {
-            const savedStart = localStorage.getItem("lastWeekStart");
-            const savedEnd = localStorage.getItem("lastWeekEnd");
-            if (savedStart && savedEnd) {
-              generateReport("weekly", savedStart, savedEnd);
-              return;
-            }
-          }
-          generateReport(val);
+          // Don't auto-generate reports on tab change
+          // User must click "Generate Report" button
         }}
       >
         {/* Pills */}
@@ -1986,491 +2078,541 @@ export default function BakeryReports() {
             </TabsTrigger>
           ))}
         </TabsList>
+        <TabsContent value="donation_history">
+          <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
+            <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
+              <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
+                Donation History Report
+              </CardTitle>
+            </CardHeader>
 
-        {reportTypes.map((r) => (
-          <TabsContent key={r.key} value={r.key}>
-            <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
-              <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
-                <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
-                  {r.label} Report
-                </CardTitle>
-              </CardHeader>
+            <CardContent className="p-5 sm:p-6">
+              {/* Date Filter */}
+              <div className="mb-4 flex flex-wrap gap-4 items-end">
+                <div>
+                  <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
+                    Start Date (Optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={donationHistoryStart}
+                    onChange={(e) => setDonationHistoryStart(e.target.value)}
+                    max={new Date().toISOString().split("T")[0]}
+                    className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
+                    End Date (Optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={donationHistoryEnd}
+                    onChange={(e) => setDonationHistoryEnd(e.target.value)}
+                    max={new Date().toISOString().split("T")[0]}
+                    className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                  />
+                </div>
+                <Button
+                  onClick={handleDonationHistoryFilter}
+                  className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                >
+                  Generate Report
+                </Button>
+              </div>
 
-              <CardContent className="p-5 sm:p-6">
-                {loading ? (
-                  <p className="text-[#6b4b2b]/70">Generating report...</p>
-                ) : reportData ? (
-                  <div>
-                    {["weekly", "monthly"].includes(activeReport) ? (
-                      <div className="w-full">
-                        {/* Weekly Date Filters */}
-                        {activeReport === "weekly" && (
-                          <div className="mb-4 flex flex-wrap gap-4 items-end">
-                            <div>
-                              <label className="block text-sm font-medium text-[#6b4b2b]">
-                                Week Start
-                              </label>
-                              <input
-                                type="date"
-                                value={weekStart}
-                                onChange={(e) => setWeekStart(e.target.value)}
-                                className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-[#6b4b2b]">
-                                Week End
-                              </label>
-                              <input
-                                type="date"
-                                value={weekEnd}
-                                onChange={(e) => setWeekEnd(e.target.value)}
-                                className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                              />
-                            </div>
-                            <Button
-                              onClick={handleWeeklyFilter}
-                              className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
-                            >
-                              Filter
-                            </Button>
-                          </div>
-                        )}
+              {loading ? (
+                <p className="text-[#6b4b2b]/70">Generating report...</p>
+              ) : reportData ? (
+                <div className="overflow-x-auto rounded-xl ring-1 ring-black/10 bg-white/70">
+                  {renderTable(reportData)}
+                </div>
+              ) : (
+                <p className="text-[#6b4b2b]/70">
+                  Select date range (optional) and click "Generate Report" to view the report.
+                </p>
+              )}
 
-                        {/* Monthly Filter */}
-                        {activeReport === "monthly" && (
-                          <div className="mb-4 flex flex-wrap gap-4 items-end">
-                            <div>
-                              <label className="block text-sm font-medium text-[#6b4b2b]">
-                                Select Month
-                              </label>
-                              <input
-                                type="month"
-                                value={selectedMonth}
-                                onChange={(e) =>
-                                  setSelectedMonth(e.target.value)
-                                }
-                                max={new Date().toISOString().slice(0, 7)}
-                                className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                              />
-                            </div>
-                            <Button
-                              onClick={handleMonthlyFilter}
-                              className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
-                            >
-                              Filter
-                            </Button>
-                          </div>
-                        )}
+              {reportData && (
+                <div className="flex flex-wrap gap-3 mt-5">
+                  <Button
+                    onClick={downloadReportCSV}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                  >
+                    <Download size={16} /> Download CSV
+                  </Button>
+                  <Button
+                    onClick={() => downloadReportPDF(charityInfo)}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                  >
+                    <Download size={16} /> Download PDF
+                  </Button>
+                  <Button
+                    onClick={() => printReport(charityInfo)}
+                    className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
+                  >
+                    <Printer size={16} /> Print
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-                        {/* Weekly Summary Table */}
-                        {activeReport === "weekly" && (
-                          <div className="max-h-96 overflow-y-auto rounded-xl ring-1 ring-black/10 bg-white/70 mb-6">
-                            <table className="min-w-full text-center">
-                              <thead className="bg-[#EADBC8] text-[#4A2F17]">
-                                <tr>
-                                  {[
-                                    "Week Start",
-                                    "Week End",
-                                    "Total Direct Donations",
-                                    "Total Request Donations",
-                                    "Total Donations",
-                                    "Expired Products",
-                                  ].map((h) => (
-                                    <th
-                                      key={h}
-                                      className="px-4 py-2 font-semibold"
-                                    >
-                                      {h}
-                                    </th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                <tr className="odd:bg-white even:bg-white/60">
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.week_start || savedWeekStart}
-                                  </td>
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.week_end || savedWeekEnd}
-                                  </td>
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.total_direct_donations}
-                                  </td>
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.total_request_donations}
-                                  </td>
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.total_donations}
-                                  </td>
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.expired_products}
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
+        {/* Bakery List Tab */}
+        <TabsContent value="bakery_list">
+          <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
+            <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
+              <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
+                Bakery List Report
+              </CardTitle>
+            </CardHeader>
 
-                        {/* Weekly Top Items */}
-                        {activeReport === "weekly" && (
-                          <div className="max-h-60 overflow-y-auto rounded-xl ring-1 ring-black/10 bg-white/70 mb-6">
-                            <h3 className="font-semibold text-[#6b4b2b] p-3">
-                              Top Donated Items
-                            </h3>
-                            <table className="min-w-full text-center">
-                              <thead className="bg-[#EADBC8] text-[#4A2F17]">
-                                <tr>
-                                  <th className="px-4 py-2 font-semibold">
-                                    Product Name
-                                  </th>
-                                  <th className="px-4 py-2 font-semibold">
-                                    Quantity
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {reportData.top_items &&
-                                reportData.top_items.length ? (
-                                  reportData.top_items.map((item, idx) => (
-                                    <tr
-                                      key={idx}
-                                      className="odd:bg-white even:bg-white/60"
-                                    >
-                                      <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                        {item.product_name}
-                                      </td>
-                                      <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                        {item.quantity}
-                                      </td>
-                                    </tr>
-                                  ))
-                                ) : (
-                                  <tr>
-                                    <td
-                                      colSpan={2}
-                                      className="px-4 py-4 text-[#6b4b2b]/70 border-t border-[#f2d4b5]"
-                                    >
-                                      No top items for this week.
-                                    </td>
-                                  </tr>
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
+            <CardContent className="p-5 sm:p-6">
+              {/* Date Filter */}
+              <div className="mb-4 flex flex-wrap gap-4 items-end">
+                <div>
+                  <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
+                    Start Date (Optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={bakeryListStart}
+                    onChange={(e) => setBakeryListStart(e.target.value)}
+                    max={new Date().toISOString().split("T")[0]}
+                    className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
+                    End Date (Optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={bakeryListEnd}
+                    onChange={(e) => setBakeryListEnd(e.target.value)}
+                    max={new Date().toISOString().split("T")[0]}
+                    className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                  />
+                </div>
+                <Button
+                  onClick={handleBakeryListFilter}
+                  className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                >
+                  Generate Report
+                </Button>
+              </div>
 
-                        {/* Weekly Pies */}
-                        {activeReport === "weekly" && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Card className="rounded-xl ring-1 ring-black/10 bg-white/80 shadow-md">
-                              <CardHeader className="p-4 bg-[#FFF3E6]">
-                                <CardTitle className="text-[#6b4b2b]">
-                                  Donation Count
-                                </CardTitle>
-                              </CardHeader>
-                              <CardContent className="p-4">
-                                <ResponsiveContainer width="100%" height={280}>
-                                  <PieChart>
-                                    <Pie
-                                      data={[]}
-                                      dataKey="value"
-                                      nameKey="name"
-                                      cx="50%"
-                                      cy="50%"
-                                      outerRadius={80}
-                                      labelLine={false}
-                                      label={renderCustomizedLabel}
-                                    >
-                                      {["#28a745", "#007bff", "#dc3545"].map(
-                                        (c, i) => (
-                                          <Cell key={i} fill={c} />
-                                        )
-                                      )}
-                                    </Pie>
-                                    <Tooltip
-                                      formatter={(v, n) => [`${v}`, n]}
-                                    />
-                                    <Legend
-                                      verticalAlign="bottom"
-                                      height={36}
-                                    />
-                                  </PieChart>
-                                </ResponsiveContainer>
-                              </CardContent>
-                            </Card>
+              {loading ? (
+                <p className="text-[#6b4b2b]/70">Generating report...</p>
+              ) : reportData ? (
+                <div className="overflow-x-auto rounded-xl ring-1 ring-black/10 bg-white/70">
+                  {renderTable(reportData)}
+                </div>
+              ) : (
+                <p className="text-[#6b4b2b]/70">
+                  Select date range (optional) and click "Generate Report" to view the report.
+                </p>
+              )}
 
-                            <Card className="rounded-xl ring-1 ring-black/10 bg-white/80 shadow-md">
-                              <CardHeader className="p-4 bg-[#FFF3E6]">
-                                <CardTitle className="text-[#6b4b2b]">
-                                  Donation Type
-                                </CardTitle>
-                              </CardHeader>
-                              <CardContent className="p-4">
-                                <ResponsiveContainer width="100%" height={280}>
-                                  <PieChart>
-                                    <Pie
-                                      data={[
-                                        {
-                                          name: "Direct",
-                                          value:
-                                            reportData.total_direct_donations ||
-                                            0,
-                                        },
-                                        {
-                                          name: "Request",
-                                          value:
-                                            reportData.total_request_donations ||
-                                            0,
-                                        },
-                                      ]}
-                                      dataKey="value"
-                                      nameKey="name"
-                                      cx="50%"
-                                      cy="50%"
-                                      outerRadius={80}
-                                      labelLine={false}
-                                      label={renderCustomizedLabel}
-                                    >
-                                      {["#4CAF50", "#2196F3"].map((c, i) => (
-                                        <Cell key={i} fill={c} />
-                                      ))}
-                                    </Pie>
-                                    <Tooltip
-                                      formatter={(v, n) => [`${v}`, n]}
-                                    />
-                                    <Legend
-                                      verticalAlign="bottom"
-                                      height={36}
-                                    />
-                                  </PieChart>
-                                </ResponsiveContainer>
-                              </CardContent>
-                            </Card>
-                          </div>
-                        )}
+              {reportData && (
+                <div className="flex flex-wrap gap-3 mt-5">
+                  <Button
+                    onClick={downloadReportCSV}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                  >
+                    <Download size={16} /> Download CSV
+                  </Button>
+                  <Button
+                    onClick={() => downloadReportPDF(charityInfo)}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                  >
+                    <Download size={16} /> Download PDF
+                  </Button>
+                  <Button
+                    onClick={() => printReport(charityInfo)}
+                    className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
+                  >
+                    <Printer size={16} /> Print
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-                        {/* Monthly Summary */}
-                        {activeReport === "monthly" && (
-                          <div className="max-h-96 overflow-y-auto rounded-xl ring-1 ring-black/10 bg-white/70 mb-6">
-                            <table className="min-w-full text-center">
-                              <thead className="bg-[#EADBC8] text-[#4A2F17]">
-                                <tr>
-                                  {[
-                                    "Month",
-                                    "Total Direct Donations",
-                                    "Total Request Donations",
-                                    "Total Donations",
-                                    "Expired Products",
-                                  ].map((h) => (
-                                    <th
-                                      key={h}
-                                      className="px-4 py-2 font-semibold"
-                                    >
-                                      {h}
-                                    </th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                <tr className="odd:bg-white even:bg-white/60">
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.month || savedMonth}
-                                  </td>
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.total_direct_donations}
-                                  </td>
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.total_request_donations}
-                                  </td>
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.total_donations}
-                                  </td>
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.expired_products}
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
+        {/* Summary tab (unified period view) */}
+        <TabsContent value="summary">
+          <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
+            <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
+              <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
+                Period Summary Report
+              </CardTitle>
+            </CardHeader>
 
-                        {/* Monthly Top Items */}
-                        {activeReport === "monthly" && (
-                          <div className="max-h-60 overflow-y-auto rounded-xl ring-1 ring-black/10 bg-white/70 mb-6">
-                            <h3 className="font-semibold text-[#6b4b2b] p-3">
-                              Top Donated Items
-                            </h3>
-                            <table className="min-w-full text-center">
-                              <thead className="bg-[#EADBC8] text-[#4A2F17]">
-                                <tr>
-                                  <th className="px-4 py-2 font-semibold">
-                                    Product Name
-                                  </th>
-                                  <th className="px-4 py-2 font-semibold">
-                                    Quantity
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {reportData.top_items &&
-                                reportData.top_items.length ? (
-                                  reportData.top_items.map((item, idx) => (
-                                    <tr
-                                      key={idx}
-                                      className="odd:bg-white even:bg-white/60"
-                                    >
-                                      <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                        {item.product_name}
-                                      </td>
-                                      <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                        {item.quantity}
-                                      </td>
-                                    </tr>
-                                  ))
-                                ) : (
-                                  <tr>
-                                    <td
-                                      colSpan={2}
-                                      className="px-4 py-4 text-[#6b4b2b]/70 border-t border-[#f2d4b5]"
-                                    >
-                                      No top items for this month.
-                                    </td>
-                                  </tr>
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-
-                        {/* Monthly Pies */}
-                        {activeReport === "monthly" && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Card className="rounded-xl ring-1 ring-black/10 bg-white/80 shadow-md">
-                              <CardHeader className="p-4 bg-[#FFF3E6]">
-                                <CardTitle className="text-[#6b4b2b]">
-                                  Donation Count
-                                </CardTitle>
-                              </CardHeader>
-                              <CardContent className="p-4">
-                                <ResponsiveContainer width="100%" height={280}>
-                                  <PieChart>
-                                    <Pie
-                                      data={[]}
-                                      dataKey="value"
-                                      nameKey="name"
-                                      cx="50%"
-                                      cy="50%"
-                                      outerRadius={80}
-                                      labelLine={false}
-                                      label={renderCustomizedLabel}
-                                    >
-                                      {["#28a745", "#007bff", "#dc3545"].map(
-                                        (c, i) => (
-                                          <Cell key={i} fill={c} />
-                                        )
-                                      )}
-                                    </Pie>
-                                    <Tooltip
-                                      formatter={(v, n) => [`${v}`, n]}
-                                    />
-                                    <Legend
-                                      verticalAlign="bottom"
-                                      height={36}
-                                    />
-                                  </PieChart>
-                                </ResponsiveContainer>
-                              </CardContent>
-                            </Card>
-
-                            <Card className="rounded-xl ring-1 ring-black/10 bg-white/80 shadow-md">
-                              <CardHeader className="p-4 bg-[#FFF3E6]">
-                                <CardTitle className="text-[#6b4b2b]">
-                                  Donation Type
-                                </CardTitle>
-                              </CardHeader>
-                              <CardContent className="p-4">
-                                <ResponsiveContainer width="100%" height={280}>
-                                  <PieChart>
-                                    <Pie
-                                      data={[
-                                        {
-                                          name: "Direct",
-                                          value:
-                                            reportData.total_direct_donations ||
-                                            0,
-                                        },
-                                        {
-                                          name: "Request",
-                                          value:
-                                            reportData.total_request_donations ||
-                                            0,
-                                        },
-                                      ]}
-                                      dataKey="value"
-                                      nameKey="name"
-                                      cx="50%"
-                                      cy="50%"
-                                      outerRadius={80}
-                                      labelLine={false}
-                                      label={renderCustomizedLabel}
-                                    >
-                                      {["#4CAF50", "#2196F3"].map((c, i) => (
-                                        <Cell key={i} fill={c} />
-                                      ))}
-                                    </Pie>
-                                    <Tooltip
-                                      formatter={(v, n) => [`${v}`, n]}
-                                    />
-                                    <Legend
-                                      verticalAlign="bottom"
-                                      height={36}
-                                    />
-                                  </PieChart>
-                                </ResponsiveContainer>
-                              </CardContent>
-                            </Card>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      // Generic Table view (other tabs)
-                      <div className="overflow-x-auto rounded-xl ring-1 ring-black/10 bg-white/70">
-                        {renderTable(reportData)}
-                      </div>
-                    )}
-
-                    {/* Actions */}
-                    <div className="flex flex-wrap gap-3 mt-5">
-                      <Button
-                        onClick={downloadReportCSV}
-                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+            <CardContent className="p-5 sm:p-6">
+              {loading ? (
+                <p className="text-[#6b4b2b]/70">Generating report...</p>
+              ) : reportData ? (
+                <div>
+                  {/* Unified Filters */}
+                  <div className="mb-4 flex flex-wrap gap-4 items-end">
+                    <div>
+                      <label className="block text-sm font-medium text-[#6b4b2b]">
+                        Period Type
+                      </label>
+                      <select
+                        value={activeSummary}
+                        onChange={(e) => {
+                          setActiveSummary(e.target.value);
+                          setWeekStart("");
+                          setWeekEnd("");
+                          setSelectedMonth("");
+                        }}
+                        className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                       >
-                        <Download size={16} /> Download CSV
-                      </Button>
-                      <Button
-                        onClick={() => downloadReportPDF(charityInfo)}
-                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
-                      >
-                        <Download size={16} /> Download PDF
-                      </Button>
-                      <Button
-                        onClick={() => printReport(charityInfo)}
-                        className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
-                      >
-                        <Printer size={16} /> Print
-                      </Button>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                      </select>
                     </div>
+
+                    {activeSummary === "weekly" ? (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-[#6b4b2b]">
+                            Week Start
+                          </label>
+                          <input
+                            type="date"
+                            value={weekStart}
+                            onChange={(e) => setWeekStart(e.target.value)}
+                            max={new Date().toISOString().split("T")[0]}
+                            className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-[#6b4b2b]">
+                            Week End
+                          </label>
+                          <input
+                            type="date"
+                            value={weekEnd}
+                            onChange={(e) => setWeekEnd(e.target.value)}
+                            max={new Date().toISOString().split("T")[0]}
+                            className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                          />
+                        </div>
+                        <Button
+                          onClick={handleWeeklyFilter}
+                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                        >
+                          Generate Report
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-[#6b4b2b]">
+                            Select Month
+                          </label>
+                          <input
+                            type="month"
+                            value={selectedMonth}
+                            onChange={(e) => setSelectedMonth(e.target.value)}
+                            max={new Date().toISOString().slice(0, 7)}
+                            className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                          />
+                        </div>
+                        <Button
+                          onClick={handleMonthlyFilter}
+                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                        >
+                          Generate Report
+                        </Button>
+                      </>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-[#6b4b2b]/70">
-                    Click tab to generate {r.label}.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        ))}
+
+                  {/* Weekly Summary */}
+                  {activeSummary === "weekly" && (
+                    <>
+                      <div className="max-h-96 overflow-y-auto rounded-xl ring-1 ring-black/10 bg-white/70 mb-6">
+                        <table className="min-w-full text-center">
+                          <thead className="bg-[#EADBC8] text-[#4A2F17]">
+                            <tr>
+                              {[
+                                "Week Start",
+                                "Week End",
+                                "Total Direct Donations",
+                                "Total Request Donations",
+                                "Total Received Quantity",
+                                "Total Transactions",
+                                
+                              ].map((h) => (
+                                <th key={h} className="px-4 py-2 font-semibold">
+                                  {h}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr className="odd:bg-white even:bg-white/60">
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.week_start || savedWeekStart}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.week_end || savedWeekEnd}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_direct_donations}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_request_donations}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_donations}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_transactions}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="max-h-60 overflow-y-auto rounded-xl ring-1 ring-black/10 bg-white/70 mb-6">
+                        <h3 className="font-semibold text-[#6b4b2b] p-3">
+                          Top Received Items
+                        </h3>
+                        <table className="min-w-full text-center">
+                          <thead className="bg-[#EADBC8] text-[#4A2F17]">
+                            <tr>
+                              <th className="px-4 py-2 font-semibold">
+                                Product Name
+                              </th>
+                              <th className="px-4 py-2 font-semibold">Quantity</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {reportData.top_items && reportData.top_items.length ? (
+                              reportData.top_items.map((item, idx) => (
+                                <tr key={idx} className="odd:bg-white even:bg-white/60">
+                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                    {item.product_name}
+                                  </td>
+                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                    {item.quantity}
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td
+                                  colSpan={2}
+                                  className="px-4 py-4 text-[#6b4b2b]/70 border-t border-[#f2d4b5]"
+                                >
+                                  No top items for this week.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Card className="rounded-xl ring-1 ring-black/10 bg-white/80 shadow-md">
+                          <CardHeader className="p-4 bg-[#FFF3E6]">
+                            <CardTitle className="text-[#6b4b2b]">
+                              Donation Type
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-4">
+                            <ResponsiveContainer width="100%" height={280}>
+                              <PieChart>
+                                <Pie
+                                  data={[
+                                    {
+                                      name: "Direct",
+                                      value: reportData.total_direct_donations || 0,
+                                    },
+                                    {
+                                      name: "Request",
+                                      value: reportData.total_request_donations || 0,
+                                    },
+                                  ]}
+                                  dataKey="value"
+                                  nameKey="name"
+                                  cx="50%"
+                                  cy="50%"
+                                  outerRadius={80}
+                                  labelLine={false}
+                                  label={renderCustomizedLabel}
+                                >
+                                  {["#4CAF50", "#2196F3"].map((c, i) => (
+                                    <Cell key={i} fill={c} />
+                                  ))}
+                                </Pie>
+                                <Tooltip formatter={(v, n) => [`${v}`, n]} />
+                                <Legend verticalAlign="bottom" height={36} />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Monthly Summary */}
+                  {activeSummary === "monthly" && (
+                    <>
+                      <div className="max-h-96 overflow-y-auto rounded-xl ring-1 ring-black/10 bg-white/70 mb-6">
+                        <table className="min-w-full text-center">
+                          <thead className="bg-[#EADBC8] text-[#4A2F17]">
+                            <tr>
+                              {[
+                                "Month",
+                                "Total Direct Donations",
+                                "Total Request Donations",
+                                "Total Received Quantity",
+                                "Total Transactions",
+                              ].map((h) => (
+                                <th key={h} className="px-4 py-2 font-semibold">
+                                  {h}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr className="odd:bg-white even:bg-white/60">
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.month || savedMonth}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_direct_donations}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_request_donations}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_donations}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_transactions}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="max-h-60 overflow-y-auto rounded-xl ring-1 ring-black/10 bg-white/70 mb-6">
+                        <h3 className="font-semibold text-[#6b4b2b] p-3">
+                          Top Received Items
+                        </h3>
+                        <table className="min-w-full text-center">
+                          <thead className="bg-[#EADBC8] text-[#4A2F17]">
+                            <tr>
+                              <th className="px-4 py-2 font-semibold">Product Name</th>
+                              <th className="px-4 py-2 font-semibold">Quantity</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {reportData.top_items && reportData.top_items.length ? (
+                              reportData.top_items.map((item, idx) => (
+                                <tr key={idx} className="odd:bg-white even:bg-white/60">
+                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                    {item.product_name}
+                                  </td>
+                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                    {item.quantity}
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td
+                                  colSpan={2}
+                                  className="px-4 py-4 text-[#6b4b2b]/70 border-t border-[#f2d4b5]"
+                                >
+                                  No top items for this month.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex justify-center">
+                        <Card className="rounded-xl ring-1 ring-black/10 bg-white/80 shadow-md justify-center">
+                          <CardHeader className="p-4 bg-[#FFF3E6]">
+                            <CardTitle className="text-[#6b4b2b]">
+                              Donation Type
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-4">
+                            <ResponsiveContainer width="100%" height={280}>
+                              <PieChart>
+                                <Pie
+                                  data={[
+                                    {
+                                      name: "Direct",
+                                      value: reportData.total_direct_donations || 0,
+                                    },
+                                    {
+                                      name: "Request",
+                                      value: reportData.total_request_donations || 0,
+                                    },
+                                  ]}
+                                  dataKey="value"
+                                  nameKey="name"
+                                  cx="50%"
+                                  cy="50%"
+                                  outerRadius={80}
+                                  labelLine={false}
+                                  label={renderCustomizedLabel}
+                                >
+                                  {["#4CAF50", "#2196F3"].map((c, i) => (
+                                    <Cell key={i} fill={c} />
+                                  ))}
+                                </Pie>
+                                <Tooltip formatter={(v, n) => [`${v}`, n]} />
+                                <Legend verticalAlign="bottom" height={36} />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="flex flex-wrap gap-3 mt-5">
+                    <Button
+                      onClick={downloadReportCSV}
+                      className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                    >
+                      <Download size={16} /> Download CSV
+                    </Button>
+                    <Button
+                      onClick={() => downloadReportPDF(charityInfo)}
+                      className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                    >
+                      <Download size={16} /> Download PDF
+                    </Button>
+                    <Button
+                      onClick={() => printReport(charityInfo)}
+                      className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
+                    >
+                      <Printer size={16} /> Print
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[#6b4b2b]/70">
+                  Select a period type and date range, then click "Generate Report" to view the summary.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );

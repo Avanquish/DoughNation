@@ -4,30 +4,40 @@ import axios from "axios";
 import Swal from "sweetalert2";
 import { Heart, Clock, AlertTriangle, Package } from "lucide-react";
 
-const API = "https://api.doughnationhq.cloud";
+const API = "http://localhost:8000";
 
-/* ---------- helpers ---------- */
-const isExpired = (dateStr) => {
-  if (!dateStr) return false;
+/* ---------- helpers (using server date) ---------- */
+const isExpired = (dateStr, serverDate) => {
+  if (!dateStr || !serverDate) return false;
   const d = new Date(dateStr);
-  const t = new Date();
+  const [year, month, day] = serverDate.split('-').map(Number);
+  const t = new Date(year, month - 1, day);
   t.setHours(0, 0, 0, 0);
   d.setHours(0, 0, 0, 0);
-  return d <= t;
+  return d < t; // Changed from <= to < (expired means past days only)
 };
-const daysUntil = (dateStr) => {
-  if (!dateStr) return null;
+
+const daysUntil = (dateStr, serverDate) => {
+  if (!dateStr || !serverDate) return null;
   const d = new Date(dateStr);
-  const t = new Date();
+  const [year, month, day] = serverDate.split('-').map(Number);
+  const t = new Date(year, month - 1, day);
   t.setHours(0, 0, 0, 0);
   d.setHours(0, 0, 0, 0);
   return Math.ceil((d - t) / (1000 * 60 * 60 * 24));
 };
-const statusOf = (donation) => {
-  const d = daysUntil(donation?.expiration_date);
+
+const statusOf = (donation, serverDate) => {
+  const d = daysUntil(donation?.expiration_date, serverDate);
   if (d === null) return "fresh";
   if (d <= 0) return "expired";
-  if (d <= (Number(donation?.threshold) || 0)) return "soon";
+  
+  const threshold = Number(donation?.threshold);
+  
+  // Match inventory logic: threshold 0 means check if d <= 1
+  if (threshold === 0 && d <= 1) return "soon";
+  if (d <= threshold) return "soon";
+  
   return "fresh";
 };
 
@@ -106,20 +116,34 @@ const leftBadge = (d) => {
   return { tone: d <= 3 ? "warn" : "good", label: `Expires in ${d} days` };
 };
 
+const getCurrentUserName = () => {
+  const employeeToken = localStorage.getItem("employeeToken");
+  const bakeryToken = localStorage.getItem("token");
+  const token = employeeToken || bakeryToken;
+
+  if (!token) return "Unknown";
+
+  try {
+    const decoded = JSON.parse(atob(token.split(".")[1]));
+    
+    if (decoded.type === "employee") {
+      // Employee token
+      return decoded.employee_name || decoded.name || "Employee";
+    } else {
+      // Bakery/Charity token
+      return decoded.name || "User";
+    }
+  } catch (err) {
+    console.error("Failed to decode token:", err);
+    return "Unknown";
+  }
+};
+
 /* ---------- main component ---------- */
-const BakeryDonation = ({ highlightedDonationId }) => {
+const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
   const [donations, setDonations] = useState([]);
   const [loading, setLoading] = useState(true);
   const highlightedRef = useRef(null);
-
-  // access
-  const [verified, setVerified] = useState(false);
-  const [employeeName, setEmployeeName] = useState("");
-  const [employeeRole, setEmployeeRole] = useState("");
-  const [employees, setEmployees] = useState([]);
-  const canModify = ["Manager", "Full Time Staff", "Manager/Owner"].includes(
-    employeeRole
-  );
 
   // modal + data
   const [showDonate, setShowDonate] = useState(false);
@@ -133,6 +157,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
   // custom dropdown states
   const [openInv, setOpenInv] = useState(false);
   const [openChar, setOpenChar] = useState(false);
+  const [currentServerDate, setCurrentServerDate] = useState(null);
 
   const [form, setForm] = useState({
     bakery_inventory_id: "",
@@ -146,8 +171,30 @@ const BakeryDonation = ({ highlightedDonationId }) => {
     image_file: null,
   });
 
-  const token = localStorage.getItem("token");
+  // Get the appropriate token (employee token takes priority if it exists)
+  const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
+
+  // Fetch server date on mount
+useEffect(() => {
+  const fetchServerDate = async () => {
+    try {
+      const res = await axios.get(`${API}/server-time`, { headers });
+      setCurrentServerDate(res.data.date);
+    } catch (err) {
+      console.error("Failed to fetch server date:", err);
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      setCurrentServerDate(`${yyyy}-${mm}-${dd}`);
+    }
+  };
+  
+  fetchServerDate();
+  const interval = setInterval(fetchServerDate, 60 * 60 * 1000); // Refresh every hour
+  return () => clearInterval(interval);
+}, []);
 
   /* ---------- data fetch ---------- */
   const fetchEmployees = async () => {
@@ -192,8 +239,11 @@ const BakeryDonation = ({ highlightedDonationId }) => {
       const res = await axios.get(`${API}/inventory`, { headers });
       const ok = (res.data || []).filter((it) => {
         const s = String(it.status || "").toLowerCase();
+        const isExpiredItem = isExpired(it.expiration_date, currentServerDate);
         return (
-          s !== "donated" && s !== "requested" && !isExpired(it.expiration_date)
+          s !== "donated" && 
+          s !== "requested" && 
+          !isExpiredItem  // Filter out expired items
         );
       });
       setInventory(ok);
@@ -211,38 +261,14 @@ const BakeryDonation = ({ highlightedDonationId }) => {
     fetchEmployees();
   }, []);
   useEffect(() => {
-    if (verified) fetchDonations();
-  }, [verified]);
+    fetchDonations();
+  }, []);
   useEffect(() => {
-    if (showDonate) {
+    if (showDonate && currentServerDate) {
       fetchInventory();
       fetchCharities();
     }
-  }, [showDonate]);
-
-  /* ---------- verify ---------- */
-  const handleVerify = () => {
-    const found = employees.find(
-      (emp) => emp.name.toLowerCase() === employeeName.trim().toLowerCase()
-    );
-    if (!found) {
-      Swal.fire(
-        "Employee Not Found",
-        "Please enter a valid employee name.",
-        "error"
-      );
-      return;
-    }
-    setVerified(true);
-    setEmployeeRole(found.role || "");
-    Swal.fire({
-      title: "Access Granted",
-      text: `Welcome, ${found.name}! Role: ${found.role}`,
-      icon: "success",
-      timer: 1500,
-      showConfirmButton: false,
-    });
-  };
+  }, [showDonate, currentServerDate]);
 
   /* ---------- UX niceties ---------- */
   useEffect(() => {
@@ -292,7 +318,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
 
   /* ---------- card chip ---------- */
   const statusChip = (d) => {
-    const st = statusOf(d);
+    const st = statusOf(d, currentServerDate);
     if (st === "expired") {
       return {
         text: "Expired",
@@ -303,9 +329,9 @@ const BakeryDonation = ({ highlightedDonationId }) => {
     if (st === "soon") {
       return {
         text:
-          daysUntil(d.expiration_date) === 1
+          daysUntil(d.expiration_date, currentServerDate) === 1
             ? "Expires in 1 day"
-            : `Expires in ${daysUntil(d.expiration_date)} days`,
+            : `Expires in ${daysUntil(d.expiration_date, currentServerDate)} days`,
         cls: "bg-[#fff8e6] border-[#ffe7bf] text-[#8a5a25]",
         icon: <Clock className="w-3.5 h-3.5" />,
       };
@@ -318,8 +344,8 @@ const BakeryDonation = ({ highlightedDonationId }) => {
   };
 
   const sortedDonations = [...donations].sort((a, b) => {
-    const da = daysUntil(a.expiration_date);
-    const db = daysUntil(b.expiration_date);
+    const da = daysUntil(a.expiration_date, currentServerDate);
+    const db = daysUntil(b.expiration_date, currentServerDate);
     const ua = da !== null && da <= 2 ? 0 : 1;
     const ub = db !== null && db <= 2 ? 0 : 1;
     if (ua !== ub) return ua - ub;
@@ -330,60 +356,15 @@ const BakeryDonation = ({ highlightedDonationId }) => {
 
   /* ---------- UI ---------- */
   return (
-    <div className="space-y-4">
-      {/* Verify modal */}
-      {employees.length > 0 && !verified && (
-        <div className="fixed inset-0 z-[200]">
-          <div className="absolute inset-0 bg-[#FFF1E3]/85 [backdrop-filter:blur(42px)_saturate(85%)_contrast(65%)] md:[backdrop-filter:blur(56px)_saturate(85%)_contrast(65%)]" />
-          <div className="absolute inset-0 pointer-events-none mix-blend-multiply opacity-25 bg-gradient-to-br from-[#FDE3C1] via-transparent to-[#FAD1A1]" />
-          <div className="relative h-full w-full flex items-center justify-center p-4">
-            <div
-              role="dialog"
-              aria-modal="true"
-              className="bg-white rounded-3xl shadow-2xl ring-1 ring-black/10 overflow-hidden max-w-md w-full"
-            >
-              <div className="bg-gradient-to-b from-[#FCE7D3] to-[#FBE1C5] py-4 text-center border-b border-[#EAD3B8]">
-                <h2 className="text-xl font-semibold text-[#6b4b2b]">
-                  Verify Access
-                </h2>
-              </div>
-              <div className="p-6">
-                <label className="block text-sm font-medium text-[#6b4b2b]">
-                  Employee Name
-                </label>
-                <input
-                  className="mt-2 w-full border border-[#eadfce] rounded-xl p-3 outline-none focus:ring-2 focus:ring-[#E49A52]"
-                  placeholder="Enter employee name"
-                  value={employeeName}
-                  onChange={(e) => setEmployeeName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleVerify()}
-                />
-                <p className="mt-2 text-xs text-gray-500">
-                  Type your name exactly as saved by HR to continue.
-                </p>
-                <div className="mt-5 flex justify-end">
-                  <button
-                    onClick={handleVerify}
-                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:-translate-y-0.5 active:scale-95 transition"
-                  >
-                    Enter Employee
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
+    <div className="space-y-2">
       {/* header row */}
       <div className="flex items-center justify-between">
         <h2
-          className="text-3xl sm:text-4xl font-extrabold"
+          className="text-3xl sm:text-3xl font-extrabold"
           style={{ color: "#6B4B2B" }}
-        >
-          For Donations
+        >For Donations
         </h2>
-        {canModify && (
+        {!isViewOnly && (
           <button
             onClick={() => setShowDonate(true)}
             className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-6 py-2.5 font-semibold shadow-[0_10px_26px_rgba(201,124,44,.25)] ring-1 ring-white/60 hover:-translate-y-0.5 active:scale-95 transition"
@@ -549,7 +530,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                 const chosen = inventory.find(
                   (x) => Number(x.id) === parseInt(form.bakery_inventory_id, 10)
                 );
-                if (chosen && isExpired(chosen.expiration_date)) {
+                if (chosen && isExpired(chosen.expiration_date, currentServerDate)) {
                   Swal.fire(
                     "Not allowed",
                     "Expired products cannot be donated.",
@@ -572,6 +553,9 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                   fd.append("description", form.description || "");
                   fd.append("charity_id", parseInt(form.charity_id, 10));
                   if (form.image_file) fd.append("image", form.image_file);
+
+                  const donatedBy = getCurrentUserName();
+                  fd.append("donated_by", donatedBy);
 
                   await axios.post(`${API}/direct`, fd, {
                     headers: {
@@ -627,7 +611,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                             (x) => Number(x.id) === +form.bakery_inventory_id
                           );
                           if (!chosen) return "Select item to donate";
-                          const left = daysUntil(chosen.expiration_date);
+                          const left = daysUntil(chosen.expiration_date, currentServerDate);
                           const chip = leftBadge(left);
                           return (
                             <span className="inline-flex items-center gap-2">
@@ -674,11 +658,11 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                                 .slice()
                                 .sort(
                                   (a, b) =>
-                                    (daysUntil(a.expiration_date) ?? Infinity) -
-                                    (daysUntil(b.expiration_date) ?? Infinity)
+                                    (daysUntil(a.expiration_date, currentServerDate) ?? Infinity) -
+                                    (daysUntil(b.expiration_date, currentServerDate) ?? Infinity)
                                 )
                                 .map((it) => {
-                                  const left = daysUntil(it.expiration_date);
+                                  const left = daysUntil(it.expiration_date, currentServerDate);
                                   const chip = leftBadge(left);
                                   return (
                                     <button
@@ -691,8 +675,12 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                                       className="w-full px-4 py-2.5 hover:bg-[#FFF6E9] focus:bg-[#FFF6E9] flex items-center justify-between"
                                     >
                                       <div className="flex items-center gap-2 min-w-0">
-                                        <div className="h-6 w-6 rounded-full grid place-items-center bg-[#FFE9C7] text-[#6b4b2b] text-xs font-bold">
-                                          Q
+                                        <div className="h-6 w-6 rounded-full overflow-hidden bg-[#EDE7DB] grid place-items-center">
+                                          <img
+                                            src={it.image ? `${API}/${it.image}` : "/placeholder.png"}
+                                            alt={it.name}
+                                            className="h-full w-full object-cover"
+                                          />
                                         </div>
                                         <span className="truncate">
                                           {it.name}
@@ -716,13 +704,13 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                                 .slice()
                                 .sort((a, b) => {
                                   const da =
-                                    daysUntil(a.expiration_date) ?? Infinity;
+                                    daysUntil(a.expiration_date, currentServerDate) ?? Infinity;
                                   const db =
-                                    daysUntil(b.expiration_date) ?? Infinity;
+                                    daysUntil(b.expiration_date, currentServerDate) ?? Infinity;
                                   return da - db;
                                 })
                                 .map((it) => {
-                                  const left = daysUntil(it.expiration_date);
+                                  const left = daysUntil(it.expiration_date, currentServerDate);
                                   const chip = leftBadge(left);
                                   return (
                                     <button
@@ -735,8 +723,12 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                                       className="w-full px-4 py-2.5 hover:bg-[#FFF6E9] focus:bg-[#FFF6E9] flex items-center justify-between"
                                     >
                                       <div className="flex items-center gap-2 min-w-0">
-                                        <div className="h-6 w-6 rounded-full grid place-items-center bg-[#EDE7DB] text-[#6b4b2b] text-xs font-bold">
-                                          Q
+                                        <div className="h-6 w-6 rounded-full overflow-hidden bg-[#EDE7DB] grid place-items-center">
+                                          <img
+                                            src={it.image ? `${API}/${it.image}` : "/placeholder.png"}
+                                            alt={it.name}
+                                            className="h-full w-full object-cover"
+                                          />
                                         </div>
                                         <span className="truncate">
                                           {it.name}
@@ -773,7 +765,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                       onChange={(e) =>
                         setForm({ ...form, name: e.target.value })
                       }
-                      disabled
+                      required
                     />
                     <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
                       <svg
@@ -1071,7 +1063,7 @@ const BakeryDonation = ({ highlightedDonationId }) => {
                             Nothing selected yet.
                           </p>
                         );
-                      const leftDays = daysUntil(chosen.expiration_date);
+                      const leftDays = daysUntil(chosen.expiration_date, currentServerDate);
                       const chip = leftBadge(leftDays);
                       return (
                         <>

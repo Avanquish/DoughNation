@@ -1,10 +1,9 @@
-
 import React, { useEffect, useMemo, useState } from "react";
 import Swal from "sweetalert2";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 
-const API = "https://api.doughnationhq.cloud"; // adjust if needed
+const API = "http://localhost:8000"; // adjust if needed
 
 const AdminUser = () => {
   const [pendingUsers, setPendingUsers] = useState([]);
@@ -149,13 +148,13 @@ const AdminUser = () => {
   );
 
   return (
-    <div className="p-0">
-      <div className="rounded-3xl bg-gradient-to-br from-[#FFF5EA] via-[#FFF0DE] to-[#FFE9CE] ring-1 ring-black/10 p-6 sm:p-8 shadow-sm">
+    <div className="space-y-6">
+      <div className="p-2 pt-4 sm:p-4 md:p-6">
         {/* 🔸 Pending Verification */}
-        <div className="rounded-3xl border border-[#eadfce] bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9] shadow-[0_2px_8px_rgba(93,64,28,.06)] p-6 mb-8">
+        <div className="mt-3 rounded-3xl border border-[#eadfce] bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9] shadow-[0_2px_8px_rgba(93,64,28,.06)] p-6 mb-8">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-2xl sm:text-3xl font-extrabold text-[#6b4b2b]">
-              Pending Verification
+              User Verification
             </h2>
             <span className="text-xs font-semibold px-2 py-1 rounded-full border bg-white/80 border-[#f2e3cf] text-[#6b4b2b]">
               {pendingUsers.length} item{pendingUsers.length === 1 ? "" : "s"}
@@ -232,11 +231,10 @@ const AdminUser = () => {
                                 size="sm"
                                 onClick={() => reviewed && handleVerify(u.id)}
                                 disabled={!reviewed}
-                                className={`rounded-full ${
-                                  reviewed
-                                    ? "bg-gradient-to-r from-[#22c55e] via-[#16a34a] to-[#15803d] text-white hover:brightness-105"
-                                    : "bg-gray-300 text-white"
-                                }`}
+                                className={`rounded-full ${reviewed
+                                  ? "bg-gradient-to-r from-[#22c55e] via-[#16a34a] to-[#15803d] text-white hover:brightness-105"
+                                  : "bg-gray-300 text-white"
+                                  }`}
                                 title={
                                   reviewed
                                     ? "Approve this user"
@@ -263,73 +261,7 @@ const AdminUser = () => {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-[#6b4b2b]/80">No pending users.</p>
-          )}
-        </div>
-
-        {/* 🔸 Verified Users */}
-        <div className="rounded-3xl border border-[#eadfce] bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9] shadow-[0_2px_8px_rgba(93,64,28,.06)] p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#6b4b2b] flex items-center gap-2">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                className="h-6 w-6 text-[#8a5a25]"
-                fill="none"
-                aria-hidden="true"
-              >
-                <path
-                  d="M20 6L9 17l-5-5"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span>Verified Users</span>
-            </h2>
-            <span className="text-xs font-semibold px-2 py-1 rounded-full border bg-white/80 border-[#f2e3cf] text-[#6b4b2b]">
-              {users.length} item{users.length === 1 ? "" : "s"}
-            </span>
-          </div>
-
-          {users.length > 0 ? (
-            <div className="overflow-hidden rounded-2xl ring-1 ring-[#e9d7c3] bg-white/95 shadow">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-[#EADBC8] text-[#4A2F17]">
-                    <tr className="text-left">
-                      <th className="p-3 font-semibold">Name</th>
-                      <th className="p-3 font-semibold">Email</th>
-                      <th className="p-3 font-semibold">Role</th>
-                      <th className="p-3 text-center font-semibold">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#f2d4b5]">
-                    {users.map((u) => (
-                      <tr
-                        key={u.id}
-                        className="odd:bg-white even:bg-white/80 hover:bg-[#fff6ec] transition-colors"
-                      >
-                        <td className="p-3 text-[#3b2a18]">{u.name}</td>
-                        <td className="p-3 text-[#3b2a18]">{u.email}</td>
-                        <td className="p-3 text-[#3b2a18]">{u.role}</td>
-                        <td className="p-3 text-center">
-                          <button
-                            className="bg-red-600 text-white px-3 py-1 rounded-full hover:bg-red-700"
-                            onClick={() => handleDeleteUser(u.id)}
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-[#6b4b2b]/80">No verified users.</p>
+            <p className="text-sm text-[#6b4b2b]/80">No pending users for verification.</p>
           )}
         </div>
       </div>
@@ -410,11 +342,10 @@ const AdminUser = () => {
                     markReviewed(proofFor.id);
                   }}
                   disabled={!ackChecked}
-                  className={`rounded-full ${
-                    ackChecked
-                      ? "bg-gradient-to-r from-[#22c55e] via-[#16a34a] to-[#15803d] text-white"
-                      : "bg-gray-300 text-white"
-                  }`}
+                  className={`rounded-full ${ackChecked
+                    ? "bg-gradient-to-r from-[#22c55e] via-[#16a34a] to-[#15803d] text-white"
+                    : "bg-gray-300 text-white"
+                    }`}
                 >
                   Mark as reviewed
                 </Button>

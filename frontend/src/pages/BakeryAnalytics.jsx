@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import axios from "axios";
 
-const API = "https://api.doughnationhq.cloud";
+const API = "http://localhost:8000";
 const COLORS = ["#FF8042", "#0088FE", "#00C49F", "#FFBB28", "#AA336A"];
 
 const BakeryAnalytics = ({ currentUser }) => {
@@ -28,7 +28,8 @@ const BakeryAnalytics = ({ currentUser }) => {
 useEffect(() => {
   const fetchStats = async () => {
     try {
-      const token = localStorage.getItem("token");
+      // Get the appropriate token (employee token takes priority if it exists)
+      const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const res = await axios.get(`${API}/analytics`, { headers });
       console.log("DashAnalytics", res.data);

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { Card, CardContent } from "@/components/ui/card";
 
-const API = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const UserBadges = ({ userId }) => {
   const [badges, setBadges] = useState([]);
@@ -11,7 +11,11 @@ const UserBadges = ({ userId }) => {
   const fetchBadges = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
+      // Check for employee token first, then bakery owner token
+      const employeeToken = localStorage.getItem("employeeToken");
+      const bakeryToken = localStorage.getItem("token");
+      const token = employeeToken || bakeryToken;
+      
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const res = await axios.get(`${API}/badges/user/${userId}`, { headers });
       setBadges(res.data || []);

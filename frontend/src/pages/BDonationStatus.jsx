@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 
-const API = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 /* ---------------- Helpers ---------------- */
 const statusOrder = [
@@ -271,11 +271,7 @@ const BDonationStatus = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [highlightedId, setHighlightedId] = useState(null);
   const [selectedDonation, setSelectedDonation] = useState(null);
-  const [verified, setVerified] = useState(false);
-  const [employeeName, setEmployeeName] = useState("");
-  const [employeeRole, setEmployeeRole] = useState("");
   const [employees, setEmployees] = useState([]);
-  const canModify = ["Manager", "Full Time Staff", "Manager/Owner"].includes(employeeRole);
 
   const [acceptedNorm, setAcceptedNorm] = useState([]);
   const [pendingNorm, setPendingNorm] = useState([]);
@@ -291,15 +287,30 @@ const BDonationStatus = () => {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
     if (!token) return;
     try {
       const decoded = JSON.parse(atob(token.split(".")[1]));
+
+      // Handle employee token
+      if (decoded.type === "employee") {
+        setCurrentUser({
+          id: decoded.bakery_id,
+          role: "bakery",
+          employeeName: decoded.employee_name,
+          employeeRole: decoded.employee_role,
+          isEmployee: true, // Flag to identify employee
+        });
+        return;
+      }
+
+      // Handle regular user token
       setCurrentUser({
         id: Number(decoded.sub),
         role: decoded.role.toLowerCase(),
         email: decoded.email || "",
         name: decoded.name || "",
+        isEmployee: false, // Flag to identify non-employee
       });
     } catch (err) {
       console.error("Failed to decode token:", err);
@@ -323,7 +334,7 @@ const BDonationStatus = () => {
     currentStatus,
     isDirect = false
   ) => {
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
     if (!token) return;
 
     const nextStatusMap = {
@@ -380,7 +391,7 @@ const BDonationStatus = () => {
 
   useEffect(() => {
     if (!currentUser) return;
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
 
     if (currentUser.role === "charity" || currentUser.role === "bakery") {
       const url =
@@ -458,7 +469,7 @@ const BDonationStatus = () => {
 
   const fetchEmployees = async () => {
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
       const opts = token
         ? { headers: { Authorization: `Bearer ${token}` } }
         : {};
@@ -474,33 +485,9 @@ const BDonationStatus = () => {
   }, []);
 
   useEffect(() => {
-    if (verified) setReceivedDonations([...acceptedNorm, ...pendingNorm]);
+    setReceivedDonations([...acceptedNorm, ...pendingNorm]);
     setDirectDonations(mapped);
-  }, [verified]);
-
-  const handleVerify = () => {
-    const found = employees.find(
-      (emp) => emp.name.toLowerCase() === employeeName.trim().toLowerCase()
-    );
-
-    if (found) {
-      setVerified(true);
-      setEmployeeRole(found.role || "");
-      Swal.fire({
-        title: "Access Granted",
-        text: `Welcome, ${found.name}! Role: ${found.role}`,
-        icon: "success",
-        timer: 1500,
-        showConfirmButton: false,
-      });
-    } else {
-      Swal.fire({
-        title: "Employee Not Found",
-        text: "Please enter a valid employee name.",
-        icon: "error",
-      });
-    }
-  };
+  }, [acceptedNorm, pendingNorm, mapped]);
 
   /* ---------------- UI shells ---------------- */
   const Section = ({ title, count, children }) => (
@@ -517,124 +504,126 @@ const BDonationStatus = () => {
     </div>
   );
 
-const Card = ({ d, onClick }) => {
-  const left = daysUntil(d.expiration_date);
-  const showExpiry = Number.isFinite(left) && left >= 0;
-  const stat = (d.tracking_status || d.status || "pending").toLowerCase();
-  const theme = statusTheme(stat);
+  const Card = ({ d, onClick }) => {
+    const left = daysUntil(d.expiration_date);
+    const showExpiry = Number.isFinite(left) && left >= 0;
+    const stat = (d.tracking_status || d.status || "pending").toLowerCase();
+    const theme = statusTheme(stat);
+    
+    // Only allow clicks for employees
+    const handleClick = currentUser?.isEmployee ? onClick : undefined;
+    const cursorClass = currentUser?.isEmployee ? "cursor-pointer" : "cursor-not-allowed opacity-60";
 
-  return (
-    <div
-      id={`received-${d.donation_id || d.id}`}
-      onClick={onClick}
-      className={`group rounded-2xl border border-[#f2e3cf] bg-white/70
+    return (
+      <div
+        id={`received-${d.donation_id || d.id}`}
+        onClick={handleClick}
+        className={`group rounded-2xl border border-[#f2e3cf] bg-white/70
                   shadow-[0_2px_10px_rgba(93,64,28,.05)]
-                  overflow-hidden transition-all duration-300 cursor-pointer
-                  hover:scale-[1.015] hover:shadow-[0_14px_32px_rgba(191,115,39,.18)]
-                  hover:ring-1 ${theme.hoverRing}
-                  ${
-                    highlightedId === (d.donation_id || d.id)
-                      ? `ring-2 ${theme.ring}`
-                      : ""
-                  }`}
-    >
-      <div className="relative h-40 overflow-hidden">
-        {d.image ? (
-          <img
-            src={`${API}/${d.image}`}
-            alt={d.name}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-          />
-        ) : (
-          <div className="h-full w-full grid place-items-center bg-[#FFF6E9] text-[#b88a5a]">
-            No Image
-          </div>
-        )}
-        {showExpiry && (
-          <div className="absolute top-3 right-3 text-[11px] font-bold inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-[#fff8e6] border-[#ffe7bf] text-[#8a5a25]">
-            Expires in {left} {left === 1 ? "day" : "days"}
-          </div>
-        )}
-      </div>
-
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-2">
-          <h4 className="text-lg font-semibold text-[#3b2a18]">{d.name}</h4>
-          <StatusPill status={d.tracking_status || d.status} />
-        </div>
-
-        <div className="mt-2 flex flex-wrap gap-2">
-          <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#FFEFD9] border border-[#f3ddc0] text-[#6b4b2b]">
-            Qty: {d.quantity}
-          </span>
-          {d.threshold != null && (
-            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#FFF6E9] border border-[#f4e6cf] text-[#6b4b2b]">
-              Threshold: {d.threshold}
-            </span>
-          )}
-        </div>
-
-        {/* —— NEW: Requester / Charity block —— */}
-        <div className="mt-4">
-          {d.status === "pending" ? (
-            <>
-              <p className="text-[12px] font-semibold text-[#7b5836] mb-1">
-                Requested By:
-              </p>
-              {Array.isArray(d.requested_by) && d.requested_by.length > 0 ? (
-                <div className="space-y-2">
-                  {d.requested_by.map((req, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      {req.profile_picture ? (
-                        <img
-                          src={`${API}/${req.profile_picture}`}
-                          alt={req.name}
-                          className="w-8 h-8 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-gray-300 grid place-items-center text-gray-600">
-                          ?
-                        </div>
-                      )}
-                      <span className="text-sm font-medium text-[#4A2F17]">
-                        {req.name}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <span className="text-sm text-gray-500">No requests yet</span>
-              )}
-            </>
+                  overflow-hidden transition-all duration-300 ${cursorClass}
+                  ${currentUser?.isEmployee ? `hover:scale-[1.015] hover:shadow-[0_14px_32px_rgba(191,115,39,.18)] hover:ring-1 ${theme.hoverRing}` : ''}
+                  ${highlightedId === (d.donation_id || d.id)
+            ? `ring-2 ${theme.ring}`
+            : ""
+          }`}
+      >
+        <div className="relative h-40 overflow-hidden">
+          {d.image ? (
+            <img
+              src={`${API}/${d.image}`}
+              alt={d.name}
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
           ) : (
-            <>
-              <p className="text-[12px] font-semibold text-[#7b5836] mb-1">
-                Donation For:
-              </p>
-              <div className="flex items-center gap-2">
-                {d.charity_profile_picture ? (
-                  <img
-                    src={`${API}/${d.charity_profile_picture}`}
-                    alt={d.charity_name || "Charity"}
-                    className="w-8 h-8 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-gray-300 grid place-items-center text-gray-600">
-                    ?
-                  </div>
-                )}
-                <span className="text-sm font-medium text-[#4A2F17]">
-                  {d.charity_name || "—"}
-                </span>
-              </div>
-            </>
+            <div className="h-full w-full grid place-items-center bg-[#FFF6E9] text-[#b88a5a]">
+              No Image
+            </div>
+          )}
+          {showExpiry && (
+            <div className="absolute top-3 right-3 text-[11px] font-bold inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-[#fff8e6] border-[#ffe7bf] text-[#8a5a25]">
+              Expires in {left} {left === 1 ? "day" : "days"}
+            </div>
           )}
         </div>
-        {/* —— END: Requester / Charity block —— */}
+
+        <div className="p-4">
+          <div className="flex items-start justify-between gap-2">
+            <h4 className="text-lg font-semibold text-[#3b2a18]">{d.name}</h4>
+            <StatusPill status={d.tracking_status || d.status} />
+          </div>
+
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#FFEFD9] border border-[#f3ddc0] text-[#6b4b2b]">
+              Qty: {d.quantity}
+            </span>
+            {d.threshold != null && (
+              <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#FFF6E9] border border-[#f4e6cf] text-[#6b4b2b]">
+                Threshold: {d.threshold}
+              </span>
+            )}
+          </div>
+
+          {/* —— NEW: Requester / Charity block —— */}
+          <div className="mt-4">
+            {d.status === "pending" ? (
+              <>
+                <p className="text-[12px] font-semibold text-[#7b5836] mb-1">
+                  Requested By:
+                </p>
+                {Array.isArray(d.requested_by) && d.requested_by.length > 0 ? (
+                  <div className="space-y-2">
+                    {d.requested_by.map((req, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        {req.profile_picture ? (
+                          <img
+                            src={`${API}/${req.profile_picture}`}
+                            alt={req.name}
+                            className="w-8 h-8 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gray-300 grid place-items-center text-gray-600">
+                            ?
+                          </div>
+                        )}
+                        <span className="text-sm font-medium text-[#4A2F17]">
+                          {req.name}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-sm text-gray-500">No requests yet</span>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-[12px] font-semibold text-[#7b5836] mb-1">
+                  Donation For:
+                </p>
+                <div className="flex items-center gap-2">
+                  {d.charity_profile_picture ? (
+                    <img
+                      src={`${API}/${d.charity_profile_picture}`}
+                      alt={d.charity_name || "Charity"}
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-gray-300 grid place-items-center text-gray-600">
+                      ?
+                    </div>
+                  )}
+                  <span className="text-sm font-medium text-[#4A2F17]">
+                    {d.charity_name || "—"}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+          {/* —— END: Requester / Charity block —— */}
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 
   const ScrollColumn = ({ title, items, emptyText, renderItem }) => (
@@ -683,10 +672,9 @@ const Card = ({ d, onClick }) => {
                     <div
                       className={`w-12 h-12 rounded-full grid place-items-center shadow transition-all duration-300
                         ${theme.text}
-                        ${
-                          active
-                            ? `translate-y-[-6px] ring-2 ${theme.ring} bg-white`
-                            : passed
+                        ${active
+                          ? `translate-y-[-6px] ring-2 ${theme.ring} bg-white`
+                          : passed
                             ? "bg-white"
                             : "bg-[#EADFCC]"
                         }`}
@@ -701,11 +689,10 @@ const Card = ({ d, onClick }) => {
                       />
                     </div>
                     <span
-                      className={`mt-2 text-[13px] ${
-                        active
+                      className={`mt-2 text-[13px] ${active
                           ? "font-semibold text-[#3b2a18]"
                           : "text-[#6b4b2b]"
-                      }`}
+                        }`}
                     >
                       {nice(s)}
                     </span>
@@ -722,51 +709,11 @@ const Card = ({ d, onClick }) => {
 
   /* ---------------- Render ---------------- */
   return (
-    <div className="relative mx-auto max-w-[1280px] px-6 py-8">
-      {/* Verify modal */}
-      {!verified && (
-        <div className="fixed inset-0 z-[200]">
-          <div className="absolute inset-0 bg-[#FFF1E3]/85 [backdrop-filter:blur(42px)_saturate(85%)_contrast(65%)] md:[backdrop-filter:blur(56px)_saturate(85%)_contrast(65%)]" />
-          <div className="absolute inset-0 pointer-events-none mix-blend-multiply opacity-25 bg-gradient-to-br from-[#FDE3C1] via-transparent to-[#FAD1A1]" />
-          <div className="relative h-full w-full flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl ring-1 ring-black/10 overflow-hidden max-w-md w-full">
-              <div className="bg-gradient-to-b from-[#FCE7D3] to-[#FBE1C5] py-4 text-center border-b border-[#EAD3B8]">
-                <h2 className="text-xl font-semibold text-[#6b4b2b]">
-                  Verify Access
-                </h2>
-              </div>
-              <div className="p-6">
-                <label className="block text-sm font-medium text-[#6b4b2b]">
-                  Employee Name
-                </label>
-                <input
-                  className="mt-2 w-full border border-[#eadfce] rounded-xl p-3 outline-none focus:ring-2 focus:ring-[#E49A52]"
-                  placeholder="Enter employee name"
-                  value={employeeName}
-                  onChange={(e) => setEmployeeName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleVerify()}
-                />
-                <p className="mt-2 text-xs text-gray-500">
-                  Type your name exactly as saved by HR to continue.
-                </p>
-                <div className="mt-5 flex justify-end">
-                  <button
-                    onClick={handleVerify}
-                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:-translate-y-0.5 active:scale-95 transition"
-                  >
-                    Enter Employee
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
+    <div className="relative mx-auto max-w-[1280px] p-2">
       <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-3xl sm:text-4xl font-extrabold text-[#4A2F17]">
+        <h1 className="text-3xl sm:text-3xl font-extrabold" style={{ color: "#6B4B2B" }}>
           Donation Status
-        </h2>
+        </h1>
       </div>
 
       {/* Requested */}
@@ -908,7 +855,7 @@ const Card = ({ d, onClick }) => {
                   <span
                     className={`absolute right-3 top-3 text-xs font-semibold px-2 py-1 rounded-full border ${statusColor(
                       selectedDonation.tracking_status ||
-                        selectedDonation.status
+                      selectedDonation.status
                     )}`}
                   >
                     <span className="inline-flex items-center gap-1">
@@ -958,8 +905,8 @@ const Card = ({ d, onClick }) => {
                     <div className="text-lg font-semibold text-[#3b2a18]">
                       {selectedDonation.expiration_date
                         ? new Date(
-                            selectedDonation.expiration_date
-                          ).toLocaleDateString()
+                          selectedDonation.expiration_date
+                        ).toLocaleDateString()
                         : "—"}
                     </div>
                   </div>
@@ -972,9 +919,9 @@ const Card = ({ d, onClick }) => {
               </div>
 
               {/* CTA*/}
-              {(selectedDonation.tracking_status === "preparing" ||
-                selectedDonation.tracking_status === "ready_for_pickup") &&
-                canModify && (
+              {currentUser?.isEmployee && 
+                (selectedDonation.tracking_status === "preparing" ||
+                selectedDonation.tracking_status === "ready_for_pickup") && (
                   <button
                     onClick={() =>
                       handleUpdateTracking(
@@ -984,9 +931,9 @@ const Card = ({ d, onClick }) => {
                       )
                     }
                     className="mt-6 w-full rounded-full px-5 py-3 font-semibold text-white
-                             bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327]
-                             shadow-[0_10px_26px_rgba(201,124,44,.25)]
-                             hover:brightness-[1.05] transition"
+                           bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327]
+                           shadow-[0_10px_26px_rgba(201,124,44,.25)]
+                           hover:brightness-[1.05] transition"
                   >
                     {selectedDonation.tracking_status === "preparing"
                       ? "Mark as Ready for Pickup"

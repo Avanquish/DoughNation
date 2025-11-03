@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,21 +22,20 @@ import Swal from "sweetalert2";
 // Helpers
 const API_BASE =
   (axios?.defaults?.baseURL && axios.defaults.baseURL.replace(/\/$/, "")) ||
-  "https://api.doughnationhq.cloud";
+  "http://localhost:8000";
 const toUrl = (p) => {
   if (!p) return null;
   if (/^(https?:)?\/\//i.test(p) || p.startsWith("blob:")) return p;
   return `${API_BASE}/${String(p).replace(/^\/+/, "")}`;
 };
 
-const BakeryEmployee = () => {
+const BakeryEmployee = ({ isViewOnly = false }) => {
   const [employees, setEmployees] = useState([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
-  const [verified, setVerified] = useState(false);
-  const [employeeName, setEmployeeName] = useState("");
-  const [employeeRole, setEmployeeRole] = useState("");
-  const canModify = ["Manager", "Full Time Staff", "Manager/Owner"].includes(employeeRole);
+
+  // Get the appropriate token (employee token takes priority if it exists)
+  const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
 
   const [formData, setFormData] = useState({
     name: "",
@@ -46,8 +45,10 @@ const BakeryEmployee = () => {
   });
   const [preview, setPreview] = useState(null);
 
-  const token = localStorage.getItem("token");
-  const headers = { Authorization: `Bearer ${token}` };
+  const headers = useMemo(
+    () => ({ Authorization: `Bearer ${token}` }),
+    [token]
+  );
 
   // Styles
   const labelTone = "block text-sm font-semibold text-[#6b4b2b]";
@@ -57,8 +58,6 @@ const BakeryEmployee = () => {
     "p-4 sm:p-5 border-b bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]";
   const primaryBtn =
     "rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 font-semibold shadow-[0_10px_26px_rgba(201,124,44,.25)] ring-1 ring-white/60 transition-transform hover:-translate-y-0.5 active:scale-95 disabled:opacity-60";
-  const pillSolid =
-    "rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 transition-transform hover:-translate-y-0.5 active:scale-95";
 
   // Action button styles
   const actionBtnBase =
@@ -69,22 +68,18 @@ const BakeryEmployee = () => {
     "bg-[#fff3f3] ring-[#ffdede] border border-[#ffdede] hover:bg-[#ffeaea] hover:shadow-[0_8px_18px_rgba(200,30,30,.15)] hover:-translate-y-0.5";
 
   // Data fetching
-  const fetchEmployees = async () => {
+  const fetchEmployees = useCallback(async () => {
     try {
       const res = await axios.get(`${API_BASE}/employees`, { headers });
       setEmployees(res.data || []);
     } catch (e) {
       console.error("employees", e);
     }
-  };
+  }, [headers]);
 
   useEffect(() => {
     fetchEmployees();
-  }, []);
-
-  useEffect(() => {
-    if (verified) fetchEmployees();
-  }, [verified]);
+  }, [fetchEmployees]);
 
   // Helpers
   const handleChange = (key, value) =>
@@ -119,31 +114,6 @@ const BakeryEmployee = () => {
     });
     setPreview(emp?.profile_picture ? toUrl(emp.profile_picture) : null);
     setIsDialogOpen(true);
-  };
-
-  // Handle verification
-  const handleVerify = () => {
-    const found = employees.find(
-      (emp) => emp.name.toLowerCase() === employeeName.trim().toLowerCase()
-    );
-
-    if (found) {
-      setVerified(true);
-      setEmployeeRole(found.role || "");
-      Swal.fire({
-        title: "Access Granted",
-        text: `Welcome, ${found.name}! Role: ${found.role}`,
-        icon: "success",
-        timer: 1500,
-        showConfirmButton: false,
-      });
-    } else {
-      Swal.fire({
-        title: "Employee Not Found",
-        text: "Please enter a valid employee name.",
-        icon: "error",
-      });
-    }
   };
 
   // Save (add or edit)
@@ -262,10 +232,9 @@ const BakeryEmployee = () => {
               {employees.length === 1 ? "Employee" : "Employees"}
             </span>
 
-            {(canModify || employees.length === 0) && (
+            {!isViewOnly && (
               <Button
                 onClick={openAdd}
-                disabled={employees.length > 0 && !verified}
                 className={primaryBtn}
               >
                 <Plus className="h-4 w-4 mr-2" />
@@ -276,84 +245,16 @@ const BakeryEmployee = () => {
         </div>
       </div>
 
-      {/* Verification Overlay */}
-      {employees.length > 0 && !verified && (
-        <div className="fixed inset-0 z-[200]">
-          <div
-            className="
-              absolute inset-0
-              bg-[#FFF1E3]/85
-              [backdrop-filter:blur(42px)_saturate(85%)_contrast(65%)]
-              md:[backdrop-filter:blur(56px)_saturate(85%)_contrast(65%)]
-            "
-          />
 
-          <div
-            className="
-              absolute inset-0 pointer-events-none mix-blend-multiply opacity-25
-              bg-gradient-to-br from-[#FDE3C1] via-transparent to-[#FAD1A1]
-            "
-          />
-
-          <div
-            className="
-              absolute inset-0 pointer-events-none
-              bg-[radial-gradient(120%_80%_at_50%_40%,rgba(255,241,227,0.95),rgba(255,241,227,0.82)_60%,rgba(255,241,227,0.78)_85%,transparent)]
-            "
-          />
-
-          {/* Modal */}
-          <div className="relative h-full w-full flex items-start justify-center p-4 pt-28 sm:pt-5">
-            <div
-              role="dialog"
-              aria-modal="true"
-              className="bg-white rounded-3xl shadow-2xl ring-1 ring-black/10 overflow-hidden max-w-md w-full mt-6"
-            >
-              {/* Header */}
-              <div className="bg-gradient-to-b from-[#FCE7D3] to-[#FBE1C5] py-4 text-center border-b border-[#EAD3B8]">
-                <h2 className="text-xl font-semibold text-[#6b4b2b]">
-                  Verify Access
-                </h2>
-              </div>
-
-              <div className="p-5 sm:p-6">
-                <div className="space-y-3">
-                  <label className={labelTone} htmlFor="verify_name">
-                    Employee Name
-                  </label>
-                  <input
-                    id="verify_name"
-                    type="text"
-                    placeholder="Enter employee name"
-                    value={employeeName}
-                    onChange={(e) => setEmployeeName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleVerify()}
-                    className={inputTone}
-                  />
-                  <p className="text-xs text-gray-500">
-                    Type your name exactly as saved by HR to continue.
-                  </p>
-                </div>
-                <div className="mt-5 flex justify-end gap-2">
-                  <button onClick={handleVerify} className={pillSolid}>
-                    Enter Employee
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Employee Cards */}
-      {verified && (
-        <div className="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
-          {employees.length ? (
-            employees.map((emp) => {
-              const img = emp.profile_picture
-                ? toUrl(emp.profile_picture)
-                : null;
-              const initial = (emp?.name || "?").charAt(0).toUpperCase();
+      <div className="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
+        {employees.length ? (
+          employees.map((emp) => {
+            const img = emp.profile_picture
+              ? toUrl(emp.profile_picture)
+              : null;
+            const initial = (emp?.name || "?").charAt(0).toUpperCase();
               return (
                 <div
                   key={emp.id}
@@ -390,7 +291,7 @@ const BakeryEmployee = () => {
                         </div>
                       </div>
 
-                      {canModify && (
+                      {!isViewOnly && (
                         <div className="flex gap-3">
                           <button
                             aria-label="Edit employee"
@@ -438,7 +339,6 @@ const BakeryEmployee = () => {
             </div>
           )}
         </div>
-      )}
 
       {/* Add / Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

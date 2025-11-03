@@ -250,6 +250,19 @@ def period_summary(
         .scalar()
     )
 
+    # Count of direct donation transactions
+    direct_count = (
+        db.query(func.count(models.DirectDonation.id))
+        .filter(
+            models.DirectDonation.charity_id == current_user.id,
+            models.DirectDonation.btracking_status == "complete",
+            models.DirectDonation.btracking_completed_at != None,
+            models.DirectDonation.btracking_completed_at >= period_start,
+            models.DirectDonation.btracking_completed_at < period_end_inclusive
+        )
+        .scalar() or 0
+    )
+
     # --- Donation Requests (completed in period) ---
     request_donations = (
         db.query(func.coalesce(func.sum(models.DonationRequest.donation_quantity), 0))
@@ -261,6 +274,19 @@ def period_summary(
             models.DonationRequest.tracking_completed_at < period_end_inclusive
         )
         .scalar()
+    )
+
+    # Count of donation request transactions
+    request_count = (
+        db.query(func.count(models.DonationRequest.id))
+        .filter(
+            models.DonationRequest.charity_id == current_user.id,
+            models.DonationRequest.tracking_status == "complete",
+            models.DonationRequest.tracking_completed_at != None,
+            models.DonationRequest.tracking_completed_at >= period_start,
+            models.DonationRequest.tracking_completed_at < period_end_inclusive
+        )
+        .scalar() or 0
     )
 
     # --- Top donated items ---
@@ -314,6 +340,7 @@ def period_summary(
         "total_direct_donations": direct_donations or 0,
         "total_request_donations": request_donations or 0,
         "total_donations": (direct_donations or 0) + (request_donations or 0),
+        "total_transactions": direct_count + request_count,
         "top_items": top_10_items
     }
     
@@ -353,6 +380,19 @@ def weekly_summary(
         .scalar()
     )
 
+    # Count of direct donation transactions
+    direct_count = (
+        db.query(func.count(models.DirectDonation.id))
+        .filter(
+            models.DirectDonation.charity_id == current_user.id,
+            models.DirectDonation.btracking_status == "complete",
+            models.DirectDonation.btracking_completed_at != None,
+            models.DirectDonation.btracking_completed_at >= week_start,
+            models.DirectDonation.btracking_completed_at < week_end_inclusive
+        )
+        .scalar() or 0
+    )
+
     # --- Donation Requests (completed this week) ---
     request_donations = (
         db.query(func.coalesce(func.sum(models.DonationRequest.donation_quantity), 0))
@@ -364,6 +404,19 @@ def weekly_summary(
             models.DonationRequest.tracking_completed_at < week_end_inclusive
         )
         .scalar()
+    )
+
+    # Count of donation request transactions
+    request_count = (
+        db.query(func.count(models.DonationRequest.id))
+        .filter(
+            models.DonationRequest.charity_id == current_user.id,
+            models.DonationRequest.tracking_status == "complete",
+            models.DonationRequest.tracking_completed_at != None,
+            models.DonationRequest.tracking_completed_at >= week_start,
+            models.DonationRequest.tracking_completed_at < week_end_inclusive
+        )
+        .scalar() or 0
     )
 
     # --- Expired products (exclude donated/complete items) ---
@@ -436,6 +489,7 @@ def weekly_summary(
         "total_direct_donations": direct_donations or 0,
         "total_request_donations": request_donations or 0,
         "total_donations": (direct_donations or 0) + (request_donations or 0),
+        "total_transactions": direct_count + request_count,
         "top_items": top_10_items,
         "expired_products": expired_total,
         "available_products": available_total 
@@ -478,6 +532,19 @@ def monthly_summary(
         .scalar()
     )
 
+    # Count of direct donation transactions
+    direct_count = (
+        db.query(func.count(models.DirectDonation.id))
+        .filter(
+            models.DirectDonation.charity_id == current_user.id,
+            models.DirectDonation.btracking_status == "complete",
+            models.DirectDonation.btracking_completed_at != None,
+            models.DirectDonation.btracking_completed_at >= start_date,
+            models.DirectDonation.btracking_completed_at < end_date_inclusive
+        )
+        .scalar() or 0
+    )
+
     # --- Donation Requests (completed this month) ---
     request_donations = (
         db.query(func.coalesce(func.sum(models.DonationRequest.donation_quantity), 0))
@@ -489,6 +556,19 @@ def monthly_summary(
             models.DonationRequest.tracking_completed_at < end_date_inclusive
         )
         .scalar()
+    )
+
+    # Count of donation request transactions
+    request_count = (
+        db.query(func.count(models.DonationRequest.id))
+        .filter(
+            models.DonationRequest.charity_id == current_user.id,
+            models.DonationRequest.tracking_status == "complete",
+            models.DonationRequest.tracking_completed_at != None,
+            models.DonationRequest.tracking_completed_at >= start_date,
+            models.DonationRequest.tracking_completed_at < end_date_inclusive
+        )
+        .scalar() or 0
     )
 
     # --- Top donated items (completed this month) ---
@@ -554,11 +634,11 @@ def monthly_summary(
         "total_direct_donations": direct_donations or 0,
         "total_request_donations": request_donations or 0,
         "total_donations": (direct_donations or 0) + (request_donations or 0),
+        "total_transactions": direct_count + request_count,
         "expired_products": expired_total,
         "available_products": available_total,
         "top_items": top_10_items
     }
-
 
 @router.get("/charity-info")
 def charity_info(current_user: models.User = Depends(check_charity)):

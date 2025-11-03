@@ -27,6 +27,7 @@ export default function BakeryReports() {
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeReport, setActiveReport] = useState("donation");
+  const [activeSummary, setActiveSummary] = useState("weekly");
   const [charityInfo, setCharityInfo] = useState(null);
   const [weekStart, setWeekStart] = useState("");
   const [weekEnd, setWeekEnd] = useState("");
@@ -40,8 +41,7 @@ export default function BakeryReports() {
   const reportTypes = [
     { key: "donation_history", label: "Donation History" },
     { key: "bakery_list", label: "Bakery List" },
-    { key: "weekly", label: "Weekly Summary" },
-    { key: "monthly", label: "Monthly Summary" },
+    { key: "summary", label: "Period Summary" },
   ];
 
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -52,55 +52,55 @@ export default function BakeryReports() {
     h.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
   const handleMonthlyFilter = () => {
-    if (!selectedMonth) {
-      Swal.fire("Error", "Please select a month.", "error");
-      return;
-    }
+  const effType = "monthly";
+  if (!selectedMonth) {
+    Swal.fire("Error", "Please select a month.", "error");
+    return;
+  }
 
-    generateReport("monthly", { month: selectedMonth }).then(() => {
-      localStorage.setItem("lastReportType", "monthly");
-      localStorage.setItem("lastMonth", selectedMonth);
+  generateReport(effType, { month: selectedMonth }).then(() => {
+    localStorage.setItem("lastReportType", effType);
+    localStorage.setItem("lastMonth", selectedMonth);
+    setSavedMonth(selectedMonth);
+    setActiveReport("summary"); // Navigate to summary tab
+    setActiveSummary(effType); // Set inner tab to monthly
+  });
+};
 
-      setSavedMonth(selectedMonth); // persist applied filter
-      setSelectedMonth(""); // clear input
-    });
-  };
+const handleWeeklyFilter = () => {
+  const effType = "weekly";
+  if (!weekStart || !weekEnd) {
+    Swal.fire("Error", "Please select both start and end dates.", "error");
+    return;
+  }
 
-  const handleWeeklyFilter = () => {
-    if (!weekStart || !weekEnd) {
-      Swal.fire("Error", "Please select both start and end dates.", "error");
-      return;
-    }
+  const start = new Date(weekStart);
+  const end = new Date(weekEnd);
 
-    const start = new Date(weekStart);
-    const end = new Date(weekEnd);
+  const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+  if (diffDays > 7) {
+    Swal.fire(
+      "Invalid Date",
+      "Please select a date range within 1 week.",
+      "error"
+    );
+    return;
+  }
 
-    const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-    if (diffDays > 7) {
-      Swal.fire(
-        "Invalid Date",
-        "Please select a date range within 1 week.",
-        "error"
-      );
-      return;
-    }
+  generateReport(effType, { start: weekStart, end: weekEnd }).then(() => {
+    localStorage.setItem("lastWeekStart", weekStart);
+    localStorage.setItem("lastWeekEnd", weekEnd);
+    setSavedWeekStart(weekStart);
+    setSavedWeekEnd(weekEnd);
+    setActiveReport("summary"); // Navigate to summary tab
+    setActiveSummary(effType); // Set inner tab to weekly
+  });
+};
 
-    generateReport("weekly", { start: weekStart, end: weekEnd }).then(() => {
-      localStorage.setItem("lastWeekStart", weekStart);
-      localStorage.setItem("lastWeekEnd", weekEnd);
-
-      setSavedWeekStart(weekStart); // persist applied filter
-      setSavedWeekEnd(weekEnd);
-
-      setWeekStart(""); // clear input only
-      setWeekEnd("");
-    });
-  };
-
-  const getBakeryHeaderHTML = (bakery, reportType) => {
+  const getCharityHeaderHTML = (charity, reportType) => {
     const dateStr = new Date().toLocaleString();
-    const profileURL = bakery.profile
-      ? `${API_URL}/${bakery.profile.replace(/\\/g, "/")}`
+    const profileURL = charity.profile
+      ? `${API_URL}/${charity.profile.replace(/\\/g, "/")}`
       : "";
 
     return `
@@ -118,14 +118,14 @@ export default function BakeryReports() {
           : ""
       }
       <h1 style="margin:0; font-size:28px; font-weight:bold; color:#222;">${
-        bakery.name || ""
+        charity.name || ""
       }</h1>
       <p style="margin:5px 0; font-size:14px; color:#555;">
-        ${bakery.address || ""}
+        ${charity.address || ""}
       </p>
       <p style="margin:2px 0; font-size:14px; color:#555;">
-        Contact: ${bakery.contact_number || "N/A"} | Email: ${
-      bakery.email || "N/A"
+        Contact: ${charity.contact_number || "N/A"} | Email: ${
+      charity.email || "N/A"
     }
       </p>
       <p style="margin:20px 0 5px 0; font-size:20px; font-weight:bold; color:#000;">
@@ -138,18 +138,30 @@ export default function BakeryReports() {
   `;
   };
 
+  // Helper: which type should be used for fetching/exports?
+  const getEffectiveReportType = () =>
+  activeReport === "summary" ? activeSummary : activeReport;
+
   const generateReport = async (type, param = null) => {
     setLoading(true);
-    setActiveReport(type);
+    if (type !== "weekly" && type !== "monthly") {
+      setActiveReport(type);
+    }
+
     try {
       const token = localStorage.getItem("token");
       let url = `${API_URL}/report/${type}`;
 
-      if (type === "weekly" && param?.start && param?.end) {
-        url += `?start_date=${param.start}&end_date=${param.end}`;
-      }
-      if (type === "monthly" && param?.month) {
-        url += `?month=${param.month}`;
+      // Use unified summary endpoint for weekly/monthly
+      if (type === "weekly" || type === "monthly") {
+        url = `${API_URL}/report/summary?period=${type}`;
+        
+        if (type === "weekly" && param?.start && param?.end) {
+          url += `&start_date=${param.start}&end_date=${param.end}`;
+        }
+        if (type === "monthly" && param?.month) {
+          url += `&month=${param.month}`;
+        }
       }
 
       const res = await axios.get(url, {
@@ -160,10 +172,10 @@ export default function BakeryReports() {
       localStorage.setItem("lastReportType", type);
       localStorage.setItem("lastReportData", JSON.stringify(res.data));
 
-      const bakeryRes = await axios.get(`${API_URL}/report/charity-info`, {
+      const charityRes = await axios.get(`${API_URL}/report/charity-info`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setCharityInfo(bakeryRes.data);
+      setCharityInfo(charityRes.data);
     } catch (err) {
       Swal.fire({
         icon: "error",
@@ -175,36 +187,45 @@ export default function BakeryReports() {
     }
   };
 
-  useEffect(() => {
-    const savedType = localStorage.getItem("lastReportType");
-    const savedData = localStorage.getItem("lastReportData");
-    const savedStart = localStorage.getItem("lastWeekStart");
-    const savedEnd = localStorage.getItem("lastWeekEnd");
-    const savedMonth = localStorage.getItem("lastMonth");
+ useEffect(() => {
+  const savedType = localStorage.getItem("lastReportType");
+  const savedData = localStorage.getItem("lastReportData");
+  const savedStart = localStorage.getItem("lastWeekStart");
+  const savedEnd = localStorage.getItem("lastWeekEnd");
+  const savedMonthLocal = localStorage.getItem("lastMonth");
 
-    if (savedType) setActiveReport(savedType);
-    if (savedType && savedData) {
-      setReportData(JSON.parse(savedData));
-
-      if (savedType === "weekly" && savedStart && savedEnd) {
-        setSavedWeekStart(savedStart);
-        setSavedWeekEnd(savedEnd);
-        // only load once, don’t overwrite new filters
-        if (!weekStart && !weekEnd) {
-          generateReport("weekly", { start: savedStart, end: savedEnd });
-        }
-      }
-
-      if (savedType === "monthly" && savedMonth) {
-        setSavedMonth(savedMonth);
-        if (!selectedMonth) {
-          generateReport("monthly", { month: savedMonth });
-        }
-      }
+  if (savedType === "weekly" || savedType === "monthly") {
+    // open Summary and the correct inner tab
+    setActiveReport("summary");
+    setActiveSummary(savedType);
+    if (savedData) setReportData(JSON.parse(savedData));
+    if (savedType === "weekly" && savedStart && savedEnd) {
+      setSavedWeekStart(savedStart);
+      setSavedWeekEnd(savedEnd);
+      generateReport("weekly", { start: savedStart, end: savedEnd }).then(
+        () => setActiveReport("summary")
+      );
     }
-  }, []);
+    if (savedType === "monthly" && savedMonthLocal) {
+      setSavedMonth(savedMonthLocal);
+      generateReport("monthly", { month: savedMonthLocal }).then(() =>
+        setActiveReport("summary")
+      );
+    }
+    return;
+  }
+
+  // Otherwise, validate and open the saved top tab if any
+  const validReport = reportTypes.find((r) => r.key === savedType);
+  if (!validReport) return;
+
+  setActiveReport(savedType || "");
+  if (savedData) setReportData(JSON.parse(savedData));
+  if (savedType && savedType !== "summary") generateReport(savedType);
+}, []);
 
   const downloadReportCSV = () => {
+    const effectiveType = getEffectiveReportType();
     if (!reportData) return;
 
     Swal.fire({
@@ -219,55 +240,57 @@ export default function BakeryReports() {
         ? reportData
         : [reportData];
 
-          // Handle Bakery List (new)
-          if (activeReport === "bakery_list" && reportData?.bakeries) {
-            const bakeries = reportData.bakeries;
-            if (bakeries.length === 0) {
-              Swal.close();
-              Swal.fire("No data", "No bakery data available to export.", "info");
-              return;
-            }
-      
-            const headers = [
-              "ID",
-              "Profile Image",
-              "Bakery Name",
-              "Direct Donations",
-              "Request Donations",
-              "Direct Donation Quantity",
-              "Request Donation Quantity",
-              "Total Donated Quantity",
-              "Total Transactions",
-            ];
-      
-            const csvRows = [headers.join(",")];
-      
-            for (const c of bakeries) {
-              csvRows.push([
-                `"${c.id || ""}"`,
-                `"${c.bakery_profile || ""}"`,
-                `"${c.bakery_name || ""}"`,
-                `"${c.direct_count || 0}"`,
-                `"${c.request_count || 0}"`,
-                `"${c.direct_qty || 0}"`,
-                `"${c.request_qty || 0}"`,
-                `"${c.total_received_qty || 0}"`,
-                `"${c.total_transactions || 0}"`,
-              ].join(","));
-            }
-      
-            const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
-            const url = URL.createObjectURL(blob);
-      
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = `${activeReport}_report.csv`;
-            link.click();
-            URL.revokeObjectURL(url);
-      
-            Swal.close();
-            return; // stop here so generic logic won't run
-          }
+      // Handle Bakery List (new)
+      if (effectiveType === "bakery_list" && reportData?.bakeries) {
+        const bakeries = reportData.bakeries;
+        if (bakeries.length === 0) {
+          Swal.close();
+          Swal.fire("No data", "No charity data available to export.", "info");
+          return;
+        }
+
+        const headers = [
+          "ID",
+          "Profile Image",
+          "Bakery Name",
+          "Direct Donations",
+          "Request Donations",
+          "Direct Donation Quantity",
+          "Request Donation Quantity",
+          "Total Donated Quantity",
+          "Total Transactions",
+        ];
+
+        const csvRows = [headers.join(",")];
+
+        for (const c of bakeries) {
+          csvRows.push(
+            [
+              `"${c.id || ""}"`,
+              `"${c.charity_profile || ""}"`,
+              `"${c.charity_name || ""}"`,
+              `"${c.direct_count || 0}"`,
+              `"${c.request_count || 0}"`,
+              `"${c.direct_qty || 0}"`,
+              `"${c.request_qty || 0}"`,
+              `"${c.total_received_qty || 0}"`,
+              `"${c.total_transactions || 0}"`,
+            ].join(",")
+          );
+        }
+
+        const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${effectiveType}_report.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+
+        Swal.close();
+        return; // stop here so generic logic won't run
+      }
 
       // Flatten top_items if exists
       let flatData = dataToExport.map((row) => {
@@ -295,7 +318,7 @@ export default function BakeryReports() {
 
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${activeReport}_report.csv`;
+      link.download = `${effectiveType}_report.csv`;
       link.click();
       URL.revokeObjectURL(url);
 
@@ -304,6 +327,7 @@ export default function BakeryReports() {
   };
 
   const downloadReportPDF = async (includeImages = true) => {
+    const effectiveType = getEffectiveReportType();
     if (!reportData || reportData.length === 0) {
       alert("No data to download.");
       return;
@@ -316,8 +340,243 @@ export default function BakeryReports() {
       didOpen: () => Swal.showLoading(),
     });
 
+    // Generate pdf for charity list
+    if (effectiveType === "bakery_list") {
+      const doc = new jsPDF("landscape", "pt", "a4");
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let currentY = 40;
+
+      // HEADER
+      const logoSize = 40;
+      if (charityInfo?.profile) {
+        const logo = await new Promise((resolve) => {
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.onload = () => resolve(img);
+          img.onerror = () => resolve(null);
+          img.src = `${API_URL}/${normalizePath(
+            charityInfo.profile
+          )}?t=${Date.now()}`;
+        });
+
+        if (logo) {
+          const canvas = document.createElement("canvas");
+          canvas.width = logoSize;
+          canvas.height = logoSize;
+          const ctx = canvas.getContext("2d");
+
+          // Draw rounded logo
+          const radius = logoSize / 2;
+          ctx.clearRect(0, 0, logoSize, logoSize);
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(radius, radius, radius, 0, Math.PI * 2);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(logo, 0, 0, logoSize, logoSize);
+          ctx.restore();
+
+          const imgData = canvas.toDataURL("image/png");
+          doc.addImage(
+            imgData,
+            "PNG",
+            pageWidth / 2 - logoSize / 2,
+            currentY,
+            logoSize,
+            logoSize
+          );
+          currentY += logoSize + 5;
+        }
+      }
+
+      // Bakery Name
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text(charityInfo?.name || "Charity Name", pageWidth / 2, currentY, {
+        align: "center",
+      });
+      currentY += 14;
+
+      // Address & Contact
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.text(charityInfo?.address || "", pageWidth / 2, currentY, {
+        align: "center",
+      });
+      currentY += 10;
+      doc.text(
+        `Contact: ${charityInfo?.contact_number || "N/A"} | Email: ${
+          charityInfo?.email || "N/A"
+        }`,
+        pageWidth / 2,
+        currentY,
+        { align: "center" }
+      );
+      currentY += 18;
+
+      // Report Title & Date
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text(
+        `${effectiveType.replace(/_/g, " ").toUpperCase()} REPORT`,
+        pageWidth / 2,
+        currentY,
+        { align: "center" }
+      );
+      currentY += 14;
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      currentY += 8;
+      doc.text(
+        `Date and Time ${new Date().toLocaleString()}`,
+        pageWidth / 2,
+        currentY,
+        { align: "center" }
+      );
+      currentY += 20;
+
+      // ===== Bakery Table =====
+      const bakeries = reportData.bakeries || [];
+      if (!bakeries.length) return alert("No bakery data available.");
+
+      const tableHeaders = [
+        "Profile",
+        "Bakery Name",
+        "Direct Donations",
+        "Requests",
+        "Direct Qty",
+        "Request Qty",
+        "Received Qty",
+        "Total Transactions",
+      ];
+
+      const IMG_SIZE = 36; // image width/height
+      const ROW_HEIGHT = 40; // row height to fit image nicely
+
+      // Preload all bakery profile images to base64
+      const toBase64 = (url) =>
+        new Promise((resolve) => {
+          if (!url) return resolve(null);
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.onload = () => {
+            const SCALE = 3; // <-- higher resolution factor
+            const canvas = document.createElement("canvas");
+            canvas.width = IMG_SIZE * SCALE;
+            canvas.height = IMG_SIZE * SCALE;
+            const ctx = canvas.getContext("2d");
+
+            // Optional: smooth scaling
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = "high";
+
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL("PNG"));
+          };
+          img.onerror = () => resolve(null);
+          img.src = url + "?t=" + Date.now();
+        });
+
+      // Convert all profiles to base64 in parallel
+      const bakeryProfiles = await Promise.all(
+        bakeries.map((b) =>
+          b.bakery_profile
+            ? toBase64(`${API_URL}/${normalizePath(b.bakery_profile)}`)
+            : null
+        )
+      );
+
+      // Prepare table body (use raw bakery name for text, image will be drawn later)
+      const tableBody = bakeries.map((b) => [
+        b.bakery_name, // placeholder for profile column
+        b.bakery_name,
+        b.direct_count,
+        b.request_count,
+        b.direct_qty,
+        b.request_qty,
+        b.total_received_qty,
+        b.total_transactions,
+      ]);
+
+      // Draw table with images
+      autoTable(doc, {
+        head: [tableHeaders],
+        body: tableBody,
+        startY: currentY,
+        styles: {
+          fontSize: 8,
+          halign: "center",
+          valign: "middle",
+          cellPadding: 4,
+        },
+        columnStyles: {
+          0: {
+            cellWidth: IMG_SIZE + 4,
+            halign: "center",
+            valign: "middle",
+            minCellHeight: ROW_HEIGHT,
+          },
+        },
+        rowPageBreak: "auto",
+        didDrawCell: (data) => {
+          if (data.column.index === 0 && data.cell.section === "body") {
+            const imgData = bakeryProfiles[data.row.index];
+            if (imgData) {
+              const x = data.cell.x + (data.cell.width - IMG_SIZE) / 2;
+              const y = data.cell.y + (data.cell.height - IMG_SIZE) / 2;
+              doc.addImage(imgData, "PNG", x, y, IMG_SIZE, IMG_SIZE);
+            } else {
+              // fallback initials
+              const cx = data.cell.x + data.cell.width / 2;
+              const cy = data.cell.y + data.cell.height / 2;
+              const initials = (data.cell.raw || "?")
+                .split(" ")
+                .map((w) => w[0])
+                .join("")
+                .toUpperCase();
+              doc.setFillColor(52, 152, 219);
+              doc.circle(cx, cy, IMG_SIZE / 2, "F");
+              doc.setTextColor(255);
+              doc.setFont("helvetica", "bold");
+              doc.setFontSize(16);
+              doc.text(initials, cx, cy + 6, {
+                align: "center",
+                baseline: "middle",
+              });
+            }
+          }
+        },
+      });
+
+      currentY = doc.lastAutoTable.finalY + 10;
+
+      // ===== Grand Totals =====
+      const totals = reportData.grand_totals || {};
+      autoTable(doc, {
+        head: [["Total Type", "Value"]],
+        body: [
+          ["Total Direct Donations", totals.total_direct_count || 0],
+          ["Total Requests", totals.total_request_count || 0],
+          ["Total Direct Qty", totals.total_direct_qty || 0],
+          ["Total Request Qty", totals.total_request_qty || 0],
+          ["Total Received Qty", totals.total_received_qty || 0],
+          ["Total Transactions", totals.total_transactions || 0],
+        ],
+        startY: currentY,
+        styles: { fontSize: 8, halign: "center", valign: "middle" },
+        headStyles: {
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontStyle: "bold",
+        },
+      });
+
+      doc.save("Bakery_List_Report.pdf");
+      Swal.close();
+    }
+
     // Weekly UI snapshot
-    if (activeReport === "weekly") {
+    if (effectiveType === "weekly") {
       const doc = new jsPDF("landscape", "pt", "a4");
       const pageWidth = doc.internal.pageSize.getWidth();
       let currentY = 40;
@@ -394,7 +653,7 @@ export default function BakeryReports() {
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
       doc.text(
-        `${activeReport.replace(/_/g, " ").toUpperCase()} REPORT`,
+        `${effectiveType.replace(/_/g, " ").toUpperCase()} REPORT`,
         pageWidth / 2,
         currentY,
         { align: "center" }
@@ -518,12 +777,7 @@ export default function BakeryReports() {
       };
 
       // Pie images
-      const pieStatusImg = drawSimplePie(
-        [
-        ],
-        [],
-        120
-      );
+      const pieStatusImg = drawSimplePie([], [], 120);
 
       const pieTypeImg = drawSimplePie(
         [
@@ -595,8 +849,7 @@ export default function BakeryReports() {
       const pie1CenterX = boxX + 180; // Inventory pie
       const pie2CenterX = boxX + 550; // Donation pie
 
-      drawLegend(pie1CenterX, boxY + 160, [
-      ]);
+      drawLegend(pie1CenterX, boxY + 160, []);
 
       drawLegend(pie2CenterX, boxY + 160, [
         { text: "Direct", color: "#4CAF50" },
@@ -614,7 +867,7 @@ export default function BakeryReports() {
     }
 
     // Monthly UI snapshot
-    if (activeReport === "monthly") {
+    if (effectiveType === "monthly") {
       const doc = new jsPDF("landscape", "pt", "a4");
       const pageWidth = doc.internal.pageSize.getWidth();
       let currentY = 40;
@@ -691,7 +944,7 @@ export default function BakeryReports() {
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
       doc.text(
-        `${activeReport.replace(/_/g, " ").toUpperCase()} REPORT`,
+        `${effectiveType.replace(/_/g, " ").toUpperCase()} REPORT`,
         pageWidth / 2,
         currentY,
         { align: "center" }
@@ -813,12 +1066,7 @@ export default function BakeryReports() {
       };
 
       // Pie images
-      const pieStatusImg = drawSimplePie(
-        [
-        ],
-        [],
-        120
-      );
+      const pieStatusImg = drawSimplePie([], [], 120);
 
       const pieTypeImg = drawSimplePie(
         [
@@ -890,8 +1138,7 @@ export default function BakeryReports() {
       const pie1CenterX = boxX + 180; // Inventory pie
       const pie2CenterX = boxX + 550; // Donation pie
 
-      drawLegend(pie1CenterX, boxY + 160, [
-      ]);
+      drawLegend(pie1CenterX, boxY + 160, []);
 
       drawLegend(pie2CenterX, boxY + 160, [
         { text: "Direct", color: "#4CAF50" },
@@ -984,7 +1231,7 @@ export default function BakeryReports() {
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.text(
-      `${activeReport.replace(/_/g, " ").toUpperCase()} REPORT`,
+      `${effectiveType.replace(/_/g, " ").toUpperCase()} REPORT`,
       pageWidth / 2,
       currentY,
       { align: "center" }
@@ -1118,15 +1365,15 @@ export default function BakeryReports() {
       },
     });
 
-    doc.save(`${activeReport}_report.pdf`);
+    doc.save(`${effectiveType}_report.pdf`);
     Swal.close();
   };
 
-  const printReport = async (bakery) => {
+  const printReport = async (charity) => {
     if (!reportData) return;
 
     const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-    const headerHTML = getBakeryHeaderHTML(bakery, activeReport);
+    const headerHTML = getCharityHeaderHTML(charity, activeReport);
     const formatHeader = (h) => h.replace(/_/g, " ").toUpperCase();
     const normalizePath = (p) => p.replace(/\\/g, "/");
 
@@ -1241,12 +1488,7 @@ export default function BakeryReports() {
         });
 
       // Draw pie charts
-      const pieStatusImg = await drawPieChartWithPercent(
-        [
-
-        ],
-        []
-      );
+      const pieStatusImg = await drawPieChartWithPercent([], []);
 
       const pieTypeImg = await drawPieChartWithPercent(
         [
@@ -1391,12 +1633,7 @@ export default function BakeryReports() {
         });
 
       // Draw pie charts
-      const pieStatusImg = await drawPieChartWithPercent(
-        [
-          
-        ],
-        []
-      );
+      const pieStatusImg = await drawPieChartWithPercent([], []);
 
       const pieTypeImg = await drawPieChartWithPercent(
         [
@@ -1435,6 +1672,86 @@ export default function BakeryReports() {
     `;
 
       reportBodyHTML = `${weekTable}${topItemsHTML}${pieChartsHTML}`;
+    } else if (activeReport === "bakery_list") {
+      const bakeries = reportData.bakeries || [];
+      const totals = reportData.grand_totals || {};
+
+      if (bakeries.length === 0) {
+        alert("No bakery data available to print.");
+        return;
+      }
+
+      const tableHTMLContent = `
+      <h3>Bakery List Summary</h3>
+      <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; text-align: center;">
+        <thead>
+          <tr>
+            <th>Profile</th>
+            <th>Bakery Name</th>
+            <th>Direct Donations</th>
+            <th>Requests</th>
+            <th>Direct Qty</th>
+            <th>Request Qty</th>
+            <th>Received Qty</th>
+            <th>Total Transactions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${bakeries
+            .map(
+              (c) => `
+              <tr>
+                <td>
+                  <img 
+                    src="${
+                      c.bakery_profile
+                        ? `${API_URL}/${normalizePath(c.bakery_profile)}`
+                        : "/default_profile.png"
+                    }"
+                    alt="${c.bakery_name}" 
+                    style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;"
+                  />
+                </td>
+                <td>${c.bakery_name}</td>
+                <td>${c.direct_count}</td>
+                <td>${c.request_count}</td>
+                <td>${c.direct_qty}</td>
+                <td>${c.request_qty}</td>
+                <td>${c.total_received_qty}</td>
+                <td><strong>${c.total_transactions}</strong></td>
+              </tr>
+            `
+            )
+            .join("")}
+        </tbody>
+      </table>
+
+      <h3>Grand Totals</h3>
+      <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; text-align: center;">
+        <tbody>
+          <tr><td><b>Total Direct Donations</b></td><td>${
+            totals.total_direct_count
+          }</td></tr>
+          <tr><td><b>Total Requests</b></td><td>${
+            totals.total_request_count
+          }</td></tr>
+          <tr><td><b>Total Direct Qty</b></td><td>${
+            totals.total_direct_qty
+          }</td></tr>
+          <tr><td><b>Total Request Qty</b></td><td>${
+            totals.total_request_qty
+          }</td></tr>
+          <tr><td><b>Total Received Qty</b></td><td>${
+            totals.total_received_qty
+          }</td></tr>
+          <tr><td><b>Total Transactions</b></td><td><strong>${
+            totals.total_transactions
+          }</strong></td></tr>
+        </tbody>
+      </table>
+    `;
+
+      reportBodyHTML = tableHTMLContent;
     } else {
       // Other tabs (daily, monthly, etc.)
       if (!Array.isArray(reportData) || reportData.length === 0) return;
@@ -1539,73 +1856,84 @@ export default function BakeryReports() {
 
   const renderTable = (data) => {
     if (!data) return <p className="text-gray-500">No data available</p>;
-      // bakery list report
-      if (data.bakeries && Array.isArray(data.bakeries)) {
-        const bakeries = data.bakeries;
-        const totals = data.grand_totals || {};
+    // bakery list report
+    if (data.bakeries && Array.isArray(data.bakeries)) {
+      const bakeries = data.bakeries;
+      const totals = data.grand_totals || {};
 
-        if (bakeries.length === 0)
-          return <p className="text-gray-500">No bakeries found</p>;
+      if (bakeries.length === 0)
+        return <p className="text-gray-500">No bakeries found</p>;
 
-        return (
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse text-center">
-              <thead className="bg-gray-200">
-                <tr>
-                  <th className="px-4 py-2">Profile</th>
-                  <th className="px-4 py-2">Bakery Name</th>
-                  <th className="px-4 py-2">Direct Donations</th>
-                  <th className="px-4 py-2">Requests Donations</th>
-                  <th className="px-4 py-2">Direct Donation Qty</th>
-                  <th className="px-4 py-2">Request Donation Qty</th>
-                  <th className="px-4 py-2">Total Donated Qty</th>
-                  <th className="px-4 py-2">Total Transactions</th>
+      return (
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse text-center">
+            <thead className="bg-gray-200">
+              <tr>
+                <th className="px-4 py-2">Profile</th>
+                <th className="px-4 py-2">Bakery Name</th>
+                <th className="px-4 py-2">Direct Donations</th>
+                <th className="px-4 py-2">Requests Donations</th>
+                <th className="px-4 py-2">Direct Donation Qty</th>
+                <th className="px-4 py-2">Request Donation Qty</th>
+                <th className="px-4 py-2">Total Received Qty</th>
+                <th className="px-4 py-2">Total Transactions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bakeries.map((b, i) => (
+                <tr key={i} className="border-b border-gray-300">
+                  <td className="px-4 py-2">
+                    <img
+                      src={
+                        b.bakery_profile
+                          ? `${API_URL}/${b.bakery_profile}`
+                          : "/default_profile.png"
+                      }
+                      alt={b.bakery_name}
+                      className="w-14 h-14 rounded-full object-cover mx-auto"
+                    />
+                  </td>
+                  <td className="px-4 py-2 font-semibold">{b.bakery_name}</td>
+                  <td className="px-4 py-2">{b.direct_count}</td>
+                  <td className="px-4 py-2">{b.request_count}</td>
+                  <td className="px-4 py-2">{b.direct_qty}</td>
+                  <td className="px-4 py-2">{b.request_qty}</td>
+                  <td className="px-4 py-2 font-medium">
+                    {b.total_received_qty}
+                  </td>
+                  <td className="px-4 py-2 font-bold text-gray-800">
+                    {b.total_transactions}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {bakeries.map((b, i) => (
-                  <tr key={i} className="border-b border-gray-300">
-                    <td className="px-4 py-2">
-                      <img
-                        src={
-                          b.bakery_profile
-                            ? `${API_URL}/${b.bakery_profile}`
-                            : "/default_profile.png"
-                        }
-                        alt={b.bakery_name}
-                        className="w-14 h-14 rounded-full object-cover mx-auto"
-                      />
-                    </td>
-                    <td className="px-4 py-2 font-semibold">{b.bakery_name}</td>
-                    <td className="px-4 py-2">{b.direct_count}</td>
-                    <td className="px-4 py-2">{b.request_count}</td>
-                    <td className="px-4 py-2">{b.direct_qty}</td>
-                    <td className="px-4 py-2">{b.request_qty}</td>
-                    <td className="px-4 py-2 font-medium">{b.total_donated_qty}</td>
-                    <td className="px-4 py-2 font-bold text-gray-800">
-                      {b.total_transactions}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              ))}
+            </tbody>
+          </table>
 
-            {/* Grand Totals */}
-            <div className="mt-4 border-t pt-3 text-right text-gray-800">
-              <p>Total Transaction of Direct Donations: {totals.total_direct_count}</p>
-              <p>Total Transaction of Requests Donations: {totals.total_request_count}</p>
-              <p>Total Donated Qty (Direct Donations): {totals.total_direct_qty}</p>
-              <p>Total Donated Qty (Request Donations): {totals.total_request_qty}</p>
-              <p>Total Donated Qty Overall: {totals.total_donated_qty}</p>
-              <p className="font-bold text-lg">
-                Total Transactions: {totals.total_transactions}
-              </p>
-            </div>
+          {/* Grand Totals */}
+          <div className="mt-4 border-t pt-3 text-right text-gray-800">
+            <p>
+              Total Transaction of Direct Donations: {totals.total_direct_count}
+            </p>
+            <p>
+              Total Transaction of Requests Donations:{" "}
+              {totals.total_request_count}
+            </p>
+            <p>
+              Total Donated Qty (Direct Donations): {totals.total_direct_qty}
+            </p>
+            <p>
+              Total Donated Qty (Request Donations): {totals.total_request_qty}
+            </p>
+            <p>Total Received Qty Overall: {totals.total_received_qty}</p>
+            <p className="font-bold text-lg">
+              Total Transactions: {totals.total_transactions}
+            </p>
           </div>
-        );
-      }
-  //Default fallback (for other reports like donation, expiry, etc.)
+        </div>
+      );
+    }
 
+    //Default fallback (for other reports like donation, expiry, etc.)
     if (!Array.isArray(data) || data.length === 0)
       return <p className="text-gray-500">No data available</p>;
 
@@ -1680,493 +2008,463 @@ export default function BakeryReports() {
             </TabsTrigger>
           ))}
         </TabsList>
+        <TabsContent value="donation_history">
+          <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
+            <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
+              <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
+                Donation History Report
+              </CardTitle>
+            </CardHeader>
 
-        {reportTypes.map((r) => (
-          <TabsContent key={r.key} value={r.key}>
-            <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
-              <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
-                <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
-                  {r.label} Report
-                </CardTitle>
-              </CardHeader>
+            <CardContent className="p-5 sm:p-6">
+              {loading ? (
+                <p className="text-[#6b4b2b]/70">Generating report...</p>
+              ) : reportData ? (
+                <div className="overflow-x-auto rounded-xl ring-1 ring-black/10 bg-white/70">
+                  {renderTable(reportData)}
+                </div>
+              ) : (
+                <p className="text-[#6b4b2b]/70">
+                  Click to generate Donation History report.
+                </p>
+              )}
 
-              <CardContent className="p-5 sm:p-6">
-                {loading ? (
-                  <p className="text-[#6b4b2b]/70">Generating report...</p>
-                ) : reportData ? (
-                  <div>
-                    {["weekly", "monthly"].includes(activeReport) ? (
-                      <div className="w-full">
-                        {/* Weekly Date Filters */}
-                        {activeReport === "weekly" && (
-                          <div className="mb-4 flex flex-wrap gap-4 items-end">
-                            <div>
-                              <label className="block text-sm font-medium text-[#6b4b2b]">
-                                Week Start
-                              </label>
-                              <input
-                                type="date"
-                                value={weekStart}
-                                onChange={(e) => setWeekStart(e.target.value)}
-                                className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-[#6b4b2b]">
-                                Week End
-                              </label>
-                              <input
-                                type="date"
-                                value={weekEnd}
-                                onChange={(e) => setWeekEnd(e.target.value)}
-                                className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                              />
-                            </div>
-                            <Button
-                              onClick={handleWeeklyFilter}
-                              className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
-                            >
-                              Filter
-                            </Button>
-                          </div>
-                        )}
+              {reportData && (
+                <div className="flex flex-wrap gap-3 mt-5">
+                  <Button
+                    onClick={downloadReportCSV}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                  >
+                    <Download size={16} /> Download CSV
+                  </Button>
+                  <Button
+                    onClick={() => downloadReportPDF(charityInfo)}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                  >
+                    <Download size={16} /> Download PDF
+                  </Button>
+                  <Button
+                    onClick={() => printReport(charityInfo)}
+                    className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
+                  >
+                    <Printer size={16} /> Print
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-                        {/* Monthly Filter */}
-                        {activeReport === "monthly" && (
-                          <div className="mb-4 flex flex-wrap gap-4 items-end">
-                            <div>
-                              <label className="block text-sm font-medium text-[#6b4b2b]">
-                                Select Month
-                              </label>
-                              <input
-                                type="month"
-                                value={selectedMonth}
-                                onChange={(e) =>
-                                  setSelectedMonth(e.target.value)
-                                }
-                                max={new Date().toISOString().slice(0, 7)}
-                                className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                              />
-                            </div>
-                            <Button
-                              onClick={handleMonthlyFilter}
-                              className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
-                            >
-                              Filter
-                            </Button>
-                          </div>
-                        )}
+        {/* Bakery List Tab */}
+        <TabsContent value="bakery_list">
+          <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
+            <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
+              <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
+                Bakery List Report
+              </CardTitle>
+            </CardHeader>
 
-                        {/* Weekly Summary Table */}
-                        {activeReport === "weekly" && (
-                          <div className="max-h-96 overflow-y-auto rounded-xl ring-1 ring-black/10 bg-white/70 mb-6">
-                            <table className="min-w-full text-center">
-                              <thead className="bg-[#EADBC8] text-[#4A2F17]">
-                                <tr>
-                                  {[
-                                    "Week Start",
-                                    "Week End",
-                                    "Total Direct Donations",
-                                    "Total Request Donations",
-                                    "Total Donations",
-                                    "Expired Products",
-                                  ].map((h) => (
-                                    <th
-                                      key={h}
-                                      className="px-4 py-2 font-semibold"
-                                    >
-                                      {h}
-                                    </th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                <tr className="odd:bg-white even:bg-white/60">
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.week_start || savedWeekStart}
-                                  </td>
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.week_end || savedWeekEnd}
-                                  </td>
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.total_direct_donations}
-                                  </td>
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.total_request_donations}
-                                  </td>
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.total_donations}
-                                  </td>
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.expired_products}
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
+            <CardContent className="p-5 sm:p-6">
+              {loading ? (
+                <p className="text-[#6b4b2b]/70">Generating report...</p>
+              ) : reportData ? (
+                <div className="overflow-x-auto rounded-xl ring-1 ring-black/10 bg-white/70">
+                  {renderTable(reportData)}
+                </div>
+              ) : (
+                <p className="text-[#6b4b2b]/70">
+                  Click to generate Bakery List report.
+                </p>
+              )}
 
-                        {/* Weekly Top Items */}
-                        {activeReport === "weekly" && (
-                          <div className="max-h-60 overflow-y-auto rounded-xl ring-1 ring-black/10 bg-white/70 mb-6">
-                            <h3 className="font-semibold text-[#6b4b2b] p-3">
-                              Top Donated Items
-                            </h3>
-                            <table className="min-w-full text-center">
-                              <thead className="bg-[#EADBC8] text-[#4A2F17]">
-                                <tr>
-                                  <th className="px-4 py-2 font-semibold">
-                                    Product Name
-                                  </th>
-                                  <th className="px-4 py-2 font-semibold">
-                                    Quantity
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {reportData.top_items &&
-                                reportData.top_items.length ? (
-                                  reportData.top_items.map((item, idx) => (
-                                    <tr
-                                      key={idx}
-                                      className="odd:bg-white even:bg-white/60"
-                                    >
-                                      <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                        {item.product_name}
-                                      </td>
-                                      <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                        {item.quantity}
-                                      </td>
-                                    </tr>
-                                  ))
-                                ) : (
-                                  <tr>
-                                    <td
-                                      colSpan={2}
-                                      className="px-4 py-4 text-[#6b4b2b]/70 border-t border-[#f2d4b5]"
-                                    >
-                                      No top items for this week.
-                                    </td>
-                                  </tr>
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
+              {reportData && (
+                <div className="flex flex-wrap gap-3 mt-5">
+                  <Button
+                    onClick={downloadReportCSV}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                  >
+                    <Download size={16} /> Download CSV
+                  </Button>
+                  <Button
+                    onClick={() => downloadReportPDF(charityInfo)}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                  >
+                    <Download size={16} /> Download PDF
+                  </Button>
+                  <Button
+                    onClick={() => printReport(charityInfo)}
+                    className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
+                  >
+                    <Printer size={16} /> Print
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-                        {/* Weekly Pies */}
-                        {activeReport === "weekly" && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Card className="rounded-xl ring-1 ring-black/10 bg-white/80 shadow-md">
-                              <CardHeader className="p-4 bg-[#FFF3E6]">
-                                <CardTitle className="text-[#6b4b2b]">
-                                  Donation Count
-                                </CardTitle>
-                              </CardHeader>
-                              <CardContent className="p-4">
-                                <ResponsiveContainer width="100%" height={280}>
-                                  <PieChart>
-                                    <Pie
-                                      data={[
-                                      ]}
-                                      dataKey="value"
-                                      nameKey="name"
-                                      cx="50%"
-                                      cy="50%"
-                                      outerRadius={80}
-                                      labelLine={false}
-                                      label={renderCustomizedLabel}
-                                    >
-                                      {["#28a745", "#007bff", "#dc3545"].map(
-                                        (c, i) => (
-                                          <Cell key={i} fill={c} />
-                                        )
-                                      )}
-                                    </Pie>
-                                    <Tooltip
-                                      formatter={(v, n) => [`${v}`, n]}
-                                    />
-                                    <Legend
-                                      verticalAlign="bottom"
-                                      height={36}
-                                    />
-                                  </PieChart>
-                                </ResponsiveContainer>
-                              </CardContent>
-                            </Card>
+        {/* Summary tab (unified period view) */}
+        <TabsContent value="summary">
+          <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
+            <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
+              <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
+                Period Summary Report
+              </CardTitle>
+            </CardHeader>
 
-                            <Card className="rounded-xl ring-1 ring-black/10 bg-white/80 shadow-md">
-                              <CardHeader className="p-4 bg-[#FFF3E6]">
-                                <CardTitle className="text-[#6b4b2b]">
-                                  Donation Type
-                                </CardTitle>
-                              </CardHeader>
-                              <CardContent className="p-4">
-                                <ResponsiveContainer width="100%" height={280}>
-                                  <PieChart>
-                                    <Pie
-                                      data={[
-                                        {
-                                          name: "Direct",
-                                          value:
-                                            reportData.total_direct_donations ||
-                                            0,
-                                        },
-                                        {
-                                          name: "Request",
-                                          value:
-                                            reportData.total_request_donations ||
-                                            0,
-                                        },
-                                      ]}
-                                      dataKey="value"
-                                      nameKey="name"
-                                      cx="50%"
-                                      cy="50%"
-                                      outerRadius={80}
-                                      labelLine={false}
-                                      label={renderCustomizedLabel}
-                                    >
-                                      {["#4CAF50", "#2196F3"].map((c, i) => (
-                                        <Cell key={i} fill={c} />
-                                      ))}
-                                    </Pie>
-                                    <Tooltip
-                                      formatter={(v, n) => [`${v}`, n]}
-                                    />
-                                    <Legend
-                                      verticalAlign="bottom"
-                                      height={36}
-                                    />
-                                  </PieChart>
-                                </ResponsiveContainer>
-                              </CardContent>
-                            </Card>
-                          </div>
-                        )}
-
-                        {/* Monthly Summary */}
-                        {activeReport === "monthly" && (
-                          <div className="max-h-96 overflow-y-auto rounded-xl ring-1 ring-black/10 bg-white/70 mb-6">
-                            <table className="min-w-full text-center">
-                              <thead className="bg-[#EADBC8] text-[#4A2F17]">
-                                <tr>
-                                  {[
-                                    "Month",
-                                    "Total Direct Donations",
-                                    "Total Request Donations",
-                                    "Total Donations",
-                                    "Expired Products",
-                                  ].map((h) => (
-                                    <th
-                                      key={h}
-                                      className="px-4 py-2 font-semibold"
-                                    >
-                                      {h}
-                                    </th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                <tr className="odd:bg-white even:bg-white/60">
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.month || savedMonth}
-                                  </td>
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.total_direct_donations}
-                                  </td>
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.total_request_donations}
-                                  </td>
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.total_donations}
-                                  </td>
-                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                    {reportData.expired_products}
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-
-                        {/* Monthly Top Items */}
-                        {activeReport === "monthly" && (
-                          <div className="max-h-60 overflow-y-auto rounded-xl ring-1 ring-black/10 bg-white/70 mb-6">
-                            <h3 className="font-semibold text-[#6b4b2b] p-3">
-                              Top Donated Items
-                            </h3>
-                            <table className="min-w-full text-center">
-                              <thead className="bg-[#EADBC8] text-[#4A2F17]">
-                                <tr>
-                                  <th className="px-4 py-2 font-semibold">
-                                    Product Name
-                                  </th>
-                                  <th className="px-4 py-2 font-semibold">
-                                    Quantity
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {reportData.top_items &&
-                                reportData.top_items.length ? (
-                                  reportData.top_items.map((item, idx) => (
-                                    <tr
-                                      key={idx}
-                                      className="odd:bg-white even:bg-white/60"
-                                    >
-                                      <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                        {item.product_name}
-                                      </td>
-                                      <td className="px-4 py-2 border-t border-[#f2d4b5]">
-                                        {item.quantity}
-                                      </td>
-                                    </tr>
-                                  ))
-                                ) : (
-                                  <tr>
-                                    <td
-                                      colSpan={2}
-                                      className="px-4 py-4 text-[#6b4b2b]/70 border-t border-[#f2d4b5]"
-                                    >
-                                      No top items for this month.
-                                    </td>
-                                  </tr>
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-
-                        {/* Monthly Pies */}
-                        {activeReport === "monthly" && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Card className="rounded-xl ring-1 ring-black/10 bg-white/80 shadow-md">
-                              <CardHeader className="p-4 bg-[#FFF3E6]">
-                                <CardTitle className="text-[#6b4b2b]">
-                                  Donation Count
-                                </CardTitle>
-                              </CardHeader>
-                              <CardContent className="p-4">
-                                <ResponsiveContainer width="100%" height={280}>
-                                  <PieChart>
-                                    <Pie
-                                      data={[
-                                      ]}
-                                      dataKey="value"
-                                      nameKey="name"
-                                      cx="50%"
-                                      cy="50%"
-                                      outerRadius={80}
-                                      labelLine={false}
-                                      label={renderCustomizedLabel}
-                                    >
-                                      {["#28a745", "#007bff", "#dc3545"].map(
-                                        (c, i) => (
-                                          <Cell key={i} fill={c} />
-                                        )
-                                      )}
-                                    </Pie>
-                                    <Tooltip
-                                      formatter={(v, n) => [`${v}`, n]}
-                                    />
-                                    <Legend
-                                      verticalAlign="bottom"
-                                      height={36}
-                                    />
-                                  </PieChart>
-                                </ResponsiveContainer>
-                              </CardContent>
-                            </Card>
-
-                            <Card className="rounded-xl ring-1 ring-black/10 bg-white/80 shadow-md">
-                              <CardHeader className="p-4 bg-[#FFF3E6]">
-                                <CardTitle className="text-[#6b4b2b]">
-                                  Donation Type
-                                </CardTitle>
-                              </CardHeader>
-                              <CardContent className="p-4">
-                                <ResponsiveContainer width="100%" height={280}>
-                                  <PieChart>
-                                    <Pie
-                                      data={[
-                                        {
-                                          name: "Direct",
-                                          value:
-                                            reportData.total_direct_donations ||
-                                            0,
-                                        },
-                                        {
-                                          name: "Request",
-                                          value:
-                                            reportData.total_request_donations ||
-                                            0,
-                                        },
-                                      ]}
-                                      dataKey="value"
-                                      nameKey="name"
-                                      cx="50%"
-                                      cy="50%"
-                                      outerRadius={80}
-                                      labelLine={false}
-                                      label={renderCustomizedLabel}
-                                    >
-                                      {["#4CAF50", "#2196F3"].map((c, i) => (
-                                        <Cell key={i} fill={c} />
-                                      ))}
-                                    </Pie>
-                                    <Tooltip
-                                      formatter={(v, n) => [`${v}`, n]}
-                                    />
-                                    <Legend
-                                      verticalAlign="bottom"
-                                      height={36}
-                                    />
-                                  </PieChart>
-                                </ResponsiveContainer>
-                              </CardContent>
-                            </Card>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      // Generic Table view (other tabs)
-                      <div className="overflow-x-auto rounded-xl ring-1 ring-black/10 bg-white/70">
-                        {renderTable(reportData)}
-                      </div>
-                    )}
-
-                    {/* Actions */}
-                    <div className="flex flex-wrap gap-3 mt-5">
-                      <Button
-                        onClick={downloadReportCSV}
-                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+            <CardContent className="p-5 sm:p-6">
+              {loading ? (
+                <p className="text-[#6b4b2b]/70">Generating report...</p>
+              ) : reportData ? (
+                <div>
+                  {/* Unified Filters */}
+                  <div className="mb-4 flex flex-wrap gap-4 items-end">
+                    <div>
+                      <label className="block text-sm font-medium text-[#6b4b2b]">
+                        Period Type
+                      </label>
+                      <select
+                        value={activeSummary}
+                        onChange={(e) => {
+                          setActiveSummary(e.target.value);
+                          setWeekStart("");
+                          setWeekEnd("");
+                          setSelectedMonth("");
+                        }}
+                        className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                       >
-                        <Download size={16} /> Download CSV
-                      </Button>
-                      <Button
-                        onClick={() => downloadReportPDF(charityInfo)}
-                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
-                      >
-                        <Download size={16} /> Download PDF
-                      </Button>
-                      <Button
-                        onClick={() => printReport(charityInfo)}
-                        className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
-                      >
-                        <Printer size={16} /> Print
-                      </Button>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                      </select>
                     </div>
+
+                    {activeSummary === "weekly" ? (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-[#6b4b2b]">
+                            Week Start
+                          </label>
+                          <input
+                            type="date"
+                            value={weekStart}
+                            onChange={(e) => setWeekStart(e.target.value)}
+                            className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-[#6b4b2b]">
+                            Week End
+                          </label>
+                          <input
+                            type="date"
+                            value={weekEnd}
+                            onChange={(e) => setWeekEnd(e.target.value)}
+                            className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                          />
+                        </div>
+                        <Button
+                          onClick={handleWeeklyFilter}
+                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                        >
+                          Generate Report
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-[#6b4b2b]">
+                            Select Month
+                          </label>
+                          <input
+                            type="month"
+                            value={selectedMonth}
+                            onChange={(e) => setSelectedMonth(e.target.value)}
+                            max={new Date().toISOString().slice(0, 7)}
+                            className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                          />
+                        </div>
+                        <Button
+                          onClick={handleMonthlyFilter}
+                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                        >
+                          Generate Report
+                        </Button>
+                      </>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-[#6b4b2b]/70">
-                    Click tab to generate {r.label}.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        ))}
+
+                  {/* Weekly Summary */}
+                  {activeSummary === "weekly" && (
+                    <>
+                      <div className="max-h-96 overflow-y-auto rounded-xl ring-1 ring-black/10 bg-white/70 mb-6">
+                        <table className="min-w-full text-center">
+                          <thead className="bg-[#EADBC8] text-[#4A2F17]">
+                            <tr>
+                              {[
+                                "Week Start",
+                                "Week End",
+                                "Total Direct Donations",
+                                "Total Request Donations",
+                                "Total Donations",
+                                
+                              ].map((h) => (
+                                <th key={h} className="px-4 py-2 font-semibold">
+                                  {h}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr className="odd:bg-white even:bg-white/60">
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.week_start || savedWeekStart}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.week_end || savedWeekEnd}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_direct_donations}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_request_donations}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_donations}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="max-h-60 overflow-y-auto rounded-xl ring-1 ring-black/10 bg-white/70 mb-6">
+                        <h3 className="font-semibold text-[#6b4b2b] p-3">
+                          Top Received Items
+                        </h3>
+                        <table className="min-w-full text-center">
+                          <thead className="bg-[#EADBC8] text-[#4A2F17]">
+                            <tr>
+                              <th className="px-4 py-2 font-semibold">
+                                Product Name
+                              </th>
+                              <th className="px-4 py-2 font-semibold">Quantity</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {reportData.top_items && reportData.top_items.length ? (
+                              reportData.top_items.map((item, idx) => (
+                                <tr key={idx} className="odd:bg-white even:bg-white/60">
+                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                    {item.product_name}
+                                  </td>
+                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                    {item.quantity}
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td
+                                  colSpan={2}
+                                  className="px-4 py-4 text-[#6b4b2b]/70 border-t border-[#f2d4b5]"
+                                >
+                                  No top items for this week.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Card className="rounded-xl ring-1 ring-black/10 bg-white/80 shadow-md">
+                          <CardHeader className="p-4 bg-[#FFF3E6]">
+                            <CardTitle className="text-[#6b4b2b]">
+                              Donation Type
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-4">
+                            <ResponsiveContainer width="100%" height={280}>
+                              <PieChart>
+                                <Pie
+                                  data={[
+                                    {
+                                      name: "Direct",
+                                      value: reportData.total_direct_donations || 0,
+                                    },
+                                    {
+                                      name: "Request",
+                                      value: reportData.total_request_donations || 0,
+                                    },
+                                  ]}
+                                  dataKey="value"
+                                  nameKey="name"
+                                  cx="50%"
+                                  cy="50%"
+                                  outerRadius={80}
+                                  labelLine={false}
+                                  label={renderCustomizedLabel}
+                                >
+                                  {["#4CAF50", "#2196F3"].map((c, i) => (
+                                    <Cell key={i} fill={c} />
+                                  ))}
+                                </Pie>
+                                <Tooltip formatter={(v, n) => [`${v}`, n]} />
+                                <Legend verticalAlign="bottom" height={36} />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Monthly Summary */}
+                  {activeSummary === "monthly" && (
+                    <>
+                      <div className="max-h-96 overflow-y-auto rounded-xl ring-1 ring-black/10 bg-white/70 mb-6">
+                        <table className="min-w-full text-center">
+                          <thead className="bg-[#EADBC8] text-[#4A2F17]">
+                            <tr>
+                              {[
+                                "Month",
+                                "Total Direct Donations",
+                                "Total Request Donations",
+                                "Total Donations",
+                              ].map((h) => (
+                                <th key={h} className="px-4 py-2 font-semibold">
+                                  {h}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr className="odd:bg-white even:bg-white/60">
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.month || savedMonth}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_direct_donations}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_request_donations}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_donations}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="max-h-60 overflow-y-auto rounded-xl ring-1 ring-black/10 bg-white/70 mb-6">
+                        <h3 className="font-semibold text-[#6b4b2b] p-3">
+                          Top Received Items
+                        </h3>
+                        <table className="min-w-full text-center">
+                          <thead className="bg-[#EADBC8] text-[#4A2F17]">
+                            <tr>
+                              <th className="px-4 py-2 font-semibold">Product Name</th>
+                              <th className="px-4 py-2 font-semibold">Quantity</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {reportData.top_items && reportData.top_items.length ? (
+                              reportData.top_items.map((item, idx) => (
+                                <tr key={idx} className="odd:bg-white even:bg-white/60">
+                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                    {item.product_name}
+                                  </td>
+                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                    {item.quantity}
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td
+                                  colSpan={2}
+                                  className="px-4 py-4 text-[#6b4b2b]/70 border-t border-[#f2d4b5]"
+                                >
+                                  No top items for this month.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex justify-center">
+                        <Card className="rounded-xl ring-1 ring-black/10 bg-white/80 shadow-md justify-center">
+                          <CardHeader className="p-4 bg-[#FFF3E6]">
+                            <CardTitle className="text-[#6b4b2b]">
+                              Donation Type
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-4">
+                            <ResponsiveContainer width="100%" height={280}>
+                              <PieChart>
+                                <Pie
+                                  data={[
+                                    {
+                                      name: "Direct",
+                                      value: reportData.total_direct_donations || 0,
+                                    },
+                                    {
+                                      name: "Request",
+                                      value: reportData.total_request_donations || 0,
+                                    },
+                                  ]}
+                                  dataKey="value"
+                                  nameKey="name"
+                                  cx="50%"
+                                  cy="50%"
+                                  outerRadius={80}
+                                  labelLine={false}
+                                  label={renderCustomizedLabel}
+                                >
+                                  {["#4CAF50", "#2196F3"].map((c, i) => (
+                                    <Cell key={i} fill={c} />
+                                  ))}
+                                </Pie>
+                                <Tooltip formatter={(v, n) => [`${v}`, n]} />
+                                <Legend verticalAlign="bottom" height={36} />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="flex flex-wrap gap-3 mt-5">
+                    <Button
+                      onClick={downloadReportCSV}
+                      className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                    >
+                      <Download size={16} /> Download CSV
+                    </Button>
+                    <Button
+                      onClick={() => downloadReportPDF(charityInfo)}
+                      className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 flex items-center gap-2"
+                    >
+                      <Download size={16} /> Download PDF
+                    </Button>
+                    <Button
+                      onClick={() => printReport(charityInfo)}
+                      className="rounded-full bg-gray-600 hover:bg-gray-700 text-white px-5 py-2 shadow-md flex items-center gap-2"
+                    >
+                      <Printer size={16} /> Print
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[#6b4b2b]/70">
+                  Select a period type and date range, then click "Generate Report" to view the summary.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );

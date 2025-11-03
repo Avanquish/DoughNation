@@ -66,7 +66,10 @@ export default function DashboardSearch({
     try {
       setLoading(true);
       setOpen(true);
-      const token = localStorage.getItem("token");
+      const employeeToken = localStorage.getItem("employeeToken");
+      const bakeryToken = localStorage.getItem("token");
+      const token = employeeToken || bakeryToken;
+
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const res = await axios.get(`${API}/search_users`, {
         params: { q, target: searchType },
@@ -162,7 +165,7 @@ export default function DashboardSearch({
       {/* Results dropdown (attached under the input) */}
       {shouldShowDropdown && (
         <div
-          className={`absolute z-50 mt-1 ${sz.width} left-0 rounded-xl border border-black/10 bg-white shadow-lg`}
+          className={`absolute z-50 top-full mt-2 ${sz.width} left-0 rounded-xl border border-black/10 bg-white shadow-lg`}
           role="listbox"
           aria-label="Search results"
         >

@@ -161,13 +161,14 @@ def create_user(
     return db_user
 
 #Update User Information
+#Update User Information
 def update_user_info(
     db: Session,
     user_id: int,
     name: Optional[str] = None,
     contact_person: Optional[str] = None,
     contact_number: Optional[str] = None,
-    address: Optional[str] = None,
+    about: Optional[str] = None,
     profile_picture: UploadFile = None
 ):
     user = db.query(models.User).filter(models.User.id == user_id).first()
@@ -177,18 +178,32 @@ def update_user_info(
     if user.role.lower() == "admin":
         raise HTTPException(status_code=403, detail="Admin information cannot be edited")
 
-    if name is not None and name != "":
+    # VALIDATE contact_person if being changed (only for bakeries)
+    if contact_person is not None and contact_person != "" and user.role.lower() == "bakery":
+        # Check if the new contact person exists as an employee
+        employee = db.query(models.Employee).filter(
+            models.Employee.bakery_id == user_id,
+            models.Employee.name == contact_person
+        ).first()
+        
+        if not employee:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Employee '{contact_person}' not found in your bakery. Please add them as an employee first."
+            )
+        
+        # Employee found, update contact person
+        user.contact_person = contact_person
+
+    if name is not None and name != "": 
         user.name = name
-    if contact_person is not None and contact_person != "":
+    # Only update contact_person if not already handled above
+    if contact_person is not None and contact_person != "" and user.role.lower() != "bakery":
         user.contact_person = contact_person
     if contact_number is not None and contact_number != "":
         user.contact_number = contact_number
-    if address is not None and address != "":
-        user.address = address
-    latitude, longitude = get_coordinates_osm(address)
-    if latitude and longitude:
-        user.latitude = latitude
-        user.longitude = longitude
+    if about is not None and about != "":
+        user.about = about
     if profile_picture:
         os.makedirs("uploads/profile_pictures", exist_ok=True)
         profile_pic_path = f"uploads/profile_pictures/{profile_picture.filename}"

@@ -217,7 +217,7 @@ async def edit_user(
     name: Optional[str] = Form(None),
     contact_person: Optional[str] = Form(None),
     contact_number: Optional[str] = Form(None),
-    address: Optional[str] = Form(None),
+    about: Optional[str] = Form(None),
     profile_picture: UploadFile = File(None),
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(get_current_user)
@@ -228,7 +228,7 @@ async def edit_user(
         name,
         contact_person,
         contact_number,
-        address,
+        about,
         profile_picture
     )
 

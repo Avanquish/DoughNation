@@ -19,6 +19,7 @@ class User(Base):
     profile_picture = Column(String, nullable=True)  # path to uploaded image
     proof_of_validity = Column(String, nullable=True)  # path to uploaded document
     created_at = Column(Date, default=date.today)
+    about = Column(Text, nullable=True)
 
     # Geofencing
     latitude = Column(Float, nullable=True)   # Charity location

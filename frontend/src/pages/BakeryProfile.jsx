@@ -23,7 +23,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import Messages from "./Messages";
+import Messages1 from "./Messages1";
 import BakeryNotification from "./BakeryNotification";
 import RecentDonations from "./RecentDonations";
 import {
@@ -169,23 +169,37 @@ export default function BakeryProfile() {
   useEffect(() => {
     const fetchUser = async () => {
       if (!bakeryId) return;
+
       try {
         const employeeToken = localStorage.getItem("employeeToken");
         const bakeryToken = localStorage.getItem("token");
         const token = employeeToken || bakeryToken;
+
         if (!token) return;
 
+        // For employees, fetch the bakery's information using bakery_id
+        // For bakery owners, fetch their own information
         const res = await axios.get(`${API}/information`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+
         const user = res.data;
         setProfilePic(user.profile_picture);
         setName(user.name);
+        setCurrentUser(user); //Set the full user object
       } catch (err) {
         console.error("Failed to fetch user:", err);
       }
     };
+
     fetchUser();
+    
+    //ADD EVENT LISTENER to refetch when profile is updated
+    window.addEventListener("profile:updated", fetchUser);
+    
+    return () => {
+      window.removeEventListener("profile:updated", fetchUser);
+    };
   }, [bakeryId]);
 
   useEffect(() => {
@@ -289,66 +303,77 @@ export default function BakeryProfile() {
   };
 
   const handleEditSubmit = async (e) => {
-    e.preventDefault();
-    const token = localStorage.getItem("token");
+  e.preventDefault();
+  const employeeToken = localStorage.getItem("employeeToken");
+  const bakeryToken = localStorage.getItem("token");
+  const token = employeeToken || bakeryToken;
 
-    const formData = new FormData();
-    const name = e.target.name?.value;
-    const contactPerson = e.target.contact_person?.value;
-    const contactNumber = e.target.contact_number?.value;
-    const address = e.target.address?.value;
-    const profilePicture = e.target.profile_picture?.files[0];
+  const formData = new FormData();
+  const name = e.target.name?.value;
+  const contactPerson = e.target.contact_person?.value;
+  const contactNumber = e.target.contact_number?.value;
+  const about = e.target.about?.value;
+  const profilePicture = e.target.profile_picture?.files[0];
 
-    if (name) formData.append("name", name);
-    if (contactPerson) formData.append("contact_person", contactPerson);
-    if (contactNumber) formData.append("contact_number", contactNumber);
-    if (address) formData.append("address", address);
-    if (profilePicture) formData.append("profile_picture", profilePicture);
+  if (name) formData.append("name", name);
+  if (contactPerson) formData.append("contact_person", contactPerson);
+  if (contactNumber) formData.append("contact_number", contactNumber);
+  if (about) formData.append("about", about);
+  if (profilePicture) formData.append("profile_picture", profilePicture);
 
-    if (formData.keys().next().done) {
-      Swal.fire({
-        icon: "warning",
-        title: "No changes",
-        text: "Please fill at least one field to save changes.",
-      });
-      return;
-    }
+  if (formData.keys().next().done) {
+    Swal.fire({
+      icon: "warning",
+      title: "No changes",
+      text: "Please fill at least one field to save changes.",
+    });
+    return;
+  }
 
-    try {
-      await axios.put(`${API}/edit`, formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "multipart/form-data",
-        },
-      });
+  try {
+    await axios.put(`${API}/edit`, formData, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "multipart/form-data",
+      },
+    });
 
-      setIsEditOpen(false);
-      window.dispatchEvent(new Event("profile:updated"));
-      Swal.fire({
-        icon: "success",
-        title: "Profile Updated",
-        text: "Your changes have been saved successfully.",
-        timer: 2500,
-        showConfirmButton: false,
-      });
-    } catch (err) {
-      console.error("Failed to update profile:", err);
-      Swal.fire({
-        icon: "error",
-        title: "Update Failed",
-        text: "There was an error saving your changes. Please try again.",
-      });
-    }
-  };
+    setIsEditOpen(false);
+    window.dispatchEvent(new Event("profile:updated"));
+
+    Swal.fire({
+      icon: "success",
+      title: "Profile Updated",
+      text: "Your changes have been saved successfully.",
+      timer: 2500,
+      showConfirmButton: false,
+    });
+  } catch (err) {
+    console.error("Failed to update profile:", err);
+    
+    //Show specific error message from backend
+    const errorMessage = err.response?.data?.detail || "There was an error saving your changes. Please try again.";
+    
+    Swal.fire({
+      icon: "error",
+      title: "Update Failed",
+      text: errorMessage,
+    });
+  }
+};
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
-    const token = localStorage.getItem("token");
+    const employeeToken = localStorage.getItem("employeeToken");
+    const bakeryToken = localStorage.getItem("token");
+    const token = employeeToken || bakeryToken;
+
     const data = {
       current_password: e.target.current_password.value,
       new_password: e.target.new_password.value,
       confirm_password: e.target.confirm_password.value,
     };
+
     if (data.new_password !== data.confirm_password) {
       Swal.fire({
         icon: "error",
@@ -357,6 +382,7 @@ export default function BakeryProfile() {
       });
       return;
     }
+
     try {
       await axios.put(`${API}/changepass`, data, {
         headers: {
@@ -364,6 +390,7 @@ export default function BakeryProfile() {
           "Content-Type": "application/json",
         },
       });
+
       setIsChangePassOpen(false);
       Swal.fire({
         icon: "success",
@@ -516,7 +543,7 @@ export default function BakeryProfile() {
           </div>
 
           <div className="iconbar">
-            <Messages currentUser={currentUser} />
+            <Messages1 currentUser={currentUser} />
             <BakeryNotification />
             <Button
               onClick={handleLogout}
@@ -560,9 +587,6 @@ export default function BakeryProfile() {
                 <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[var(--ink)]">
                   {name}
                 </h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Welcome to your public profile.
-                </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Button
                     className="btn-pill"
@@ -622,11 +646,11 @@ export default function BakeryProfile() {
                           />
                         </div>
                         <div className="flex flex-col">
-                          <p className="brown-title">Address</p>
-                          <input
-                            type="text"
-                            name="address"
-                            className="w-full modal-input"
+                          <p className="brown-title">About Your Bakery</p>
+                          <textarea
+                            name="about"
+                            rows="4"
+                            className="w-full modal-input resize-none"
                           />
                         </div>
                         <div className="flex flex-col">
@@ -765,15 +789,29 @@ export default function BakeryProfile() {
                     <Card className="glass-card shadow-none card-zoom">
                       <CardHeader className="pb-2">
                         <CardTitle className="brown-title">About</CardTitle>
-                        <CardDescription>
-                          Tell donors more about your bakery
+                        <CardDescription className="text-[15px] leading-relaxed whitespace-pre-wrap">
+                          {currentUser?.about || "Tell more about your bakery. Update this section in Edit Profile to display your story, mission, and donation preferences."}
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        <p className="text-[15px] leading-relaxed">
-                          Update this section in <em>Edit Profile</em> to
-                          display your story, mission, and donation preferences.
-                        </p>
+                        {/* Contact Information */}
+                        {(currentUser?.contact_person || currentUser?.contact_number) && (
+                          <div className="space-y-3 pt-3 border-t">
+                            {currentUser?.contact_person && (
+                              <div>
+                                <p className="text-base font-semibold text-[var(--ink)]">Contact Person</p>
+                                <p className="text-sm text-muted-foreground">{currentUser.contact_person}</p>
+                              </div>
+                            )}
+                            {currentUser?.contact_number && (
+                              <div>
+                                <p className="text-base font-semibold text-[var(--ink)]">Contact Number</p>
+                                <p className="text-sm text-muted-foreground">{currentUser.contact_number}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                           <div className="tile p-4 rounded-lg border bg-white/70">
                             <div className="text-sm text-muted-foreground">
@@ -1088,7 +1126,7 @@ export default function BakeryProfile() {
                     ))}
 
                   <li className="px-4 py-2 text-xs font-bold text-[var(--ink)] bg-[#fff7ec]">
-                    Messages
+                    Messages1
                   </li>
 
                   {messageNotifs.filter((m) => !readMessageIds.has(m.id))

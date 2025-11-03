@@ -11,7 +11,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LogOut, ChevronLeft, User, HandCoins } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
-import Messages from "./Messages";
+import Messages1 from "./Messages1";
 import CharityNotification from "./CharityNotification";
 import RecentDonations from "./RecentDonations";
 import Swal from "sweetalert2";
@@ -93,7 +93,7 @@ export default function CharityProfile() {
   };
 
   /* Edit Profile */
-  const handleEditSubmit = async (e) => {
+ const handleEditSubmit = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem("token");
 
@@ -101,13 +101,13 @@ export default function CharityProfile() {
     const name = e.target.name?.value;
     const contactPerson = e.target.contact_person?.value;
     const contactNumber = e.target.contact_number?.value;
-    const address = e.target.address?.value;
+    const about = e.target.about?.value;
     const profilePicture = e.target.profile_picture?.files[0];
 
     if (name) formData.append("name", name);
     if (contactPerson) formData.append("contact_person", contactPerson);
     if (contactNumber) formData.append("contact_number", contactNumber);
-    if (address) formData.append("address", address);
+    if (about) formData.append("about", about);
     if (profilePicture) formData.append("profile_picture", profilePicture);
 
     if (formData.keys().next().done) {
@@ -129,6 +129,7 @@ export default function CharityProfile() {
 
       setIsEditOpen(false);
       window.dispatchEvent(new Event("profile:updated"));
+
       Swal.fire({
         icon: "success",
         title: "Profile Updated",
@@ -191,6 +192,28 @@ export default function CharityProfile() {
       });
     }
   };
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+
+        const res = await axios.get(`${API}/information`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const user = res.data;
+        setProfilePic(user.profile_picture);
+        setName(user.name);
+        setCurrentUser(user);
+      } catch (err) {
+        console.error("Failed to fetch user:", err);
+      }
+    };
+
+    fetchUser();
+  }, []);
 
   /* ===== CSS ===== */
   const Styles = () => (
@@ -319,7 +342,7 @@ export default function CharityProfile() {
           </div>
 
           <div className="iconbar">
-            <Messages currentUser={currentUser} />
+            <Messages1 currentUser={currentUser} />
             <CharityNotification />
             <Button
               onClick={handleLogout}
@@ -423,11 +446,12 @@ export default function CharityProfile() {
                           />
                         </div>
                         <div className="flex flex-col">
-                          <p className="brown-title">Address</p>
-                          <input
-                            type="text"
-                            name="address"
-                            className="w-full modal-input"
+                          <p style={{ color: "#7a4f1c" }}>About Your Charity</p>
+                          <textarea
+                            name="about"
+                            rows="4"
+                            className="w-full modal-input resize-none border rounded-md p-2"
+                            placeholder="Tell about your charity, mission, and story..."
                           />
                         </div>
                         <div className="flex flex-col">
@@ -556,15 +580,28 @@ export default function CharityProfile() {
                     <Card className="glass-card shadow-none">
                       <CardHeader className="pb-2">
                         <CardTitle className="brown-title">About</CardTitle>
-                        <CardDescription>
-                          Tell donors more about your charity
+                        <CardDescription className="text-[15px] leading-relaxed whitespace-pre-wrap">
+                          {currentUser?.about || "Tell more about your charity. Update this section in Edit Profile to display your story, mission, and donation preferences."}
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        <p className="text-[15px] leading-relaxed">
-                          Update this section in <em>Edit Profile</em> to
-                          display your story, mission, and donation preferences.
-                        </p>
+                        {/* Contact Information */}
+                        {(currentUser?.contact_person || currentUser?.contact_number) && (
+                          <div className="space-y-3 pt-3 border-t">
+                            {currentUser?.contact_person && (
+                              <div>
+                                <p className="text-base font-semibold text-[var(--ink)]">Contact Person</p>
+                                <p className="text-sm text-muted-foreground">{currentUser.contact_person}</p>
+                              </div>
+                            )}
+                            {currentUser?.contact_number && (
+                              <div>
+                                <p className="text-base font-semibold text-[var(--ink)]">Contact Number</p>
+                                <p className="text-sm text-muted-foreground">{currentUser.contact_number}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   </div>

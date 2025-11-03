@@ -22,6 +22,7 @@ class UserOut(BaseModel):
     email: EmailStr
     contact_person: str
     contact_number: str
+    about: Optional[str] = None 
     address: str
     profile_picture: Optional[str] = None
     proof_of_validity: Optional[str] = None
@@ -137,7 +138,7 @@ class EmployeeTokenResponse(BaseModel):
     employee_name: str
     employee_role: str
     bakery_id: int
-
+    bakery_name: str
 
 # ------------------ DONATION ------------------
 class DonationBase(BaseModel):
@@ -464,4 +465,4 @@ class AnalyticsResponse(BaseModel):
     inventory: List[InventoryItem]
     donations: List[DonationItem]
     employees: List[EmployeeItem]
-    badges: List[BadgeItem]
+    badges: List[BadgeItem] 

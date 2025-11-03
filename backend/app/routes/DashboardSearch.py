@@ -52,5 +52,6 @@ def get_user_profile(user_id: int, db: Session = Depends(get_db)):
         "profile_picture": user.profile_picture,
         "contact_person": user.contact_person,
         "contact_number": user.contact_number,
+        "about": user.about,
         "created_at": user.created_at.isoformat() if user.created_at else None
     }

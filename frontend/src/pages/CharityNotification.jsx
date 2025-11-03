@@ -18,7 +18,7 @@ function UnreadCircle({ read }) {
   );
 }
 
-const API = "http://localhost:8000";
+const API = "https://api.doughnationhq.cloud";
 const STORAGE_KEY = "readNotifications";
 
 export default function NotificationBell() {

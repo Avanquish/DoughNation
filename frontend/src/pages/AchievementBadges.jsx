@@ -50,9 +50,9 @@ const AchievementBadges = () => {
       const headers = { Authorization: `Bearer ${token}` };
       
       const [badgesRes, userBadgesRes, progressRes] = await Promise.all([
-        axios.get("http://localhost:8000/badges/", { headers }),
-        axios.get(`http://localhost:8000/badges/user/${userId}`, { headers }),
-        axios.get(`http://localhost:8000/badges/progress/${userId}`, { headers }),
+        axios.get("https://api.doughnationhq.cloud/badges/", { headers }),
+        axios.get(`https://api.doughnationhq.cloud/badges/user/${userId}`, { headers }),
+        axios.get(`https://api.doughnationhq.cloud/badges/progress/${userId}`, { headers }),
       ]);
 
       setAllBadges(badgesRes.data);
@@ -191,7 +191,7 @@ const AchievementBadges = () => {
                 <img
                   src={
                     badge.icon_url
-                      ? `http://localhost:8000/${badge.icon_url}`
+                      ? `https://api.doughnationhq.cloud/${badge.icon_url}`
                       : "/placeholder-badge.png"
                   }
                   alt={badge.name}

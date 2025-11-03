@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import axios from "axios";
 
-const API = "http://localhost:8000";
+const API = "https://api.doughnationhq.cloud";
 const COLORS = ["#FF8042", "#0088FE", "#00C49F", "#FFBB28", "#AA336A"];
 
 const BakeryAnalytics = ({ currentUser }) => {

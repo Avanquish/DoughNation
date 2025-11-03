@@ -46,7 +46,7 @@ import UserBadge from "./UserBadge";
 import Messages1 from "./Messages1";
 import { Link } from "react-router-dom";
 
-const API = "http://localhost:8000";
+const API = "https://api.doughnationhq.cloud";
 
 // Stable keys for tab persistence
 const TAB_KEY = "bakery_active_tab";

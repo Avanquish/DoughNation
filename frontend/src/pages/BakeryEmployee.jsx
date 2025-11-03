@@ -22,7 +22,7 @@ import Swal from "sweetalert2";
 // Helpers
 const API_BASE =
   (axios?.defaults?.baseURL && axios.defaults.baseURL.replace(/\/$/, "")) ||
-  "http://localhost:8000";
+  "https://api.doughnationhq.cloud";
 const toUrl = (p) => {
   if (!p) return null;
   if (/^(https?:)?\/\//i.test(p) || p.startsWith("blob:")) return p;

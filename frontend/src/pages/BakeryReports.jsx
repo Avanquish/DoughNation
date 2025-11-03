@@ -66,7 +66,7 @@ export default function BakeryReports({ isViewOnly = false }) {
     { key: "summary", label: "Period Summary" },
   ];
 
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+  const API_URL = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
 
   const normalizePath = (path) => path.replace(/\\/g, "/");
 
@@ -1452,7 +1452,7 @@ export default function BakeryReports({ isViewOnly = false }) {
     const effectiveType = getEffectiveReportType();
     if (!reportData) return;
 
-    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+    const API_URL = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
     const headerHTML = getBakeryHeaderHTML(bakery, effectiveType);
     const formatHeader = (h) => h.replace(/_/g, " ").toUpperCase();
     const normalizePath = (p) => p.replace(/\\/g, "/");

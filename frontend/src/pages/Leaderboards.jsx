@@ -5,7 +5,7 @@ import { Crown, Medal, TrendingUp, Users, PackageCheck, Building2, HeartHandshak
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
 
 const Leaderboards = () => {
   const [bakeryLeaderboard, setBakeryLeaderboard] = useState([]);

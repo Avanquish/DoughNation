@@ -3,7 +3,7 @@
 const { protocol, hostname } = window.location;
 
 // Detect if running locally
-const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1";
+const isLocalhost = hostname === "https://api.doughnationhq.cloud" || hostname === "127.0.0.1";
 
 // Detect your backend base path (use `/api` only if your backend includes it)
 const BACKEND_PREFIX = ""; // change to "/api" only if your backend routes start with /api
@@ -13,7 +13,7 @@ let WS_URL;
 
 if (isLocalhost) {
   // 🔹 Local development
-  API_URL = `http://localhost:8000${BACKEND_PREFIX}`;
+  API_URL = `https://api.doughnationhq.cloud${BACKEND_PREFIX}`;
   WS_URL = `ws://localhost:8000/ws`;
 } else if (protocol === "https:") {
   // 🔹 Production over HTTPS

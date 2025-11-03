@@ -9,13 +9,6 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
-import {
   PackageCheck,
   LogOut,
   CheckCircle,
@@ -41,7 +34,7 @@ import Complaint from "./Complaint.jsx";
 import CharityReports from "./CharityReports.jsx";
 import Messages1 from "./Messages1.jsx";
 
-const API = "http://localhost:8000";
+const API = "https://api.doughnationhq.cloud";
 const TAB_KEY = "charity_active_tab";
 const ALLOWED_TABS = [
   "dashboard",
@@ -52,15 +45,6 @@ const ALLOWED_TABS = [
   "complaints",
   "reports",
 ];
-const TAB_LABELS = {
-  donation: "Available Donation",
-  dashboard: "Dashboard",
-  donationStatus: "Donation Status",
-  received: "Donation Received",
-  feedback: "Feedback",
-  complaints: "Complaints",
-  reports: "Generate Reports",
-};
 
 const Styles = () => (
   <style>{`
@@ -92,54 +76,50 @@ const Styles = () => (
     @keyframes pan{from{transform:translate3d(0,0,0)}to{transform:translate3d(-6%,-6%,0)}}
     @keyframes blob{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(24px,-20px,0) scale(1.04)}}
 
-      .head{position:sticky; top:0; z-index:40; border-bottom:1px solid rgba(0,0,0,.06); backdrop-filter: blur(10px);}
-      .head-bg{position:absolute; inset:0; z-index:-1; opacity:.92;
-        background:
-          linear-gradient(110deg, #ffffff 0%, #fff8ec 28%, #ffeccd 55%, #ffd7a6 100%);
-        background-size: 220% 100%;
-        animation: headerSlide 18s linear infinite;
-      }
-      @keyframes headerSlide{0%{background-position:0% 50%}100%{background-position:100% 50%}}
-      .head-inner{max-width:80rem; margin:0 auto; padding:.9rem 1rem;}
-      .brand{display:flex; gap:.8rem; align-items:center}
-      .ring{width:48px; height:48px; border-radius:9999px; padding:2px; background:conic-gradient(from 210deg, #F7C789, #E8A765, #C97C2C, #E8A765, #F7C789); box-shadow:0 10px 24px rgba(201,124,44,.16); animation: spin 10s linear infinite; will-change: transform}
-      .ring>div{width:100%; height:100%; border-radius:9999px; background:#fff; display:flex; align-items:center; justify-content:center}
-      .logo{transform-origin:50% 60%;}
-      @keyframes spin{to{transform:rotate(360deg)}}
-      .title-ink{font-weight:800; letter-spacing:.2px; background:linear-gradient(90deg,#F3B56F,#E59B50,#C97C2C); background-size:200% auto; -webkit-background-clip:text; background-clip:text; color:transparent; animation: ink 9s ease infinite}
-      @keyframes ink{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
-      .status-chip{display:inline-flex; align-items:center; gap:.5rem; margin-top:.15rem; padding:.28rem .6rem; font-size:.78rem; border-radius:9999px; color:#7a4f1c; background:linear-gradient(180deg,#FFE7C5,#F7C489); border:1px solid #fff3e0}
+    .head{position:sticky; top:0; z-index:40; border-bottom:1px solid rgba(0,0,0,.06); backdrop-filter: blur(10px);}
+    .head-bg{position:absolute; inset:0; z-index:-1; opacity:.92;
+      background: linear-gradient(110deg, #ffffff 0%, #fff8ec 28%, #ffeccd 55%, #ffd7a6 100%);
+      background-size: 220% 100%;
+      animation: headerSlide 18s linear infinite;
+    }
+    @keyframes headerSlide{0%{background-position:0% 50%}100%{background-position:100% 50%}}
 
-      .seg-wrap{max-width:80rem; margin:.75rem auto 0; padding:0 1rem;}
-      .seg{display:flex; gap:.4rem; background:rgba(255,255,255,.94); border:1px solid rgba(0,0,0,.07); border-radius:12px; padding:.3rem; box-shadow:0 8px 24px rgba(201,124,44,.08); width:fit-content}
-      .seg [role="tab"]{border-radius:10px; padding:.48rem .95rem; color:#6b4b2b; font-weight:700}
-      .seg [role="tab"][data-state="active"]{color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); box-shadow:0 8px 18px rgba(201,124,44,.28)}
+    .brand-pop {
+      background: linear-gradient(90deg, #E3B57E 0%, #F3C27E 25%, #E59B50 50%, #C97C2C 75%, #E3B57E 100%);
+      background-size: 300% 100%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      color: transparent;
+      animation: brandShimmer 6s ease-in-out infinite;
+      letter-spacing: .2px;
+    }
+    @keyframes brandShimmer{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
 
-      .iconbar{display:flex; align-items:center; gap:.5rem}
-      .icon-btn{position:relative; display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:9999px; background:rgba(255,255,255,.9); border:1px solid rgba(0,0,0,.06); box-shadow:0 6px 16px rgba(201,124,44,.14); transition:transform .18s ease, box-shadow .18s ease}
-      .icon-btn:hover{transform:translateY(-1px); box-shadow:0 10px 22px rgba(201,124,44,.20)}
-      .badge{position:absolute; top:-4px; right:-4px; min-width:18px; height:18px; padding:0 4px; border-radius:9999px; background:linear-gradient(180deg,#ff6b6b,#e03131); color:#fff; font-size:11px; line-height:18px; text-align:center; font-weight:800; box-shadow:0 4px 10px rgba(224,49,49,.35)}
+    .seg-wrap{max-width:80rem; margin:.75rem auto 0;}
+    .seg{display:flex; gap:.4rem; background:rgba(255,255,255,.94); border:1px solid rgba(0,0,0,.07); border-radius:12px; padding:.3rem; box-shadow:0 8px 24px rgba(201,124,44,.10);}
+    .seg [role="tab"]{border-radius:10px; padding:.48rem .95rem; color:#6b4b2b; font-weight:700}
+    .seg [role="tab"][data-state="active"]{color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); box-shadow:0 8px 18px rgba(201,124,44,.28)}
 
-      .btn-logout{position:relative; overflow:hidden; border-radius:9999px; padding:.58rem .95rem; gap:.5rem; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); color:#fff; border:1px solid rgba(255,255,255,.6); box-shadow:0 8px 26px rgba(201,124,44,.25); transition:transform .18s ease, box-shadow .18s ease, filter .18s ease}
-      .btn-logout:before{content:""; position:absolute; top:-40%; bottom:-40%; left:-70%; width:60%; transform:rotate(10deg); background:linear-gradient(90deg, rgba(255,255,255,.26), rgba(255,255,255,0) 55%); animation: shine 3.2s linear infinite}
-      @keyframes shine{from{left:-70%}to{left:120%}}
-      .btn-logout:hover{transform:translateY(-1px) scale(1.02); box-shadow:0 12px 34px rgba(201,124,44,.32); filter:saturate(1.05)}
+    .iconbar{display:flex; align-items:center; gap:.5rem}
+    .icon-btn{position:relative; display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:9999px; background:rgba(255,255,255,.9); border:1px solid rgba(0,0,0,.06); box-shadow:0 6px 16px rgba(201,124,44,.14); transition:transform .18s ease, box-shadow .18s ease}
+    .icon-btn:hover{transform:translateY(-1px); box-shadow:0 10px 22px rgba(201,124,44,.20)}
 
-      .gwrap{position:relative; border-radius:16px; padding:1px; background:linear-gradient(135deg, rgba(247,199,137,.9), rgba(201,124,44,.55)); background-size:200% 200%; animation:borderShift 8s ease-in-out infinite}
-      @keyframes borderShift{0%{background-position:0% 0%}50%{background-position:100% 100%}100%{background-position:0% 0%}}
-      .glass-card{border-radius:15px; background:rgba(255,255,255,.94); backdrop-filter:blur(8px)}
-      .chip{width:54px; height:54px; display:grid; place-items:center; border-radius:9999px; background: radial-gradient(120% 120% at 30% 25%, #ffe6c6 0%, #f7c489 55%, #e8a765 100%); box-shadow: 0 10px 24px rgba(201,124,44,.20), inset 0 1px 0 rgba(255,255,255,.8); border: 1px solid rgba(255,255,255,.8);}
-      .chip svg{width:22px; height:22px; color:#8a5a25}
+    .btn-logout{position:relative; overflow:hidden; border-radius:9999px; padding:.58rem .95rem; gap:.5rem; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); color:#fff; border:1px solid rgba(255,255,255,.6); box-shadow:0 8px 26px rgba(201,124,44,.25); transition:transform .18s ease, box-shadow .18s ease, filter .18s ease}
+    .btn-logout:before{content:""; position:absolute; top:-40%; bottom:-40%; left:-70%; width:60%; transform:rotate(10deg); background:linear-gradient(90deg, rgba(255,255,255,.26), rgba(255,255,255,0) 55%); animation: shine 3.2s linear infinite}
+    @keyframes shine{from{left:-70%}to{left:120%}}
 
-      .hover-lift{transition:transform .35s cubic-bezier(.22,.98,.4,1), box-shadow .35s}
-      .hover-lift:hover{transform:translateY(-4px); box-shadow:0 18px 38px rgba(201,124,44,.14)}
-      .reveal{opacity:0; transform:translateY(8px) scale(.985); animation:rise .6s ease forwards}
-      .r1{animation-delay:.05s}.r2{animation-delay:.1s}.r3{animation-delay:.15s}.r4{animation-delay:.2s}.r5{animation-delay:.25s}.r6{animation-delay:.3s}
-      @keyframes rise{to{opacity:1; transform:translateY(0) scale(1)}}
-      /* ensure rotating ring like bakery */
-      .ring{animation: spin 10s linear infinite; will-change: transform}
-      @keyframes spin{to{transform:rotate(360deg)}}
-      @media (prefers-reduced-motion: reduce){ .ring{animation:none} }
+    .gwrap{position:relative; border-radius:16px; padding:1px; background:linear-gradient(135deg, rgba(247,199,137,.9), rgba(201,124,44,.55)); background-size:200% 200%; animation:borderShift 8s ease-in-out infinite}
+    @keyframes borderShift{0%{background-position:0% 0%}50%{background-position:100% 100%}100%{background-position:0% 0%}}
+    .glass-card{border-radius:15px; background:rgba(255,255,255,.94); backdrop-filter:blur(8px)}
+    .chip{width:54px; height:54px; display:grid; place-items:center; border-radius:9999px; background: radial-gradient(120% 120% at 30% 25%, #ffe6c6 0%, #f7c489 55%, #e8a765 100%); box-shadow: 0 10px 24px rgba(201,124,44,.20), inset 0 1px 0 rgba(255,255,255,.8); border: 1px solid rgba(255,255,255,.8);}
+    .chip svg{width:22px; height:22px; color:#8a5a25}
+
+    .hover-lift{transition:transform .35s cubic-bezier(.22,.98,.4,1), box-shadow .35s}
+    .hover-lift:hover{transform:translateY(-4px); box-shadow:0 18px 38px rgba(201,124,44,.14)}
+    .reveal{opacity:0; transform:translateY(8px) scale(.985); animation:rise .6s ease forwards}
+    .r1{animation-delay:.05s}.r2{animation-delay:.1s}.r3{animation-delay:.15s}.r4{animation-delay:.2s}.r5{animation-delay:.25s}.r6{animation-delay:.3s}
+    @keyframes rise{to{opacity:1; transform:translateY(0) scale(1)}}
   `}</style>
 );
 
@@ -327,15 +307,35 @@ const CharityDashboard = () => {
       {/* Header */}
       <header className="head fixed top-0 left-0 right-0 z-[80]">
         <div className="head-bg" />
-        <div className="head-inner">
-          {/* same alignment & cluster as bakery */}
-          <div className="flex justify-between items-center gap-4">
-            <div className="flex-1 min-w-0">
-              <div className="brand">
-                <div className="ring">
-                  <div>
-                    <HeartHandshake className="h-6 w-6 text-amber-700 logo" />
-                  </div>
+        <div
+          className={`glass-soft header-gradient-line header-skin sticky-boost ${
+            scrolled ? "is-scrolled" : ""
+          }`}
+        >
+          <div className="max-w-7xl mx-auto px-4 py-3 hdr-pad flex items-center justify-between relative">
+            <div className="flex items-center gap-3">
+              {/* Brand on the left must be DoughNation */}
+              {isVerified ? (
+                <div
+                  className="flex items-center gap-3 cursor-not-allowed opacity-60"
+                  title="You are already logged in"
+                >
+                  <img
+                    src="/images/DoughNationLogo.png"
+                    alt="DoughNation logo"
+                    className="shrink-0"
+                    style={{
+                      width: "28px",
+                      height: "28px",
+                      objectFit: "contain",
+                    }}
+                  />
+                  <span
+                    className="font-extrabold brand-pop"
+                    style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}
+                  >
+                    DoughNation
+                  </span>
                 </div>
               ) : (
                 <Link to="/" className="flex items-center gap-3">
@@ -459,40 +459,65 @@ const CharityDashboard = () => {
         }}
       >
         <div className="seg-wrap">
-          <div className="seg">
-            <TabsList className="bg-transparent p-0 border-0">
-              <TabsTrigger value="donation">Available Donation</TabsTrigger>
-              <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-              <TabsTrigger value="donationStatus">Donation Status</TabsTrigger>
-              <TabsTrigger value="received">Donation Received</TabsTrigger>
-              <TabsTrigger value="feedback">Feedback</TabsTrigger>
-              <TabsTrigger value="complaints">Complaints</TabsTrigger>
-              <TabsTrigger value="reports">Generate Reports</TabsTrigger>
+          <div className="seg justify-center">
+            <TabsList className="bg-transparent p-0 border-0 flex flex-wrap gap-2">
+              <TabsTrigger
+                value="donation"
+                className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
+              >
+                <Gift className="w-4 h-4" />
+                <span className="hidden sm:inline">Available Donation</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="dashboard"
+                className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
+              >
+                <LayoutGrid className="w-4 h-4" />
+                <span className="hidden sm:inline">Dashboard</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="donationStatus"
+                className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
+              >
+                <Clock className="w-4 h-4" />
+                <span className="hidden sm:inline">Donation Status</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="received"
+                className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
+              >
+                <HandCoins className="w-4 h-4" />
+                <span className="hidden sm:inline">Donation Received</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="feedback"
+                className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span className="hidden sm:inline">Feedback</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="complaints"
+                className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
+              >
+                <AlertTriangle className="w-4 h-4" />
+                <span className="hidden sm:inline">Complaints</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="reports"
+                className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
+              >
+                <FileText className="w-4 h-4" />
+                <span className="hidden sm:inline">Reports</span>
+              </TabsTrigger>
             </TabsList>
           </div>
-        </div>
-
-        {/* Mobile: dropdown selector */}
-        <div className="md:hidden px-4 mt-2">
-          <Select
-            value={activeTab}
-            onValueChange={(v) => {
-              if (ALLOWED_TABS.includes(v)) setActiveTab(v);
-            }}
-          >
-            <SelectTrigger className="select-trigger">
-              <SelectValue placeholder="Select section…" />
-            </SelectTrigger>
-            <SelectContent className="select-content">
-              <SelectItem value="donation">Available Donation</SelectItem>
-              <SelectItem value="dashboard">Dashboard</SelectItem>
-              <SelectItem value="donationStatus">Donation Status</SelectItem>
-              <SelectItem value="received">Donation Received</SelectItem>
-              <SelectItem value="feedback">Feedback</SelectItem>
-              <SelectItem value="complaints">Complaints</SelectItem>
-              <SelectItem value="reports">Generate Reports</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
         {/* Content */}
@@ -500,7 +525,6 @@ const CharityDashboard = () => {
           {/* Dashboard */}
           <TabsContent value="dashboard" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6">
-              {/* metric card */}
               <div className="gwrap reveal r1 hover-lift">
                 <Card className="glass-card shadow-none">
                   <CardContent className="p-6">

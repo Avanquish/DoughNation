@@ -29,7 +29,7 @@ export default function AdminReports() {
   const [eventType, setEventType] = useState("");
   const [severity, setSeverity] = useState("");
 
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+  const API_URL = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
   const normalizePath = (path) => path.replace(/\\/g, "/");
 
   // Report types

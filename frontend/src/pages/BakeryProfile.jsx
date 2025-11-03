@@ -36,7 +36,7 @@ import {
 } from "recharts";
 import Swal from "sweetalert2";
 
-const API = "http://localhost:8000";
+const API = "https://api.doughnationhq.cloud";
 
 /* ===== Helpers ===== */
 const parseDate = (s) => (s ? new Date(s) : null);

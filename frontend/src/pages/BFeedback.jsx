@@ -3,7 +3,7 @@ import axios from "axios";
 import { FaStar } from "react-icons/fa";
 import { jwtDecode } from "jwt-decode";
 
-const API = "http://localhost:8000";
+const API = "https://api.doughnationhq.cloud";
 
 // Color palette
 const brand = {

@@ -90,8 +90,8 @@ const ForgotPassword = () => {
     try {
       const endpoint =
         accountType === "employee"
-          ? "http://localhost:8000/employee/forgot-password/check-name"
-          : "http://localhost:8000/forgot-password/check-email";
+          ? "https://api.doughnationhq.cloud/employee/forgot-password/check-name"
+          : "https://api.doughnationhq.cloud/forgot-password/check-email";
 
       const payload =
         accountType === "employee"
@@ -130,8 +130,8 @@ const ForgotPassword = () => {
     try {
       const endpoint =
         accountType === "employee"
-          ? "http://localhost:8000/employee/forgot-password/check-date"
-          : "http://localhost:8000/forgot-password/check-date";
+          ? "https://api.doughnationhq.cloud/employee/forgot-password/check-date"
+          : "https://api.doughnationhq.cloud/forgot-password/check-date";
 
       const payload =
         accountType === "employee"
@@ -177,8 +177,8 @@ const ForgotPassword = () => {
     try {
       const endpoint =
         accountType === "employee"
-          ? "http://localhost:8000/employee/forgot-password/reset"
-          : "http://localhost:8000/forgot-password/reset";
+          ? "https://api.doughnationhq.cloud/employee/forgot-password/reset"
+          : "https://api.doughnationhq.cloud/forgot-password/reset";
 
       const payload =
         accountType === "employee"

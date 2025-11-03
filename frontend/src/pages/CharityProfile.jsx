@@ -16,7 +16,7 @@ import CharityNotification from "./CharityNotification";
 import RecentDonations from "./RecentDonations";
 import Swal from "sweetalert2";
 
-const API = "http://localhost:8000";
+const API = "https://api.doughnationhq.cloud";
 
 /* ===== Sub-tab state ===== */
 const SUBTAB_KEY = "charity_profile_active_subtab";

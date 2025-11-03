@@ -96,7 +96,7 @@ export default function Register() {
     if (!email || !email.includes("@")) return;
     setEmailChecking(true);
     try {
-      const res = await axios.get("http://localhost:8000/check-email", {
+      const res = await axios.get("https://api.doughnationhq.cloud/check-email", {
         params: { email },
       });
       setEmailAvailable(res.data.available);
@@ -152,7 +152,7 @@ export default function Register() {
     }
 
     try {
-      await axios.post("http://localhost:8000/register", submitData, {
+      await axios.post("https://api.doughnationhq.cloud/register", submitData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       Swal.fire({

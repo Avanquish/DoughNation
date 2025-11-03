@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/card";
 import { Eye, EyeOff, Lock, AlertCircle } from "lucide-react";
 
-const API = "http://localhost:8000";
+const API = "https://api.doughnationhq.cloud";
 
 const EmployeeChangePassword = () => {
   const { employee, logout: employeeLogout } = useEmployeeAuth();

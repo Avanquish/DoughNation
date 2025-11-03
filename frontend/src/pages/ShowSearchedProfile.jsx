@@ -11,7 +11,7 @@ import {
 import { ChevronLeft, HeartHandshake, MessageSquareText } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
-const API = "http://localhost:8000";
+const API = "https://api.doughnationhq.cloud";
 
 export default function ShowSearchedProfile({ id, onBack }) {
   const [profile, setProfile] = useState(null);

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 
-const API = "http://localhost:8000";
+const API = "https://api.doughnationhq.cloud";
 
 // Helpers (using server date)
 const isExpired = (dateStr, serverDate) => {

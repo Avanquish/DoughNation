@@ -4,7 +4,7 @@ import axios from "axios";
 import Swal from "sweetalert2";
 import { Heart, Clock, AlertTriangle, Package } from "lucide-react";
 
-const API = "http://localhost:8000";
+const API = "https://api.doughnationhq.cloud";
 
 /* ---------- helpers (using server date) ---------- */
 const isExpired = (dateStr, serverDate) => {

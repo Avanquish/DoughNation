@@ -26,7 +26,7 @@ const AdminBadge = () => {
   // Fetch bakery users
   useEffect(() => {
     axios
-      .get("http://localhost:8000/badges/bakery-users")
+      .get("https://api.doughnationhq.cloud/badges/bakery-users")
       .then((res) => setUsers(res.data || []))
       .catch((err) => console.error("Error fetching users:", err));
   }, []);
@@ -34,7 +34,7 @@ const AdminBadge = () => {
   // Fetch admin badges (limit to 4)
   useEffect(() => {
     axios
-      .get("http://localhost:8000/badges/admin-badge")
+      .get("https://api.doughnationhq.cloud/badges/admin-badge")
       .then((res) =>
         setBadges(Array.isArray(res.data) ? res.data.slice(0, 4) : [])
       )
@@ -50,7 +50,7 @@ const AdminBadge = () => {
 
     try {
       // Use badgeName if provided, else fallback to selectedBadge.name
-      await axios.post("http://localhost:8000/badges/assign", {
+      await axios.post("https://api.doughnationhq.cloud/badges/assign", {
         user_id: selectedUser,
         badge_id: selectedBadge.id,
         badge_name: badgeName || selectedBadge.name, // use custom name if provided
@@ -159,7 +159,7 @@ const AdminBadge = () => {
                   {badges.slice(0, 4).map((badge) => {
                     const isActive = selectedBadge?.id === badge.id;
                     const iconSrc = badge.icon_url
-                      ? `http://localhost:8000/${badge.icon_url}`
+                      ? `https://api.doughnationhq.cloud/${badge.icon_url}`
                       : badge.icon
                       ? badge.icon
                       : null;

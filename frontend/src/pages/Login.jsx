@@ -121,7 +121,7 @@ const Login = () => {
     
     try {
       // 🔑 UNIFIED LOGIN: Send identifier (email or name) and password
-      const res = await axios.post("http://localhost:8000/login", {
+      const res = await axios.post("https://api.doughnationhq.cloud/login", {
         email: identifier, // Backend still uses 'email' field, but accepts name too
         password,
         role, // Optional: can help with validation

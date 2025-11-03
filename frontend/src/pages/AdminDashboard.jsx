@@ -29,8 +29,6 @@ import AdminComplaint from "./AdminComplaint";
 import AdminReports from "./AdminReports";
 import AdminUser from "./AdminUser";
 import Leaderboards from "./Leaderboards";
-import DataTable from "./DatatableSample";
-import NavBar from "./NavBar";
 import Bakery from "./Bakery";
 import Charity from "./Charity";
 import { Link } from "react-router-dom";

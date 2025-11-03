@@ -4,7 +4,7 @@ from datetime import datetime, date
 
 from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, true
 
 from app.database import get_db
 from app.auth import get_current_user
@@ -14,7 +14,7 @@ from app.crud import update_user_badges
 
 from app import models, schemas, database, auth
 from app.routes.binventory_routes import check_threshold_and_create_donation
-
+ 
 # Define your upload directory
 UPLOAD_DIR = "static/uploads/direct_donations"
 
@@ -27,9 +27,16 @@ async def create_direct_donation(
     bakery_inventory_id: int = Form(...),
     charity_id: int = Form(...),
     quantity: int = Form(...),
+    donated_by: str = Form(...),  # ✅ Add this parameter
     db: Session = Depends(database.get_db),
-    current_user=Depends(auth.get_current_user),
+    current_auth=Depends(auth.get_current_user_or_employee),
 ):
+    # Extract bakery_id from either employee or bakery token
+    bakery_id = auth.get_bakery_id_from_auth(current_auth)
+    
+    if not bakery_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
     # Fetch bakery inventory item
     inventory_item = db.query(models.BakeryInventory).filter(
         models.BakeryInventory.id == bakery_inventory_id
@@ -51,11 +58,10 @@ async def create_direct_donation(
     if existing_request:
         raise HTTPException(status_code=400, detail="Item already requested for donation")
     
-
     if quantity > inventory_item.quantity:
         raise HTTPException(status_code=400, detail="Quantity exceeds available inventory")
 
-    # Create DirectDonation record
+    # ✅ Create DirectDonation record WITH donated_by
     direct_donation = models.DirectDonation(
         bakery_inventory_id=inventory_item.id,
         charity_id=charity_id,
@@ -66,18 +72,17 @@ async def create_direct_donation(
         expiration_date=inventory_item.expiration_date,
         description=inventory_item.description,
         image=inventory_item.image,
-        btracking_status="preparing"
+        btracking_status="preparing",
+        donated_by=donated_by  # ✅ Store who created the donation
     )
     db.add(direct_donation)
 
     # Reduce inventory quantity
     inventory_item.quantity -= quantity
     if inventory_item.quantity == 0:
-        inventory_item.status = "donated"  # mark as fully donated
+        inventory_item.status = "donated"
     else:
         inventory_item.status = "available"
-
-        # Remove from auto-donation if exists
         donation_record = db.query(models.Donation).filter(
             models.Donation.bakery_inventory_id == inventory_item.id
         ).first()
@@ -86,9 +91,7 @@ async def create_direct_donation(
             print(f"Removed auto-donation for fully donated item: {inventory_item.name}")
 
     db.commit()
-    # Schedule donation check in background
     check_threshold_and_create_donation(db)
-
     db.refresh(direct_donation)
 
     return direct_donation
@@ -97,22 +100,23 @@ async def create_direct_donation(
 @router.get("/direct/bakery", response_model=list[schemas.DirectDonationResponse])
 def get_direct_donations_for_bakery(
     db: Session = Depends(database.get_db),
-    current_user=Depends(auth.get_current_user),
+    current_auth=Depends(auth.get_current_user_or_employee),
 ):
-    if current_user.role.lower() != "bakery":
+    bakery_id = auth.get_bakery_id_from_auth(current_auth)
+    
+    if not bakery_id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    # Only get donations where the inventory belongs to the current bakery
     donations = (
         db.query(models.DirectDonation)
         .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
-        .filter(models.BakeryInventory.bakery_id == current_user.id)
+        .filter(models.BakeryInventory.bakery_id == bakery_id)
         .all()
     )
 
     result = []
     for d in donations:
-        inventory_item = d.bakery_inventory  # already available via relationship
+        inventory_item = d.bakery_inventory
         bakery_owner = d.bakery_inventory.bakery if inventory_item else None
         charity_user = d.charity 
         
@@ -129,11 +133,12 @@ def get_direct_donations_for_bakery(
             "charity_id": d.charity_id,
             "image": d.image,
             "btracking_status": d.btracking_status or "preparing",
-            "btracking_completed_at":  d.btracking_completed_at.isoformat() if d. btracking_completed_at else None,
+            "btracking_completed_at": d.btracking_completed_at.isoformat() if d.btracking_completed_at else None,
             "bakery_name": bakery_owner.name if bakery_owner else None,
             "bakery_profile_picture": bakery_owner.profile_picture if bakery_owner else None,
             "charity_name": charity_user.name if charity_user else None,
             "charity_profile_picture": charity_user.profile_picture if charity_user else None,
+            "donated_by": d.donated_by,  # ✅ Include donated_by in response
         })
 
     return result
@@ -144,12 +149,18 @@ def update_direct_tracking(
     direct_donation_id: int,
     data: schemas.bTrackingUpdate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_auth = Depends(auth.get_current_user_or_employee)
 ):
+    # Extract bakery_id from either employee or bakery token
+    bakery_id = auth.get_bakery_id_from_auth(current_auth)
+    
+    if not bakery_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
     # Fetch donation
     donation = db.query(models.DirectDonation).join(models.BakeryInventory).filter(
         models.DirectDonation.id == direct_donation_id,
-        models.BakeryInventory.bakery_id == current_user.id  # ownership check
+        models.BakeryInventory.bakery_id == bakery_id  # ownership check
     ).first()
 
     if not donation:
@@ -183,7 +194,7 @@ def update_direct_tracking(
     db.commit()
     
     if data.btracking_status.lower() == "complete":
-        update_user_badges(db, current_user.id)
+        update_user_badges(db, bakery_id)
 
     return donation
 
@@ -199,15 +210,18 @@ def get_charities(db: Session = Depends(database.get_db)):
 @router.get("/donation/requests")
 def get_donation_requests(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_auth = Depends(auth.get_current_user_or_employee)
 ):
-    if current_user.role.lower() != "bakery":
+    # Extract bakery_id from either employee or bakery token
+    bakery_id = auth.get_bakery_id_from_auth(current_auth)
+    
+    if not bakery_id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Fetch all requests for this bakery
     requests = (
         db.query(models.DonationRequest)
-        .filter(models.DonationRequest.bakery_id == current_user.id)
+        .filter(models.DonationRequest.bakery_id == bakery_id)
         .all()
     )
 
@@ -271,11 +285,17 @@ def update_tracking_status(
     request_id: int,
     data: schemas.TrackingUpdate,  # use Pydantic schema here
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_auth = Depends(auth.get_current_user_or_employee)
 ):
+    # Extract bakery_id from either employee or bakery token
+    bakery_id = auth.get_bakery_id_from_auth(current_auth)
+    
+    if not bakery_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
     donation_request = db.query(models.DonationRequest).filter(
         models.DonationRequest.id == request_id,
-        models.DonationRequest.bakery_id == current_user.id
+        models.DonationRequest.bakery_id == bakery_id
     ).first()
     if not donation_request:
         raise HTTPException(status_code=404, detail="Donation request not found")
@@ -289,14 +309,14 @@ def update_tracking_status(
     db.refresh(donation_request)
     
     if data.tracking_status.lower() == "complete":
-        update_user_badges(db, current_user.id)
+        update_user_badges(db, bakery_id)
     
     return donation_request
 
 @router.get("/charities/recommended")
 def get_recommended_charities(
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(auth.get_current_user)
+    current_auth = Depends(auth.get_current_user_or_employee)
 ):
     """
     Recommend charities for a bakery based on transaction activity.
@@ -304,7 +324,10 @@ def get_recommended_charities(
     - If all have >=5, recommended = 3 least active ones
     - Always include all charities (so frontend can show 'Other Charities')
     """
-    if current_user.role.lower() != "bakery":
+    # Extract bakery_id from either employee or bakery token
+    bakery_id = auth.get_bakery_id_from_auth(current_auth)
+    
+    if not bakery_id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Count accepted donation requests per charity
@@ -314,7 +337,7 @@ def get_recommended_charities(
             func.count(models.DonationRequest.id).label("count")
         )
         .filter(
-            models.DonationRequest.bakery_id == current_user.id,
+            models.DonationRequest.bakery_id == bakery_id,
             models.DonationRequest.status == "accepted"
         )
         .group_by(models.DonationRequest.charity_id)
@@ -328,7 +351,7 @@ def get_recommended_charities(
             func.count(models.DirectDonation.id).label("count")
         )
         .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
-        .filter(models.BakeryInventory.bakery_id == current_user.id)
+        .filter(models.BakeryInventory.bakery_id == bakery_id)
         .group_by(models.DirectDonation.charity_id)
         .all()
     )
@@ -341,7 +364,7 @@ def get_recommended_charities(
         total_counts[row.charity_id] = total_counts.get(row.charity_id, 0) + row.count
 
     # Fetch all active charities
-    charities = db.query(models.User).filter(models.User.role.ilike("charity")).all()
+    charities = db.query(models.User).filter(models.User.role.ilike("charity"), models.User.verified==True)
 
     # Determine which are recommended
     all_have_5plus = all(total_counts.get(c.id, 0) >= 5 for c in charities) if charities else False

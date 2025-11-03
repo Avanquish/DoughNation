@@ -72,15 +72,6 @@ export default function AdminReports() {
 
   // Generate report
   const generateReport = async (type) => {
-    if (!startDate || !endDate) {
-      Swal.fire(
-        "Missing Dates",
-        "Please select both start and end date.",
-        "warning"
-      );
-      return;
-    }
-
     setLoading(true);
     setActiveReport(type);
     try {
@@ -382,15 +373,6 @@ export default function AdminReports() {
 
   // Fetch system events
   const fetchSystemEvents = async () => {
-    if (!startDate || !endDate) {
-      Swal.fire(
-        "Missing Dates",
-        "Please select both start and end date.",
-        "warning"
-      );
-      return;
-    }
-
     setLoading(true);
     try {
       const token = localStorage.getItem("token");
@@ -838,7 +820,6 @@ export default function AdminReports() {
                 <TabsTrigger
                   key={r.key}
                   value={r.key}
-                  onClick={() => generateReport(r.key)}
                   className="data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] rounded-full px-3 py-1 text-sm hover:bg-amber-50"
                 >
                   {r.label}

@@ -2276,10 +2276,6 @@ export default function BakeryReports() {
             </CardHeader>
 
             <CardContent className="p-5 sm:p-6">
-              {loading ? (
-                <p className="text-[#6b4b2b]/70">Generating report...</p>
-              ) : reportData ? (
-                <div>
                   {/* Unified Filters */}
                   <div className="mb-4 flex flex-wrap gap-4 items-end">
                     <div>
@@ -2357,6 +2353,11 @@ export default function BakeryReports() {
                       </>
                     )}
                   </div>
+
+                  {loading ? (
+                    <p className="text-[#6b4b2b]/70">Generating report...</p>
+                  ) : reportData ? (
+                    <div>
 
                   {/* Weekly Summary */}
                   {activeSummary === "weekly" && (

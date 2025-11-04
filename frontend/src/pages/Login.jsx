@@ -218,6 +218,19 @@ const Login = () => {
           localStorage.setItem("bakery_active_tab", "dashboard");
           navigate(`/bakery-dashboard/${userId}`);
         } else if (accountType === "charity") {
+          // 🚫 CHECK IF CHARITY IS VERIFIED
+          if (!decoded.is_verified) {
+            Swal.fire({
+              icon: "warning",
+              title: "Account Not Verified",
+              text: "Your charity account is pending admin verification. Please wait until an admin verifies your account before accessing the system.",
+              confirmButtonColor: "#A97142",
+            });
+            // Clear the token since they can't access yet
+            localStorage.removeItem("token");
+            return; // Exit early - prevent navigation
+          }
+          
           // Set default tab to "donation" (Available Donation)
           localStorage.setItem("charity_active_tab", "donation");
           navigate(`/charity-dashboard/${userId}`);

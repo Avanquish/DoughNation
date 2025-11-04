@@ -386,28 +386,23 @@ export default function BakeryReports({ isViewOnly = false }) {
   // Rehydrate last state
   useEffect(() => {
     const savedType = localStorage.getItem("lastReportType");
-    const savedData = localStorage.getItem("lastReportData");
     const savedStart = localStorage.getItem("lastWeekStart");
     const savedEnd = localStorage.getItem("lastWeekEnd");
     const savedMonthLocal = localStorage.getItem("lastMonth");
 
     if (savedType === "weekly" || savedType === "monthly") {
-      // open Summary and the correct inner tab
+      // open Summary and the correct inner tab, but don't load data
       setActiveReport("summary");
       setActiveSummary(savedType);
-      if (savedData) setReportData(JSON.parse(savedData));
       if (savedType === "weekly" && savedStart && savedEnd) {
         setSavedWeekStart(savedStart);
         setSavedWeekEnd(savedEnd);
-        generateReport("weekly", { start: savedStart, end: savedEnd }).then(
-          () => setActiveReport("summary")
-        );
+        setWeekStart(savedStart);
+        setWeekEnd(savedEnd);
       }
       if (savedType === "monthly" && savedMonthLocal) {
         setSavedMonth(savedMonthLocal);
-        generateReport("monthly", { month: savedMonthLocal }).then(() =>
-          setActiveReport("summary")
-        );
+        setSelectedMonth(savedMonthLocal);
       }
       return;
     }
@@ -417,8 +412,6 @@ export default function BakeryReports({ isViewOnly = false }) {
     if (!validReport) return;
 
     setActiveReport(savedType || "");
-    if (savedData) setReportData(JSON.parse(savedData));
-    if (savedType && savedType !== "summary") generateReport(savedType);
   }, []);
 
   const downloadReportCSV = () => {
@@ -2181,15 +2174,11 @@ export default function BakeryReports({ isViewOnly = false }) {
         onValueChange={(val) => {
           if (isViewOnly) return;
           setActiveReport(val);
-          // Clear report data when switching tabs
+          // IMPORTANT: Clear report data when switching tabs
           setReportData(null);
-          // Only auto-generate for summary tab
-          if (val === "summary") {
-            generateReport(activeSummary).then(() =>
-              setActiveReport("summary")
-            );
-          }
-          // For other tabs, wait for user to click "Generate Report"
+          // Also clear localStorage to prevent stale data
+          localStorage.removeItem("lastReportData");
+          // For all tabs, wait for user to generate report
         }}
       >
         {/* Pills */}

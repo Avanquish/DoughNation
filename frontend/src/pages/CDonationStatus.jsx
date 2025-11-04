@@ -604,7 +604,7 @@ const CDonationStatus = () => {
 
   // Splitters for exactly two columns per section
 const onlyPreparing = (s) =>
-  ["preparing", "ready_for_pickup", "in_transit"].includes((s || "").toLowerCase());
+  ["preparing", "ready_for_pickup", "in_transit", "received"].includes((s || "").toLowerCase());
   const requestedPreparing = receivedDonations.filter((d) =>
     onlyPreparing(d.tracking_status)
   );

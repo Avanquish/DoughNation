@@ -98,7 +98,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
     setFormData({
       name: "",
       role: "",
-      start_date: "",
+      start_date: new Date().toISOString().split("T")[0],
       profile_image_file: null,
     });
     setIsDialogOpen(true);
@@ -465,8 +465,9 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
               <Input
                 type="date"
                 value={formData.start_date}
-                onChange={(e) => handleChange("start_date", e.target.value)}
-                className="bg-white rounded-md border-[#f2d4b5]"
+                readOnly
+                disabled
+                className="bg-gray-100 rounded-md border-[#f2d4b5] cursor-not-allowed"
               />
             </div>
           </div>

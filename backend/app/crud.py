@@ -111,6 +111,13 @@ def create_user(
     db.commit()
     db.refresh(db_user)
     
+    # ✅ Generate owner_employee_id for bakery owners
+    if role.lower() == "bakery":
+        owner_employee_id = f"EMP-{db_user.id}-000"  # Owner gets -000 sequence
+        db_user.owner_employee_id = owner_employee_id
+        db.commit()
+        db.refresh(db_user)
+    
     print(f"\n🔍 DEBUG: User created")
     print(f"   ID: {db_user.id}")
     print(f"   Name: {db_user.name}")
@@ -118,6 +125,8 @@ def create_user(
     print(f"   Role (db): {db_user.role}")
     print(f"   Role (variable): {role}")
     print(f"   Contact Person: {contact_person}")
+    if role.lower() == "bakery":
+        print(f"   Owner Employee ID: {db_user.owner_employee_id}")
     print(f"   Role check: role.lower() == 'bakery' => {role.lower()} == 'bakery' => {role.lower() == 'bakery'}")
     
     # 🆕 If bakery, automatically create contact person as first employee
@@ -138,7 +147,11 @@ def create_user(
                 print(f"⚠️  Employee already exists: {existing_emp.name}")
                 return db_user
             
+            # ✅ Owner employee gets employee_id EMP-{BAKERY_ID}-000
+            owner_employee_id = f"EMP-{db_user.id}-000"
+            
             first_employee = models.Employee(
+                employee_id=owner_employee_id,  # Set owner employee ID
                 bakery_id=db_user.id,
                 name=contact_person,
                 role="Owner",
@@ -148,7 +161,7 @@ def create_user(
             db.add(first_employee)
             db.commit()
             db.refresh(first_employee)
-            print(f"✅ EMPLOYEE CREATED: {first_employee.name} (ID: {first_employee.id}, bakery_id: {first_employee.bakery_id}, password_set: {bool(first_employee.hashed_password)})")
+            print(f"✅ EMPLOYEE CREATED: {first_employee.name} (ID: {first_employee.id}, Employee ID: {first_employee.employee_id}, bakery_id: {first_employee.bakery_id}, password_set: {bool(first_employee.hashed_password)})")
         except Exception as e:
             print(f"❌ ERROR creating first employee: {str(e)}")
             import traceback

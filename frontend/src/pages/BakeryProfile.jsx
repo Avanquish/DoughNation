@@ -881,7 +881,8 @@ export default function BakeryProfile() {
 
                           {/* Contact Details title (text) with icon rows */}
                           {(currentUser?.contact_person ||
-                            currentUser?.contact_number) && (
+                            currentUser?.contact_number ||
+                            currentUser?.owner_employee_id) && (
                             <div className="info-block">
                               <div className="info-title">
                                 <span>Contact Details</span>
@@ -898,6 +899,19 @@ export default function BakeryProfile() {
                                     {currentUser?.contact_person || "—"}
                                   </span>
                                 </div>
+                                {currentUser?.owner_employee_id && (
+                                  <div className="dlrow">
+                                    <span
+                                      className="icon-badge"
+                                      title="Owner Employee ID"
+                                    >
+                                      <UserIcon className="w-4 h-4" />
+                                    </span>
+                                    <span className="text-[15px] font-mono font-bold text-[#E49A52] break-words">
+                                      {currentUser.owner_employee_id}
+                                    </span>
+                                  </div>
+                                )}
                                 <div className="dlrow">
                                   <span
                                     className="icon-badge"

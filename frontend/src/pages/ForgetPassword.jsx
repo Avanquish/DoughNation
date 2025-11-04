@@ -19,9 +19,9 @@ import { Mail, Calendar, Lock, Eye, EyeOff, User, Store } from "lucide-react";
 const ForgotPassword = () => {
   const navigate = useNavigate();
   const [accountType, setAccountType] = useState("user"); // 'user' or 'employee'
-  const [step, setStep] = useState(1); // 1=email/name, 2=date, 3=reset
-  const [identifier, setIdentifier] = useState(""); // email for user, name for employee
-  const [bakeryName, setBakeryName] = useState(""); // For employee authentication
+  const [step, setStep] = useState(1); // 1=employee_id, 2=date, 3=reset
+  const [identifier, setIdentifier] = useState(""); // email for user, employee_id for employee
+  const [bakeryName, setBakeryName] = useState(""); // Display only - auto-populated for employee
   const [registrationDate, setRegistrationDate] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -90,17 +90,22 @@ const ForgotPassword = () => {
     try {
       const endpoint =
         accountType === "employee"
-          ? "http://localhost:8000/employee/forgot-password/check-name"
+          ? "http://localhost:8000/employee/forgot-password/check-employee-id"
           : "http://localhost:8000/forgot-password/check-email";
 
       const payload =
         accountType === "employee"
-          ? { name: identifier, bakery_name: bakeryName }
+          ? { employee_id: identifier }
           : { email: identifier };
 
       const res = await axios.post(endpoint, payload);
 
       if (res.data.valid) {
+        // For employees, store the bakery name returned from the server
+        if (accountType === "employee" && res.data.bakery_name) {
+          setBakeryName(res.data.bakery_name);
+        }
+        
         Swal.fire({
           icon: "success",
           title:
@@ -136,8 +141,7 @@ const ForgotPassword = () => {
       const payload =
         accountType === "employee"
           ? {
-              name: identifier,
-              bakery_name: bakeryName,
+              employee_id: identifier,
               registration_date: registrationDate,
             }
           : { email: identifier, registration_date: registrationDate };
@@ -183,8 +187,7 @@ const ForgotPassword = () => {
       const payload =
         accountType === "employee"
           ? {
-              name: identifier,
-              bakery_name: bakeryName,
+              employee_id: identifier,
               new_password: newPassword,
               confirm_password: confirmPassword,
             }
@@ -215,7 +218,7 @@ const ForgotPassword = () => {
   const steps = [
     {
       id: 1,
-      label: accountType === "employee" ? "Verify Name" : "Verify Email",
+      label: accountType === "employee" ? "Verify Employee ID" : "Verify Email",
       Icon: accountType === "employee" ? User : Mail,
     },
     { id: 2, label: "Confirm Date", Icon: Calendar },
@@ -461,43 +464,14 @@ const ForgotPassword = () => {
             {/* STEP 1 */}
             {step === 1 && (
               <form onSubmit={handleValidateIdentifier} className="space-y-5">
-                {/* Bakery Name Field (Employee Only) */}
-                {accountType === "employee" && (
-                  <div className="space-y-1.5">
-                    <Label
-                      htmlFor="bakeryName"
-                      className="text-[#8f642a] font-medium"
-                      style={{ fontSize: "var(--title-sm)" }}
-                    >
-                      Bakery Name
-                    </Label>
-                    <div className="relative">
-                      <Store className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#E3B57E]" />
-                      <Input
-                        id="bakeryName"
-                        type="text"
-                        placeholder="Your Bakery Name"
-                        value={bakeryName}
-                        onChange={(e) => setBakeryName(e.target.value)}
-                        required
-                        className="pl-11 h-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E] rounded-xl"
-                        style={{ fontSize: "var(--text)" }}
-                      />
-                    </div>
-                    <p className="text-xs text-[#a47134]/80 mt-1">
-                      Enter the exact name of the bakery you work for
-                    </p>
-                  </div>
-                )}
-
-                {/* Employee Name / Email Field */}
+                {/* Employee ID / Email Field */}
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="identifier"
                     className="text-[#8f642a] font-medium"
                     style={{ fontSize: "var(--title-sm)" }}
                   >
-                    {accountType === "employee" ? "Employee Name" : "Registered Email"}
+                    {accountType === "employee" ? "Employee ID" : "Registered Email"}
                   </Label>
                   <div className="relative">
                     {accountType === "employee" ? (
@@ -509,7 +483,7 @@ const ForgotPassword = () => {
                       id="identifier"
                       type={accountType === "employee" ? "text" : "email"}
                       placeholder={
-                        accountType === "employee" ? "John Doe" : "you@bakery.com"
+                        accountType === "employee" ? "EMP-5-001" : "you@bakery.com"
                       }
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
@@ -518,6 +492,11 @@ const ForgotPassword = () => {
                       style={{ fontSize: "var(--text)" }}
                     />
                   </div>
+                  {accountType === "employee" && (
+                    <p className="text-xs text-[#a47134]/80 mt-1">
+                      Enter your unique Employee ID (e.g., EMP-5-001)
+                    </p>
+                  )}
                 </div>
 
                 <Button

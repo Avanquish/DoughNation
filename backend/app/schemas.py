@@ -21,6 +21,7 @@ class UserOut(BaseModel):
     name: str
     email: EmailStr
     contact_person: str
+    owner_employee_id: Optional[str] = None  # NEW: Owner's Employee ID (for bakeries)
     contact_number: str
     about: Optional[str] = None 
     address: str
@@ -100,10 +101,9 @@ class EmployeeCreate(EmployeeBase):
     password: Optional[str] = None  # Optional password for login
 
 class EmployeeLogin(BaseModel):
-    """Employee login with name and password"""
-    name: str
+    """Employee login with employee_id and password"""
+    employee_id: str  # Changed from 'name' to 'employee_id'
     password: str
-    bakery_id: int
 
 class EmployeeChangePassword(BaseModel):
     """Employee password change request"""
@@ -120,6 +120,7 @@ class EmployeeUpdate(BaseModel):
 
 class EmployeeOut(BaseModel):
     id: int
+    employee_id: Optional[str] = None  # Unique Employee ID (e.g., EMP-5-001)
     bakery_id: int
     name: str
     role: str

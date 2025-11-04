@@ -166,12 +166,39 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
         profile_image_file: null,
       });
 
-      Swal.fire({
-        title: "Success!",
-        text: editingEmployee ? "Employee updated." : "Employee added.",
-        icon: "success",
-        confirmButtonColor: "#C97C2C",
-      });
+      // Show success with employee ID for new employees
+      if (!editingEmployee) {
+        // Fetch the newly created employee to get their employee_id
+        const newEmployees = await axios.get(`${API_BASE}/employees`, { headers });
+        const latestEmployee = newEmployees.data[newEmployees.data.length - 1];
+        
+        Swal.fire({
+          title: "Success!",
+          html: `
+            <div class="space-y-3">
+              <p>Employee added successfully!</p>
+              <div class="bg-gradient-to-r from-[#FFF6E9] to-[#FFE7C5] p-4 rounded-lg border border-[#E49A52]">
+                <p class="text-sm font-semibold text-[#6b4b2b] mb-2">Employee Login Credentials:</p>
+                <div class="space-y-1">
+                  <p class="text-xs text-[#7b5836]"><strong>Employee ID:</strong> <span class="font-mono text-[#E49A52]">${latestEmployee?.employee_id || 'N/A'}</span></p>
+                  <p class="text-xs text-[#7b5836]"><strong>Default Password:</strong> <span class="font-mono">Employee123!</span></p>
+                </div>
+                <p class="text-xs text-[#8a5a25] mt-2 italic">Employee must change password on first login</p>
+              </div>
+            </div>
+          `,
+          icon: "success",
+          confirmButtonColor: "#C97C2C",
+          width: "500px"
+        });
+      } else {
+        Swal.fire({
+          title: "Success!",
+          text: "Employee updated.",
+          icon: "success",
+          confirmButtonColor: "#C97C2C",
+        });
+      }
     } catch (e) {
       console.error("save employee", e);
       Swal.fire({
@@ -280,6 +307,13 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
                           <h3 className="text-xl font-semibold text-[#2f1f12]">
                             {emp.name}
                           </h3>
+                          {emp.employee_id && (
+                            <div className="mt-1 mb-2">
+                              <span className="text-sm font-mono font-bold px-2.5 py-1 rounded-md bg-gradient-to-r from-[#E49A52] to-[#D68942] text-white shadow-sm">
+                                {emp.employee_id}
+                              </span>
+                            </div>
+                          )}
                           <div className="mt-2 flex flex-wrap items-center gap-2">
                             <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#FFF6E9] border border-[#f4e6cf] text-[#6b4b2b]">
                               {emp.role || "—"}
@@ -358,6 +392,14 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
               <DialogTitle className="text-[#6b4b2b]">
                 {editingEmployee ? "Edit Employee" : "Add Employee"}
               </DialogTitle>
+              {editingEmployee?.employee_id && (
+                <div className="mt-2">
+                  <span className="text-xs text-[#7b5836] font-medium">Employee ID: </span>
+                  <span className="text-sm font-mono font-bold px-2 py-1 rounded bg-gradient-to-r from-[#E49A52] to-[#D68942] text-white shadow-sm">
+                    {editingEmployee.employee_id}
+                  </span>
+                </div>
+              )}
             </DialogHeader>
           </div>
 

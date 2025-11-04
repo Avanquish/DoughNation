@@ -66,7 +66,19 @@ def create_employee(
     default_password = "Employee123!"
     hashed_password = pwd_context.hash(default_password)
 
+    # ✅ Generate unique employee_id in format: EMP-{BAKERY_ID}-{SEQUENCE}
+    # Get count of existing employees for this bakery to determine sequence number
+    existing_count = db.query(models.Employee).filter(models.Employee.bakery_id == bakery_id).count()
+    sequence = existing_count + 1
+    employee_id = f"EMP-{bakery_id}-{sequence:03d}"  # Format: EMP-5-001, EMP-5-002, etc.
+    
+    # Ensure uniqueness (in case of concurrent creation)
+    while db.query(models.Employee).filter(models.Employee.employee_id == employee_id).first():
+        sequence += 1
+        employee_id = f"EMP-{bakery_id}-{sequence:03d}"
+
     employee = models.Employee(
+        employee_id=employee_id,  # NEW: Set generated employee_id
         bakery_id=bakery_id,
         name=name,
         role=role,

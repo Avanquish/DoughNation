@@ -448,22 +448,22 @@ const Login = () => {
                   </TabsList>
                 </Tabs>
 
-                {/* Identifier (Email or Name) */}
+                {/* Identifier (Email or Employee ID) */}
                 <div className="space-y-1.5">
                   <Label htmlFor="identifier" className="text-[#8f642a] font-medium">
-                    Email or Employee Name
+                    Email or Employee ID
                   </Label>
                   <Input
                     id="identifier"
                     type="text"
-                    placeholder="Enter your email or employee name"
+                    placeholder="Enter your email or employee ID"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     required
                     className="h-11 md:h-12 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E] focus-visible:ring-offset-0"
                   />
                   <p className="text-xs text-[#a47134]/70 mt-1">
-                    Bakery/Charity/Admin: use email • Employees: use your name
+                    Bakery/Charity/Admin: use email • Employees: use your Employee ID (e.g., EMP-5-001)
                   </p>
                 </div>
 

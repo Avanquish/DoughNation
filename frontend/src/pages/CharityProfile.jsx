@@ -92,6 +92,17 @@ export default function CharityProfile() {
     };
 
     fetchUser();
+
+    // Listen for profile updates and refetch user data
+    const handleProfileUpdate = () => {
+      fetchUser();
+    };
+
+    window.addEventListener("profile:updated", handleProfileUpdate);
+
+    return () => {
+      window.removeEventListener("profile:updated", handleProfileUpdate);
+    };
   }, []);
 
   /* Logout */

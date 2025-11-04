@@ -272,27 +272,23 @@ export default function BakeryReports() {
 
   useEffect(() => {
     const savedType = localStorage.getItem("lastReportType");
-    const savedData = localStorage.getItem("lastReportData");
     const savedStart = localStorage.getItem("lastWeekStart");
     const savedEnd = localStorage.getItem("lastWeekEnd");
     const savedMonthLocal = localStorage.getItem("lastMonth");
 
     if (savedType === "weekly" || savedType === "monthly") {
-      // open Summary and the correct inner tab
+      // open Summary and the correct inner tab, but don't load data
       setActiveReport("summary");
       setActiveSummary(savedType);
-      if (savedData) setReportData(JSON.parse(savedData));
       if (savedType === "weekly" && savedStart && savedEnd) {
         setSavedWeekStart(savedStart);
         setSavedWeekEnd(savedEnd);
         setWeekStart(savedStart);
         setWeekEnd(savedEnd);
-        // Don't auto-generate, just restore state
       }
       if (savedType === "monthly" && savedMonthLocal) {
         setSavedMonth(savedMonthLocal);
         setSelectedMonth(savedMonthLocal);
-        // Don't auto-generate, just restore state
       }
       return;
     }
@@ -302,8 +298,7 @@ export default function BakeryReports() {
     if (!validReport) return;
 
     setActiveReport(savedType || "");
-    if (savedData) setReportData(JSON.parse(savedData));
-    // Don't auto-generate on load
+   
   }, []);
 
   const downloadReportCSV = () => {
@@ -2064,13 +2059,16 @@ export default function BakeryReports() {
 
       {/* Controlled Tabs */}
       <Tabs
-        value={activeReport}
-        onValueChange={(val) => {
-          setActiveReport(val);
-          // Don't auto-generate reports on tab change
-          // User must click "Generate Report" button
-        }}
-      >
+          value={activeReport}
+          onValueChange={(val) => {
+            setActiveReport(val);
+            // IMPORTANT: Clear report data when switching tabs
+            setReportData(null);
+            // Also clear localStorage to prevent stale data
+            localStorage.removeItem("lastReportData");
+            // For all tabs, wait for user to generate report
+          }}
+        >
         {/* Pills */}
         <TabsList
           aria-label="Reports"

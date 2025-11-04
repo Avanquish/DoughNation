@@ -19,9 +19,9 @@ import { Mail, Calendar, Lock, Eye, EyeOff, User, Store } from "lucide-react";
 const ForgotPassword = () => {
   const navigate = useNavigate();
   const [accountType, setAccountType] = useState("user"); // 'user' or 'employee'
-  const [step, setStep] = useState(1); // 1=email/name, 2=date, 3=reset
-  const [identifier, setIdentifier] = useState(""); // email for user, name for employee
-  const [bakeryName, setBakeryName] = useState(""); // For employee authentication
+  const [step, setStep] = useState(1); // 1=employee_id, 2=date, 3=reset
+  const [identifier, setIdentifier] = useState(""); // email for user, employee_id for employee
+  const [bakeryName, setBakeryName] = useState(""); // Display only - auto-populated for employee
   const [registrationDate, setRegistrationDate] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -90,21 +90,25 @@ const ForgotPassword = () => {
     try {
       const endpoint =
         accountType === "employee"
-          ? "https://api.doughnationhq.cloud/employee/forgot-password/check-name"
+          ? "https://api.doughnationhq.cloud/employee/forgot-password/check-employee-id"
           : "https://api.doughnationhq.cloud/forgot-password/check-email";
 
       const payload =
         accountType === "employee"
-          ? { name: identifier, bakery_name: bakeryName }
+          ? { employee_id: identifier }
           : { email: identifier };
 
       const res = await axios.post(endpoint, payload);
 
       if (res.data.valid) {
+        // For employees, store the bakery name returned from the server
+        if (accountType === "employee" && res.data.bakery_name) {
+          setBakeryName(res.data.bakery_name);
+        }
+
         Swal.fire({
           icon: "success",
-          title:
-            accountType === "employee" ? "Employee Found" : "Email Found",
+          title: accountType === "employee" ? "Employee Found" : "Email Found",
           text: "Please confirm your registration date.",
           confirmButtonColor: "#16a34a",
         });
@@ -136,8 +140,7 @@ const ForgotPassword = () => {
       const payload =
         accountType === "employee"
           ? {
-              name: identifier,
-              bakery_name: bakeryName,
+              employee_id: identifier,
               registration_date: registrationDate,
             }
           : { email: identifier, registration_date: registrationDate };
@@ -183,8 +186,7 @@ const ForgotPassword = () => {
       const payload =
         accountType === "employee"
           ? {
-              name: identifier,
-              bakery_name: bakeryName,
+              employee_id: identifier,
               new_password: newPassword,
               confirm_password: confirmPassword,
             }
@@ -215,7 +217,7 @@ const ForgotPassword = () => {
   const steps = [
     {
       id: 1,
-      label: accountType === "employee" ? "Verify Name" : "Verify Email",
+      label: accountType === "employee" ? "Verify Employee ID" : "Verify Email",
       Icon: accountType === "employee" ? User : Mail,
     },
     { id: 2, label: "Confirm Date", Icon: Calendar },
@@ -343,7 +345,9 @@ const ForgotPassword = () => {
                 loading="eager"
                 decoding="async"
                 className="h-[56px] sm:h-[64px] md:h-[82px] w-auto max-w-[520px] object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,.06)]"
-                style={{ animation: "headPop 700ms cubic-bezier(.2,.7,.2,1) both" }}
+                style={{
+                  animation: "headPop 700ms cubic-bezier(.2,.7,.2,1) both",
+                }}
               />
             </div>
 
@@ -351,7 +355,8 @@ const ForgotPassword = () => {
               className="relative z-10 mt-2 font-extrabold bg-gradient-to-r from-[#FFC66E] via-[#E88A1A] to-[#B86A1E] bg-clip-text text-transparent"
               style={{
                 fontSize: "clamp(32px, 2.2rem + 2vw, 42px)",
-                animation: "headBounce 800ms cubic-bezier(.2,.7,.2,1) both 80ms",
+                animation:
+                  "headBounce 800ms cubic-bezier(.2,.7,.2,1) both 80ms",
               }}
             >
               Reset Password
@@ -364,8 +369,12 @@ const ForgotPassword = () => {
                 animation: "headPop 680ms cubic-bezier(.2,.7,.2,1) both 120ms",
               }}
             >
-              {step === 1 && accountType === "employee" && "Enter your employee name so we can verify it."}
-              {step === 1 && accountType === "user" && "Enter your registered email so we can verify it."}
+              {step === 1 &&
+                accountType === "employee" &&
+                "Enter your employee name so we can verify it."}
+              {step === 1 &&
+                accountType === "user" &&
+                "Enter your registered email so we can verify it."}
               {step === 2 && "Confirm your registration date for security."}
               {step === 3 && "Create a strong new password to get back in."}
             </CardDescription>
@@ -373,7 +382,11 @@ const ForgotPassword = () => {
 
           {/* Account Type Tabs with sliding indicator */}
           <div className="px-6 pt-2 pb-1">
-            <Tabs value={accountType} onValueChange={setAccountType} className="w-full">
+            <Tabs
+              value={accountType}
+              onValueChange={setAccountType}
+              className="w-full"
+            >
               <TabsList
                 ref={tabsListRef}
                 className="relative grid w-full grid-cols-2 h-12 p-1 rounded-full overflow-hidden bg-white/75 backdrop-blur border border-white/70"
@@ -461,43 +474,16 @@ const ForgotPassword = () => {
             {/* STEP 1 */}
             {step === 1 && (
               <form onSubmit={handleValidateIdentifier} className="space-y-5">
-                {/* Bakery Name Field (Employee Only) */}
-                {accountType === "employee" && (
-                  <div className="space-y-1.5">
-                    <Label
-                      htmlFor="bakeryName"
-                      className="text-[#8f642a] font-medium"
-                      style={{ fontSize: "var(--title-sm)" }}
-                    >
-                      Bakery Name
-                    </Label>
-                    <div className="relative">
-                      <Store className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#E3B57E]" />
-                      <Input
-                        id="bakeryName"
-                        type="text"
-                        placeholder="Your Bakery Name"
-                        value={bakeryName}
-                        onChange={(e) => setBakeryName(e.target.value)}
-                        required
-                        className="pl-11 h-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E] rounded-xl"
-                        style={{ fontSize: "var(--text)" }}
-                      />
-                    </div>
-                    <p className="text-xs text-[#a47134]/80 mt-1">
-                      Enter the exact name of the bakery you work for
-                    </p>
-                  </div>
-                )}
-
-                {/* Employee Name / Email Field */}
+                {/* Employee ID / Email Field */}
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="identifier"
                     className="text-[#8f642a] font-medium"
                     style={{ fontSize: "var(--title-sm)" }}
                   >
-                    {accountType === "employee" ? "Employee Name" : "Registered Email"}
+                    {accountType === "employee"
+                      ? "Employee ID"
+                      : "Registered Email"}
                   </Label>
                   <div className="relative">
                     {accountType === "employee" ? (
@@ -509,7 +495,9 @@ const ForgotPassword = () => {
                       id="identifier"
                       type={accountType === "employee" ? "text" : "email"}
                       placeholder={
-                        accountType === "employee" ? "John Doe" : "you@bakery.com"
+                        accountType === "employee"
+                          ? "EMP-5-001"
+                          : "you@bakery.com"
                       }
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
@@ -518,6 +506,11 @@ const ForgotPassword = () => {
                       style={{ fontSize: "var(--text)" }}
                     />
                   </div>
+                  {accountType === "employee" && (
+                    <p className="text-xs text-[#a47134]/80 mt-1">
+                      Enter your unique Employee ID (e.g., EMP-5-001)
+                    </p>
+                  )}
                 </div>
 
                 <Button
@@ -573,6 +566,7 @@ const ForgotPassword = () => {
             {/* STEP 3 */}
             {step === 3 && (
               <form onSubmit={handleResetPassword} className="space-y-5">
+                {/* New Password */}
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="newPassword"
@@ -581,6 +575,7 @@ const ForgotPassword = () => {
                   >
                     New Password
                   </Label>
+
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#E3B57E]" />
                     <Input
@@ -599,32 +594,52 @@ const ForgotPassword = () => {
                       aria-label={showNew ? "Hide password" : "Show password"}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A66B2E] hover:text-[#81531f]"
                     >
-                      {showNew ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      {showNew ? (
+                        <EyeOff className="h-5 w-5" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
                     </button>
                   </div>
 
-                  {/* strength meter */}
-                  <div className="mt-2 h-2 w-full bg-[#FFE1BE]/70 rounded-full overflow-hidden">
-                    <div
-                      className="h-full transition-all"
-                      style={{
-                        width: `${(passStrength / 4) * 100}%`,
-                        background:
-                          passStrength < 2
-                            ? "#f87171"
-                            : passStrength < 3
-                            ? "#f59e0b"
-                            : passStrength < 4
-                            ? "#fbbf24"
-                            : "#22c55e",
-                      }}
-                    />
-                  </div>
+                  {/* strength meter UI (self-contained, no external helper) */}
+                  {newPassword && (
+                    <div className="mt-2">
+                      <div className="h-2 w-full bg-[#FFE1BE]/70 rounded-full overflow-hidden">
+                        <div
+                          className="h-full transition-all"
+                          style={{
+                            width: `${(passStrength / 4) * 100}%`,
+                            background: (() => {
+                              if (passStrength === 0) return "#e5e7eb"; // gray
+                              if (passStrength === 1) return "#f87171"; // red
+                              if (passStrength === 2) return "#f59e0b"; // amber
+                              if (passStrength === 3) return "#60a5fa"; // blue
+                              return "#22c55e"; // green
+                            })(),
+                          }}
+                        />
+                      </div>
+                      <p className="mt-1 text-xs text-[#a47134]/80">
+                        Strength:{" "}
+                        <span className="font-semibold">
+                          {(() => {
+                            if (passStrength <= 1) return "Weak";
+                            if (passStrength === 2) return "Fair";
+                            if (passStrength === 3) return "Good";
+                            return "Strong";
+                          })()}
+                        </span>
+                      </p>
+                    </div>
+                  )}
+
                   <p className="text-xs text-[#a47134]/80">
-                    Use a mix of letters, numbers & symbols.
+                    Use a mix of letters, numbers &amp; symbols.
                   </p>
                 </div>
 
+                {/* Confirm Password */}
                 <div className="space-y-1.5">
                   <Label
                     htmlFor="confirmPassword"
@@ -633,6 +648,7 @@ const ForgotPassword = () => {
                   >
                     Confirm Password
                   </Label>
+
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#E3B57E]" />
                     <Input
@@ -648,21 +664,39 @@ const ForgotPassword = () => {
                     <button
                       type="button"
                       onClick={() => setShowConfirm((s) => !s)}
-                      aria-label={showConfirm ? "Hide password" : "Show password"}
+                      aria-label={
+                        showConfirm ? "Hide password" : "Show password"
+                      }
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A66B2E] hover:text-[#81531f]"
                     >
-                      {showConfirm ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      {showConfirm ? (
+                        <EyeOff className="h-5 w-5" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
                     </button>
                   </div>
+
+                  {/* passwords match banner */}
+                  {newPassword && confirmPassword && (
+                    <div
+                      className={`mt-2 text-sm p-2 rounded-xl border ${
+                        newPassword === confirmPassword
+                          ? "bg-emerald-50/80 text-emerald-700 border-emerald-200"
+                          : "bg-rose-50/80 text-rose-700 border-rose-200"
+                      }`}
+                    >
+                      {newPassword === confirmPassword
+                        ? "✓ Passwords match"
+                        : "✗ Passwords don't match"}
+                    </div>
+                  )}
                 </div>
 
                 <Button
                   type="submit"
-                  className="h-11 w-full text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E]
-                             hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl transition-transform active:scale-[0.99]"
-                  style={{
-                    fontSize: "clamp(.92rem, .9rem + .2vw, 1.05rem)",
-                  }}
+                  className="h-11 w-full text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E] hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl transition-transform active:scale-[0.99]"
+                  style={{ fontSize: "clamp(.92rem, .9rem + .2vw, 1.05rem)" }}
                 >
                   Reset Password
                 </Button>
@@ -670,7 +704,10 @@ const ForgotPassword = () => {
             )}
 
             {/* Links */}
-            <div className="text-center mt-6" style={{ fontSize: "var(--text)" }}>
+            <div
+              className="text-center mt-6"
+              style={{ fontSize: "var(--text)" }}
+            >
               <Link
                 to="/login"
                 className="text-[#b88950] hover:text-[#8f5a1c] transition-colors"
@@ -678,7 +715,10 @@ const ForgotPassword = () => {
                 Back to Login
               </Link>
             </div>
-            <div className="text-center mt-2" style={{ fontSize: "var(--text)" }}>
+            <div
+              className="text-center mt-2"
+              style={{ fontSize: "var(--text)" }}
+            >
               <Link
                 to="/"
                 className="text-[#ad7631] hover:text-[#8f5a1c] transition-colors"

@@ -385,19 +385,20 @@ def charity_list_report(
 
 @router.get("/summary")
 def period_summary(
-    period: str = Query("weekly", description="Period type: 'weekly' or 'monthly'"),
-    start_date: str | None = Query(None, description="Start date YYYY-MM-DD (for weekly)"),
-    end_date: str | None = Query(None, description="End date YYYY-MM-DD (for weekly)"),
+    period: str = Query("weekly", description="Period type: 'weekly', 'monthly', or 'custom'"),
+    start_date: str | None = Query(None, description="Start date YYYY-MM-DD (for weekly or custom)"),
+    end_date: str | None = Query(None, description="End date YYYY-MM-DD (for weekly or custom)"),
     month: str | None = Query(None, description="Month YYYY-MM (for monthly), e.g. 2025-09"),
     db: Session = Depends(database.get_db),
     auth_data = Depends(check_bakery_or_employee)
 ):
     """
-    Combined summary report endpoint that handles both weekly and monthly reports.
-    Use 'period' parameter to switch between 'weekly' and 'monthly'.
+    Combined summary report endpoint that handles weekly, monthly, and custom period reports.
+    Use 'period' parameter to switch between 'weekly', 'monthly', or 'custom'.
     
     For weekly: optionally provide start_date and end_date (YYYY-MM-DD)
     For monthly: optionally provide month (YYYY-MM)
+    For custom: provide both start_date and end_date (YYYY-MM-DD) - no date range limitations
     """
     current_auth, bakery_id = auth_data
     today = datetime.utcnow().date()
@@ -425,8 +426,21 @@ def period_summary(
             period_end = period_start.replace(month=period_start.month + 1, day=1) - timedelta(days=1)
         
         period_label = period_start.strftime("%Y-%m")
+    elif period == "custom":
+        # Custom period requires both start_date and end_date
+        if not start_date or not end_date:
+            raise HTTPException(status_code=400, detail="Custom period requires both start_date and end_date.")
+        
+        period_start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        period_end = datetime.strptime(end_date, "%Y-%m-%d").date()
+        
+        # Validate that end_date is not before start_date
+        if period_end < period_start:
+            raise HTTPException(status_code=400, detail="End date must be after or equal to start date.")
+        
+        period_label = f"{period_start} to {period_end}"
     else:
-        raise HTTPException(status_code=400, detail="Invalid period. Use 'weekly' or 'monthly'.")
+        raise HTTPException(status_code=400, detail="Invalid period. Use 'weekly', 'monthly', or 'custom'.")
     
     # Include full end date by adding 1 day
     period_end_inclusive = period_end + timedelta(days=1)
@@ -588,8 +602,8 @@ def weekly_summary(
         db.query(func.sum(models.BakeryInventory.quantity))
         .filter(models.BakeryInventory.bakery_id == bakery_id)
         .filter(models.BakeryInventory.status != "donated")   # or "complete"
-        .filter(models.BakeryInventory.expiration_date >= week_start,
-                models.BakeryInventory.expiration_date < week_end_inclusive)
+        .filter(models.BakeryInventory.expiration_date >= period_start,
+                models.BakeryInventory.expiration_date < period_end_inclusive)
         .scalar() or 0
     )
     
@@ -598,8 +612,8 @@ def weekly_summary(
         db.query(func.sum(models.BakeryInventory.quantity))
         .filter(models.BakeryInventory.bakery_id == bakery_id)
         .filter(models.BakeryInventory.status == "available")
-        .filter(models.BakeryInventory.expiration_date >= week_start,
-                models.BakeryInventory.expiration_date < week_end_inclusive)
+        .filter(models.BakeryInventory.expiration_date >= period_start,
+                models.BakeryInventory.expiration_date < period_end_inclusive)
         .scalar() or 0
     )
 
@@ -649,11 +663,11 @@ def weekly_summary(
     else:
         bakery_name = current_auth.name
 
-    return {
+    # Build response based on period type
+    response = {
         "bakery_id": bakery_id,
         "bakery_name": bakery_name,
-        "week_start": str(week_start),
-        "week_end": str(week_end),
+        "period": period,
         "total_direct_donations": direct_donations or 0,
         "total_request_donations": request_donations or 0,
         "total_donations": (direct_donations or 0) + (request_donations or 0),
@@ -661,6 +675,18 @@ def weekly_summary(
         "expired_products": expired_total,
         "available_products": available_total 
     }
+    
+    # Add period-specific fields
+    if period == "weekly":
+        response["week_start"] = str(period_start)
+        response["week_end"] = str(period_end)
+    elif period == "monthly":
+        response["month"] = period_label
+    elif period == "custom":
+        response["start_date"] = str(period_start)
+        response["end_date"] = str(period_end)
+    
+    return response
 
 
 @router.get("/monthly")

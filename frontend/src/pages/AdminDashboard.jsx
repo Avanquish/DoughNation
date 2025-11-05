@@ -30,7 +30,7 @@ import AdminReports from "./AdminReports";
 import AdminUser from "./AdminUser";
 import Leaderboards from "./Leaderboards";
 import Bakery from "./Bakery";
-import Charity from "./Charity";
+import Charity from "./Charity"; 
 import { Link } from "react-router-dom";
 
 // Tab persistence
@@ -176,6 +176,7 @@ const AdminDashboard = () => {
   }, []);
 
   // Complaints
+  // Complaints
   useEffect(() => {
     (async () => {
       try {
@@ -191,6 +192,46 @@ const AdminDashboard = () => {
     })();
   }, []);
 
+  // Auto-refresh notifications every 1 second
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        
+        // Fetch pending users
+        const pendingRes = await axios.get("/pending-users", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setPendingUsers(pendingRes.data || []);
+        
+        // Fetch complaints
+        const complaintsRes = await axios.get("/complaints", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setComplaints(complaintsRes.data || []);
+        
+        // Update stats
+        const statsRes = await axios.get("/admin-dashboard-stats", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setStats({
+          totalBakeries: statsRes.data.totalBakeries,
+          totalCharities: statsRes.data.totalCharities,
+          totalUsers: statsRes.data.totalUsers - 1,
+          pendingUsersCount: statsRes.data.pendingUsers,
+        });
+      } catch (e) {
+        console.error("Error refreshing notifications:", e);
+      }
+    };
+
+    // Set up interval for auto-refresh
+    const intervalId = setInterval(fetchNotifications, 1000);
+
+    // Cleanup interval on unmount
+    return () => clearInterval(intervalId);
+  }, []);
+  
   // Actions
   const handleVerify = async (id) => {
     try {
@@ -344,7 +385,6 @@ const AdminDashboard = () => {
 
   const unreadVerifications = verificationList.filter((n) => !n.isRead).length;
   const unreadComplaints = complaintsList.filter((n) => !n.isRead).length;
-  const unreadReports = reportsList.filter((n) => !n.isRead).length;
 
   const [showTop, setShowTop] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -662,11 +702,6 @@ thead{ background:#EADBC8; color:#4A2F17; }
                               label: "Complaints",
                               count: unreadComplaints,
                             },
-                            {
-                              key: "reports",
-                              label: "Reports",
-                              count: unreadReports,
-                            },
                           ].map((t) => (
                             <button
                               key={t.key}
@@ -768,56 +803,6 @@ thead{ background:#EADBC8; color:#4A2F17; }
                                       markAsRead(n.id);
                                       setNotifOpen(false);
                                       setActiveTab("complaints");
-                                    }}
-                                    className={`w-full p-3 focus:outline-none transition-colors flex items-center ${
-                                      n.isRead
-                                        ? "bg-white hover:bg-[#fff6ec]"
-                                        : "bg-[rgba(255,246,236,1)]"
-                                    }`}
-                                  >
-                                    <UnreadCircle read={n.isRead} />
-                                    <div className="text-left flex-1">
-                                      <p
-                                        className={`text-[13px] ${
-                                          n.isRead
-                                            ? "text-[#6b4b2b]"
-                                            : "text-[#4f371f] font-semibold"
-                                        }`}
-                                      >
-                                        {n.title}
-                                      </p>
-                                      {n.subtitle && (
-                                        <p className="text-[12px] text-[#6b4b2b]">
-                                          {n.subtitle}
-                                        </p>
-                                      )}
-                                    </div>
-                                    <span className="text-[10px] text-muted-foreground shrink-0">
-                                      {n.at
-                                        ? new Date(n.at).toLocaleDateString()
-                                        : ""}
-                                    </span>
-                                  </button>
-                                ))
-                              )}
-                            </div>
-                          )}
-
-                          {/* REPORTS */}
-                          {notifTab === "reports" && (
-                            <div>
-                              {reportsList.length === 0 ? (
-                                <div className="p-4 text-sm text-gray-500">
-                                  No reports
-                                </div>
-                              ) : (
-                                reportsList.map((n) => (
-                                  <button
-                                    key={n.id}
-                                    onClick={() => {
-                                      markAsRead(n.id);
-                                      setNotifOpen(false);
-                                      setActiveTab("reports");
                                     }}
                                     className={`w-full p-3 focus:outline-none transition-colors flex items-center ${
                                       n.isRead

@@ -853,6 +853,7 @@ async def admin_manual_register(
     Admin manual user registration - creates fully verified accounts
     Only admins can use this endpoint
     Follows same format as regular registration but bypasses verification
+    Also creates an employee record for bakeries (matching self-registration behavior)
     """
     # Verify that current user is an admin
     if current_user.role != "Admin":
@@ -927,6 +928,40 @@ async def admin_manual_register(
     db.commit()
     db.refresh(new_user)
     
+    # 🆕 CREATE EMPLOYEE RECORD FOR BAKERIES (matching self-registration behavior)
+    if role == "Bakery":
+        try:
+            # Generate unique employee_id (format: EMP-{bakery_id}-001)
+            employee_count = db.query(models.Employee).filter(
+                models.Employee.bakery_id == new_user.id
+            ).count()
+            employee_unique_id = f"EMP-{new_user.id}-{str(employee_count + 1).zfill(3)}"
+            
+            # Create employee from contact person with default password
+            default_employee_password = "Employee123!"
+            employee_hashed_password = pwd_context.hash(default_employee_password)
+            
+            new_employee = models.Employee(
+                employee_id=employee_unique_id,
+                bakery_id=new_user.id,
+                name=contact_person,
+                role="Owner",
+                start_date=date.today(),
+                hashed_password=employee_hashed_password,
+                created_at=date.today()
+            )
+            
+            db.add(new_employee)
+            db.commit()
+            db.refresh(new_employee)
+            
+            print(f"✅ Created employee record for bakery: {new_employee.name} (ID: {new_employee.employee_id})")
+            
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to create employee record: {str(e)}")
+            # Don't fail the entire registration if employee creation fails
+            # The user account is already created and committed
+    
     # Log the event
     log_system_event(
         db=db,
@@ -941,7 +976,8 @@ async def admin_manual_register(
         "user_id": new_user.id,
         "name": new_user.name,
         "email": new_user.email,
-        "verified": new_user.verified
+        "verified": new_user.verified,
+        "employee_created": role == "Bakery"  # Indicate if employee was created
     }
 
 

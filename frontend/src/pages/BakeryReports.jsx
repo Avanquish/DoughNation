@@ -2546,91 +2546,92 @@ export default function BakeryReports({ isViewOnly = false }) {
             </CardHeader>
 
             <CardContent className="p-5 sm:p-6">
+              {/* Unified Filters - Always show unless view-only */}
+              {!isViewOnly && (
+                <div className="mb-4 flex flex-wrap gap-4 items-end">
+                  <div>
+                    <label className="block text-sm font-medium text-[#6b4b2b]">
+                      Period Type
+                    </label>
+                    <select
+                      value={activeSummary}
+                      onChange={(e) => {
+                        setActiveSummary(e.target.value);
+                        // Clear filters when switching period type
+                        setWeekStart("");
+                        setWeekEnd("");
+                        setSelectedMonth("");
+                      }}
+                      className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                    >
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                  </div>
+
+                  {activeSummary === "weekly" ? (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-[#6b4b2b]">
+                          Week Start
+                        </label>
+                        <input
+                          type="date"
+                          value={weekStart}
+                          onChange={(e) => setWeekStart(e.target.value)}
+                          max={new Date().toISOString().split("T")[0]}
+                          className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-[#6b4b2b]">
+                          Week End
+                        </label>
+                        <input
+                          type="date"
+                          value={weekEnd}
+                          onChange={(e) => setWeekEnd(e.target.value)}
+                          max={new Date().toISOString().split("T")[0]}
+                          className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                        />
+                      </div>
+                      <Button
+                        onClick={handleWeeklyFilter}
+                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                      >
+                        Generate Report
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-[#6b4b2b]">
+                          Select Month
+                        </label>
+                        <input
+                          type="month"
+                          value={selectedMonth}
+                          onChange={(e) => setSelectedMonth(e.target.value)}
+                          max={new Date().toISOString().slice(0, 7)}
+                          className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                        />
+                      </div>
+                      <Button
+                        onClick={handleMonthlyFilter}
+                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                      >
+                        Generate Report
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
+
               {loading ? (
                 <p className="text-[#6b4b2b]/70">Generating report...</p>
               ) : reportData ? (
                 <div>
-                  {/* Unified Filters */}
-                  {!isViewOnly && (
-                    <div className="mb-4 flex flex-wrap gap-4 items-end">
-                      <div>
-                        <label className="block text-sm font-medium text-[#6b4b2b]">
-                          Period Type
-                        </label>
-                        <select
-                          value={activeSummary}
-                          onChange={(e) => {
-                            setActiveSummary(e.target.value);
-                            // Clear filters when switching period type
-                            setWeekStart("");
-                            setWeekEnd("");
-                            setSelectedMonth("");
-                          }}
-                          className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                        >
-                          <option value="weekly">Weekly</option>
-                          <option value="monthly">Monthly</option>
-                        </select>
-                      </div>
-
-                      {activeSummary === "weekly" ? (
-                        <>
-                          <div>
-                            <label className="block text-sm font-medium text-[#6b4b2b]">
-                              Week Start
-                            </label>
-                            <input
-                              type="date"
-                              value={weekStart}
-                              onChange={(e) => setWeekStart(e.target.value)}
-                              max={new Date().toISOString().split("T")[0]}
-                              className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-[#6b4b2b]">
-                              Week End
-                            </label>
-                            <input
-                              type="date"
-                              value={weekEnd}
-                              onChange={(e) => setWeekEnd(e.target.value)}
-                              max={new Date().toISOString().split("T")[0]}
-                              className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                            />
-                          </div>
-                          <Button
-                            onClick={handleWeeklyFilter}
-                            className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
-                          >
-                            Generate Report
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          <div>
-                            <label className="block text-sm font-medium text-[#6b4b2b]">
-                              Select Month
-                            </label>
-                            <input
-                              type="month"
-                              value={selectedMonth}
-                              onChange={(e) => setSelectedMonth(e.target.value)}
-                              max={new Date().toISOString().slice(0, 7)}
-                              className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
-                            />
-                          </div>
-                          <Button
-                            onClick={handleMonthlyFilter}
-                            className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
-                          >
-                            Generate Report
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  )}
-
+                  
                   {/* Weekly Summary */}
                   {activeSummary === "weekly" && (
                     <>

@@ -33,6 +33,7 @@ def get_leaderboard_summary(
     """
     Get aggregated donation data for bakeries leaderboard.
     Only accessible by admin users.
+    Only includes verified bakeries.
     
     Returns:
     - bakery_name: Name of the bakery
@@ -42,8 +43,11 @@ def get_leaderboard_summary(
     - rank: Position in leaderboard based on total quantity
     """
     
-    # Get all bakeries
-    bakeries = db.query(User).filter(User.role.ilike("bakery")).all()
+    # Get all verified bakeries only
+    bakeries = db.query(User).filter(
+        User.role.ilike("bakery"),
+        User.verified == True
+    ).all()
     
     leaderboard_data = []
     
@@ -123,6 +127,7 @@ def get_charity_leaderboard(
     """
     Get aggregated donation data for charities (receiving side).
     Only accessible by admin users.
+    Only includes verified charities.
     
     Returns:
     - charity_name: Name of the charity
@@ -132,8 +137,11 @@ def get_charity_leaderboard(
     - rank: Position in leaderboard based on total quantity received
     """
     
-    # Get all charities
-    charities = db.query(User).filter(User.role.ilike("charity")).all()
+    # Get all verified charities only
+    charities = db.query(User).filter(
+        User.role.ilike("charity"),
+        User.verified == True
+    ).all()
     
     charity_data = []
     
@@ -207,7 +215,7 @@ def get_top_performers(
     db: Session = Depends(get_db)
 ):
     """
-    Get top 3 bakeries and top 3 charities for quick dashboard overview.
+    Get top 3 verified bakeries and top 3 verified charities for quick dashboard overview.
     Only accessible by admin users.
     """
     
@@ -231,71 +239,108 @@ def get_leaderboard_stats(
     """
     Get overall leaderboard statistics.
     Only accessible by admin users.
+    Only counts verified users.
     
     Returns:
-    - total_bakeries: Total number of registered bakeries
-    - active_bakeries: Bakeries with at least 1 completed donation
-    - total_charities: Total number of registered charities
-    - active_charities: Charities with at least 1 received donation
+    - total_bakeries: Total number of verified bakeries
+    - active_bakeries: Verified bakeries with at least 1 completed donation
+    - total_charities: Total number of verified charities
+    - active_charities: Verified charities with at least 1 received donation
     - total_donations_completed: Overall completed donations
     - total_items_donated: Overall donated items
     """
     
-    # Count bakeries
-    total_bakeries = db.query(User).filter(User.role.ilike("bakery")).count()
+    # Count verified bakeries only
+    total_bakeries = db.query(User).filter(
+        User.role.ilike("bakery"),
+        User.verified == True
+    ).count()
     
-    # Count active bakeries (with at least 1 completed donation)
+    # Get verified bakery IDs
+    verified_bakery_ids = [b.id for b in db.query(User.id).filter(
+        User.role.ilike("bakery"),
+        User.verified == True
+    ).all()]
+    
+    # Count active verified bakeries (with at least 1 completed donation)
     active_bakeries_request = db.query(DonationRequest.bakery_id).filter(
-        DonationRequest.tracking_status.ilike('complete')
+        DonationRequest.tracking_status.ilike('complete'),
+        DonationRequest.bakery_id.in_(verified_bakery_ids)
     ).distinct().all()
     
     active_bakeries_direct = db.query(BakeryInventory.bakery_id).join(
         DirectDonation,
         DirectDonation.bakery_inventory_id == BakeryInventory.id
     ).filter(
-        DirectDonation.btracking_status.ilike('complete')
+        DirectDonation.btracking_status.ilike('complete'),
+        BakeryInventory.bakery_id.in_(verified_bakery_ids)
     ).distinct().all()
     
     active_bakery_ids = set([b[0] for b in active_bakeries_request] + [b[0] for b in active_bakeries_direct])
     active_bakeries = len(active_bakery_ids)
     
-    # Count charities
-    total_charities = db.query(User).filter(User.role.ilike("charity")).count()
+    # Count verified charities only
+    total_charities = db.query(User).filter(
+        User.role.ilike("charity"),
+        User.verified == True
+    ).count()
     
-    # Count active charities
+    # Get verified charity IDs
+    verified_charity_ids = [c.id for c in db.query(User.id).filter(
+        User.role.ilike("charity"),
+        User.verified == True
+    ).all()]
+    
+    # Count active verified charities
     active_charities_request = db.query(DonationRequest.charity_id).filter(
-        DonationRequest.tracking_status.ilike('complete')
+        DonationRequest.tracking_status.ilike('complete'),
+        DonationRequest.charity_id.in_(verified_charity_ids)
     ).distinct().all()
     
     active_charities_direct = db.query(DirectDonation.charity_id).filter(
-        DirectDonation.btracking_status.ilike('complete')
+        DirectDonation.btracking_status.ilike('complete'),
+        DirectDonation.charity_id.in_(verified_charity_ids)
     ).distinct().all()
     
     active_charity_ids = set([c[0] for c in active_charities_request] + [c[0] for c in active_charities_direct])
     active_charities = len(active_charity_ids)
     
-    # Count total completed donations
+    # Count total completed donations (from verified users only)
     completed_requests = db.query(DonationRequest).filter(
-        DonationRequest.tracking_status.ilike('complete')
+        DonationRequest.tracking_status.ilike('complete'),
+        DonationRequest.bakery_id.in_(verified_bakery_ids),
+        DonationRequest.charity_id.in_(verified_charity_ids)
     ).count()
     
-    completed_direct = db.query(DirectDonation).filter(
-        DirectDonation.btracking_status.ilike('complete')
+    completed_direct = db.query(DirectDonation).join(
+        BakeryInventory,
+        DirectDonation.bakery_inventory_id == BakeryInventory.id
+    ).filter(
+        DirectDonation.btracking_status.ilike('complete'),
+        BakeryInventory.bakery_id.in_(verified_bakery_ids),
+        DirectDonation.charity_id.in_(verified_charity_ids)
     ).count()
     
     total_donations_completed = completed_requests + completed_direct
     
-    # Sum total items donated
+    # Sum total items donated (from verified users only)
     total_request_quantity = db.query(
         func.sum(DonationRequest.donation_quantity)
     ).filter(
-        DonationRequest.tracking_status.ilike('complete')
+        DonationRequest.tracking_status.ilike('complete'),
+        DonationRequest.bakery_id.in_(verified_bakery_ids),
+        DonationRequest.charity_id.in_(verified_charity_ids)
     ).scalar() or 0
     
     total_direct_quantity = db.query(
         func.sum(DirectDonation.quantity)
+    ).join(
+        BakeryInventory,
+        DirectDonation.bakery_inventory_id == BakeryInventory.id
     ).filter(
-        DirectDonation.btracking_status.ilike('complete')
+        DirectDonation.btracking_status.ilike('complete'),
+        BakeryInventory.bakery_id.in_(verified_bakery_ids),
+        DirectDonation.charity_id.in_(verified_charity_ids)
     ).scalar() or 0
     
     total_items_donated = int(total_request_quantity) + int(total_direct_quantity)

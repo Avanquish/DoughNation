@@ -31,8 +31,7 @@ app = FastAPI()
 scheduler = BackgroundScheduler()
 
 
-origins = ["https://doughnationhq.cloud",
-    "https://www.doughnationhq.cloud",
+origins = [
     "http://localhost:5173",
     "http://localhost:3000"
     ]

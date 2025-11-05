@@ -146,4 +146,3 @@ def monthly_summary(
         .all()
     )
     return [{"month": d[0], "donations": d[1]} for d in donations]
-

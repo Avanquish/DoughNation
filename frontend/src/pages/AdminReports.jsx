@@ -446,17 +446,31 @@ export default function AdminReports() {
       "User Role"
     ];
 
-    const rows = eventData.map((event) => [
+    const rows = eventData.map((event) => {
+    const date = new Date(event.timestamp);
+    date.setHours(date.getHours() + 8);
+    const formattedDate = date.toLocaleString('en-PH', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+    
+    return [
       `"${event.id}"`,
       `"${event.event_type}"`,
       `"${event.description}"`,
       `"${event.severity}"`,
-      `"${event.timestamp || 'N/A'}"`,
+      `"${formattedDate}"`,
       `"${event.user?.id || 'N/A'}"`,
       `"${event.user?.name || 'N/A'}"`,
       `"${event.user?.email || 'N/A'}"`,
       `"${event.user?.role || 'N/A'}"`
-    ].join(","));
+    ].join(",");
+  });
 
     const csvContent = [headers.join(","), ...rows].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -532,15 +546,29 @@ export default function AdminReports() {
       "Role"
     ];
 
-    const rows = eventData.map((event) => [
+    const rows = eventData.map((event) => {
+    const date = new Date(event.timestamp);
+    date.setHours(date.getHours() + 8);
+    const formattedDate = date.toLocaleString('en-PH', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+    
+    return [
       event.id,
       event.event_type,
       event.description.substring(0, 50) + (event.description.length > 50 ? "..." : ""),
       event.severity,
-      new Date(event.timestamp).toLocaleString(),
+      formattedDate,
       event.user?.name || "System",
       event.user?.role || "N/A"
-    ]);
+    ];
+  });
 
     autoTable(doc, {
       head: [headers],
@@ -624,7 +652,21 @@ export default function AdminReports() {
                   <td>${eventTypeLabels[event.event_type] || event.event_type}</td>
                   <td>${event.description}</td>
                   <td>${event.severity.toUpperCase()}</td>
-                  <td>${new Date(event.timestamp).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-xs whitespace-nowrap"> 
+                  ${(() => {
+                    const date = new Date(event.timestamp);
+                    date.setHours(date.getHours() + 8);
+                    return date.toLocaleString('en-PH', {
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hour12: true
+                    });
+                  })()}
+                </td>
                   <td>${event.user?.name || "System"}</td>
                   <td>${event.user?.role || "N/A"}</td>
                 </tr>
@@ -691,8 +733,20 @@ export default function AdminReports() {
                     {event.severity.toUpperCase()}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-xs whitespace-nowrap">
-                  {new Date(event.timestamp).toLocaleString()}
+                <td className="px-4 py-3 text-xs whitespace-nowrap"> 
+                  {(() => {
+                    const date = new Date(event.timestamp);
+                    date.setHours(date.getHours() + 8);
+                    return date.toLocaleString('en-PH', {
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hour12: true
+                    });
+                  })()}
                 </td>
                 <td className="px-4 py-3">{event.user?.name || "System"}</td>
                 <td className="px-4 py-3">{event.user?.role || "N/A"}</td>

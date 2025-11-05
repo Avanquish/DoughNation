@@ -112,13 +112,13 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
         token = create_access_token(token_data)
         return {"access_token": token, "token_type": "bearer"}
     
-    # STEP 2: Try to find Employee account by NAME
-    # Search across ALL bakeries (employee might not know bakery_id at login)
-    employees = db.query(models.Employee).filter(
-        models.Employee.name == identifier
-    ).all()
+    # STEP 2: Try to find Employee account by EMPLOYEE_ID
+    # Search for employee by unique employee_id (e.g., EMP-5-001)
+    employee = db.query(models.Employee).filter(
+        models.Employee.employee_id == identifier
+    ).first()
     
-    if not employees:
+    if not employee:
         print(f"❌ No User or Employee found with identifier: '{identifier}'")
         print(f"{'='*80}\n")
         
@@ -134,15 +134,9 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
         
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    # If multiple employees with same name exist, try to authenticate with each
-    authenticated_employee = None
-    for emp in employees:
-        if emp.hashed_password and verify_password(user.password, emp.hashed_password):
-            authenticated_employee = emp
-            break
-    
-    if not authenticated_employee:
-        print(f"❌ Invalid password for Employee account(s)")
+    # Verify password for employee
+    if not employee.hashed_password or not verify_password(user.password, employee.hashed_password):
+        print(f"❌ Invalid password for Employee: {employee.employee_id}")
         print(f"{'='*80}\n")
         
         # Log failed employee login attempt (invalid password)
@@ -152,25 +146,28 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
             description=f"Failed employee login attempt - Invalid password: {identifier}",
             severity="warning",
             user_id=None,
-            metadata={"attempted_name": identifier, "reason": "invalid_password", "employee_count": len(employees)}
+            metadata={"attempted_employee_id": identifier, "reason": "invalid_password"}
         )
         
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
+    # Store authenticated employee
+    authenticated_employee = employee
+    
     # 🚫 BLOCK PART-TIME EMPLOYEES
     employee_role_normalized = authenticated_employee.role.lower().replace("-", "").replace(" ", "")
     if "parttime" in employee_role_normalized or employee_role_normalized == "part":
-        print(f"🚫 Part-time employee login blocked: {authenticated_employee.name}")
+        print(f"🚫 Part-time employee login blocked: {authenticated_employee.employee_id}")
         print(f"{'='*80}\n")
         
         # Log failed employee login attempt (part-time restriction)
         log_system_event(
             db=db,
             event_type="failed_login",
-            description=f"Failed employee login attempt - Part-time restriction: {authenticated_employee.name} (Bakery ID: {authenticated_employee.bakery_id})",
+            description=f"Failed employee login attempt - Part-time restriction: {authenticated_employee.employee_id} (Bakery ID: {authenticated_employee.bakery_id})",
             severity="warning",
             user_id=None,
-            metadata={"employee_name": authenticated_employee.name, "bakery_id": authenticated_employee.bakery_id, "reason": "part_time_restriction"}
+            metadata={"employee_id": authenticated_employee.employee_id, "bakery_id": authenticated_employee.bakery_id, "reason": "part_time_restriction"}
         )
         
         raise HTTPException(
@@ -193,6 +190,7 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     token_data = {
         "type": "employee",
         "employee_id": authenticated_employee.id,
+        "employee_unique_id": authenticated_employee.employee_id,  # NEW: Include unique employee_id (e.g., EMP-5-001)
         "employee_name": authenticated_employee.name,
         "employee_role": authenticated_employee.role,
         "bakery_id": authenticated_employee.bakery_id,
@@ -309,62 +307,44 @@ def reset_password(data: dict, db: Session = Depends(database.get_db)):
 
 # ==================== EMPLOYEE FORGOT PASSWORD ====================
 
-# Step 1: Check if employee name exists with bakery verification
-@router.post("/employee/forgot-password/check-name")
-def check_employee_name(data: dict, db: Session = Depends(database.get_db)):
-    name = data.get("name")
-    bakery_name = data.get("bakery_name")
+# Step 1: Check if employee_id exists
+@router.post("/employee/forgot-password/check-employee-id")
+def check_employee_id(data: dict, db: Session = Depends(database.get_db)):
+    employee_id = data.get("employee_id")
     
-    if not bakery_name:
-        raise HTTPException(status_code=400, detail="Bakery name is required")
+    if not employee_id:
+        raise HTTPException(status_code=400, detail="Employee ID is required")
     
-    # Find the bakery first
-    bakery = db.query(models.User).filter(
-        models.User.role == "Bakery",
-        models.User.name == bakery_name
-    ).first()
-    
-    if not bakery:
-        raise HTTPException(status_code=404, detail="Bakery not found")
-    
-    # Find employee associated with this bakery
+    # Find employee by employee_id (unique identifier like EMP-5-001)
     employee = db.query(models.Employee).filter(
-        models.Employee.name == name,
-        models.Employee.bakery_id == bakery.id
+        models.Employee.employee_id == employee_id
     ).first()
     
     if not employee:
-        raise HTTPException(status_code=404, detail="Employee not found in this bakery")
+        raise HTTPException(status_code=404, detail="Employee not found")
     
-    return {"valid": True, "bakery_id": bakery.id}
+    # Get bakery info for display
+    bakery = db.query(models.User).filter(models.User.id == employee.bakery_id).first()
+    bakery_name = bakery.name if bakery else "Unknown Bakery"
+    
+    return {"valid": True, "bakery_name": bakery_name}
 
-# Step 2: Verify employee registration date with bakery verification
+# Step 2: Verify employee registration date
 @router.post("/employee/forgot-password/check-date")
 def check_employee_date(data: dict, db: Session = Depends(database.get_db)):
-    name = data.get("name")
-    bakery_name = data.get("bakery_name")
+    employee_id = data.get("employee_id")
     registration_date = data.get("registration_date")
     
-    if not bakery_name:
-        raise HTTPException(status_code=400, detail="Bakery name is required")
+    if not employee_id:
+        raise HTTPException(status_code=400, detail="Employee ID is required")
 
-    # Find the bakery first
-    bakery = db.query(models.User).filter(
-        models.User.role == "Bakery",
-        models.User.name == bakery_name
-    ).first()
-    
-    if not bakery:
-        raise HTTPException(status_code=404, detail="Bakery not found")
-    
-    # Find employee associated with this bakery
+    # Find employee by employee_id
     employee = db.query(models.Employee).filter(
-        models.Employee.name == name,
-        models.Employee.bakery_id == bakery.id
+        models.Employee.employee_id == employee_id
     ).first()
     
     if not employee:
-        raise HTTPException(status_code=404, detail="Employee not found in this bakery")
+        raise HTTPException(status_code=404, detail="Employee not found")
 
     # Compare only the date part - employee has created_at as DateTime
     # Convert datetime to date for comparison
@@ -375,34 +355,23 @@ def check_employee_date(data: dict, db: Session = Depends(database.get_db)):
 
     return {"valid": True}
 
-# Step 3: Reset employee password with bakery verification
+# Step 3: Reset employee password
 @router.post("/employee/forgot-password/reset")
 def reset_employee_password(data: dict, db: Session = Depends(database.get_db)):
-    name = data.get("name")
-    bakery_name = data.get("bakery_name")
+    employee_id = data.get("employee_id")
     new_password = data.get("new_password")
     confirm_password = data.get("confirm_password")
     
-    if not bakery_name:
-        raise HTTPException(status_code=400, detail="Bakery name is required")
+    if not employee_id:
+        raise HTTPException(status_code=400, detail="Employee ID is required")
 
-    # Find the bakery first
-    bakery = db.query(models.User).filter(
-        models.User.role == "Bakery",
-        models.User.name == bakery_name
-    ).first()
-    
-    if not bakery:
-        raise HTTPException(status_code=404, detail="Bakery not found")
-    
-    # Find employee associated with this bakery
+    # Find employee by employee_id
     employee = db.query(models.Employee).filter(
-        models.Employee.name == name,
-        models.Employee.bakery_id == bakery.id
+        models.Employee.employee_id == employee_id
     ).first()
     
     if not employee:
-        raise HTTPException(status_code=404, detail="Employee not found in this bakery")
+        raise HTTPException(status_code=404, detail="Employee not found")
 
     if new_password != confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")

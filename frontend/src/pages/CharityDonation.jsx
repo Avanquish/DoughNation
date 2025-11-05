@@ -166,34 +166,42 @@ useEffect(() => {
 }, []);
 
   // Fetching data
+  // Fetching data
+  const fetchData = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      // Available donations
+      const res = await axios.get(`${API}/available`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setDonations(res.data || []);
+
+      // My pending requests
+      const pendingRes = await axios.get(`${API}/donation/my_requests`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const map = {};
+      (pendingRes.data || []).forEach((req) => {
+        map[req.donation_id] = req.id;
+      });
+      setRequestedDonations(map);
+      localStorage.setItem("requestedDonations", JSON.stringify(map));
+    } catch (err) {
+      console.error(err);
+      // Don't show error popup on auto-refresh
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const token = localStorage.getItem("token");
-
-        // Available donations
-        const res = await axios.get(`${API}/available`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setDonations(res.data || []);
-
-        // My pending requests
-        const pendingRes = await axios.get(`${API}/donation/my_requests`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const map = {};
-        (pendingRes.data || []).forEach((req) => {
-          map[req.donation_id] = req.id;
-        });
-        setRequestedDonations(map);
-        localStorage.setItem("requestedDonations", JSON.stringify(map));
-      } catch (err) {
-        console.error(err);
-        Swal.fire("Error", "Failed to fetch donations", "error");
-      }
-    };
-
     fetchData();
+    
+    // Auto-refresh every 5 seconds
+    const refreshInterval = setInterval(() => {
+      fetchData();
+    }, 1000);
+    
+    return () => clearInterval(refreshInterval);
   }, []);
 
   // Request donation

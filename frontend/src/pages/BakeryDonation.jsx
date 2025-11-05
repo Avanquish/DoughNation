@@ -14,7 +14,7 @@ const isExpired = (dateStr, serverDate) => {
   const t = new Date(year, month - 1, day);
   t.setHours(0, 0, 0, 0);
   d.setHours(0, 0, 0, 0);
-  return d < t; // Changed from <= to < (expired means past days only)
+  return d <= t; 
 };
 
 const daysUntil = (dateStr, serverDate) => {

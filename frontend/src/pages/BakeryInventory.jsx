@@ -480,6 +480,14 @@ export default function BakeryInventory({ isViewOnly = false }) {
   // Fetch inventory immediately
   useEffect(() => {
     fetchInventory();
+    
+    // Auto-reload every 1 second
+    const intervalId = setInterval(() => {
+      fetchInventory();
+    }, 1000);
+    
+    // Cleanup interval on unmount
+    return () => clearInterval(intervalId);
   }, []);
 
   // From Notifs
@@ -1364,21 +1372,35 @@ export default function BakeryInventory({ isViewOnly = false }) {
                       })() : ''})
                     </p>
                   </div>
-                  <div>
+                 <div>
                     <label htmlFor="prod_qty" className={labelTone}>
                       Quantity
                     </label>
                     <input
                       id="prod_qty"
                       type="number"
+                      min="1"
                       className={`${inputTone} rounded-2xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
                       value={form.quantity}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const value = e.target.value === "" ? "" : parseInt(e.target.value, 10);
+                        
+                        if (value === 0) {
+                          Swal.fire({
+                            title: "Invalid Quantity",
+                            text: "Quantity must be at least 1.",
+                            icon: "warning",
+                            confirmButtonColor: "#A97142",
+                            timer: 2500
+                          });
+                          return;
+                        }
+                        
                         setForm({
                           ...form,
-                          quantity: toIntOrEmpty(e.target.value),
-                        })
-                      }
+                          quantity: value,
+                        });
+                      }}
                       required
                     />
                   </div>
@@ -1670,14 +1692,28 @@ export default function BakeryInventory({ isViewOnly = false }) {
                   <input
                     id="edit_qty"
                     type="number"
+                    min="1"
                     className={`${inputTone} rounded-2xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
                     value={selectedItem.quantity}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const value = e.target.value === "" ? "" : parseInt(e.target.value, 10);
+                      
+                      if (value === 0) {
+                        Swal.fire({
+                          title: "Invalid Quantity",
+                          text: "Quantity must be at least 1.",
+                          icon: "warning",
+                          confirmButtonColor: "#A97142",
+                          timer: 2500
+                        });
+                        return;
+                      }
+                      
                       setSelectedItem({
                         ...selectedItem,
-                        quantity: toIntOrEmpty(e.target.value),
-                      })
-                    }
+                        quantity: value,
+                      });
+                    }}
                     required
                   />
                 </div>

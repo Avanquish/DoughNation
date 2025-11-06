@@ -499,6 +499,9 @@ const Login = () => {
                       )}
                     </button>
                   </div>
+                  <p className="text-xs text-[#a47134]/70 mt-1">
+                    Employee default password: <span className="font-semibold text-[#8f642a]">Employee123!</span>
+                  </p>
                 </div>
 
                 {/* Remember + Forgot */}

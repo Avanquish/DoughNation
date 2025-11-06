@@ -2170,7 +2170,7 @@ export default function BakeryReports() {
               <div className="mb-4 flex flex-wrap gap-4 items-end">
                 <div>
                   <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
-                    Start Date (Optional)
+                    Start Date 
                   </label>
                   <input
                     type="date"
@@ -2182,7 +2182,7 @@ export default function BakeryReports() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
-                    End Date (Optional)
+                    End Date 
                   </label>
                   <input
                     type="date"
@@ -2253,7 +2253,7 @@ export default function BakeryReports() {
               <div className="mb-4 flex flex-wrap gap-4 items-end">
                 <div>
                   <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
-                    Start Date (Optional)
+                    Start Date
                   </label>
                   <input
                     type="date"
@@ -2265,7 +2265,7 @@ export default function BakeryReports() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
-                    End Date (Optional)
+                    End Date
                   </label>
                   <input
                     type="date"

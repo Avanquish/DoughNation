@@ -266,6 +266,30 @@ def accept_donation(
             detail="This donation has already been accepted by another charity"
         )
 
+    # ✅ Update bakery inventory quantity
+    inventory_item = db.query(models.BakeryInventory).filter(
+        models.BakeryInventory.id == donation_request.bakery_inventory_id
+    ).first()
+    
+    if inventory_item:
+        # Get the donation to find the quantity being donated
+        donation = db.query(models.Donation).filter(
+            models.Donation.id == donation_request.donation_id
+        ).first()
+        
+        if donation:
+            donated_quantity = donation.quantity
+            
+            # Reduce inventory quantity by donated amount
+            inventory_item.quantity -= donated_quantity
+            
+            # Ensure quantity doesn't go below 0
+            if inventory_item.quantity < 0:
+                inventory_item.quantity = 0
+            
+            # Update donation quantity to 0 since it's all donated
+            donation.quantity = 0
+
     # ✅ Store who accepted it
     donation_request.status = "accepted"
     donation_request.rdonated_by = donated_by or current_user.name or "Unknown"
@@ -302,7 +326,8 @@ def accept_donation(
         "request_id": request_id,
         "donation_name": donation_request.donation_name,
         "bakery_inventory_id": donation_request.bakery_inventory_id,
-        "rdonated_by": donation_request.rdonated_by
+        "rdonated_by": donation_request.rdonated_by,
+        "inventory_quantity_updated": inventory_item.quantity if inventory_item else None
     }
 
 @router.get("/donation/received")

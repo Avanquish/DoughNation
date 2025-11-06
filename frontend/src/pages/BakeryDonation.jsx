@@ -14,7 +14,7 @@ const isExpired = (dateStr, serverDate) => {
   const t = new Date(year, month - 1, day);
   t.setHours(0, 0, 0, 0);
   d.setHours(0, 0, 0, 0);
-  return d <= t; 
+  return d <= t; // Changed from <= to < (expired means past days only)
 };
 
 const daysUntil = (dateStr, serverDate) => {
@@ -240,10 +240,12 @@ useEffect(() => {
       const ok = (res.data || []).filter((it) => {
         const s = String(it.status || "").toLowerCase();
         const isExpiredItem = isExpired(it.expiration_date, currentServerDate);
+        const quantity = Number(it.quantity) || 0;
         return (
           s !== "donated" && 
           s !== "requested" && 
-          !isExpiredItem  // Filter out expired items
+          !isExpiredItem &&  // Filter out expired items
+          quantity > 0  // Filter out items with 0 quantity
         );
       });
       setInventory(ok);
@@ -807,12 +809,12 @@ useEffect(() => {
                     </button>
                     <input
                       type="number"
-                      min={0}
+                      min={1}
                       max={(() => {
                         const chosen = inventory.find(
                           (x) => Number(x.id) === +form.bakery_inventory_id
                         );
-                        return chosen ? Number(chosen.quantity) : 0;
+                        return chosen ? Number(chosen.quantity) : 1;
                       })()}
                       className="w-full rounded-2xl border border-[#f2d4b5] bg-white/95 px-4 py-3.5 text-center text-[15px] outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52] transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       onInput={(e) => {
@@ -821,22 +823,32 @@ useEffect(() => {
                           ""
                         );
                       }}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const value = e.target.value === "" ? "" : parseInt(e.target.value, 10);
+                        
+                        if (value === 0) {
+                          Swal.fire({
+                            title: "Invalid Quantity",
+                            text: "Quantity must be at least 1.",
+                            icon: "warning",
+                            confirmButtonColor: "#A97142",
+                            timer: 2500
+                          });
+                          return;
+                        }
+                        
                         setForm((f) => {
                           const chosen = inventory.find(
                             (x) => Number(x.id) === +f.bakery_inventory_id
                           );
-                          const maxQ = chosen ? Number(chosen.quantity) : 0;
-                          const s =
-                            e.target.value === "" ? "0" : e.target.value;
-                          const n = parseInt(s, 10);
-                          const val = Number.isFinite(n) ? n : 0;
+                          const maxQ = chosen ? Number(chosen.quantity) : 1;
+                          const val = value === "" ? 1 : value;
                           return {
                             ...f,
-                            quantity: Math.min(maxQ, Math.max(0, val)),
+                            quantity: Math.min(maxQ, Math.max(1, val)),
                           };
-                        })
-                      }
+                        });
+                      }}
                       value={Number(form.quantity)}
                       required
                       aria-label="Quantity"

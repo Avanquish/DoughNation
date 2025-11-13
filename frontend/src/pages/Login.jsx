@@ -240,10 +240,16 @@ const Login = () => {
           navigate(`/admin-dashboard/${userId}`);
         }
         
+        // Success message based on account type
+        let roleDisplay = "Owner"; // Default for Bakery/Charity owners
+        if (accountType === "admin") {
+          roleDisplay = "Admin";
+        }
+        
         Swal.fire({
           icon: "success",
           title: "Welcome Back!",
-          text: `Logged in as ${decoded.name}`,
+          text: `Logged in as ${decoded.contact_person} (${roleDisplay})`,
           timer: 2000,
           showConfirmButton: false
         });
@@ -456,15 +462,12 @@ const Login = () => {
                   <Input
                     id="identifier"
                     type="text"
-                    placeholder="Enter your email or employee ID"
+                    placeholder="Enter your email"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     required
                     className="h-11 md:h-12 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E] focus-visible:ring-offset-0"
                   />
-                  <p className="text-xs text-[#a47134]/70 mt-1">
-                    Bakery/Charity/Admin: use email • Employees: use your Employee ID (e.g., EMP-5-001)
-                  </p>
                 </div>
 
                 {/* Password */}
@@ -499,9 +502,6 @@ const Login = () => {
                       )}
                     </button>
                   </div>
-                  <p className="text-xs text-[#a47134]/70 mt-1">
-                    Employee default password: <span className="font-semibold text-[#8f642a]">Employee123!</span>
-                  </p>
                 </div>
 
                 {/* Remember + Forgot */}

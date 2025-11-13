@@ -85,9 +85,9 @@ const BakeryDashboard = () => {
   const [isVerified, setIsVerified] = useState(false);
   const [name, setName] = useState("Bakery");
   const [bakeryName, setBakeryName] = useState("");
+  const [ownerName, setOwnerName] = useState(""); // Owner's name (contact_person)
   const [employeeRole, setEmployeeRole] = useState(null);
   const [isEmployeeMode, setIsEmployeeMode] = useState(false);
-  const [isViewOnly, setIsViewOnly] = useState(false); // TRUE for bakery owner login, FALSE for employee login
   const [scrolled, setScrolled] = useState(false);
   const [showTop, setShowTop] = useState(false); // You used this inside useEffect
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -147,7 +147,6 @@ const BakeryDashboard = () => {
       setIsEmployeeMode(true);
       setEmployeeRole(employee.employee_role);
       setName(employee.employee_name);
-      setIsViewOnly(false);
 
       // 🏢 FETCH BAKERY NAME AND VERIFICATION STATUS FROM TOKEN
       const employeeToken = localStorage.getItem("employeeToken");
@@ -292,11 +291,10 @@ const BakeryDashboard = () => {
       decoded = JSON.parse(atob(token.split(".")[1]));
       // Only set name and bakeryName for bakery owners (not employees)
       if (!isEmployeeMode) {
-        setName(decoded.name || "Madam Bakery");
+        // For bakery owner: name should be owner's name (contact_person)
+        setName(decoded.contact_person || "Owner");
+        setOwnerName(decoded.contact_person || "Owner");
         setBakeryName(decoded.name || "Bakery");
-
-        // ✅ If bakery owner (user with token, not employee), set view-only mode
-        setIsViewOnly(true); // Bakery owners can only view, employees can perform CRUD
       }
       setIsVerified(decoded.is_verified);
       const userId =
@@ -559,38 +557,6 @@ const BakeryDashboard = () => {
 
   // If user is not verified, show "verification pending" screen
   // This now applies to BOTH bakery owners and employees of unverified bakeries
-  if (!isVerified) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-surface to-primary/5 p-6">
-        <Card className="max-w-md shadow-elegant">
-          <CardHeader>
-            <CardTitle style={{ color: "#6B4B2B" }}>
-              Account Verification Required
-            </CardTitle>
-            <CardDescription style={{ color: "#7b5836" }}>
-              {isEmployeeMode ? (
-                <>
-                  Hello {name}, the bakery you work for (<strong>{bakeryName}</strong>) is pending admin verification. 
-                  Please wait until an admin verifies the bakery account before accessing the dashboard features.
-                </>
-              ) : (
-                <>
-                  Hello {name}, your account is pending verification. Please wait
-                  until an admin verifies your account before using the dashboard
-                  features.
-                </>
-              )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center gap-4">
-            <Button onClick={handleLogout} variant="destructive">
-              Back to Home Page
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   const Styles = () => (
     <style>{`
@@ -811,8 +777,8 @@ const BakeryDashboard = () => {
                 </Link>
               )}
 
-              {/* Employee & Bakery Name Display - Beside DoughNation */}
-              {isEmployeeMode && (
+              {/* Owner/Employee & Bakery Name Display - Beside DoughNation */}
+              {(isEmployeeMode || ownerName) && (
                 <div
                   className="hidden lg:flex flex-col items-start justify-center ml-4 pl-4 border-l-2"
                   style={{ borderColor: "#E3B57E" }}
@@ -825,7 +791,7 @@ const BakeryDashboard = () => {
                     >
                       {name}
                     </span>
-                    {employeeRole && (
+                    {employeeRole ? (
                       <span
                         className="text-xs px-2 py-0.5 rounded-full"
                         style={{
@@ -835,6 +801,17 @@ const BakeryDashboard = () => {
                         }}
                       >
                         {employeeRole}
+                      </span>
+                    ) : (
+                      <span
+                        className="text-xs px-2 py-0.5 rounded-full"
+                        style={{
+                          background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
+                          color: "#7a4f1c",
+                          border: "1px solid #fff3e0",
+                        }}
+                      >
+                        Owner
                       </span>
                     )}
                   </div>
@@ -1023,50 +1000,6 @@ const BakeryDashboard = () => {
 
         {/* Content */}
         <div className="max-w-7xl mx-auto px-2 sm:px-2 lg:px-2 py-2">
-          {/* View-Only Mode Banner for Bakery Owners */}
-          {isViewOnly && (
-            <div
-              className="mb-6 p-4 rounded-lg border-2 flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-500"
-              style={{
-                background: "linear-gradient(135deg, #FFF8E1 0%, #FFECB3 100%)",
-                borderColor: "#FFB74D",
-                boxShadow: "0 4px 12px rgba(255, 152, 0, 0.15)",
-              }}
-            >
-              <AlertTriangle
-                className="h-5 w-5 mt-0.5 flex-shrink-0"
-                style={{ color: "#F57C00" }}
-              />
-              <div className="flex-1">
-                <h3
-                  className="font-bold text-base mb-1"
-                  style={{ color: "#E65100" }}
-                >
-                  View-Only Mode
-                </h3>
-                <p
-                  className="text-sm leading-relaxed"
-                  style={{ color: "#7a4f1c" }}
-                >
-                  You are logged in as a <strong>Bakery Account</strong>. All
-                  data modification operations are disabled for this account,
-                  including:
-                  <br />• Cannot add, edit, or delete{" "}
-                  <strong>inventory items</strong>
-                  <br />• Cannot send <strong>donations</strong>
-                  <br />• Cannot add, edit, or delete <strong>employees</strong>
-                  <br />• Cannot <strong>submit complaints</strong>
-                  <br />• Cannot <strong>generate or download reports</strong>
-                  <br />• Cannot <strong>reply to feedback</strong>
-                  <br />
-                  <br />
-                  Only <strong>employees</strong> can perform these operations.
-                  You can view all information but cannot make changes.
-                </p>
-              </div>
-            </div>
-          )}
-
           <TabsContent value="dashboard" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {/* Stat cards */}
@@ -1336,7 +1269,7 @@ const BakeryDashboard = () => {
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  <BakeryInventory isViewOnly={isViewOnly} />
+                  <BakeryInventory />
                 </CardContent>
               </Card>
             </div>
@@ -1348,7 +1281,6 @@ const BakeryDashboard = () => {
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
                   <BakeryDonation
                     highlightedDonationId={highlightedDonationId}
-                    isViewOnly={isViewOnly}
                   />
                 </CardContent>
               </Card>
@@ -1359,21 +1291,21 @@ const BakeryDashboard = () => {
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  <BDonationStatus isViewOnly={isViewOnly} />
+                  <BDonationStatus />
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
           <TabsContent value="employee" className="reveal">
-            <BakeryEmployee isViewOnly={isViewOnly} />
+            <BakeryEmployee />
           </TabsContent>
 
           <TabsContent value="complaints" className="reveal">
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  <Complaint isViewOnly={isViewOnly} />
+                  <Complaint />
                 </CardContent>
               </Card>
             </div>
@@ -1383,7 +1315,7 @@ const BakeryDashboard = () => {
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  <BakeryReports isViewOnly={isViewOnly} />
+                  <BakeryReports />
                 </CardContent>
               </Card>
             </div>
@@ -1394,7 +1326,7 @@ const BakeryDashboard = () => {
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  <BFeedback isViewOnly={isViewOnly} />
+                  <BFeedback />
                 </CardContent>
               </Card>
             </div>

@@ -9,9 +9,9 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    role = Column(String, nullable=False)  # Bakery or Charity
+    role = Column(String, nullable=False)  # Bakery, Charity, or Admin
     name = Column(String, nullable=False)
-    email = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)  # Now accepts any email (Gmail, etc.)
     contact_person = Column(String, nullable=False)
     contact_number = Column(String, nullable=False)
     address = Column(String, nullable=False)
@@ -26,7 +26,21 @@ class User(Base):
     longitude = Column(Float, nullable=True)
     notification_radius_km = Column(Float, default=10)  # optional max radius
     
+    # Admin verification (Bakery/Charity accounts need admin approval)
     verified = Column(Boolean, default=False)
+    
+    # Email verification fields
+    email_verified = Column(Boolean, default=False)  # Tracks if user verified their email
+    verification_token = Column(String, nullable=True)  # Token for email verification
+    verification_token_expires = Column(DateTime, nullable=True)  # Token expiration
+    
+    # Password reset fields
+    reset_token = Column(String, nullable=True)  # Token for password reset
+    reset_token_expires = Column(DateTime, nullable=True)  # Reset token expiration
+    
+    # OTP fields for forgot password
+    forgot_password_otp = Column(String, nullable=True)  # 6-digit OTP code
+    forgot_password_otp_expires = Column(DateTime, nullable=True)  # OTP expiration time
 
      # Parent side of the relationship
     inventory_items = relationship("BakeryInventory", back_populates="bakery")
@@ -73,7 +87,6 @@ class BakeryInventory(Base):
     
 class EmployeeRole(str, enum.Enum):
     """Employee roles with access control levels"""
-    OWNER = "Owner"
     MANAGER = "Manager"
     FULL_TIME = "Full-time"
     PART_TIME = "Part-time"
@@ -86,12 +99,19 @@ class Employee(Base):
     employee_id = Column(String, unique=True, nullable=False, index=True)  # Unique Employee ID (e.g., EMP-5-001)
     bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
-    role = Column(String, nullable=False)  # Owner, Manager, Full-time, Part-time
+    email = Column(String, unique=True, nullable=False, index=True)  # Employee's Gmail address
+    role = Column(String, nullable=False)  # Manager, Full-time, Part-time
     start_date = Column(Date, nullable=False)
     profile_picture = Column(String, nullable=True)
     hashed_password = Column(String, nullable=True)  # Password for employee login (optional, can be None for new employees)
+    initial_password_hash = Column(String, nullable=True)  # Store initial password hash to prevent reuse
+    password_changed = Column(Boolean, default=False)  # Track if employee has changed their password
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # OTP fields for forgot password
+    forgot_password_otp = Column(String, nullable=True)  # 6-digit OTP code
+    forgot_password_otp_expires = Column(DateTime, nullable=True)  # OTP expiration time
     
     # Relationships
     bakery = relationship("User", backref="employees")

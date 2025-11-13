@@ -6,6 +6,7 @@ from datetime import datetime
 
 from app import database, models, schemas, auth
 from app.auth import pwd_context  # For hashing default employee password
+from app.email_utils import send_employee_credentials_email  # For sending login credentials
 
 router = APIRouter(prefix="/employees", tags=["Employees"])
 
@@ -27,18 +28,19 @@ def build_employee_url(request: Request, filename: Optional[str]):
 def create_employee(
     request: Request,
     name: str = Form(...),
+    email: str = Form(...),
     role: str = Form(...),
     start_date: str = Form(...),  # Accept as string "YYYY-MM-DD"
     profile_picture: Optional[UploadFile] = File(None),
     db: Session = Depends(database.get_db),
     current_auth = Depends(auth.get_current_user_or_employee)
 ):
-    # Allow bakery owners OR employees with Owner/Manager role
+    # Allow bakery owners OR employees with Manager role
     if isinstance(current_auth, dict):
-        # Employee token - check if they have Owner or Manager role
+        # Employee token - check if they have Manager role
         employee_role = current_auth.get("employee_role", "").lower()
-        if employee_role not in ["owner", "manager"]:
-            raise HTTPException(status_code=403, detail="Only Owner and Manager employees can add employees")
+        if employee_role not in ["manager"]:
+            raise HTTPException(status_code=403, detail="Only Manager employees can add employees")
         bakery_id = current_auth.get("bakery_id")
     else:
         # Bakery owner token
@@ -47,6 +49,15 @@ def create_employee(
         bakery_id = current_auth.id
     
     current_user = current_auth
+
+    # ✅ Validate Gmail email
+    if not (email.lower().endswith("@gmail.com") or email.lower().endswith("@googlemail.com")):
+        raise HTTPException(status_code=400, detail="Only Gmail addresses (@gmail.com) are allowed")
+    
+    # ✅ Check if email already exists
+    existing_employee = db.query(models.Employee).filter(models.Employee.email == email).first()
+    if existing_employee:
+        raise HTTPException(status_code=400, detail="An employee with this email already exists")
 
     # parse date safely
     try:
@@ -81,14 +92,35 @@ def create_employee(
         employee_id=employee_id,  # NEW: Set generated employee_id
         bakery_id=bakery_id,
         name=name,
+        email=email,  # ✅ Store employee email
         role=role,
         start_date=parsed_date,
         profile_picture=file_name,  # store only filename
-        hashed_password=hashed_password  # ✅ Set default password
+        hashed_password=hashed_password,  # ✅ Set default password
+        initial_password_hash=hashed_password,  # ✅ Store initial password hash to prevent reuse
+        password_changed=False  # ✅ Flag that password hasn't been changed yet
     )
     db.add(employee)
     db.commit()
     db.refresh(employee)
+
+    # ✅ Get bakery name for email
+    bakery = db.query(models.User).filter(models.User.id == bakery_id).first()
+    bakery_name = bakery.name if bakery else "Your Bakery"
+    
+    # ✅ Send email with login credentials
+    try:
+        send_employee_credentials_email(
+            to_email=email,
+            employee_name=name,
+            employee_id=employee_id,
+            default_password=default_password,
+            bakery_name=bakery_name
+        )
+        print(f"✅ Credentials email sent to {email}")
+    except Exception as e:
+        print(f"⚠️ Failed to send credentials email: {str(e)}")
+        # Don't fail the employee creation if email fails
 
     # ✅ attach full URL
     employee.profile_picture = build_employee_url(request, employee.profile_picture)
@@ -105,32 +137,10 @@ def get_employees(
     # Get bakery_id from either user or employee
     bakery_id = auth.get_bakery_id_from_auth(current_auth)
 
-    # Check if this bakery has any employees
+    # Get all employees for this bakery
     employees = db.query(models.Employee).filter(models.Employee.bakery_id == bakery_id).all()
     
     print(f"📦 Bakery {bakery_id} has {len(employees)} employees")
-    
-    # If no employees exist and this is a bakery owner, automatically register the contact person
-    if not employees and not isinstance(current_auth, dict):
-        current_user = current_auth  # It's a User model for bakery owners
-        print(f"🆕 Creating first employee from contact person: {current_user.contact_person}")
-        # ✅ Set default password for first employee
-        default_password = "Employee123!"
-        hashed_password = pwd_context.hash(default_password)
-        
-        first_employee = models.Employee(
-            bakery_id=current_user.id,
-            name=current_user.contact_person,
-            role="Owner",
-            start_date=datetime.now().date(),  # ✅ Add start_date
-            hashed_password=hashed_password  # ✅ Set default password
-        )
-        db.add(first_employee)
-        db.flush()  # Flush to get the ID
-        db.commit()
-        db.refresh(first_employee)
-        employees = [first_employee]
-        print(f"✅ Contact person created as first employee: {first_employee.name} (ID: {first_employee.id})")
 
     # ✅ attach full URL for each
     for emp in employees:
@@ -150,12 +160,12 @@ def update_employee(
     db: Session = Depends(database.get_db),
     current_auth = Depends(auth.get_current_user_or_employee)
 ):
-    # Allow bakery owners OR employees with Owner/Manager role
+    # Allow bakery owners OR employees with Manager role
     if isinstance(current_auth, dict):
-        # Employee token - check if they have Owner or Manager role
+        # Employee token - check if they have Manager role
         employee_role = current_auth.get("employee_role", "").lower()
-        if employee_role not in ["owner", "manager"]:
-            raise HTTPException(status_code=403, detail="Only Owner and Manager employees can edit employees")
+        if employee_role not in ["manager"]:
+            raise HTTPException(status_code=403, detail="Only Manager employees can edit employees")
         bakery_id = current_auth.get("bakery_id")
     else:
         # Bakery owner token
@@ -204,12 +214,12 @@ def delete_employee(
     db: Session = Depends(database.get_db),
     current_auth = Depends(auth.get_current_user_or_employee)
 ):
-    # Allow bakery owners OR employees with Owner/Manager role
+    # Allow bakery owners OR employees with Manager role
     if isinstance(current_auth, dict):
-        # Employee token - check if they have Owner or Manager role
+        # Employee token - check if they have Manager role
         employee_role = current_auth.get("employee_role", "").lower()
-        if employee_role not in ["owner", "manager"]:
-            raise HTTPException(status_code=403, detail="Only Owner and Manager employees can delete employees")
+        if employee_role not in ["manager"]:
+            raise HTTPException(status_code=403, detail="Only Manager employees can delete employees")
         bakery_id = current_auth.get("bakery_id")
     else:
         # Bakery owner token

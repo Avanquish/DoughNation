@@ -14,19 +14,20 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mail, Calendar, Lock, Eye, EyeOff, User, Store } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, User, Store, KeyRound } from "lucide-react";
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
   const [accountType, setAccountType] = useState("user"); // 'user' or 'employee'
-  const [step, setStep] = useState(1); // 1=employee_id, 2=date, 3=reset
+  const [step, setStep] = useState(1); // 1=identifier, 2=OTP, 3=reset
   const [identifier, setIdentifier] = useState(""); // email for user, employee_id for employee
   const [bakeryName, setBakeryName] = useState(""); // Display only - auto-populated for employee
-  const [registrationDate, setRegistrationDate] = useState("");
+  const [otpCode, setOtpCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
 
   // Background parallax
   const bgRef = useRef(null);
@@ -79,19 +80,28 @@ const ForgotPassword = () => {
     setStep(1);
     setIdentifier("");
     setBakeryName("");
-    setRegistrationDate("");
+    setOtpCode("");
     setNewPassword("");
     setConfirmPassword("");
+    setResendTimer(0);
   }, [accountType]);
 
-  // Handle steps - UNIFIED for both user and employee
-  const handleValidateIdentifier = async (e) => {
+  // Resend OTP timer
+  useEffect(() => {
+    if (resendTimer > 0) {
+      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendTimer]);
+
+  // Handle Step 1: Send OTP to email/employee
+  const handleSendOTP = async (e) => {
     e.preventDefault();
     try {
       const endpoint =
         accountType === "employee"
-          ? "http://localhost:8000/employee/forgot-password/check-employee-id"
-          : "http://localhost:8000/forgot-password/check-email";
+          ? "http://localhost:8000/employee/forgot-password/send-otp"
+          : "http://localhost:8000/forgot-password/send-otp";
 
       const payload =
         accountType === "employee"
@@ -108,11 +118,14 @@ const ForgotPassword = () => {
 
         Swal.fire({
           icon: "success",
-          title: accountType === "employee" ? "Employee Found" : "Email Found",
-          text: "Please confirm your registration date.",
+          title: "OTP Sent",
+          text: `A 6-digit verification code has been sent to ${
+            accountType === "employee" ? "your email" : "your registered email"
+          }`,
           confirmButtonColor: "#16a34a",
         });
         setStep(2);
+        setResendTimer(60); // 60 seconds cooldown
       }
     } catch (err) {
       Swal.fire({
@@ -122,35 +135,36 @@ const ForgotPassword = () => {
         text:
           err.response?.data?.detail ||
           (accountType === "employee"
-            ? "Employee not found in the specified bakery."
+            ? "Employee not found."
             : "This email is not registered."),
         confirmButtonColor: "#dc2626",
       });
     }
   };
 
-  const handleValidateDate = async (e) => {
+  // Handle Step 2: Verify OTP
+  const handleVerifyOTP = async (e) => {
     e.preventDefault();
     try {
       const endpoint =
         accountType === "employee"
-          ? "http://localhost:8000/employee/forgot-password/check-date"
-          : "http://localhost:8000/forgot-password/check-date";
+          ? "http://localhost:8000/employee/forgot-password/verify-otp"
+          : "http://localhost:8000/forgot-password/verify-otp";
 
       const payload =
         accountType === "employee"
           ? {
               employee_id: identifier,
-              registration_date: registrationDate,
+              otp_code: otpCode,
             }
-          : { email: identifier, registration_date: registrationDate };
+          : { email: identifier, otp_code: otpCode };
 
       const res = await axios.post(endpoint, payload);
 
       if (res.data.valid) {
         Swal.fire({
           icon: "success",
-          title: "Authentication Passed",
+          title: "OTP Verified",
           text: "You can now reset your password.",
           confirmButtonColor: "#16a34a",
         });
@@ -159,14 +173,14 @@ const ForgotPassword = () => {
     } catch (err) {
       Swal.fire({
         icon: "error",
-        title: "Invalid Date",
-        text:
-          err.response?.data?.detail || "The date you entered is incorrect.",
+        title: "Invalid OTP",
+        text: err.response?.data?.detail || "The OTP code is incorrect or has expired.",
         confirmButtonColor: "#dc2626",
       });
     }
   };
 
+  // Handle Step 3: Reset Password
   const handleResetPassword = async (e) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
@@ -180,18 +194,20 @@ const ForgotPassword = () => {
     try {
       const endpoint =
         accountType === "employee"
-          ? "http://localhost:8000/employee/forgot-password/reset"
-          : "http://localhost:8000/forgot-password/reset";
+          ? "http://localhost:8000/employee/forgot-password/reset-with-otp"
+          : "http://localhost:8000/forgot-password/reset-with-otp";
 
       const payload =
         accountType === "employee"
           ? {
               employee_id: identifier,
+              otp_code: otpCode,
               new_password: newPassword,
               confirm_password: confirmPassword,
             }
           : {
               email: identifier,
+              otp_code: otpCode,
               new_password: newPassword,
               confirm_password: confirmPassword,
             };
@@ -214,13 +230,47 @@ const ForgotPassword = () => {
     }
   };
 
+  // Resend OTP
+  const handleResendOTP = async () => {
+    if (resendTimer > 0) return;
+    
+    try {
+      const endpoint =
+        accountType === "employee"
+          ? "http://localhost:8000/employee/forgot-password/send-otp"
+          : "http://localhost:8000/forgot-password/send-otp";
+
+      const payload =
+        accountType === "employee"
+          ? { employee_id: identifier }
+          : { email: identifier };
+
+      await axios.post(endpoint, payload);
+
+      Swal.fire({
+        icon: "success",
+        title: "OTP Resent",
+        text: "A new verification code has been sent to your email.",
+        confirmButtonColor: "#16a34a",
+      });
+      setResendTimer(60);
+    } catch (err) {
+      Swal.fire({
+        icon: "error",
+        title: "Failed to Resend OTP",
+        text: err.response?.data?.detail || "Please try again later.",
+        confirmButtonColor: "#dc2626",
+      });
+    }
+  };
+
   const steps = [
     {
       id: 1,
       label: accountType === "employee" ? "Verify Employee ID" : "Verify Email",
       Icon: accountType === "employee" ? User : Mail,
     },
-    { id: 2, label: "Confirm Date", Icon: Calendar },
+    { id: 2, label: "Enter OTP", Icon: KeyRound },
     { id: 3, label: "Set Password", Icon: Lock },
   ];
 
@@ -371,11 +421,11 @@ const ForgotPassword = () => {
             >
               {step === 1 &&
                 accountType === "employee" &&
-                "Enter your employee name so we can verify it."}
+                "Enter your employee ID so we can send you a verification code."}
               {step === 1 &&
                 accountType === "user" &&
-                "Enter your registered email so we can verify it."}
-              {step === 2 && "Confirm your registration date for security."}
+                "Enter your registered email so we can send you a verification code."}
+              {step === 2 && "Enter the 6-digit code sent to your email."}
               {step === 3 && "Create a strong new password to get back in."}
             </CardDescription>
           </CardHeader>
@@ -471,9 +521,9 @@ const ForgotPassword = () => {
           </div>
 
           <CardContent className="relative pt-4 pb-7 px-6">
-            {/* STEP 1 */}
+            {/* STEP 1: Send OTP */}
             {step === 1 && (
-              <form onSubmit={handleValidateIdentifier} className="space-y-5">
+              <form onSubmit={handleSendOTP} className="space-y-5">
                 {/* Employee ID / Email Field */}
                 <div className="space-y-1.5">
                   <Label
@@ -521,35 +571,41 @@ const ForgotPassword = () => {
                     fontSize: "clamp(.92rem, .9rem + .2vw, 1.05rem)",
                   }}
                 >
-                  Continue
+                  Send Verification Code
                 </Button>
               </form>
             )}
 
-            {/* STEP 2 */}
+            {/* STEP 2: Verify OTP */}
             {step === 2 && (
-              <form onSubmit={handleValidateDate} className="space-y-5">
+              <form onSubmit={handleVerifyOTP} className="space-y-5">
                 <div className="space-y-1.5">
                   <Label
-                    htmlFor="registrationDate"
+                    htmlFor="otpCode"
                     className="text-[#8f642a] font-medium"
                     style={{ fontSize: "var(--title-sm)" }}
                   >
-                    Date of Registration
+                    Verification Code
                   </Label>
                   <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#E3B57E]" />
+                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#E3B57E]" />
                     <Input
-                      id="registrationDate"
-                      type="date"
-                      value={registrationDate}
-                      onChange={(e) => setRegistrationDate(e.target.value)}
+                      id="otpCode"
+                      type="text"
+                      placeholder="Enter 6-digit code"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                       required
-                      className="pl-11 h-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] focus-visible:ring-[#E3B57E] rounded-xl"
+                      maxLength={6}
+                      className="pl-11 h-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E] rounded-xl text-center text-2xl tracking-widest font-mono"
                       style={{ fontSize: "var(--text)" }}
                     />
                   </div>
+                  <p className="text-xs text-[#a47134]/80 mt-1">
+                    Check your email for the 6-digit verification code
+                  </p>
                 </div>
+                
                 <Button
                   type="submit"
                   className="h-11 w-full text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E]
@@ -558,12 +614,30 @@ const ForgotPassword = () => {
                     fontSize: "clamp(.92rem, .9rem + .2vw, 1.05rem)",
                   }}
                 >
-                  Continue
+                  Verify Code
                 </Button>
+                
+                {/* Resend OTP Button */}
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={handleResendOTP}
+                    disabled={resendTimer > 0}
+                    className={`text-sm ${
+                      resendTimer > 0
+                        ? "text-[#C39053]/50 cursor-not-allowed"
+                        : "text-[#b88950] hover:text-[#8f5a1c] cursor-pointer"
+                    } transition-colors`}
+                  >
+                    {resendTimer > 0
+                      ? `Resend code in ${resendTimer}s`
+                      : "Didn't receive code? Resend"}
+                  </button>
+                </div>
               </form>
             )}
 
-            {/* STEP 3 */}
+            {/* STEP 3: Reset Password */}
             {step === 3 && (
               <form onSubmit={handleResetPassword} className="space-y-5">
                 {/* New Password */}

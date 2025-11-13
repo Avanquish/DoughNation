@@ -106,6 +106,7 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
             "type": db_user.role.lower(),  # "bakery", "charity", or "admin"
             "role": db_user.role,
             "name": db_user.name,
+            "contact_person": db_user.contact_person,  # Owner's name
             "is_verified": db_user.verified
         }
         
@@ -183,8 +184,11 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     bakery_name = bakery.name if bakery else "Bakery"
     bakery_verified = bakery.verified if bakery else False
 
-    # 🔐 CHECK IF EMPLOYEE IS USING DEFAULT PASSWORD
-    is_default_password = verify_password("Employee123!", authenticated_employee.hashed_password)
+    # 🔐 CHECK IF EMPLOYEE STILL HAS DEFAULT PASSWORD
+    # Use password_changed flag - more reliable than comparing hashes
+    requires_password_change = not authenticated_employee.password_changed
+    
+    print(f"🔑 Password status - Changed: {authenticated_employee.password_changed}, Requires change: {requires_password_change}")
     
     # Generate employee token
     token_data = {
@@ -197,7 +201,7 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
         "bakery_name": bakery_name,
         "bakery_verified": bakery_verified,  # Include bakery verification status
         "sub": str(authenticated_employee.bakery_id),  # For compatibility
-        "requires_password_change": is_default_password  # Flag for first-time login
+        "requires_password_change": requires_password_change  # Flag for first-time login
     }
     
     token = create_access_token(token_data)
@@ -247,19 +251,149 @@ def change_password(
         payload.confirm_password
     )
 
-# Forgot password with registration date verification
-# Step 1: Check if email exists
+# ==================== USER FORGOT PASSWORD ====================
+# Note: The new email-based password reset system is in email_verification_routes.py
+# These legacy registration-date verification endpoints are kept for backward compatibility
+# New implementations should use:
+#   - POST /auth/forgot-password?email={email} - Send reset email
+#   - POST /auth/reset-password - Reset with token
+
+# Legacy Step 1: Check if email exists
+# ==================== USER FORGOT PASSWORD (OTP-based) ====================
+
+@router.post("/forgot-password/send-otp")
+def send_password_reset_otp(data: dict, db: Session = Depends(database.get_db)):
+    """Send OTP to user's email for password reset"""
+    import random
+    from datetime import datetime, timedelta
+    from app.email_utils import send_otp_email
+    
+    email = data.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+    
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Email not registered")
+    
+    # Generate 6-digit OTP
+    otp_code = str(random.randint(100000, 999999))
+    
+    # Set OTP expiration (10 minutes from now)
+    otp_expires = datetime.utcnow() + timedelta(minutes=10)
+    
+    # Store OTP in database
+    user.forgot_password_otp = otp_code
+    user.forgot_password_otp_expires = otp_expires
+    db.commit()
+    
+    # Send OTP via email
+    email_sent = send_otp_email(email, otp_code, user.name)
+    
+    if not email_sent:
+        raise HTTPException(status_code=500, detail="Failed to send OTP email")
+    
+    return {"message": "OTP sent successfully to your email", "valid": True}
+
+
+@router.post("/forgot-password/verify-otp")
+def verify_password_reset_otp(data: dict, db: Session = Depends(database.get_db)):
+    """Verify OTP code for password reset"""
+    from datetime import datetime
+    
+    email = data.get("email")
+    otp_code = data.get("otp_code")
+    
+    if not email or not otp_code:
+        raise HTTPException(status_code=400, detail="Email and OTP code are required")
+    
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Email not registered")
+    
+    # Check if OTP exists
+    if not user.forgot_password_otp:
+        raise HTTPException(status_code=400, detail="No OTP found. Please request a new one.")
+    
+    # Check if OTP has expired
+    if user.forgot_password_otp_expires < datetime.utcnow():
+        user.forgot_password_otp = None
+        user.forgot_password_otp_expires = None
+        db.commit()
+        raise HTTPException(status_code=400, detail="OTP has expired. Please request a new one.")
+    
+    # Verify OTP
+    if user.forgot_password_otp != otp_code:
+        raise HTTPException(status_code=400, detail="Invalid OTP code")
+    
+    return {"message": "OTP verified successfully", "valid": True}
+
+
+@router.post("/forgot-password/reset-with-otp")
+def reset_password_with_otp(data: dict, db: Session = Depends(database.get_db)):
+    """Reset password after OTP verification"""
+    from datetime import datetime
+    
+    email = data.get("email")
+    otp_code = data.get("otp_code")
+    new_password = data.get("new_password")
+    confirm_password = data.get("confirm_password")
+    
+    if not all([email, otp_code, new_password, confirm_password]):
+        raise HTTPException(status_code=400, detail="All fields are required")
+    
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Email not registered")
+    
+    # Verify OTP one more time
+    if not user.forgot_password_otp or user.forgot_password_otp != otp_code:
+        raise HTTPException(status_code=400, detail="Invalid OTP code")
+    
+    if user.forgot_password_otp_expires < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="OTP has expired")
+    
+    # Check if passwords match
+    if new_password != confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+    
+    # 🚫 PREVENT OWNERS FROM USING EMPLOYEE DEFAULT PASSWORD
+    EMPLOYEE_DEFAULT_PASSWORD = "Employee123!"
+    if new_password == EMPLOYEE_DEFAULT_PASSWORD:
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot use the employee default password. Please choose a different password for security reasons."
+        )
+    
+    # Update password
+    hashed_pw = pwd_context.hash(new_password)
+    user.hashed_password = hashed_pw
+    
+    # Clear OTP
+    user.forgot_password_otp = None
+    user.forgot_password_otp_expires = None
+    
+    db.commit()
+    db.refresh(user)
+    
+    return {"message": "Password reset successful"}
+
+
+# ==================== LEGACY USER FORGOT PASSWORD (Date-based) ====================
+
 @router.post("/forgot-password/check-email")
 def check_email(data: dict, db: Session = Depends(database.get_db)):
+    """Legacy endpoint - prefer using /auth/forgot-password for email-based reset"""
     email = data.get("email")
     user = db.query(models.User).filter(models.User.email == email).first()
     if not user:
         raise HTTPException(status_code=404, detail="Email not registered")
     return {"valid": True}
 
-# Step 2: Verify registration date
+# Legacy Step 2: Verify registration date
 @router.post("/forgot-password/check-date")
 def check_date(data: dict, db: Session = Depends(database.get_db)):
+    """Legacy endpoint - prefer using /auth/forgot-password for email-based reset"""
     from datetime import datetime, date
     
     email = data.get("email")
@@ -283,9 +417,10 @@ def check_date(data: dict, db: Session = Depends(database.get_db)):
 
     return {"valid": True}
 
-# Step 3: Reset password
+# Legacy Step 3: Reset password
 @router.post("/forgot-password/reset")
 def reset_password(data: dict, db: Session = Depends(database.get_db)):
+    """Legacy endpoint - prefer using /auth/forgot-password for email-based reset"""
     email = data.get("email")
     new_password = data.get("new_password")
     confirm_password = data.get("confirm_password")
@@ -297,6 +432,14 @@ def reset_password(data: dict, db: Session = Depends(database.get_db)):
     if new_password != confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
 
+    # 🚫 PREVENT OWNERS FROM USING EMPLOYEE DEFAULT PASSWORD
+    EMPLOYEE_DEFAULT_PASSWORD = "Employee123!"
+    if new_password == EMPLOYEE_DEFAULT_PASSWORD:
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot use the employee default password. Please choose a different password for security reasons."
+        )
+
     hashed_pw = pwd_context.hash(new_password)
     user.hashed_password = hashed_pw
     db.commit()
@@ -305,7 +448,137 @@ def reset_password(data: dict, db: Session = Depends(database.get_db)):
     return {"message": "Password reset successful"}
 
 
-# ==================== EMPLOYEE FORGOT PASSWORD ====================
+# ==================== EMPLOYEE FORGOT PASSWORD (OTP-based) ====================
+
+@router.post("/employee/forgot-password/send-otp")
+def send_employee_password_reset_otp(data: dict, db: Session = Depends(database.get_db)):
+    """Send OTP to employee's email for password reset"""
+    import random
+    from datetime import datetime, timedelta
+    from app.email_utils import send_otp_email
+    
+    employee_id = data.get("employee_id")
+    if not employee_id:
+        raise HTTPException(status_code=400, detail="Employee ID is required")
+    
+    employee = db.query(models.Employee).filter(
+        models.Employee.employee_id == employee_id
+    ).first()
+    
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    # Get bakery info
+    bakery = db.query(models.User).filter(models.User.id == employee.bakery_id).first()
+    bakery_name = bakery.name if bakery else "Unknown Bakery"
+    
+    # Generate 6-digit OTP
+    otp_code = str(random.randint(100000, 999999))
+    
+    # Set OTP expiration (10 minutes from now)
+    otp_expires = datetime.utcnow() + timedelta(minutes=10)
+    
+    # Store OTP in database
+    employee.forgot_password_otp = otp_code
+    employee.forgot_password_otp_expires = otp_expires
+    db.commit()
+    
+    # Send OTP via email
+    email_sent = send_otp_email(employee.email, otp_code, employee.name)
+    
+    if not email_sent:
+        raise HTTPException(status_code=500, detail="Failed to send OTP email")
+    
+    return {
+        "message": "OTP sent successfully to your email",
+        "valid": True,
+        "bakery_name": bakery_name,
+        "email": employee.email  # Return masked email for confirmation
+    }
+
+
+@router.post("/employee/forgot-password/verify-otp")
+def verify_employee_password_reset_otp(data: dict, db: Session = Depends(database.get_db)):
+    """Verify OTP code for employee password reset"""
+    from datetime import datetime
+    
+    employee_id = data.get("employee_id")
+    otp_code = data.get("otp_code")
+    
+    if not employee_id or not otp_code:
+        raise HTTPException(status_code=400, detail="Employee ID and OTP code are required")
+    
+    employee = db.query(models.Employee).filter(
+        models.Employee.employee_id == employee_id
+    ).first()
+    
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    # Check if OTP exists
+    if not employee.forgot_password_otp:
+        raise HTTPException(status_code=400, detail="No OTP found. Please request a new one.")
+    
+    # Check if OTP has expired
+    if employee.forgot_password_otp_expires < datetime.utcnow():
+        employee.forgot_password_otp = None
+        employee.forgot_password_otp_expires = None
+        db.commit()
+        raise HTTPException(status_code=400, detail="OTP has expired. Please request a new one.")
+    
+    # Verify OTP
+    if employee.forgot_password_otp != otp_code:
+        raise HTTPException(status_code=400, detail="Invalid OTP code")
+    
+    return {"message": "OTP verified successfully", "valid": True}
+
+
+@router.post("/employee/forgot-password/reset-with-otp")
+def reset_employee_password_with_otp(data: dict, db: Session = Depends(database.get_db)):
+    """Reset employee password after OTP verification"""
+    from datetime import datetime
+    
+    employee_id = data.get("employee_id")
+    otp_code = data.get("otp_code")
+    new_password = data.get("new_password")
+    confirm_password = data.get("confirm_password")
+    
+    if not all([employee_id, otp_code, new_password, confirm_password]):
+        raise HTTPException(status_code=400, detail="All fields are required")
+    
+    employee = db.query(models.Employee).filter(
+        models.Employee.employee_id == employee_id
+    ).first()
+    
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    # Verify OTP one more time
+    if not employee.forgot_password_otp or employee.forgot_password_otp != otp_code:
+        raise HTTPException(status_code=400, detail="Invalid OTP code")
+    
+    if employee.forgot_password_otp_expires < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="OTP has expired")
+    
+    # Check if passwords match
+    if new_password != confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+    
+    # Update password
+    hashed_pw = pwd_context.hash(new_password)
+    employee.hashed_password = hashed_pw
+    
+    # Clear OTP
+    employee.forgot_password_otp = None
+    employee.forgot_password_otp_expires = None
+    
+    db.commit()
+    db.refresh(employee)
+    
+    return {"message": "Password reset successful"}
+
+
+# ==================== LEGACY EMPLOYEE FORGOT PASSWORD (Date-based) ====================
 
 # Step 1: Check if employee_id exists
 @router.post("/employee/forgot-password/check-employee-id")
@@ -802,9 +1075,23 @@ def employee_change_password(
         print(f"{'='*80}\n")
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
+    # 🚫 PREVENT REUSE OF INITIAL DEFAULT PASSWORD
+    if employee.initial_password_hash:
+        is_initial_password = verify_password(data.new_password, employee.initial_password_hash)
+        print(f"🔍 Checking if new password matches initial password: {is_initial_password}")
+        
+        if is_initial_password:
+            print(f"❌ Employee attempted to reuse initial default password")
+            print(f"{'='*80}\n")
+            raise HTTPException(
+                status_code=400, 
+                detail="Cannot reuse the initial default password. Please choose a different password for security."
+            )
+
     # Hash and update password
     hashed_password = pwd_context.hash(data.new_password)
     employee.hashed_password = hashed_password
+    employee.password_changed = True  # ✅ Mark password as changed
     db.commit()
 
     print(f"✅ Password changed successfully for {employee.name}")

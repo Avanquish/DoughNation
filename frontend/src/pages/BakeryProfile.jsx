@@ -382,7 +382,14 @@ export default function BakeryProfile() {
     }
 
     try {
-      await axios.put(`${API}/changepass`, data, {
+      // ✅ Use different endpoint based on who is logged in
+      const endpoint = employeeToken ? "/employee-change-password" : "/changepass";
+      const method = employeeToken ? "post" : "put"; // Employee uses POST, Bakery uses PUT
+      
+      await axios({
+        method: method,
+        url: `${API}${endpoint}`,
+        data: data,
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -390,19 +397,35 @@ export default function BakeryProfile() {
       });
 
       setIsChangePassOpen(false);
-      Swal.fire({
-        icon: "success",
-        title: "Password Updated",
-        text: "Your password has been changed successfully.",
-        timer: 2500,
-        showConfirmButton: false,
-      });
+      
+      // ✅ If employee changed password successfully, update token and show message
+      if (employeeToken) {
+        Swal.fire({
+          icon: "success",
+          title: "Password Changed Successfully!",
+          text: "Your password has been updated.",
+          timer: 2500,
+          showConfirmButton: false,
+        });
+      } else {
+        Swal.fire({
+          icon: "success",
+          title: "Password Updated",
+          text: "Your password has been changed successfully.",
+          timer: 2500,
+          showConfirmButton: false,
+        });
+      }
     } catch (err) {
       console.error("Failed to change password:", err);
+      
+      const errorMessage = err.response?.data?.detail || 
+        "There was an error updating your password. Please try again.";
+      
       Swal.fire({
         icon: "error",
         title: "Update Failed",
-        text: "There was an error updating your password. Please try again.",
+        text: errorMessage,
       });
     }
   };

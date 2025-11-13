@@ -107,25 +107,21 @@ export default function Register() {
     }
   };
 
-  /** Submit (unchanged validations & API) */
+  /** Submit - Updated for Gmail-based authentication */
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const { role, email, password, confirm_password } = formData;
+    const { email, password, confirm_password } = formData;
 
-    const domain = email.split("@")[1];
-    const allowedDomains = {
-      bakery: "bakery.com",
-      charity: "charity.com",
-      admin: "admin.com",
-    };
-
-    if (!allowedDomains[role] || domain !== allowedDomains[role]) {
+    // ✅ NEW: Gmail validation instead of domain-based
+    const domain = email.split("@")[1]?.toLowerCase();
+    if (domain !== "gmail.com" && domain !== "googlemail.com") {
       return Swal.fire({
         icon: "error",
-        title: "Invalid Email Domain",
-        text: `Email must end with @${allowedDomains[role]} for ${role} users.`,
+        title: "Invalid Email",
+        text: "Please use a Gmail address (@gmail.com) to register.",
       });
     }
+
     if (password !== confirm_password) {
       return Swal.fire({
         icon: "error",
@@ -155,18 +151,17 @@ export default function Register() {
       await axios.post("http://localhost:8000/register", submitData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
+      // Registration successful - waiting for admin approval
       Swal.fire({
         icon: "success",
-        title: "Registration Successful",
-        text: "You have successfully registered.",
-      }).then(() => {
-        Swal.fire({
-          icon: "info",
-          title: "Important Reminder",
-          text: "Take note of the date of your registration, it will be used to reset your password sooner or later.",
-          confirmButtonText: "Got it",
-        }).then(() => navigate("/"));
-      });
+        title: "Registration Successful!",
+        html: `
+          <p>Your account has been created successfully.</p>
+          <p class="mt-2"><strong>Please wait for admin approval.</strong></p>
+          <p class="mt-2 text-sm text-gray-600">You will receive an email notification at <strong>${email}</strong> once your account has been approved.</p>
+        `,
+        confirmButtonText: "Got it!",
+      }).then(() => navigate("/login"));
     } catch (error) {
       Swal.fire({
         icon: "error",
@@ -415,9 +410,13 @@ export default function Register() {
                   onChange={(e) => handleInputChange("email", e.target.value)}
                   onBlur={(e) => checkEmailAvailability(e.target.value)}
                   required
+                  placeholder="your.email@gmail.com"
                   className="bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E]"
                   style={{ height: "clamp(44px, 5.5svh, 52px)" }}
                 />
+                <p className="text-xs text-[#a47134]/80">
+                  Please use a Gmail address (@gmail.com)
+                </p>
                 {!emailAvailable && (
                   <p className="text-red-500 text-sm">
                     This email is already taken.

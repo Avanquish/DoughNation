@@ -39,6 +39,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
 
   const [formData, setFormData] = useState({
     name: "",
+    email: "",
     role: "",
     start_date: "",
     profile_image_file: null,
@@ -97,6 +98,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
     setEditingEmployee(null);
     setFormData({
       name: "",
+      email: "",
       role: "",
       start_date: new Date().toISOString().split("T")[0],
       profile_image_file: null,
@@ -108,6 +110,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
     setEditingEmployee(emp);
     setFormData({
       name: emp?.name || "",
+      email: emp?.email || "",
       role: emp?.role || "",
       start_date: emp?.start_date || "",
       profile_image_file: null,
@@ -138,6 +141,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
     try {
       const fd = new FormData();
       fd.append("name", formData.name);
+      fd.append("email", formData.email);
       fd.append("role", formData.role);
       fd.append("start_date", formData.start_date);
       if (formData.profile_image_file) {
@@ -161,6 +165,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
       setIsDialogOpen(false);
       setFormData({
         name: "",
+        email: "",
         role: "",
         start_date: "",
         profile_image_file: null,
@@ -177,6 +182,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
           html: `
             <div class="space-y-3">
               <p>Employee added successfully!</p>
+              <p class="text-sm text-gray-600">Login credentials have been sent to <strong>${formData.email}</strong></p>
               <div class="bg-gradient-to-r from-[#FFF6E9] to-[#FFE7C5] p-4 rounded-lg border border-[#E49A52]">
                 <p class="text-sm font-semibold text-[#6b4b2b] mb-2">Employee Login Credentials:</p>
                 <div class="space-y-1">
@@ -442,6 +448,24 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
                 onChange={(e) => handleChange("name", e.target.value)}
                 className={inputTone}
               />
+            </div>
+
+            {/* Email */}
+            <div className="sm:col-span-2">
+              <label className={labelTone}>Email Address (Gmail)</label>
+              <input
+                type="email"
+                placeholder="e.g., employee@gmail.com"
+                value={formData.email}
+                onChange={(e) => handleChange("email", e.target.value)}
+                className={inputTone}
+                disabled={editingEmployee}
+              />
+              {!editingEmployee && (
+                <p className="text-xs text-[#8a5a25] mt-1.5 italic">
+                  Login credentials will be sent to this email address
+                </p>
+              )}
             </div>
 
             {/* Role */}

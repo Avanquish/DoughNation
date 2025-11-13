@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from app import models, database
 from app.auth import get_current_admin  # Only allow admins
+from app.email_utils import send_account_verified_email  # ✅ NEW: Import email function
 
 router = APIRouter()
 
@@ -22,12 +23,28 @@ def get_pending_users(db: Session = Depends(database.get_db), admin=Depends(get_
 
 @router.post("/verify-user/{user_id}")
 def verify_user(user_id: int, db: Session = Depends(database.get_db), admin=Depends(get_current_admin)):
+    """
+    Verify a user account (admin approval)
+    
+    ✅ NEW: Sends email notification to user when account is verified
+    """
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    
+    # Mark as verified
     user.verified = True
     db.commit()
-    return {"message": f"User {user.name} verified successfully"}
+    
+    # ✅ NEW: Send verification email to user
+    try:
+        send_account_verified_email(user.email, user.name, user.role)
+        print(f"✅ Verification email sent to {user.email}")
+    except Exception as e:
+        print(f"⚠️  Failed to send verification email: {str(e)}")
+        # Don't fail the verification if email fails
+    
+    return {"message": f"User {user.name} verified successfully and notified via email"}
 
 @router.post("/reject-user/{user_id}")
 def reject_user(user_id: int, db: Session = Depends(database.get_db), admin=Depends(get_current_admin)):

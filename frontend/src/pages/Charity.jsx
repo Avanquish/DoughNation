@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
-import { Crown, Medal, TrendingUp, Users, PackageCheck, Building2, HeartHandshake } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import DataTable from "./DatatableSample";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -26,20 +25,35 @@ const columns = [
         });
       }
     },
-    { accessorKey: "verified", header: "Status", isHide: "false",
+    { accessorKey: "status", header: "Account Status", isHide: "false", 
+      cell: ({ row }) => {
+        const status = row.original.status || 'Pending';
+        const statusColors = {
+          'Active': 'bg-green-100 text-green-800',
+          'Pending': 'bg-yellow-100 text-yellow-800',
+          'Suspended': 'bg-orange-100 text-orange-800',
+          'Banned': 'bg-red-100 text-red-800',
+          'Deactivated': 'bg-gray-100 text-gray-800'
+        };
+        return (
+          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusColors[status] || 'bg-gray-100 text-gray-800'}`}>
+            {status}
+          </span>
+        );
+      }
+    },
+    { accessorKey: "verified", header: "Verification", isHide: "false", 
       cell: ({ row }) => (
         <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
           row.original.verified 
-            ? 'bg-green-100 text-green-800' 
+            ? 'bg-blue-100 text-blue-800' 
             : 'bg-yellow-100 text-yellow-800'
         }`}>
-          {row.original.verified ? 'Verified' : 'Pending'}
+          {row.original.verified ? 'Verified' : 'Unverified'}
         </span>
       )
     },
-];
-
-const Charity = () => {
+];const Charity = () => {
     const [charities, setCharities] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -47,7 +61,7 @@ const Charity = () => {
     const fetchCharities = async () => {
         try {
             const token = localStorage.getItem("token");
-            const response = await axios.get(`${API}/charities`, {
+            const response = await axios.get(`${API}/admin/charities`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             
@@ -188,7 +202,6 @@ const Charity = () => {
                     text: "Charity has been deleted.",
                     timer: 2000
                 });
-
                 fetchCharities(); // Refresh the list
             }
         } catch (error) {

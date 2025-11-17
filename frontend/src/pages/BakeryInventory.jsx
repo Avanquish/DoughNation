@@ -456,10 +456,10 @@ export default function BakeryInventory({ isViewOnly = false }) {
         console.error("Failed to decode employee token", e);
       }
     } else if (bakeryToken) {
-      // Decode bakery owner JWT token
+      // Decode bakery owner JWT token - use contact_person (owner's name)
       try {
         const payload = JSON.parse(atob(bakeryToken.split(".")[1]));
-        name = payload.name || "";
+        name = payload.contact_person || payload.name || "";
       } catch (e) {
         console.error("Failed to decode bakery token", e);
       }

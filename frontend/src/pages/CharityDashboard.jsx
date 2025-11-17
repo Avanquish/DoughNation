@@ -127,13 +127,39 @@ const Styles = () => (
     .r1{animation-delay:.05s}.r2{animation-delay:.1s}.r3{animation-delay:.15s}.r4{animation-delay:.2s}.r5{animation-delay:.25s}.r6{animation-delay:.3s}
     @keyframes rise{to{opacity:1; transform:translateY(0) scale(1)}}
 
-    /* Small UI tweaks for mobile (similar to BakeryDashboard) */
-    @media (max-width: 420px){
-      .iconbar .icon-btn{ width:36px; height:36px; }
-      .brand-title{ margin-right:.25rem; }
+  /* Small UI tweaks for mobile  */
+  @media (max-width: 480px){
+    .iconbar{
+      gap: .35rem;
     }
-    .hdr-left{ flex: 1 1 auto; min-width: 0; }
-    .hdr-right{ flex: 0 0 auto; margin-left: auto; }
+
+    .iconbar .icon-btn{
+      width: 32px;
+      height: 32px;
+    }
+
+    .iconbar .icon-btn svg{
+      width: 16px;
+      height: 16px;
+    }
+
+    .btn-logout{
+      padding: .35rem .55rem;
+    }
+
+    .btn-logout svg{
+      width: 16px;
+      height: 16px;
+    }
+
+    .brand-title{
+      margin-right: .25rem;
+    }
+  }
+
+  .hdr-left{ flex: 1 1 auto; min-width: 0; }
+  .hdr-right{ flex: 0 0 auto; margin-left: auto; }
+
   `}</style>
 );
 

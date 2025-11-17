@@ -332,7 +332,12 @@ const BakeryDashboard = () => {
     const loadEmployees = () =>
       axios
         .get(`${API}/employees`, { headers })
-        .then((r) => setEmployeeCount((r.data || []).length))
+        .then((r) => {
+          const activeEmployees = (r.data || []).filter(
+            (emp) => emp?.role?.toLowerCase() !== "owner"
+          );
+          setEmployeeCount(activeEmployees.length);
+        })
         .catch(() => setEmployeeCount(0));
 
     const loadUploadedProducts = () =>
@@ -708,12 +713,38 @@ const BakeryDashboard = () => {
     @keyframes shimmer{ from{transform:translateX(-100%)} to{transform:translateX(100%)} }
 
     /* ===== UI PATCH: tighter but neat icons on small screens ===== */
-    @media (max-width: 420px){
-      .iconbar .icon-btn{ width:36px; height:36px; }
-      .brand-title{ margin-right:.25rem; }
+    @media (max-width: 480px){
+      .iconbar{
+        gap: .35rem;              /* smaller spacing between icons */
+      }
+
+      .iconbar .icon-btn{
+        width: 32px;
+        height: 32px;             /* smaller circular buttons */
+      }
+
+      .iconbar .icon-btn svg{
+        width: 16px;
+        height: 16px;             /* shrink actual icon inside */
+      }
+
+      .btn-logout{
+        padding: .35rem .55rem;
+      }
+
+      .btn-logout svg{
+        width: 16px;
+        height: 16px;
+      }
+
+      .brand-title{
+        margin-right: .25rem;  
+      }
     }
+
     .hdr-left{ flex: 1 1 auto; min-width: 0; }
     .hdr-right{ flex: 0 0 auto; margin-left: auto; }
+    }
   `}</style>
   );
 
@@ -1232,67 +1263,96 @@ const BakeryDashboard = () => {
                     </CardDescription>
                   </CardHeader>
 
-                  {/* === CLEAN BADGE LAYOUT (UI ONLY) === */}
-                  <CardContent className="pt-4 pb-6 min-h-[220px]">
-                    {badges && badges.length > 0 ? (
-                      <div className="max-h-[260px] lg:max-h-none overflow-y-auto">
-                        <div
-                          className="
-              grid
-              grid-cols-3 sm:grid-cols-4 lg:grid-cols-5
-              gap-x-8 gap-y-6
-            "
-                        >
-                          {badges.map((userBadge) => {
-                            const displayName =
-                              userBadge.badge_name &&
-                              userBadge.badge_name.trim() !== ""
-                                ? userBadge.badge_name
-                                : userBadge.badge?.name;
+                  <CardContent className="pt-0 pb-4">
+                    {/* height-matched panel, same feel as RecentDonations */}
+                    <div
+                      className="
+          mt-2
+          rounded-3xl
+          border border-[#eadfce]
+          bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
+          shadow-[0_2px_8px_rgba(93,64,28,0.06)]
+          h-auto max-h-[420px]
+          md:h-[400px] md:max-h-none
+        "
+                    >
+                      <div
+                        className="
+            bg-white/70
+            border border-[#f2e3cf]
+            rounded-2xl
+            px-4 py-4
+            sm:px-5 sm:py-5
+            h-full
+          "
+                      >
+                        {badges && badges.length > 0 ? (
+                          <div className="max-h-[260px] lg:max-h-none overflow-y-auto">
+                            <div
+                              className="
+                  grid
+                  grid-cols-3 sm:grid-cols-4 lg:grid-cols-5
+                  gap-x-8 gap-y-6
+                "
+                            >
+                              {badges.map((userBadge) => {
+                                const displayName =
+                                  userBadge.badge_name &&
+                                  userBadge.badge_name.trim() !== ""
+                                    ? userBadge.badge_name
+                                    : userBadge.badge?.name;
 
-                            return (
-                              <div
-                                key={userBadge.id}
-                                className="flex flex-col items-center gap-2"
-                              >
-                                <img
-                                  src={
-                                    userBadge.badge?.icon_url
-                                      ? `${API}/${userBadge.badge.icon_url}`
-                                      : "/placeholder-badge.png"
-                                  }
-                                  alt={displayName}
-                                  title={displayName}
-                                  className="hover:scale-110 transition-transform"
-                                  style={{
-                                    width: "clamp(48px,5.5vw,64px)",
-                                    height: "clamp(48px,5.5vw,64px)",
-                                    objectFit: "contain",
-                                  }}
-                                />
-                                <span
-                                  className="
-                      block
-                      text-[11px]
-                      leading-tight
-                      text-center
-                      text-[#7b5836]
-                      max-w-[110px]
-                      whitespace-normal
-                    "
-                                >
-                                  {displayName}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
+                                return (
+                                  <div
+                                    key={userBadge.id}
+                                    className="flex flex-col items-center gap-2"
+                                  >
+                                    <img
+                                      src={
+                                        userBadge.badge?.icon_url
+                                          ? `${API}/${userBadge.badge.icon_url}`
+                                          : "/placeholder-badge.png"
+                                      }
+                                      alt={displayName}
+                                      title={displayName}
+                                      className="hover:scale-110 transition-transform"
+                                      style={{
+                                        width: "clamp(48px,5.5vw,64px)",
+                                        height: "clamp(48px,5.5vw,64px)",
+                                        objectFit: "contain",
+                                      }}
+                                    />
+                                    <span
+                                      className="
+                          block
+                          text-[11px]
+                          leading-tight
+                          text-center
+                          text-[#7b5836]
+                          max-w-[110px]
+                          whitespace-normal
+                        "
+                                    >
+                                      {displayName}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : (
+                          <p
+                            className="
+                text-sm
+                text-center
+                text-[#7b5836]
+              "
+                          >
+                            No badges unlocked yet.
+                          </p>
+                        )}
                       </div>
-                    ) : (
-                      <p className="text-sm mt-2" style={{ color: "#7b5836" }}>
-                        No badges unlocked yet.
-                      </p>
-                    )}
+                    </div>
                   </CardContent>
                 </Card>
               </div>

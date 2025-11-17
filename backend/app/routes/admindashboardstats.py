@@ -16,8 +16,10 @@ def get_admin_dashboard_stats(
 
     total_bakeries = db.query(models.User).filter(models.User.role == "Bakery").filter(models.User.verified == True).count()
     total_charities = db.query(models.User).filter(models.User.role == "Charity").filter(models.User.verified == True).count()
-    total_users = db.query(models.User).filter(models.User.verified == True).count()
-    pending_users = db.query(models.User).filter(models.User.verified == False).count()
+    # Exclude Admin accounts from total users count
+    total_users = db.query(models.User).filter(models.User.verified == True).filter(models.User.role != "Admin").count()
+    # Exclude Admin accounts from pending users count
+    pending_users = db.query(models.User).filter(models.User.verified == False).filter(models.User.role != "Admin").count()
 
     print("DEBUG:", total_bakeries, total_charities, total_users, pending_users)  # <--- Add this temporarily
 

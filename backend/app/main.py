@@ -7,10 +7,10 @@ from app.routes import (auth_routes, admin_routes, binventory_routes,
                         bdonation_routes, bnotification, cnotification, messages, charitydonation_routes,
                         direct_donation, CFeedback, BFeedback, Compute_TOT_Donations, complaint_routes, BReportGene, 
                         AdminReportGene, geofence, badges, RecentDonations, DashboardSearch, leaderboards, CReportGene,
-                        Messages1, leaderboard, superadmin_reports
+                        Messages1, leaderboard, superadmin_reports, superadmin_routes
                         )
 from app.database import engine, SessionLocal
-from app import models, crud, database
+from app import models, crud, database, admin_models
 from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
 import os
@@ -72,6 +72,7 @@ app.include_router(leaderboard.router)
 app.include_router(CReportGene.router)
 app.include_router(Messages1.router)
 app.include_router(superadmin_reports.router)
+app.include_router(superadmin_routes.router)
 
 @app.on_event("startup")
 def seed_admin():

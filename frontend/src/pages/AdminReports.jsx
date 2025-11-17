@@ -34,8 +34,7 @@ export default function AdminReports() {
 
   // Report types
   const reportTypes = [
-    { key: "manage_users", label: "Manage Users" },
-    { key: "system_events", label: "System Events & Alerts" }
+    { key: "manage_users", label: "Manage Users" }
   ];
 
   // Event type labels for display

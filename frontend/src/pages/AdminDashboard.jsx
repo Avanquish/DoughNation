@@ -22,6 +22,10 @@ import {
   FileBarChart,
   Microwave,
   Store,
+  Shield,
+  BarChart3,
+  FileText,
+  AlertTriangle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import axios from "../api/axios";
@@ -31,6 +35,12 @@ import AdminUser from "./AdminUser";
 import Leaderboards from "./Leaderboards";
 import Bakery from "./Bakery";
 import Charity from "./Charity"; 
+
+import AuditLogViewer from "./AuditLogViewer";
+import NotificationCenter from "./NotificationCenter";
+import EmergencyControlPanel from "./EmergencyControlPanel";
+import AnalyticsDashboard from "./AnalyticsDashboard";
+
 import { Link } from "react-router-dom";
 
 // Tab persistence
@@ -38,10 +48,17 @@ const ADMIN_TAB_KEY = "admin_active_tab";
 const ADMIN_ALLOWED_TABS = [
   "dashboard",
   "users",
+  "bakeries",
+  "charities",
   "reports",
   "track",
-  "badges",
   "complaints",
+  "analytics",
+  "user-management",
+  "audit-logs",
+  "notifications",
+  "emergency",
+  "profile-editor"
 ];
 
 // Small unread/read circle indicator
@@ -942,13 +959,41 @@ thead{ background:#EADBC8; color:#4A2F17; }
                 <MessageSquareWarning className="w-4 h-4" />
                 <span className="hidden sm:inline">Complaints</span>
               </TabsTrigger>
+
+              <TabsTrigger
+                value="audit-logs"
+                title="Audit Logs"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm text-purple-600 hover:bg-purple-50"
+              >
+                <FileText className="w-4 h-4" />
+                <span className="hidden sm:inline">Audit Logs</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="notifications"
+                title="Notifications"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm text-purple-600 hover:bg-purple-50"
+              >
+                <Bell className="w-4 h-4" />
+                <span className="hidden sm:inline">System Notifs</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="emergency"
+                title="Emergency"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm text-red-600 hover:bg-red-50"
+              >
+                <AlertTriangle className="w-4 h-4" />
+                <span className="hidden sm:inline">Emergency</span>
+              </TabsTrigger>
+
             </TabsList>
           </div>
         </div>
 
         {/* Content */}
         <div className="max-w-7xl mx-auto lg:px-3 lg:py-3">
-          {/* Dashboard */}
+          {/* Dashboard & Analytics */}
           <TabsContent value="dashboard" className="reveal px-2">
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
@@ -957,66 +1002,15 @@ thead{ background:#EADBC8; color:#4A2F17; }
                     <div className="p-6">
                       <div>
                         <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
-                          Dashboard
+                          Dashboard & Analytics
                         </h2>
-                        <p className="mt-1 text-sm text-[#7b5836]">Metrics</p>
+                        <p className="mt-1 text-sm text-[#7b5836]">Overview and Metrics</p>
                       </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {/* Stat: Total Bakeries */}
-                    <div className="stat reveal r1">
-                      <div className="stat-inner">
-                        <div>
-                          <p className="stat-title">Total Bakeries</p>
-                          <p className="stat-value">{stats.totalBakeries}</p>
-                        </div>
-                        <div className="stat-ico">
-                          <Building2 />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Stat: Total Charities */}
-                    <div className="stat reveal r2">
-                      <div className="stat-inner">
-                        <div>
-                          <p className="stat-title">Total Charities</p>
-                          <p className="stat-value">{stats.totalCharities}</p>
-                        </div>
-                        <div className="stat-ico">
-                          <HelpingHand />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Stat: Total Users */}
-                    <div className="stat reveal r3">
-                      <div className="stat-inner">
-                        <div>
-                          <p className="stat-title">Total Users</p>
-                          <p className="stat-value">{stats.totalUsers}</p>
-                        </div>
-                        <div className="stat-ico">
-                          <UserCog />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Stat: Pending Users */}
-                    <div className="stat reveal r4">
-                      <div className="stat-inner">
-                        <div>
-                          <p className="stat-title">Pending Users</p>
-                          <p className="stat-value">
-                            {stats.pendingUsersCount}
-                          </p>
-                        </div>
-                        <div className="stat-ico">
-                          <ShieldCheck />
-                        </div>
-                      </div>
-                    </div>
+                  {/* Analytics Section */}
+                  <div className="mt-8 border-t pt-6">
+                    <AnalyticsDashboard />
                   </div>
                 </CardContent>
               </Card>
@@ -1104,6 +1098,39 @@ thead{ background:#EADBC8; color:#4A2F17; }
                 </CardHeader>
                 <CardContent>
                   <AdminComplaint />
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Audit Logs */}
+          <TabsContent value="audit-logs" className="reveal px-2">
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardContent className="sm:p-4 md:p-6">
+                  <AuditLogViewer />
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Notifications */}
+          <TabsContent value="notifications" className="reveal px-2">
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardContent className="sm:p-4 md:p-6">
+                  <NotificationCenter />
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Emergency */}
+          <TabsContent value="emergency" className="reveal px-2">
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardContent className="sm:p-4 md:p-6">
+                  <EmergencyControlPanel />
                 </CardContent>
               </Card>
             </div>

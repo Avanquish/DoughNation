@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from datetime import datetime, timedelta, time
-from app import models, database, auth
+from app import models, database, auth, admin_models
 
 # For geofence
 from math import radians, cos, sin, asin, sqrt # For geofence calculation helper
@@ -15,7 +15,7 @@ from app.models import User, Donation, DonationRequest, NotificationRead
 router = APIRouter()
 
 
-# --- Mark notification as read (messages only) ---
+# --- Mark notification as read ---
 @router.patch("/notifications/{notif_id}/read")
 def mark_notification_as_read(
     notif_id: str,
@@ -24,7 +24,23 @@ def mark_notification_as_read(
 ):
     user_id = current_user.id
 
-    # Only handle message notifications
+    # Handle system notifications
+    if notif_id.startswith("system-"):
+        system_notif_id = int(notif_id.replace("system-", ""))
+        receipt = db.query(admin_models.NotificationReceipt).filter(
+            admin_models.NotificationReceipt.notification_id == system_notif_id,
+            admin_models.NotificationReceipt.user_id == user_id
+        ).first()
+        
+        if receipt:
+            receipt.is_read = True
+            receipt.read_at = datetime.utcnow()
+            db.commit()
+            return {"status": "ok", "id": notif_id, "read_at": receipt.read_at}
+        else:
+            raise HTTPException(status_code=404, detail="Notification receipt not found")
+    
+    # Handle message notifications
     if not notif_id.startswith("msg-"):
         raise HTTPException(status_code=400, detail="Invalid notification ID")
 
@@ -280,11 +296,39 @@ def get_message_notifications(
             print("[Geofence] Parse error:", e)
             continue
 
+    # System Notifications (Admin announcements)
+    system_notifications = []
+    
+    # Get all system notifications for this user
+    receipts = db.query(admin_models.NotificationReceipt).filter(
+        admin_models.NotificationReceipt.user_id == user_id,
+        admin_models.NotificationReceipt.is_read == False
+    ).all()
+    
+    for receipt in receipts:
+        notif = receipt.notification
+        
+        # Skip expired notifications
+        if notif.expires_at and notif.expires_at < datetime.utcnow():
+            continue
+            
+        system_notifications.append({
+            "id": f"system-{notif.id}",
+            "type": "system_notification",
+            "title": notif.title,
+            "message": notif.message,
+            "notification_type": notif.notification_type,
+            "priority": notif.priority,
+            "sent_at": notif.sent_at.isoformat() if notif.sent_at else None,
+            "read": receipt.is_read
+        })
+
     return {
         "messages": latest_messages,
         "donations": donations,
         "received_donations": received_donations,
-        "geofence_notifications": geofence_notifs
+        "geofence_notifications": geofence_notifs,
+        "system_notifications": system_notifications
     }
 
 

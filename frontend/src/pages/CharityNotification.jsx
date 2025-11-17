@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
-import { Bell, ChevronRight } from "lucide-react";
+import { Bell, ChevronRight, X } from "lucide-react";
 
 // Small unread/read circle indicator
 function UnreadCircle({ read }) {
@@ -22,12 +22,12 @@ const STORAGE_KEY = "readNotifications";
 const PAGE_SIZE = 10;
 
 export default function NotificationBell() {
-  const [tab, setTab] = useState("donations"); // donations | messages | receivedDonations
+  const [tab, setTab] = useState("donations"); // donations | receivedDonations
 
   const [donations, setDonations] = useState([]);
   const [receivedDonations, setReceivedDonations] = useState([]);
-  const [messages, setMessages] = useState([]);
   const [priorityDonations, setPriorityDonations] = useState([]);
+  const [systemNotifications, setSystemNotifications] = useState([]);
 
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -35,7 +35,6 @@ export default function NotificationBell() {
 
   // pagination states
   const [donationPage, setDonationPage] = useState(1);
-  const [messagePage, setMessagePage] = useState(1);
   const [receivedPage, setReceivedPage] = useState(1);
 
   // --- helpers for localStorage ---
@@ -71,16 +70,13 @@ export default function NotificationBell() {
 
       const res = await axios.get(`${API}/notifications/charity`, opts);
       let {
-        messages: msgs = [],
         donations: dons = [],
         received_donations: rDons = [],
         geofence_notifications: geofences = [],
+        system_notifications: sysNotifs = [],
       } = res.data || {};
 
       const storedRead = getReadFromStorage();
-
-      // messages
-      setMessages(sortByNewest(msgs || []).map((m) => ({ ...m })));
 
       // priority / geofence
       setPriorityDonations(
@@ -97,6 +93,9 @@ export default function NotificationBell() {
           read: storedRead.includes(d.id),
         }))
       );
+
+      // system notifications
+      setSystemNotifications(sysNotifs || []);
 
       // received donations (status updates)
       const mapped = sortByNewest(rDons || []).map((d) => {
@@ -146,6 +145,23 @@ export default function NotificationBell() {
     }
   };
 
+  const markSystemNotificationAsRead = async (notif) => {
+    try {
+      const token = localStorage.getItem("token");
+      const opts = token
+        ? { headers: { Authorization: `Bearer ${token}` } }
+        : { withCredentials: true };
+
+      await axios.patch(`${API}/notifications/${notif.id}/read`, {}, opts);
+      
+      setSystemNotifications((prev) =>
+        prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
+      );
+    } catch (err) {
+      console.error("Failed to mark system notification as read", err);
+    }
+  };
+
   // effects
   useEffect(() => {
     fetchNotifications();
@@ -157,9 +173,7 @@ export default function NotificationBell() {
   useEffect(() => {
     setDonationPage(1);
   }, [donations.length, priorityDonations.length]);
-  useEffect(() => {
-    setMessagePage(1);
-  }, [messages.length]);
+
   useEffect(() => {
     setReceivedPage(1);
   }, [receivedDonations.length]);
@@ -182,12 +196,14 @@ export default function NotificationBell() {
 
   // counts
   const unreadCountDonations = donations.filter((d) => !d.read).length;
-  const unreadCountMessages = messages.length;
   const unreadCountReceivedDonations = receivedDonations.filter(
     (d) => !d.read
   ).length;
+  const unreadSystemNotifications = systemNotifications.filter(
+    (n) => !n.read
+  ).length;
   const totalUnread =
-    unreadCountDonations + unreadCountMessages + unreadCountReceivedDonations;
+    unreadCountDonations + unreadCountReceivedDonations + unreadSystemNotifications;
 
   // avatar helper
   const avatar = (path, fallback = `${API}/uploads/placeholder.png`) =>
@@ -200,10 +216,6 @@ export default function NotificationBell() {
     1,
     Math.ceil(combinedDonationList.length / PAGE_SIZE) || 1
   );
-  const messageTotalPages = Math.max(
-    1,
-    Math.ceil(messages.length / PAGE_SIZE) || 1
-  );
   const receivedTotalPages = Math.max(
     1,
     Math.ceil(receivedDonations.length / PAGE_SIZE) || 1
@@ -213,10 +225,6 @@ export default function NotificationBell() {
   const pagedDonations = combinedDonationList.slice(
     (donationPage - 1) * PAGE_SIZE,
     donationPage * PAGE_SIZE
-  );
-  const pagedMessages = messages.slice(
-    (messagePage - 1) * PAGE_SIZE,
-    messagePage * PAGE_SIZE
   );
   const pagedReceived = receivedDonations.slice(
     (receivedPage - 1) * PAGE_SIZE,
@@ -287,6 +295,19 @@ export default function NotificationBell() {
           <div className="chatlist-dropdown w-[460px] max-w-[90vw]">
             <div className="gwrap rounded-2xl shadow-xl w-full">
               <div className="glass-card rounded-[14px] overflow-hidden">
+                {/* Header with title + X close */}
+                <div className="cl-head">
+                  <div className="cl-title">Notifications</div>
+                  <button
+                    type="button"
+                    className="cl-close-btn"
+                    aria-label="Close notifications"
+                    onClick={() => setOpen(false)}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
                 {/* Tabs */}
                 <div className="flex items-center">
                   {[
@@ -296,14 +317,14 @@ export default function NotificationBell() {
                       count: unreadCountDonations,
                     },
                     {
-                      key: "messages",
-                      label: "Messages",
-                      count: unreadCountMessages,
-                    },
-                    {
                       key: "receivedDonations",
                       label: "Received",
                       count: unreadCountReceivedDonations,
+                    },
+                    {
+                      key: "system",
+                      label: "Announcements",
+                      count: unreadSystemNotifications,
                     },
                   ].map((t) => (
                     <button
@@ -475,60 +496,60 @@ export default function NotificationBell() {
                     </div>
                   )}
 
-                  {/* Messages */}
-                  {tab === "messages" && (
+                  {/* System Notifications */}
+                  {tab === "system" && (
                     <div>
-                      {messages.length === 0 ? (
+                      {systemNotifications.length === 0 ? (
                         <div className="p-4 text-sm text-gray-500">
-                          No messages
+                          No announcements
                         </div>
                       ) : (
-                        pagedMessages.map((m) => (
+                        systemNotifications.map((notif) => (
                           <button
-                            key={m.id}
-                            className="w-full p-3 flex items-center gap-2 text-left hover:bg-[#fff6ec] transition-colors"
-                            onClick={async () => {
-                              const peer = {
-                                id: m.sender_id,
-                                name: m.sender_name,
-                                profile_picture:
-                                  m.sender_profile_picture || null,
-                              };
-                              localStorage.setItem(
-                                "open_chat_with",
-                                JSON.stringify(peer)
-                              );
-                              try {
-                                await markNotificationAsRead(m.id);
-                              } catch {}
-                              window.dispatchEvent(new Event("open_chat"));
-                              setOpen(false);
-                              setMessages((prev) =>
-                                prev.filter((x) => x.id !== m.id)
-                              );
-                            }}
+                            key={notif.id}
+                            onClick={() => markSystemNotificationAsRead(notif)}
+                            className={`w-full p-4 text-left transition-colors ${
+                              notif.read
+                                ? "bg-white hover:bg-[#fff6ec]"
+                                : "bg-[rgba(255,246,236,1)]"
+                            }`}
                           >
-                            <UnreadCircle read={false} />
-                            <img
-                              src={avatar(m.sender_profile_picture)}
-                              alt={m.sender_name}
-                              className="w-8 h-8 rounded-full object-cover border"
-                            />
-
-                            <div className="min-w-0 flex-1">
-                              <p className="text-[13px] leading-tight">
-                                <span className="font-bold text-[#6b4b2b]">
-                                  {m.sender_name}:
-                                </span>{" "}
-                                <span className="text-[#6b4b2b]">
-                                  {m.preview}
-                                </span>
-                              </p>
+                            <div className="flex items-start gap-3">
+                              <UnreadCircle read={notif.read} />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h4 className={`text-[14px] font-bold ${
+                                    notif.read ? "text-[#6b4b2b]" : "text-[#4f371f]"
+                                  }`}>
+                                    {notif.title}
+                                  </h4>
+                                  {notif.priority === "urgent" && (
+                                    <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-100 text-red-800">
+                                      URGENT
+                                    </span>
+                                  )}
+                                  {notif.priority === "high" && (
+                                    <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-orange-100 text-orange-800">
+                                      HIGH
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[13px] text-[#6b4b2b] whitespace-pre-wrap">
+                                  {notif.message}
+                                </p>
+                                <div className="flex items-center gap-2 mt-2 text-[11px] text-gray-500">
+                                  <span>{notif.notification_type}</span>
+                                  {notif.sent_at && (
+                                    <>
+                                      <span>•</span>
+                                      <span>
+                                        {new Date(notif.sent_at).toLocaleString()}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                            <ChevronRight
-                              className="w-4 h-4 shrink-0"
-                              style={{ color: "#8b6b48" }}
-                            />
                           </button>
                         ))
                       )}
@@ -538,7 +559,7 @@ export default function NotificationBell() {
 
                 {/* FOOTERS WITH PREV / CLOSE / NEXT (always visible) */}
                 {tab === "donations" && (
-                  <div className="px-3 pt-2 pb-2 bg-white border-t border-[rgba(0,0,0,0.04)] text-[#8a5a25]">
+                  <div className="px-3 pt-2 pb-3 bg-white border-t border-[rgba(0,0,0,0.04)] text-[#8a5a25]">
                     <div className="text-center text-[11px] mb-1">
                       Page {donationPage} of {donationTotalPages}
                     </div>
@@ -554,12 +575,6 @@ export default function NotificationBell() {
                         className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
                       >
                         Prev
-                      </button>
-                      <button
-                        onClick={() => setOpen(false)}
-                        className="px-4 py-1 rounded-full border border-[#f2d4b5] bg-[#fffdf7] font-semibold text-[#7a4f1c]"
-                      >
-                        Close
                       </button>
                       <button
                         onClick={() =>
@@ -580,7 +595,7 @@ export default function NotificationBell() {
                 )}
 
                 {tab === "receivedDonations" && (
-                  <div className="px-3 pt-2 pb-2 bg-white border-t border-[rgba(0,0,0,0.04)] text-[#8a5a25]">
+                  <div className="px-3 pt-2 pb-3 bg-white border-t border-[rgba(0,0,0,0.04)] text-[#8a5a25]">
                     <div className="text-center text-[11px] mb-1">
                       Page {receivedPage} of {receivedTotalPages}
                     </div>
@@ -597,12 +612,6 @@ export default function NotificationBell() {
                         Prev
                       </button>
                       <button
-                        onClick={() => setOpen(false)}
-                        className="px-4 py-1 rounded-full border border-[#f2d4b5] bg-[#fffdf7] font-semibold text-[#7a4f1c]"
-                      >
-                        Close
-                      </button>
-                      <button
                         onClick={() =>
                           setReceivedPage((p) =>
                             p < receivedTotalPages ? p + 1 : p
@@ -611,45 +620,6 @@ export default function NotificationBell() {
                         disabled={
                           receivedPage >= receivedTotalPages ||
                           receivedDonations.length === 0
-                        }
-                        className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
-                      >
-                        Next
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {tab === "messages" && (
-                  <div className="px-3 pt-2 pb-2 bg-white border-t border-[rgba(0,0,0,0.04)] text-[#8a5a25]">
-                    <div className="text-center text-[11px] mb-1">
-                      Page {messagePage} of {messageTotalPages}
-                    </div>
-                    <div className="flex items-center justify-between gap-2 text-[12px]">
-                      <button
-                        onClick={() =>
-                          setMessagePage((p) => (p > 1 ? p - 1 : p))
-                        }
-                        disabled={messagePage === 1 || messages.length === 0}
-                        className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
-                      >
-                        Prev
-                      </button>
-                      <button
-                        onClick={() => setOpen(false)}
-                        className="px-4 py-1 rounded-full border border-[#f2d4b5] bg-[#fffdf7] font-semibold text-[#7a4f1c]"
-                      >
-                        Close
-                      </button>
-                      <button
-                        onClick={() =>
-                          setMessagePage((p) =>
-                            p < messageTotalPages ? p + 1 : p
-                          )
-                        }
-                        disabled={
-                          messagePage >= messageTotalPages ||
-                          messages.length === 0
                         }
                         className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
                       >

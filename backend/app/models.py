@@ -29,6 +29,15 @@ class User(Base):
     # Admin verification (Bakery/Charity accounts need admin approval)
     verified = Column(Boolean, default=False)
     
+    # Account Status Management (Super Admin feature)
+    status = Column(String, default="Pending", nullable=False)  # Active, Pending, Suspended, Banned, Deactivated, Rejected
+    status_reason = Column(Text, nullable=True)  # Reason for suspension/ban/rejection
+    status_changed_at = Column(DateTime, nullable=True)
+    status_changed_by = Column(Integer, nullable=True)  # Admin ID who changed status
+    suspended_until = Column(DateTime, nullable=True)  # For temporary suspensions
+    banned_at = Column(DateTime, nullable=True)
+    deactivated_at = Column(DateTime, nullable=True)
+    
     # Email verification fields
     email_verified = Column(Boolean, default=False)  # Tracks if user verified their email
     verification_token = Column(String, nullable=True)  # Token for email verification
@@ -66,7 +75,7 @@ class BakeryInventory(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_by_employee_id = Column(Integer, ForeignKey("employees.id"), nullable=True)  # Track which employee created it
+    created_by_employee_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True)  # Track which employee created it
     product_id = Column(String, unique=True, index=True)
     name = Column(String, nullable=False)
     image = Column(String, nullable=True)
@@ -124,7 +133,7 @@ class Donation(Base):
     id = Column(Integer, primary_key=True, index=True)
     bakery_inventory_id = Column(Integer, ForeignKey("bakery_inventory.id", ondelete="CASCADE"), nullable=False)
     bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_by_employee_id = Column(Integer, ForeignKey("employees.id"), nullable=True)  # Track which employee created it
+    created_by_employee_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True)  # Track which employee created it
     name = Column(String, nullable=False)
     image = Column(String, nullable=True)
     quantity = Column(Integer, nullable=False)

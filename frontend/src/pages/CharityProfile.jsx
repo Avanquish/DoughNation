@@ -212,6 +212,70 @@ export default function CharityProfile() {
     }
   };
 
+  const handleDeactivateAccount = async () => {
+    const result = await Swal.fire({
+      title: "Deactivate Account?",
+      html: `
+        <p>Are you sure you want to deactivate your charity account?</p>
+        <p class="text-sm text-gray-600 mt-2">This action will:</p>
+        <ul class="text-sm text-left text-gray-600 mt-2 ml-4">
+          <li>• Disable login access</li>
+          <li>• Hide your charity from searches</li>
+          <li>• Prevent receiving new donations</li>
+        </ul>
+        <p class="text-sm text-red-600 mt-3">Please enter your password to confirm:</p>
+      `,
+      input: "password",
+      inputPlaceholder: "Enter your password",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Yes, deactivate",
+      cancelButtonText: "Cancel",
+      inputValidator: (value) => {
+        if (!value) {
+          return "Password is required!";
+        }
+      },
+    });
+
+    if (result.isConfirmed && result.value) {
+      try {
+        const token = localStorage.getItem("token");
+        const formData = new FormData();
+        formData.append("password", result.value);
+
+        await axios.post(`${API}/deactivate-account`, formData, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "multipart/form-data",
+          },
+        });
+
+        // Immediately log out by clearing token
+        localStorage.removeItem("token");
+
+        Swal.fire({
+          icon: "success",
+          title: "Account Deactivated",
+          text: "Your account has been deactivated successfully.",
+          timer: 2000,
+          showConfirmButton: false,
+        }).then(() => {
+          navigate("/");
+        });
+      } catch (err) {
+        console.error("Deactivation error:", err);
+        Swal.fire({
+          icon: "error",
+          title: "Deactivation Failed",
+          text: err.response?.data?.detail || "Failed to deactivate account. Please try again.",
+        });
+      }
+    }
+  };
+
   /* Fetch current user */
   useEffect(() => {
     const fetchUser = async () => {
@@ -708,6 +772,28 @@ export default function CharityProfile() {
                               </div>
                             </div>
                           )}
+                        </div>
+                      </CardContent>
+
+                      {/* Deactivate Account - Danger Zone */}
+                      <CardContent className="pt-0 border-t border-gray-200">
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                          <h3 className="text-sm font-semibold text-red-800 mb-2">
+                            Danger Zone
+                          </h3>
+                          <p className="text-xs text-red-600 mb-3">
+                            Deactivating your account will disable login access and
+                            hide your charity from the platform. This action cannot
+                            be undone without admin assistance.
+                          </p>
+                          <Button
+                            onClick={handleDeactivateAccount}
+                            variant="destructive"
+                            size="sm"
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            Deactivate Account
+                          </Button>
                         </div>
                       </CardContent>
                     </Card>

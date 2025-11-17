@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -179,6 +180,9 @@ export default function DataTable({
     contact_person: "",
     contact_number: "",
     address: "",
+    status: "Active",
+    suspension_days: "",
+    status_reason: "",
   });
   const [editLocation, setEditLocation] = React.useState(null);
   const [editingItemId, setEditingItemId] = React.useState(null);
@@ -212,6 +216,9 @@ export default function DataTable({
       contact_person: "",
       contact_number: "",
       address: "",
+      status: "Active",
+      suspension_days: "",
+      status_reason: "",
     });
     setEditLocation(null);
     setEditingItemId(null);
@@ -298,6 +305,9 @@ export default function DataTable({
       contact_person: item.contact_person || "",
       contact_number: item.contact_number || "",
       address: item.address || "",
+      status: item.status || "Active",
+      suspension_days: "",
+      status_reason: item.status_reason || "",
     });
     if (item.latitude && item.longitude) {
       setEditLocation({ lat: item.latitude, lng: item.longitude });
@@ -338,6 +348,18 @@ export default function DataTable({
     if (!editFormData.address) {
       Swal.fire({ icon: "error", title: "Error", text: "Address is required" });
       return;
+    }
+    
+    // Validate suspension days if status is Suspended
+    if (editFormData.status === "Suspended") {
+      if (!editFormData.suspension_days || editFormData.suspension_days < 1) {
+        Swal.fire({ 
+          icon: "error", 
+          title: "Error", 
+          text: "Please specify suspension duration (minimum 1 day)" 
+        });
+        return;
+      }
     }
 
     if (onUpdate && editingItemId) {
@@ -1222,6 +1244,62 @@ export default function DataTable({
                 />
               </div>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-status" className="text-[#6b4b2b]">
+                Account Status
+              </Label>
+              <Select
+                value={editFormData.status}
+                onValueChange={(value) => handleEditInputChange("status", value)}
+              >
+                <SelectTrigger className="rounded-2xl border-[#f2d4b5] focus:ring-[#E49A52]">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Pending">Pending</SelectItem>
+                  <SelectItem value="Suspended">Suspended</SelectItem>
+                  <SelectItem value="Banned">Banned</SelectItem>
+                  <SelectItem value="Deactivated">Deactivated</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {editFormData.status === "Suspended" && (
+              <div className="space-y-2 p-4 bg-orange-50 rounded-2xl border border-orange-200">
+                <Label htmlFor="edit-suspension-days" className="text-[#6b4b2b] font-semibold">
+                  Suspension Duration (Days) *
+                </Label>
+                <Input
+                  id="edit-suspension-days"
+                  type="number"
+                  min="1"
+                  value={editFormData.suspension_days}
+                  onChange={(e) => handleEditInputChange("suspension_days", e.target.value)}
+                  placeholder="Enter number of days"
+                  className="rounded-2xl border-orange-300 focus:ring-orange-400"
+                />
+                <p className="text-xs text-orange-700">
+                  Account will be suspended for the specified number of days
+                </p>
+              </div>
+            )}
+
+            {(editFormData.status === "Suspended" || editFormData.status === "Banned" || editFormData.status === "Deactivated") && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-status-reason" className="text-[#6b4b2b]">
+                  Reason {editFormData.status === "Suspended" ? "(Optional)" : ""}
+                </Label>
+                <Input
+                  id="edit-status-reason"
+                  value={editFormData.status_reason}
+                  onChange={(e) => handleEditInputChange("status_reason", e.target.value)}
+                  placeholder={`Reason for ${editFormData.status.toLowerCase()}`}
+                  className="rounded-2xl border-[#f2d4b5] focus:ring-[#E49A52]"
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label

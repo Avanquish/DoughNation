@@ -58,10 +58,15 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
   );
 
   const filteredEmployees = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    if (!term) return employees;
+    // First, filter out employees with "Owner" role
+    const activeEmployees = employees.filter((emp) => 
+      emp?.role?.toLowerCase() !== "owner"
+    );
 
-    return employees.filter((emp) => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return activeEmployees;
+
+    return activeEmployees.filter((emp) => {
       const fields = [emp?.name, emp?.email, emp?.role, emp?.employee_id];
       return fields.some((value) =>
         String(value || "")
@@ -127,6 +132,8 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
       console.error("employees", e);
     }
   }, [headers]);
+
+
 
   useEffect(() => {
     fetchEmployees();
@@ -333,8 +340,8 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
 
             <span className="inline-flex items-center gap-2 text-xs sm:text-sm font-semibold px-3 py-1 rounded-full bg-white/85 border border-[#efdcc3] text-[#6b4b2b]">
               <span className="w-2.5 h-2.5 rounded-full bg-[#E49A52]" />
-              {employees.length}{" "}
-              {employees.length === 1 ? "Employee" : "Employees"}
+              {filteredEmployees.length}{" "}
+              {filteredEmployees.length === 1 ? "Employee" : "Employees"}
             </span>
 
             {!isViewOnly && (

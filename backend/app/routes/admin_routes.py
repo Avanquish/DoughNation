@@ -5,7 +5,7 @@ from app import models, database
 from app.auth import get_current_admin  # Only allow admins
 from app.email_utils import send_account_verified_email  # ✅ NEW: Import email function
 
-router = APIRouter()
+router = APIRouter(prefix="/admin", tags=["Admin"])
 
 @router.get("/pending-users")
 def get_pending_users(db: Session = Depends(database.get_db), admin=Depends(get_current_admin)):
@@ -26,14 +26,16 @@ def verify_user(user_id: int, db: Session = Depends(database.get_db), admin=Depe
     """
     Verify a user account (admin approval)
     
-    ✅ NEW: Sends email notification to user when account is verified
+    ✅ Sets user status to Active upon verification
+    ✅ Sends email notification to user when account is verified
     """
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Mark as verified
+    # Mark as verified and set status to Active
     user.verified = True
+    user.status = "Active"
     db.commit()
     
     # ✅ NEW: Send verification email to user

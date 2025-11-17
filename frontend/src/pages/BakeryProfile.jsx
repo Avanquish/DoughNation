@@ -139,7 +139,12 @@ export default function BakeryProfile() {
     const loadEmployees = () =>
       axios
         .get(`${API}/employees`, { headers })
-        .then((r) => setEmployeeCount((r.data || []).length))
+        .then((r) => {
+          const activeEmployees = (r.data || []).filter(
+            (emp) => emp?.role?.toLowerCase() !== "owner"
+          );
+          setEmployeeCount(activeEmployees.length);
+        })
         .catch(() => setEmployeeCount(0));
 
     loadInventory();
@@ -427,6 +432,72 @@ export default function BakeryProfile() {
         title: "Update Failed",
         text: errorMessage,
       });
+    }
+  };
+
+  const handleDeactivateAccount = async () => {
+    // Only allow owner to deactivate (check if employee mode or if contact_person matches)
+    const result = await Swal.fire({
+      title: "Deactivate Account?",
+      html: `
+        <p>Are you sure you want to deactivate your bakery account?</p>
+        <p class="text-sm text-gray-600 mt-2">This action will:</p>
+        <ul class="text-sm text-left text-gray-600 mt-2 ml-4">
+          <li>• Disable login access</li>
+          <li>• Hide your bakery from searches</li>
+          <li>• Prevent new donations</li>
+        </ul>
+        <p class="text-sm text-red-600 mt-3">Please enter your password to confirm:</p>
+      `,
+      input: "password",
+      inputPlaceholder: "Enter your password",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Yes, deactivate",
+      cancelButtonText: "Cancel",
+      inputValidator: (value) => {
+        if (!value) {
+          return "Password is required!";
+        }
+      },
+    });
+
+    if (result.isConfirmed && result.value) {
+      try {
+        const token = localStorage.getItem("token");
+        const formData = new FormData();
+        formData.append("password", result.value);
+
+        await axios.post(`${API}/deactivate-account`, formData, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "multipart/form-data",
+          },
+        });
+
+        // Immediately log out by clearing tokens
+        localStorage.removeItem("token");
+        localStorage.removeItem("employeeToken");
+
+        Swal.fire({
+          icon: "success",
+          title: "Account Deactivated",
+          text: "Your account has been deactivated successfully.",
+          timer: 2000,
+          showConfirmButton: false,
+        }).then(() => {
+          navigate("/");
+        });
+      } catch (err) {
+        console.error("Deactivation error:", err);
+        Swal.fire({
+          icon: "error",
+          title: "Deactivation Failed",
+          text: err.response?.data?.detail || "Failed to deactivate account. Please try again.",
+        });
+      }
     }
   };
 
@@ -965,6 +1036,28 @@ export default function BakeryProfile() {
                           </div>
                         </div>
                       </CardContent>
+
+                      {/* Deactivate Account - Only for Owner */}
+                      {!isEmployeeMode && (
+                        <CardContent className="pt-0 border-t border-gray-200">
+                          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                            <h3 className="text-sm font-semibold text-red-800 mb-2">
+                              Danger Zone
+                            </h3>
+                            <p className="text-xs text-red-600 mb-3">
+                              Deactivating your account will disable login and hide your bakery from the platform. Only the bakery owner can perform this action.
+                            </p>
+                            <Button
+                              onClick={handleDeactivateAccount}
+                              variant="destructive"
+                              size="sm"
+                              className="bg-red-600 hover:bg-red-700"
+                            >
+                              Deactivate Account
+                            </Button>
+                          </div>
+                        </CardContent>
+                      )}
                     </Card>
                   </div>
                 </TabsContent>

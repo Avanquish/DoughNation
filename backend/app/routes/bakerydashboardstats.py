@@ -23,8 +23,11 @@ def get_dashboard_stats(db: Session = Depends(database.get_db), current_user=Dep
     # Uploaded products (same as total inventory in your current design)
     uploaded_products = total_inventory
 
-    # Employee count for this bakery
-    employee_count = db.query(models.Employee).filter(models.Employee.bakery_id == bakery_id).count()
+    # Employee count for this bakery (exclude employees with "Owner" role)
+    employee_count = db.query(models.Employee).filter(
+        models.Employee.bakery_id == bakery_id,
+        models.Employee.role.ilike("Owner") == False
+    ).count()
 
     # Philippine Time is UTC+8
     philippine_tz = timezone(timedelta(hours=8))

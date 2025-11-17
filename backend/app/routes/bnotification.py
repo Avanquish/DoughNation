@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from datetime import datetime, timedelta
-from app import models, database, auth
+from app import models, database, auth, admin_models
 
 router = APIRouter()
 
@@ -107,6 +107,22 @@ def mark_notification_as_read(
         user_id = current_auth.get("bakery_id")
     else:
         user_id = current_auth.id
+
+    # Handle system notifications
+    if notif_id.startswith("system-"):
+        system_notif_id = int(notif_id.replace("system-", ""))
+        receipt = db.query(admin_models.NotificationReceipt).filter(
+            admin_models.NotificationReceipt.notification_id == system_notif_id,
+            admin_models.NotificationReceipt.user_id == user_id
+        ).first()
+        
+        if receipt:
+            receipt.is_read = True
+            receipt.read_at = datetime.utcnow()
+            db.commit()
+            return {"status": "ok", "id": notif_id, "read_at": receipt.read_at}
+        else:
+            raise HTTPException(status_code=404, detail="Notification receipt not found")
 
     # Split product and message notifications
     if notif_id.startswith("msg-"):
@@ -247,7 +263,35 @@ def get_all_notifications(
 
     latest_messages = sorted(latest_by_sender.values(), key=lambda x: x["timestamp"], reverse=True)
 
+    # System Notifications (Admin announcements)
+    system_notifications = []
+    
+    # Get all system notifications for this user
+    receipts = db.query(admin_models.NotificationReceipt).filter(
+        admin_models.NotificationReceipt.user_id == user_id,
+        admin_models.NotificationReceipt.is_read == False
+    ).all()
+    
+    for receipt in receipts:
+        notif = receipt.notification
+        
+        # Skip expired notifications
+        if notif.expires_at and notif.expires_at < datetime.utcnow():
+            continue
+            
+        system_notifications.append({
+            "id": f"system-{notif.id}",
+            "type": "system_notification",
+            "title": notif.title,
+            "message": notif.message,
+            "notification_type": notif.notification_type,
+            "priority": notif.priority,
+            "sent_at": notif.sent_at.isoformat() if notif.sent_at else None,
+            "read": receipt.is_read
+        })
+
     return {
         "products": products_resp["notifications"],
-        "messages": latest_messages
+        "messages": latest_messages,
+        "system_notifications": system_notifications
     }

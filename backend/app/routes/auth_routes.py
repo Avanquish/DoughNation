@@ -1,7 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, UploadFile, Form, File, HTTPException
 from sqlalchemy.orm import Session
-from datetime import date
+from datetime import date, datetime
 from app import crud, auth, database, schemas, models
 from app.auth import create_access_token, get_current_user, verify_password
 from app.event_logger import log_system_event
@@ -96,6 +96,77 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
             
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
+        # Check account status
+        if db_user.status == "Suspended":
+            # Check if suspension has expired
+            if db_user.suspended_until and db_user.suspended_until > datetime.utcnow():
+                remaining_days = (db_user.suspended_until - datetime.utcnow()).days
+                print(f"❌ Account suspended until {db_user.suspended_until}")
+                log_system_event(
+                    db=db,
+                    event_type="failed_login",
+                    description=f"Login attempt on suspended account: {db_user.email}",
+                    severity="warning",
+                    user_id=db_user.id,
+                    metadata={"email": db_user.email, "reason": "account_suspended", "suspended_until": str(db_user.suspended_until)}
+                )
+                raise HTTPException(
+                    status_code=403, 
+                    detail=f"Account is suspended until {db_user.suspended_until.strftime('%Y-%m-%d %H:%M:%S')}. Remaining: {remaining_days} days. Reason: {db_user.status_reason or 'Not specified'}"
+                )
+            else:
+                # Suspension expired, automatically set to Active
+                db_user.status = "Active"
+                db_user.suspended_until = None
+                db.commit()
+        
+        if db_user.status == "Banned":
+            print(f"❌ Account is banned")
+            log_system_event(
+                db=db,
+                event_type="failed_login",
+                description=f"Login attempt on banned account: {db_user.email}",
+                severity="warning",
+                user_id=db_user.id,
+                metadata={"email": db_user.email, "reason": "account_banned"}
+            )
+            raise HTTPException(
+                status_code=403, 
+                detail=f"Account is permanently banned. Reason: {db_user.status_reason or 'Not specified'}"
+            )
+        
+        if db_user.status == "Deactivated":
+            # Allow bakery and charity owners to reactivate by logging in
+            if db_user.role in ["Bakery", "Charity"]:
+                print(f"🔄 Auto-reactivating deactivated {db_user.role} account: {db_user.email}")
+                db_user.status = "Active"
+                db_user.deactivated_at = None
+                db.commit()
+                
+                log_system_event(
+                    db=db,
+                    event_type="USER_REACTIVATED",
+                    description=f"{db_user.role} account auto-reactivated upon login: {db_user.email}",
+                    severity="info",
+                    user_id=db_user.id,
+                    metadata={"email": db_user.email, "role": db_user.role, "reactivation_method": "owner_login"}
+                )
+            else:
+                # Admin accounts cannot auto-reactivate
+                print(f"❌ Account is deactivated")
+                log_system_event(
+                    db=db,
+                    event_type="failed_login",
+                    description=f"Login attempt on deactivated account: {db_user.email}",
+                    severity="warning",
+                    user_id=db_user.id,
+                    metadata={"email": db_user.email, "reason": "account_deactivated"}
+                )
+                raise HTTPException(
+                    status_code=403, 
+                    detail="Account has been deactivated. Please contact support."
+                )
+        
         print(f"✅ User authenticated: {db_user.name} (Role: {db_user.role})")
         print(f"   Role validation: PASSED")
         print(f"{'='*80}\n")
@@ -159,7 +230,70 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     print(f"   Bakery ID: {authenticated_employee.bakery_id}")
     print(f"{'='*80}\n")
 
+    # Check bakery owner's account status
     bakery = db.query(models.User).filter(models.User.id == authenticated_employee.bakery_id).first()
+    
+    if not bakery:
+        log_system_event(
+            db=db,
+            event_type="failed_login",
+            description=f"Employee login failed - Bakery account not found: {authenticated_employee.employee_id}",
+            severity="error",
+            user_id=None,
+            metadata={"employee_id": authenticated_employee.employee_id, "bakery_id": authenticated_employee.bakery_id}
+        )
+        raise HTTPException(status_code=403, detail="Associated bakery account not found")
+    
+    # Block employee login if bakery owner's account is deactivated
+    if bakery.status == "Deactivated":
+        print(f"❌ Bakery owner account is deactivated")
+        log_system_event(
+            db=db,
+            event_type="failed_login",
+            description=f"Employee login blocked - Bakery owner account deactivated: {authenticated_employee.employee_id}",
+            severity="warning",
+            user_id=bakery.id,
+            metadata={"employee_id": authenticated_employee.employee_id, "bakery_status": "Deactivated"}
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot log in. The bakery owner's account has been deactivated. Please contact the owner to reactivate the account."
+        )
+    
+    # Block employee login if bakery owner is suspended
+    if bakery.status == "Suspended":
+        if bakery.suspended_until and bakery.suspended_until > datetime.utcnow():
+            remaining_days = (bakery.suspended_until - datetime.utcnow()).days
+            print(f"❌ Bakery owner account is suspended")
+            log_system_event(
+                db=db,
+                event_type="failed_login",
+                description=f"Employee login blocked - Bakery owner suspended: {authenticated_employee.employee_id}",
+                severity="warning",
+                user_id=bakery.id,
+                metadata={"employee_id": authenticated_employee.employee_id, "bakery_status": "Suspended", "suspended_until": str(bakery.suspended_until)}
+            )
+            raise HTTPException(
+                status_code=403,
+                detail=f"Cannot log in. The bakery owner's account is suspended until {bakery.suspended_until.strftime('%Y-%m-%d %H:%M:%S')}. Remaining: {remaining_days} days."
+            )
+    
+    # Block employee login if bakery owner is banned
+    if bakery.status == "Banned":
+        print(f"❌ Bakery owner account is banned")
+        log_system_event(
+            db=db,
+            event_type="failed_login",
+            description=f"Employee login blocked - Bakery owner banned: {authenticated_employee.employee_id}",
+            severity="warning",
+            user_id=bakery.id,
+            metadata={"employee_id": authenticated_employee.employee_id, "bakery_status": "Banned"}
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot log in. The bakery owner's account has been banned. Please contact support."
+        )
+    
     bakery_name = bakery.name if bakery else "Bakery"
     bakery_verified = bakery.verified if bakery else False
 
@@ -1236,6 +1370,9 @@ def admin_update_user(
     address: Optional[str] = Form(None),
     latitude: Optional[float] = Form(None),
     longitude: Optional[float] = Form(None),
+    status: Optional[str] = Form(None),
+    suspension_days: Optional[int] = Form(None),
+    status_reason: Optional[str] = Form(None),
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(database.get_db)
 ):
@@ -1251,6 +1388,10 @@ def admin_update_user(
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    
+    # Track status change for audit log
+    old_status = user.status
+    status_changed = False
     
     # Update fields if provided
     if name:
@@ -1274,11 +1415,44 @@ def admin_update_user(
         user.latitude = latitude
     if longitude is not None:
         user.longitude = longitude
+    if status and status != old_status:
+        # Validate status
+        valid_statuses = ["Active", "Pending", "Suspended", "Banned", "Deactivated"]
+        if status not in valid_statuses:
+            raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
+        user.status = status
+        user.status_changed_at = datetime.utcnow()
+        user.status_changed_by = current_user.id
+        status_changed = True
+        
+        # Handle suspension
+        if status == "Suspended":
+            if suspension_days and suspension_days > 0:
+                from datetime import timedelta
+                user.suspended_until = datetime.utcnow() + timedelta(days=suspension_days)
+            else:
+                raise HTTPException(status_code=400, detail="Suspension days must be provided for Suspended status")
+        else:
+            # Clear suspension if status is not Suspended
+            user.suspended_until = None
+        
+        # Store reason if provided
+        if status_reason:
+            user.status_reason = status_reason
     
     db.commit()
     db.refresh(user)
     
     # Log the event
+    if status_changed:
+        log_system_event(
+            db=db,
+            event_type="USER_STATUS_CHANGED",
+            description=f"Admin {current_user.name} changed user {user.name} (ID: {user_id}) status from {old_status} to {status}",
+            severity="warning" if status in ["Suspended", "Banned", "Deactivated"] else "info",
+            user_id=current_user.id
+        )
+    
     log_system_event(
         db=db,
         event_type="ADMIN_UPDATE_USER",
@@ -1296,7 +1470,8 @@ def admin_update_user(
             "role": user.role,
             "contact_person": user.contact_person,
             "contact_number": user.contact_number,
-            "address": user.address
+            "address": user.address,
+            "status": user.status
         }
     }
 
@@ -1344,4 +1519,69 @@ def admin_delete_user(
     
     return {
         "message": f"User {user_name} deleted successfully"
+    }
+
+
+@router.post("/deactivate-account")
+def deactivate_account(
+    password: str = Form(...),
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(database.get_db)
+):
+    """
+    Allow users to deactivate their own account
+    For bakeries: Only the owner (contact_person matches employee with role='Owner') can deactivate
+    For charities: Any user can deactivate their account
+    Requires password confirmation
+    """
+    # Verify password
+    if not verify_password(password, current_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect password")
+    
+    # Check if user is bakery and verify ownership
+    if current_user.role == "Bakery":
+        # Get the employee token to check if they are the owner
+        # For bakery users, we need to verify they are the owner
+        owner_employee = db.query(models.Employee).filter(
+            models.Employee.bakery_id == current_user.id,
+            models.Employee.role == "Owner"
+        ).first()
+        
+        if not owner_employee:
+            raise HTTPException(
+                status_code=403, 
+                detail="Only the bakery owner can deactivate the account"
+            )
+        
+        # If logged in as user (not employee), verify contact_person matches owner
+        if current_user.contact_person != owner_employee.name:
+            raise HTTPException(
+                status_code=403,
+                detail="Only the bakery owner can deactivate the account"
+            )
+    
+    # Admin accounts cannot be deactivated this way
+    if current_user.role == "Admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Admin accounts cannot be self-deactivated"
+        )
+    
+    # Deactivate the account
+    current_user.status = "Deactivated"
+    current_user.deactivated_at = datetime.utcnow()
+    db.commit()
+    
+    # Log the event
+    log_system_event(
+        db=db,
+        event_type="USER_SELF_DEACTIVATE",
+        description=f"User {current_user.name} ({current_user.role}) deactivated their own account",
+        severity="info",
+        user_id=current_user.id
+    )
+    
+    return {
+        "message": "Account deactivated successfully",
+        "deactivated_at": current_user.deactivated_at
     }

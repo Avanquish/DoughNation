@@ -45,7 +45,7 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     - role: user's specific role
     - appropriate ID fields
     
-    🚫 RESTRICTION: Part-time employees CANNOT log in
+    🔐 EMPLOYEE LOGIN FLOW
     """
     print(f"\n{'='*80}")
     print(f"🔐 UNIFIED LOGIN ATTEMPT")
@@ -154,27 +154,6 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     
     # Store authenticated employee
     authenticated_employee = employee
-    
-    # 🚫 BLOCK PART-TIME EMPLOYEES
-    employee_role_normalized = authenticated_employee.role.lower().replace("-", "").replace(" ", "")
-    if "parttime" in employee_role_normalized or employee_role_normalized == "part":
-        print(f"🚫 Part-time employee login blocked: {authenticated_employee.employee_id}")
-        print(f"{'='*80}\n")
-        
-        # Log failed employee login attempt (part-time restriction)
-        log_system_event(
-            db=db,
-            event_type="failed_login",
-            description=f"Failed employee login attempt - Part-time restriction: {authenticated_employee.employee_id} (Bakery ID: {authenticated_employee.bakery_id})",
-            severity="warning",
-            user_id=None,
-            metadata={"employee_id": authenticated_employee.employee_id, "bakery_id": authenticated_employee.bakery_id, "reason": "part_time_restriction"}
-        )
-        
-        raise HTTPException(
-            status_code=403, 
-            detail="Part-time employees cannot access the system. Please contact your manager if you believe this is an error."
-        )
     
     print(f"✅ Employee authenticated: {authenticated_employee.name} (Role: {authenticated_employee.role})")
     print(f"   Bakery ID: {authenticated_employee.bakery_id}")
@@ -844,8 +823,7 @@ def employee_login(
     """
     Employee login using name and password.
     
-    - Part-time employees cannot log in (returns 403)
-    - Other roles (Owner, Manager, Full-time) can log in
+    - Manager and Employee roles can log in
     """
     try:
         print(f"\n{'='*80}")
@@ -905,26 +883,6 @@ def employee_login(
         
         print(f"✅ MATCH FOUND: {employee.name} (ID: {employee.id}, Role: {employee.role})")
         
-        # Part-time employees cannot log in
-        if employee.role == "Part-time":
-            print(f"❌ Part-time employees cannot log in")
-            print(f"{'='*80}\n")
-            
-            # Log failed employee login attempt (part-time restriction)
-            log_system_event(
-                db=db,
-                event_type="failed_login",
-                description=f"Failed employee login attempt - Part-time employee tried to login: {employee.name} (Bakery ID: {credentials.bakery_id})",
-                severity="warning",
-                user_id=None,
-                metadata={"employee_name": employee.name, "bakery_id": credentials.bakery_id, "reason": "part_time_restriction"}
-            )
-            
-            raise HTTPException(
-                status_code=403,
-                detail="Part-time employees cannot log in"
-            )
-
         # Verify password
         if not employee.hashed_password:
             print(f"❌ Employee has no hashed password set!")

@@ -88,8 +88,7 @@ class BakeryInventory(Base):
 class EmployeeRole(str, enum.Enum):
     """Employee roles with access control levels"""
     MANAGER = "Manager"
-    FULL_TIME = "Full-time"
-    PART_TIME = "Part-time"
+    EMPLOYEE = "Employee"
 
 
 class Employee(Base):
@@ -100,7 +99,7 @@ class Employee(Base):
     bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False, index=True)  # Employee's Gmail address
-    role = Column(String, nullable=False)  # Manager, Full-time, Part-time
+    role = Column(String, nullable=False)  # Manager, Employee
     start_date = Column(Date, nullable=False)
     profile_picture = Column(String, nullable=True)
     hashed_password = Column(String, nullable=True)  # Password for employee login (optional, can be None for new employees)

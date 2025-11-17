@@ -597,7 +597,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
                   "
                 >
                   <SelectItem
-                    value="Part Time Staff"
+                    value="Employee"
                     className="
                       py-2 px-3 cursor-pointer
                       hover:bg-[#f6f6f6] data-[highlighted]:bg-[#f6f6f6]
@@ -605,18 +605,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
                       data-[state=checked]:bg-transparent data-[state=checked]:text-inherit
                     "
                   >
-                    Part Time Staff
-                  </SelectItem>
-                  <SelectItem
-                    value="Full Time Staff"
-                    className="
-                      py-2 px-3 cursor-pointer
-                      hover:bg-[#f6f6f6] data-[highlighted]:bg-[#f6f6f6]
-                      focus:bg-[#f6f6f6]
-                      data-[state=checked]:bg-transparent data-[state=checked]:text-inherit
-                    "
-                  >
-                    Full Time Staff
+                    Employee
                   </SelectItem>
                   <SelectItem
                     value="Manager"

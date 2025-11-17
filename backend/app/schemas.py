@@ -94,7 +94,7 @@ class BakeryInventoryUpdate(BaseModel):
 class EmployeeBase(BaseModel):
     name: str
     email: EmailStr  # Employee's Gmail address
-    role: str  # Manager, Full-time, Part-time
+    role: str  # Manager, Employee
     start_date: date
 
 class EmployeeCreate(EmployeeBase):

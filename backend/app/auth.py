@@ -294,7 +294,7 @@ def check_employee_role_access(
     Check if employee has required role for accessing an endpoint.
     
     Args:
-        required_roles: List of allowed roles (e.g., ["Owner", "Manager", "Full-time"])
+        required_roles: List of allowed roles (e.g., ["Manager", "Employee"])
     
     Returns:
         employee data if access allowed
@@ -314,7 +314,7 @@ def can_edit_own_only(
     """
     Check if employee can only edit their own resources.
     Owners and Managers can edit anything from their bakery.
-    Full-time employees can only edit their own.
+    Employees can only edit their own.
     
     Args:
         resource_creator_id: The ID of the employee who created the resource
@@ -329,8 +329,8 @@ def can_edit_own_only(
     if role in ["Owner", "Manager"]:
         return current_employee
 
-    # Full-time can only edit their own resources
-    if role == "Full-time" and resource_creator_id == employee_id:
+    # Employees can only edit their own resources
+    if role == "Employee" and resource_creator_id == employee_id:
         return current_employee
 
     raise HTTPException(

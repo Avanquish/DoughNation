@@ -38,7 +38,7 @@ export default function ShowSearchedProfile({ id, onBack }) {
         background:linear-gradient(135deg,#FFFEFB 0%, #FFF8ED 60%, #FFEFD9 100%);
       }
 
-      /* ===== HEADER (mirror BakeryProfile) ===== */
+      /* ===== HEADER (styles kept in case you re-use later; component header removed in JSX) ===== */
       .head{position:sticky; top:0; z-index:80; border-bottom:1px solid rgba(0,0,0,.06);}
       .head-bg{position:absolute; inset:0; z-index:-1; opacity:.92;
         background: linear-gradient(110deg, #ffffff 0%, #fff8ec 28%, #ffeccd 55%, #ffd7a6 100%);
@@ -130,6 +130,22 @@ export default function ShowSearchedProfile({ id, onBack }) {
       }
       .msg-btn:hover{ transform:translateY(-2px); }
       .msg-btn svg{ width:18px; height:18px; }
+
+      /* === TOP SPACING FIX === */
+
+      /* MOBILE*/
+      @media (max-width: 767px) {
+        .searched-profile-wrapper {
+          padding-top: 140px;
+        }
+      }
+
+      /* TABLET / DESKTOP */
+      @media (min-width: 768px) {
+        .searched-profile-wrapper {
+          padding-top: 48px;
+        }
+      }
     `}</style>
   );
 
@@ -167,22 +183,9 @@ export default function ShowSearchedProfile({ id, onBack }) {
   };
 
   return (
-    <div className="min-h-screen relative">
+    <div className="min-h-screen relative searched-profile-wrapper">
       <Styles />
       <div className="page-bg" />
-
-      {/* ===== HEADER (logo + brand shimmer) ===== */}
-      <header className="head">
-        <div className="head-bg" />
-        <div className="hdr-container">
-          <div className="brand-left">
-            <img src="/images/DoughNationLogo.png" alt="DoughNation" />
-            <span className="brand-pop">DoughNation</span>
-          </div>
-          <div />{" "}
-          {/* right side left empty to keep header clean for this view */}
-        </div>
-      </header>
 
       {/* ===== HERO ===== */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7 space-y-6">

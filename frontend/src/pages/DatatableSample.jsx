@@ -36,6 +36,8 @@ import {
 
 import {
   ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
   MoreHorizontal,
   Plus,
   Pencil,
@@ -68,7 +70,7 @@ L.Icon.Default.mergeOptions({
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Helpers ──
 const gmapsUrl = (addr = "") =>
   `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
 
@@ -108,6 +110,37 @@ const LocationSelector = ({ setLocation, setAddress }) => {
   });
   return null;
 };
+
+// --- UI-only: sortable header button with tri-state cycle ---
+function SortButton({ column, label }) {
+  const sorted = column.getIsSorted(); // 'asc' | 'desc' | false
+
+  const onClick = () => {
+    if (sorted === false) {
+      column.toggleSorting(false); // neutral -> asc
+    } else if (sorted === "asc") {
+      column.toggleSorting(true); // asc -> desc
+    } else {
+      column.clearSorting(); // desc -> neutral
+    }
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      className="w-full inline-flex items-center justify-between gap-2 font-semibold text-left"
+    >
+      <span>{label}</span>
+      {sorted === "asc" ? (
+        <ArrowUp className="h-4 w-4" />
+      ) : sorted === "desc" ? (
+        <ArrowDown className="h-4 w-4" />
+      ) : (
+        <ArrowUpDown className="h-4 w-4 opacity-60" />
+      )}
+    </button>
+  );
+}
 
 export default function DataTable({
   columns,
@@ -149,6 +182,9 @@ export default function DataTable({
   });
   const [editLocation, setEditLocation] = React.useState(null);
   const [editingItemId, setEditingItemId] = React.useState(null);
+
+  // Stable action menu
+  const [openMenuForRow, setOpenMenuForRow] = React.useState(null);
 
   const handleInputChange = (field, value) =>
     setFormData((p) => ({ ...p, [field]: value }));
@@ -353,128 +389,149 @@ export default function DataTable({
     }
   };
 
-  // View details (SweetAlert)
-  const handleView = React.useCallback((row) => {
-    const item = row.original;
+  const handleView = React.useCallback(
+    (row) => {
+      const item = row.original;
 
-    const statusPill =
-      item.verified || item.verified === true
-        ? `<span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
-             <span class="h-2.5 w-2.5 rounded-full bg-green-600"></span> Verified
-           </span>`
-        : `<span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
-             <span class="h-2.5 w-2.5 rounded-full bg-amber-500"></span> Pending
-           </span>`;
+      const statusPill =
+        item.verified || item.verified === true
+          ? `<span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold">
+               <span class="h-2.5 w-2.5 rounded-full bg-green-600"></span> Verified
+             </span>`
+          : `<span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
+               <span class="h-2.5 w-2.5 rounded-full bg-amber-500"></span> Pending
+             </span>`;
 
-    const email = item.email || "N/A";
-    const phone = item.contact_number || "N/A";
-    const address = item.address || "N/A";
+      const email = item.email || "N/A";
+      const phone = item.contact_number || "N/A";
+      const address = item.address || "N/A";
 
-    Swal.fire({
-      width: 980,
-      showConfirmButton: true,
-      confirmButtonText: "OK",
-      confirmButtonColor: "#E49A52",
-      buttonsStyling: false,
-      customClass: {
-        popup: "rounded-[28px] p-0 overflow-hidden",
-        confirmButton:
-          "rounded-full px-6 py-2 bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white shadow ring-1 ring-white/60 hover:scale-[1.03] active:scale-95 transition",
-        actions: "py-6",
-      },
-      html: `
-        <div class="overflow-hidden rounded-[28px] ring-1 ring-black/10">
-          <div class="p-6 sm:p-7 ${tones.sectionGrad}">
-            <div class="flex items-center gap-4 sm:gap-5">
-              <h3 class="text-2xl font-semibold text-[#6b4b2b]">${
-                item.name || "Bakery"
-              }</h3>
-              ${statusPill}
+      const svgCopy = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="w-4 h-4 mr-0 sm:mr-2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+      const svgMap = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="w-4 h-4 mr-0 sm:mr-2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 6-9 12-9 12S3 16 3 10a9 9 0 1 1 18 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>`;
+
+      Swal.fire({
+        width: 980,
+        showConfirmButton: true,
+        confirmButtonText: "OK",
+        confirmButtonColor: "#E49A52",
+        buttonsStyling: false,
+        customClass: {
+          popup: "rounded-[28px] p-0 overflow-hidden",
+          confirmButton:
+            "rounded-full px-6 py-2 bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white shadow ring-1 ring-white/60 hover:scale-[1.03] active:scale-95 transition",
+          actions: "py-6",
+        },
+        html: `
+          <div class="overflow-hidden rounded-[28px] ring-1 ring-black/10">
+            <div class="p-6 sm:p-7 ${tones.sectionGrad}">
+              <div class="flex items-center gap-4 sm:gap-5">
+                <h3 class="text-2xl font-semibold text-[#6b4b2b]">${
+                  item.name || entityType
+                }</h3>
+                ${statusPill}
+              </div>
+              <div class="text-[#6b4b2b] font-bold mt-1">${entityType} Details</div>
             </div>
-            <div class="text-[#6b4b2b] font-bold mt-1">Bakery Details</div>
-          </div>
 
-          <div class="bg-white p-6">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div class="rounded-2xl border border-[#f2d4b5] p-4 hover:bg-[#FFF6EC] transition">
-                <div class="text-[#6b4b2b] text-[11px] font-medium tracking-wider uppercase">Name</div>
-                <div class="mt-1 font-semibold text-[#4A2F17]">${
-                  item.name || "N/A"
-                }</div>
-              </div>
-
-              <div class="rounded-2xl border border-[#f2d4b5] p-4 hover:bg-[#FFF6EC] transition">
-                <div class="flex items-center justify-between gap-3">
-                  <div>
-                    <div class="text-[#6b4b2b] text-[11px] font-medium tracking-wider uppercase">Email</div>
-                    <div class="mt-1 break-all">${email}</div>
-                  </div>
-                  <button type="button" id="copyEmailBtn"
-                    class="rounded-full bg-[#FFEFD9] text-[#6b4b2b] text-xs px-3 py-1 border border-[#f2d4b5] hover:brightness-95"
-                    ${
-                      email === "N/A"
-                        ? "disabled style='opacity:.5;cursor:not-allowed;'"
-                        : ""
-                    }>Copy</button>
+            <div class="bg-white p-6">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="rounded-2xl border border-[#f2d4b5] p-4 hover:bg-[#FFF6EC] transition">
+                  <div class="text-[#6b4b2b] text-[11px] font-medium tracking-wider uppercase">Name</div>
+                  <div class="mt-1 font-semibold text-[#4A2F17]">${
+                    item.name || "N/A"
+                  }</div>
                 </div>
-              </div>
 
-              <div class="rounded-2xl border border-[#f2d4b5] p-4 hover:bg-[#FFF6EC] transition">
-                <div class="text-[#6b4b2b] text-[11px] font-medium tracking-wider uppercase">Contact Person</div>
-                <div class="mt-1 font-semibold text-[#4A2F17]">${
-                  item.contact_person || "N/A"
-                }</div>
-              </div>
-
-              <div class="rounded-2xl border border-[#f2d4b5] p-4 hover:bg-[#FFF6EC] transition">
-                <div class="flex items-center justify-between gap-3">
-                  <div>
-                    <div class="text-[#6b4b2b] text-[11px] font-medium tracking-wider uppercase">Contact Number</div>
-                    <div class="mt-1">${phone}</div>
+                <div class="rounded-2xl border border-[#f2d4b5] p-4 hover:bg-[#FFF6EC] transition">
+                  <div class="flex items-center justify-between gap-3">
+                    <div>
+                      <div class="text-[#6b4b2b] text-[11px] font-medium tracking-wider uppercase">Email</div>
+                      <div class="mt-1 break-all">${email}</div>
+                    </div>
+                    <button type="button" id="copyEmailBtn"
+                      class="inline-flex items-center justify-center rounded-full bg-[#FFEFD9] text-[#6b4b2b] border border-[#f2d4b5] hover:brightness-95 h-8 w-8 p-0 sm:h-auto sm:w-auto sm:px-3 sm:py-1 sm:text-xs"
+                      ${
+                        email === "N/A"
+                          ? "disabled style='opacity:.5;cursor:not-allowed;'"
+                          : ""
+                      }>
+                      ${svgCopy}
+                      <span class="hidden sm:inline">Copy</span>
+                    </button>
                   </div>
-                  <button type="button" id="copyPhoneBtn"
-                    class="rounded-full bg-[#FFEFD9] text-[#6b4b2b] text-xs px-3 py-1 border border-[#f2d4b5] hover:brightness-95"
-                    ${
-                      phone === "N/A"
-                        ? "disabled style='opacity:.5;cursor:not-allowed;'"
-                        : ""
-                    }>Copy</button>
                 </div>
-              </div>
 
-              <div class="sm:col-span-2 rounded-2xl border border-[#f2d4b5] p-4 hover:bg-[#FFF6EC] transition">
-                <div class="flex items-start justify-between gap-3">
-                  <div>
-                    <div class="text-[#6b4b2b] text-[11px] font-medium tracking-wider uppercase">Address</div>
-                    <div class="mt-1 leading-relaxed">${address}</div>
+                <div class="rounded-2xl border border-[#f2d4b5] p-4 hover:bg-[#FFF6EC] transition">
+                  <div class="text-[#6b4b2b] text-[11px] font-medium tracking-wider uppercase">Contact Person</div>
+                  <div class="mt-1 font-semibold text-[#4A2F17]">${
+                    item.contact_person || "N/A"
+                  }</div>
+                </div>
+
+                <div class="rounded-2xl border border-[#f2d4b5] p-4 hover:bg-[#FFF6EC] transition">
+                  <div class="flex items-center justify-between gap-3">
+                    <div>
+                      <div class="text-[#6b4b2b] text-[11px] font-medium tracking-wider uppercase">Contact Number</div>
+                      <div class="mt-1">${phone}</div>
+                    </div>
+                    <button type="button" id="copyPhoneBtn"
+                      class="inline-flex items-center justify-center rounded-full bg-[#FFEFD9] text-[#6b4b2b] border border-[#f2d4b5] hover:brightness-95 h-8 w-8 p-0 sm:h-auto sm:w-auto sm:px-3 sm:py-1 sm:text-xs"
+                      ${
+                        phone === "N/A"
+                          ? "disabled style='opacity:.5;cursor:not-allowed;'"
+                          : ""
+                      }>
+                      ${svgCopy}
+                      <span class="hidden sm:inline">Copy</span>
+                    </button>
                   </div>
-                  <a href="${gmapsUrl(address)}" target="_blank" rel="noopener"
-                    class="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white text-xs px-3 py-1 shadow ring-1 ring-white/60">
-                    Open in Maps
-                  </a>
+                </div>
+
+                <div class="sm:col-span-2 rounded-2xl border border-[#f2d4b5] p-4 hover:bg-[#FFF6EC] transition">
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <div class="text-[#6b4b2b] text-[11px] font-medium tracking-wider uppercase">Address</div>
+                      <div class="mt-1 leading-relaxed">${address}</div>
+                    </div>
+                    <a href="${gmapsUrl(
+                      address
+                    )}" target="_blank" rel="noopener"
+                      class="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white shadow ring-1 ring-white/60 h-8 w-8 p-0 sm:h-auto sm:w-auto sm:px-3 sm:py-1 sm:text-xs">
+                      ${svgMap}
+                      <span class="hidden sm:inline">Open in Maps</span>
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      `,
-      didOpen: (popup) => {
-        const copy = async (text, el) => {
-          try {
-            await navigator.clipboard.writeText(text);
-            el.textContent = "Copied!";
-            setTimeout(() => (el.textContent = "Copy"), 1200);
-          } catch {}
-        };
-        const ce = popup.querySelector("#copyEmailBtn");
-        const cp = popup.querySelector("#copyPhoneBtn");
-        if (ce && email !== "N/A")
-          ce.addEventListener("click", () => copy(email, ce));
-        if (cp && phone !== "N/A")
-          cp.addEventListener("click", () => copy(phone, cp));
-      },
-    });
-  }, []);
+        `,
+        didOpen: (popup) => {
+          const copy = async (text, el) => {
+            try {
+              await navigator.clipboard.writeText(text);
+              const label = el.querySelector("span.hidden.sm\\:inline");
+              if (label) {
+                const old = label.textContent;
+                label.textContent = "Copied!";
+                setTimeout(() => (label.textContent = old), 1200);
+              } else {
+                el.classList.add("scale-95");
+                setTimeout(() => el.classList.remove("scale-95"), 250);
+              }
+            } catch {}
+          };
+          const ce = popup.querySelector("#copyEmailBtn");
+          const cp = popup.querySelector("#copyPhoneBtn");
+          if (ce && email !== "N/A")
+            ce.addEventListener("click", () => copy(email, ce));
+          if (cp && phone !== "N/A")
+            cp.addEventListener("click", () => copy(phone, cp));
+        },
+      });
+    },
+    [entityType]
+  );
 
   // columns
   const columnsData = React.useMemo(() => {
@@ -510,21 +567,29 @@ export default function DataTable({
           header:
             typeof col.header === "string"
               ? ({ column }) => (
-                  <button
-                    onClick={() =>
-                      column.toggleSorting(column.getIsSorted() === "asc")
-                    }
-                    className="inline-flex items-center gap-1 font-semibold"
-                  >
-                    {col.header}
-                    <ArrowUpDown className="w-4 h-4" />
-                  </button>
+                  <SortButton column={column} label={col.header} />
                 )
               : col.header,
           cell:
             col.cell ||
             (({ row }) => {
               const value = row.getValue(col.accessorKey);
+
+              if (col.accessorKey === "address") {
+                const full = String(value ?? "");
+                const short = full.length > 70 ? full.slice(0, 70) + "…" : full;
+                return (
+                  <div className="text-[#4A2F17]">
+                    <span className="sm:hidden block truncate max-w-[230px]">
+                      {short}
+                    </span>
+                    <span className="hidden sm:block whitespace-pre-wrap leading-relaxed">
+                      {full}
+                    </span>
+                  </div>
+                );
+              }
+
               const bold =
                 col.accessorKey === "name" ||
                 col.accessorKey === "contact_person";
@@ -544,26 +609,71 @@ export default function DataTable({
         id: "actions",
         enableHiding: false,
         cell: ({ row }) => (
-          <DropdownMenu>
+          <DropdownMenu
+            open={openMenuForRow === row.id}
+            onOpenChange={(v) => setOpenMenuForRow(v ? row.id : null)}
+            modal={false}
+          >
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
+              <Button
+                variant="ghost"
+                className="h-8 w-8 p-0"
+                data-dropdown-trigger
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setOpenMenuForRow((cur) => (cur === row.id ? null : row.id));
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+              >
                 <span className="sr-only">Open menu</span>
                 <MoreHorizontal className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
 
-            {/* Actions menu with hover highlight */}
             <DropdownMenuContent
               align="end"
               sideOffset={8}
-              className="bg-white p-2 rounded-xl border border-black/10 shadow-lg"
+              onOpenAutoFocus={(e) => e.preventDefault()}
+              onCloseAutoFocus={(e) => e.preventDefault()}
+              onPointerDownOutside={(e) => {
+                const el = e.target;
+                if (
+                  el instanceof Element &&
+                  el.closest("[data-dropdown-trigger]")
+                ) {
+                  e.preventDefault();
+                }
+              }}
+              onInteractOutside={(e) => {
+                const el = e.target;
+                if (
+                  el instanceof Element &&
+                  el.closest("[data-dropdown-trigger]")
+                ) {
+                  e.preventDefault();
+                }
+              }}
+              className="z-50 bg-white p-2 rounded-xl border border-black/10 shadow-lg
+                         animate-none data-[state=open]:!animate-none data-[state=closed]:!animate-none
+                         transition-none data-[side=top]:transition-none data-[side=bottom]:transition-none
+                         will-change-auto"
             >
               <DropdownMenuLabel className="px-2 pb-2 text-[#4A2F17]">
                 Actions
               </DropdownMenuLabel>
 
               <DropdownMenuItem
-                onClick={() => handleView(row)}
+                onSelect={(e) => e.preventDefault()}
+                onClick={() => {
+                  setOpenMenuForRow(null);
+                  handleView(row);
+                }}
                 className="group rounded-lg px-3 py-2 hover:bg-[#FFF6EC] focus:bg-[#FFF1E2] cursor-pointer"
               >
                 <Eye className="w-4 h-4 mr-2" />
@@ -571,7 +681,11 @@ export default function DataTable({
               </DropdownMenuItem>
 
               <DropdownMenuItem
-                onClick={() => handleEdit(row)}
+                onSelect={(e) => e.preventDefault()}
+                onClick={() => {
+                  setOpenMenuForRow(null);
+                  handleEdit(row);
+                }}
                 className="group rounded-lg px-3 py-2 hover:bg-[#FFF6EC] focus:bg-[#FFF1E2] cursor-pointer"
               >
                 <Pencil className="w-4 h-4 mr-2" />
@@ -581,7 +695,11 @@ export default function DataTable({
               <DropdownMenuSeparator />
 
               <DropdownMenuItem
-                onClick={() => onDelete && onDelete(row.original.id)}
+                onSelect={(e) => e.preventDefault()}
+                onClick={() => {
+                  setOpenMenuForRow(null);
+                  onDelete && onDelete(row.original.id);
+                }}
                 className="group rounded-lg px-3 py-2 text-red-600 hover:bg-red-50 focus:bg-red-50 cursor-pointer"
               >
                 <Trash2 className="w-4 h-4 mr-2" />
@@ -593,7 +711,7 @@ export default function DataTable({
       },
     ];
     return baseColumns;
-  }, [columns, onDelete, handleEdit, handleView]);
+  }, [columns, onDelete, handleEdit, handleView, openMenuForRow]);
 
   const table = useReactTable({
     data,
@@ -663,9 +781,9 @@ export default function DataTable({
           </button>
 
           {/* Column menu */}
-          <DropdownMenu>
+          <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
-              <button className={tones.pillOutline}>
+              <button className={tones.pillOutline} data-dropdown-trigger>
                 <span className="inline-flex items-center gap-2">
                   <Grid2x2 className="w-4 h-4" />
                   <span className="hidden sm:inline">Column</span>
@@ -676,7 +794,30 @@ export default function DataTable({
             <DropdownMenuContent
               align="start"
               sideOffset={8}
-              className="bg-white p-2 rounded-xl border border-black/10 shadow-lg"
+              onOpenAutoFocus={(e) => e.preventDefault()}
+              onCloseAutoFocus={(e) => e.preventDefault()}
+              onPointerDownOutside={(e) => {
+                const el = e.target;
+                if (
+                  el instanceof Element &&
+                  el.closest("[data-dropdown-trigger]")
+                ) {
+                  e.preventDefault();
+                }
+              }}
+              onInteractOutside={(e) => {
+                const el = e.target;
+                if (
+                  el instanceof Element &&
+                  el.closest("[data-dropdown-trigger]")
+                ) {
+                  e.preventDefault();
+                }
+              }}
+              className="z-50 bg-white p-2 rounded-xl border border-black/10 shadow-lg
+                         animate-none data-[state=open]:!animate-none data-[state=closed]:!animate-none
+                         transition-none data-[side=top]:transition-none data-[side=bottom]:transition-none
+                         will-change-auto"
             >
               {table
                 .getAllColumns()
@@ -717,7 +858,17 @@ export default function DataTable({
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id} className={`${tones.headerGrad}`}>
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} className="font-semibold">
+                  <TableHead
+                    key={header.id}
+                    className="font-semibold whitespace-nowrap"
+                    aria-sort={
+                      header.column.getIsSorted()
+                        ? header.column.getIsSorted() === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : "none"
+                    }
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -736,10 +887,10 @@ export default function DataTable({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className="group transition will-change-transform hover:bg-[#FFF6EC] hover:shadow-md transform-gpu hover:scale-[1.01]"
+                  className="group transition hover:bg-[#FFF6EC] hover:shadow-md"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="py-3">
+                    <TableCell key={cell.id} className="py-3 align-top">
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()
@@ -797,7 +948,7 @@ export default function DataTable({
               Create New {entityType}
             </DialogTitle>
             <DialogDescription className="text-[#7b5836] font-bold">
-              Bakery Details
+              {entityType} Details
             </DialogDescription>
           </DialogHeader>
 
@@ -1009,7 +1160,7 @@ export default function DataTable({
               Edit {entityType}
             </DialogTitle>
             <DialogDescription className="text-[#7b5836] font-bold">
-              Bakery Details
+              {entityType} Details
             </DialogDescription>
           </DialogHeader>
 

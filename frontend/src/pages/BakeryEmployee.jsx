@@ -15,7 +15,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Pencil, Trash2, Plus } from "lucide-react";
+import { Pencil, Trash2, Plus, Search } from "lucide-react";
 import axios from "../api/axios";
 import Swal from "sweetalert2";
 
@@ -33,9 +33,15 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
   const [employees, setEmployees] = useState([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // --- pagination (max 10 per page) ---
+  const PAGE_SIZE = 10;
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Get the appropriate token (employee token takes priority if it exists)
-  const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
+  const token =
+    localStorage.getItem("employeeToken") || localStorage.getItem("token");
 
   const [formData, setFormData] = useState({
     name: "",
@@ -50,6 +56,46 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
     () => ({ Authorization: `Bearer ${token}` }),
     [token]
   );
+
+  const filteredEmployees = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return employees;
+
+    return employees.filter((emp) => {
+      const fields = [emp?.name, emp?.email, emp?.role, emp?.employee_id];
+      return fields.some((value) =>
+        String(value || "")
+          .toLowerCase()
+          .includes(term)
+      );
+    });
+  }, [employees, searchTerm]);
+
+  // --- derived pagination values ---
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredEmployees.length / PAGE_SIZE)),
+    [filteredEmployees.length]
+  );
+
+  const paginatedEmployees = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredEmployees.slice(start, start + PAGE_SIZE);
+  }, [filteredEmployees, currentPage]);
+
+  // kapag nagbago ang search, balik sa page 1
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  // siguraduhin na valid pa rin yung currentPage
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const canPrev = currentPage > 1;
+  const canNext = currentPage < totalPages;
 
   // Styles
   const labelTone = "block text-sm font-semibold text-[#6b4b2b]";
@@ -67,6 +113,10 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
     "bg-white/95 ring-[#eadfce] border border-[#eadfce] hover:bg-[#FFF6E9] hover:shadow-[0_8px_18px_rgba(191,115,39,.18)] hover:-translate-y-0.5";
   const actionDelete =
     "bg-[#fff3f3] ring-[#ffdede] border border-[#ffdede] hover:bg-[#ffeaea] hover:shadow-[0_8px_18px_rgba(200,30,30,.15)] hover:-translate-y-0.5";
+
+  // pagination button style
+  const pagerBtn =
+    "min-w-[80px] rounded-full border border-[#f2d4b5] bg-white/95 px-4 py-1.5 text-xs sm:text-sm font-semibold text-[#6b4b2b] shadow-sm hover:bg-white transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/95";
 
   // Data fetching
   const fetchEmployees = useCallback(async () => {
@@ -173,20 +223,25 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
 
       // Show success with employee ID for new employees
       if (!editingEmployee) {
-        // Fetch the newly created employee to get their employee_id
-        const newEmployees = await axios.get(`${API_BASE}/employees`, { headers });
+        const newEmployees = await axios.get(`${API_BASE}/employees`, {
+          headers,
+        });
         const latestEmployee = newEmployees.data[newEmployees.data.length - 1];
-        
+
         Swal.fire({
           title: "Success!",
           html: `
             <div class="space-y-3">
               <p>Employee added successfully!</p>
-              <p class="text-sm text-gray-600">Login credentials have been sent to <strong>${formData.email}</strong></p>
+              <p class="text-sm text-gray-600">Login credentials have been sent to <strong>${
+                formData.email
+              }</strong></p>
               <div class="bg-gradient-to-r from-[#FFF6E9] to-[#FFE7C5] p-4 rounded-lg border border-[#E49A52]">
                 <p class="text-sm font-semibold text-[#6b4b2b] mb-2">Employee Login Credentials:</p>
                 <div class="space-y-1">
-                  <p class="text-xs text-[#7b5836]"><strong>Employee ID:</strong> <span class="font-mono text-[#E49A52]">${latestEmployee?.employee_id || 'N/A'}</span></p>
+                  <p class="text-xs text-[#7b5836]"><strong>Employee ID:</strong> <span class="font-mono text-[#E49A52]">${
+                    latestEmployee?.employee_id || "N/A"
+                  }</span></p>
                   <p class="text-xs text-[#7b5836]"><strong>Default Password:</strong> <span class="font-mono">Employee123!</span></p>
                 </div>
                 <p class="text-xs text-[#8a5a25] mt-2 italic">Employee must change password on first login</p>
@@ -195,7 +250,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
           `,
           icon: "success",
           confirmButtonColor: "#C97C2C",
-          width: "500px"
+          width: "500px",
         });
       } else {
         Swal.fire({
@@ -251,15 +306,32 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
   // Render
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="rounded-2xl border border-[#eadfce] bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9] shadow-[0_2px_8px_rgba(93,64,28,.06)] px-6 py-5">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-3xl font-extrabold text-[#4A2F17]">
+      {/* Employee Management Section (header + list) */}
+      <div className="rounded-2xl border border-[#eadfce] bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9] shadow-[0_2px_8px_rgba(93,64,28,.06)] px-4 sm:px-6 py-4 sm:py-6">
+        {/* Header row */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-[#4A2F17]">
             Employee Management
           </h2>
 
-          <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-2 text-sm font-semibold px-3 py-1 rounded-full bg-white/85 border border-[#efdcc3] text-[#6b4b2b]">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 justify-start sm:justify-end">
+            {/* --- UI: search bar --- */}
+            <div className="relative w-full max-w-xs">
+              <Input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search employees..."
+                className="h-9 rounded-full border-[#f2d4b5] bg-white/95 pl-9 text-sm shadow-sm focus-visible:border-[#E49A52] focus-visible:ring-[#E49A52]"
+              />
+              <span className="pointer-events-none absolute inset-y-0 left-3 grid place-items-center">
+                <Search
+                  className="h-3.5 w-3.5 text-[#4b5563]"
+                  strokeWidth={2.2}
+                />
+              </span>
+            </div>
+
+            <span className="inline-flex items-center gap-2 text-xs sm:text-sm font-semibold px-3 py-1 rounded-full bg-white/85 border border-[#efdcc3] text-[#6b4b2b]">
               <span className="w-2.5 h-2.5 rounded-full bg-[#E49A52]" />
               {employees.length}{" "}
               {employees.length === 1 ? "Employee" : "Employees"}
@@ -268,7 +340,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
             {!isViewOnly && (
               <Button
                 onClick={openAdd}
-                className={primaryBtn}
+                className={`${primaryBtn} !h-10 sm:!h-11 !px-4 sm:!px-5 text-sm sm:text-base`}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Employee
@@ -276,101 +348,110 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
             )}
           </div>
         </div>
-      </div>
 
+        {/* Subtle divider */}
+        <div className="mt-4 h-px bg-gradient-to-r from-transparent via-[#f1ddc9] to-transparent" />
 
+        {/* Employee Cards Grid */}
+        <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6 md:gap-7">
+          {employees.length ? (
+            filteredEmployees.length ? (
+              paginatedEmployees.map((emp) => {
+                const img = emp.profile_picture
+                  ? toUrl(emp.profile_picture)
+                  : null;
+                const initial = (emp?.name || "?").charAt(0).toUpperCase();
 
-      {/* Employee Cards */}
-      <div className="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
-        {employees.length ? (
-          employees.map((emp) => {
-            const img = emp.profile_picture
-              ? toUrl(emp.profile_picture)
-              : null;
-            const initial = (emp?.name || "?").charAt(0).toUpperCase();
-              return (
-                <div
-                  key={emp.id}
-                  className="transform-gpu rounded-2xl border border-[#f2e3cf] bg-white/90 shadow-[0_6px_18px_rgba(33,20,8,.06)] overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_18px_36px_rgba(191,115,39,.18)]"
-                >
-                  <div className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-20 h-20 rounded-full overflow-hidden ring-2 ring-white shadow bg-[#FFE7C5] grid place-items-center">
-                          {img ? (
-                            <img
-                              src={img}
-                              alt={emp.name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-xl font-bold text-[#8a5a25]">
-                              {initial}
-                            </span>
-                          )}
-                        </div>
-                        <div>
-                          <h3 className="text-xl font-semibold text-[#2f1f12]">
-                            {emp.name}
-                          </h3>
-                          {emp.employee_id && (
-                            <div className="mt-1 mb-2">
-                              <span className="text-sm font-mono font-bold px-2.5 py-1 rounded-md bg-gradient-to-r from-[#E49A52] to-[#D68942] text-white shadow-sm">
-                                {emp.employee_id}
+                return (
+                  <div
+                    key={emp.id}
+                    className="transform-gpu rounded-2xl border border-[#f2e3cf] bg-white/90 shadow-[0_6px_18px_rgba(33,20,8,.06)] overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_18px_36px_rgba(191,115,39,.18)]"
+                  >
+                    <div className="p-5 sm:p-6">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden ring-2 ring-white shadow bg-[#FFE7C5] grid place-items-center">
+                            {img ? (
+                              <img
+                                src={img}
+                                alt={emp.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-lg sm:text-xl font-bold text-[#8a5a25]">
+                                {initial}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <h3 className="text-lg sm:text-xl font-semibold text-[#2f1f12]">
+                              {emp.name}
+                            </h3>
+                            {emp.employee_id && (
+                              <div className="mt-1 mb-2">
+                                <span className="text-xs sm:text-sm font-mono font-bold px-2.5 py-1 rounded-md bg-gradient-to-r from-[#E49A52] to-[#D68942] text-white shadow-sm">
+                                  {emp.employee_id}
+                                </span>
+                              </div>
+                            )}
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <span className="text-[11px] sm:text-xs font-semibold px-2 py-1 rounded-full bg-[#FFF6E9] border border-[#f4e6cf] text-[#6b4b2b]">
+                                {emp.role || "—"}
+                              </span>
+                              <span className="text-[11px] sm:text-xs font-semibold px-2 py-1 rounded-full bg-[#E9F9EF] border border-[#c7ecd5] text-[#2b7a3f]">
+                                Start: {emp.start_date || "—"}
                               </span>
                             </div>
-                          )}
-                          <div className="mt-2 flex flex-wrap items-center gap-2">
-                            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#FFF6E9] border border-[#f4e6cf] text-[#6b4b2b]">
-                              {emp.role || "—"}
-                            </span>
-                            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#E9F9EF] border border-[#c7ecd5] text-[#2b7a3f]">
-                              Start: {emp.start_date || "—"}
-                            </span>
                           </div>
                         </div>
+
+                        {!isViewOnly && (
+                          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                            <button
+                              aria-label="Edit employee"
+                              onClick={() => openEdit(emp)}
+                              className={`${actionBtnBase} ${actionEdit}`}
+                              title="Edit"
+                            >
+                              <Pencil
+                                className="h-5 w-5 text-[#3b2a18]"
+                                strokeWidth={2.4}
+                              />
+                            </button>
+                            <button
+                              aria-label="Delete employee"
+                              onClick={() => handleDelete(emp.id)}
+                              className={`${actionBtnBase} ${actionDelete}`}
+                              title="Delete"
+                            >
+                              <Trash2
+                                className="h-5 w-5 text-[#8f1f1f]"
+                                strokeWidth={2.4}
+                              />
+                            </button>
+                          </div>
+                        )}
                       </div>
 
-                      {!isViewOnly && (
-                        <div className="flex gap-3">
-                          <button
-                            aria-label="Edit employee"
-                            onClick={() => openEdit(emp)}
-                            className={`${actionBtnBase} ${actionEdit}`}
-                            title="Edit"
-                          >
-                            <Pencil
-                              className="h-5 w-5 text-[#3b2a18]"
-                              strokeWidth={2.4}
-                            />
-                          </button>
-                          <button
-                            aria-label="Delete employee"
-                            onClick={() => handleDelete(emp.id)}
-                            className={`${actionBtnBase} ${actionDelete}`}
-                            title="Delete"
-                          >
-                            <Trash2
-                              className="h-5 w-5 text-[#8f1f1f]"
-                              strokeWidth={2.4}
-                            />
-                          </button>
+                      {emp.access_rights && (
+                        <div className="mt-5 text-xs sm:text-sm text-[#7b5836]">
+                          <span className="font-semibold text-[#6b4b2b]">
+                            Access:
+                          </span>{" "}
+                          {emp.access_rights}
                         </div>
                       )}
                     </div>
-
-                    {emp.access_rights && (
-                      <div className="mt-5 text-sm text-[#7b5836]">
-                        <span className="font-semibold text-[#6b4b2b]">
-                          Access:
-                        </span>{" "}
-                        {emp.access_rights}
-                      </div>
-                    )}
                   </div>
+                );
+              })
+            ) : (
+              <div className="col-span-full">
+                <div className="rounded-2xl border border-[#eadfce] bg-white/70 p-6 text-center text-[#7b5836] text-sm">
+                  No employees match your search.
                 </div>
-              );
-            })
+              </div>
+            )
           ) : (
             <div className="col-span-full">
               <div className="rounded-2xl border border-[#eadfce] bg-white/70 p-6 text-center text-[#7b5836]">
@@ -380,15 +461,40 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
           )}
         </div>
 
+        {/* --- Pagination controls (Prev / Next) --- */}
+        {filteredEmployees.length > 0 && (
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => canPrev && setCurrentPage((p) => p - 1)}
+              disabled={!canPrev}
+              className={pagerBtn}
+            >
+              Prev
+            </button>
+            <span className="text-xs sm:text-sm font-semibold text-[#6b4b2b]">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => canNext && setCurrentPage((p) => p + 1)}
+              disabled={!canNext}
+              className={pagerBtn}
+            >
+              Next
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Add / Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent
           className="
-            fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
-            w-[min(94vw,900px)] sm:max-w-[860px]
+            w-[min(92vw,480px)] sm:max-w-[860px]
             rounded-2xl border border-[#eadfce] p-0 overflow-hidden
-            backdrop:bg-black/20
-            flex flex-col max-h-[calc(100vh-7rem)]
+            bg-gradient-to-b from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
+            flex flex-col max-h-[calc(100vh-3rem)]
             [&>button.absolute.right-4.top-4]:hidden
           "
         >
@@ -400,7 +506,9 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
               </DialogTitle>
               {editingEmployee?.employee_id && (
                 <div className="mt-2">
-                  <span className="text-xs text-[#7b5836] font-medium">Employee ID: </span>
+                  <span className="text-xs text-[#7b5836] font-medium">
+                    Employee ID:{" "}
+                  </span>
                   <span className="text-sm font-mono font-bold px-2 py-1 rounded bg-gradient-to-r from-[#E49A52] to-[#D68942] text-white shadow-sm">
                     {editingEmployee.employee_id}
                   </span>
@@ -539,7 +647,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
           </div>
 
           {/* Sticky footer */}
-          <DialogFooter className="sticky bottom-0 z-10 border-t bg-white p-3 sm:p-4 flex justify-end gap-2">
+          <DialogFooter className="sticky bottom-0 z-10 border-t bg-white/95 p-3 sm:p-4 flex justify-end gap-2">
             <button
               type="button"
               onClick={() => {

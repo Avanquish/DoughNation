@@ -15,7 +15,7 @@ const UserBadges = ({ userId }) => {
       const employeeToken = localStorage.getItem("employeeToken");
       const bakeryToken = localStorage.getItem("token");
       const token = employeeToken || bakeryToken;
-      
+
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const res = await axios.get(`${API}/badges/user/${userId}`, { headers });
       setBadges(res.data || []);
@@ -46,9 +46,14 @@ const UserBadges = ({ userId }) => {
         hover:ring-1 hover:ring-[#E49A52]/35
       "
     >
-      <CardContent className="p-6 min-h-[404px]">
+      <CardContent className="p-4 sm:p-6 min-h-[260px] sm:min-h-[404px]">
         {loading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          <div
+            className="
+              grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5
+              gap-4 max-h-[260px] sm:max-h-none overflow-y-auto pr-1
+            "
+          >
             {Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}
@@ -71,14 +76,20 @@ const UserBadges = ({ userId }) => {
           <div
             className="
               flex items-center justify-center
-              h-[320px] rounded-2xl border border-[#f2e3cf] bg-white/60
-              text-[#7b5836]
+              h-[220px] sm:h-[280px] rounded-2xl border border-[#f2e3cf] bg-white/60
+              text-[#7b5836] text-sm sm:text-base text-center px-4
             "
           >
             No badges unlocked yet.
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          // === BADGES GRID (UI only) ===
+          <div
+            className="
+              grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5
+              gap-4 max-h-[260px] sm:max-h-none overflow-y-auto pr-1
+            "
+          >
             {badges.map((b) => {
               const icon = b?.badge?.icon_url
                 ? `${API}/${b.badge.icon_url}`
@@ -86,11 +97,14 @@ const UserBadges = ({ userId }) => {
               const name = b?.badge_name?.trim() || b?.badge?.name || "Badge";
 
               return (
+                // === SINGLE BADGE CARD (UI only) ===
                 <div
                   key={b.id}
                   className="
                     group relative flex flex-col items-center text-center
-                    p-3 rounded-xl
+                    px-3 py-3
+                    rounded-xl
+                    min-h-[112px] w-full
                     border border-[#f2e3cf] bg-white/70
                     shadow-[0_2px_10px_rgba(93,64,28,0.05)]
                     transition-all duration-300 ease-[cubic-bezier(.2,.9,.4,1)]
@@ -124,7 +138,17 @@ const UserBadges = ({ userId }) => {
                     "
                     loading="lazy"
                   />
-                  <p className="text-xs font-semibold text-[#6B4B2B]">{name}</p>
+                  <p
+                    className="
+                      text-xs sm:text-[13px]
+                      font-semibold text-[#6B4B2B]
+                      leading-tight mt-1
+                      max-h-[2.7em]
+                      overflow-hidden
+                    "
+                  >
+                    {name}
+                  </p>
                 </div>
               );
             })}
@@ -141,3 +165,4 @@ const UserBadges = ({ userId }) => {
 };
 
 export default UserBadges;
+  

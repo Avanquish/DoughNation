@@ -376,6 +376,7 @@ export default function Register() {
                         handleInputChange("name", e.target.value)
                       }
                       required
+                      placeholder="e.g., Sunny Loaf Bakery"
                       className="bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E]"
                       style={{ height: "clamp(44px, 5.5svh, 52px)" }}
                     />
@@ -394,6 +395,7 @@ export default function Register() {
                         handleInputChange("name", e.target.value)
                       }
                       required
+                      placeholder="e.g., Helping Hands Organization"
                       className="bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E]"
                       style={{ height: "clamp(44px, 5.5svh, 52px)" }}
                     />
@@ -439,7 +441,8 @@ export default function Register() {
                       handleInputChange("contact_person", e.target.value)
                     }
                     required
-                    className="bg-white/85 border-[#FFE1BE] text-[#6c471d] focus-visible:ring-[#E3B57E]"
+                    placeholder="e.g., Juan Dela Cruz"
+                    className="bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E]"
                     style={{ height: "clamp(44px, 5.5svh, 52px)" }}
                   />
                 </div>
@@ -451,7 +454,8 @@ export default function Register() {
                       handleInputChange("contact_number", e.target.value)
                     }
                     required
-                    className="bg-white/85 border-[#FFE1BE] text-[#6c471d] focus-visible:ring-[#E3B57E]"
+                    placeholder="e.g., 09123456789"
+                    className="bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E]"
                     style={{ height: "clamp(44px, 5.5svh, 52px)" }}
                   />
                 </div>
@@ -466,6 +470,7 @@ export default function Register() {
                   value={formData.address}
                   onChange={(e) => handleInputChange("address", e.target.value)}
                   required
+                  placeholder="Pin your address on the map"
                   className="bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E]"
                   style={{ height: "clamp(44px, 5.5svh, 52px)" }}
                 />

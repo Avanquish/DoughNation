@@ -8,7 +8,7 @@ const API = "http://localhost:8000";
 const isExpired = (dateStr, serverDate) => {
   if (!dateStr || !serverDate) return false;
   const d = new Date(dateStr);
-  const [year, month, day] = serverDate.split('-').map(Number);
+  const [year, month, day] = serverDate.split("-").map(Number);
   const t = new Date(year, month - 1, day);
   t.setHours(0, 0, 0, 0);
   d.setHours(0, 0, 0, 0);
@@ -18,7 +18,7 @@ const isExpired = (dateStr, serverDate) => {
 const daysUntil = (dateStr, serverDate) => {
   if (!dateStr || !serverDate) return null;
   const d = new Date(dateStr);
-  const [year, month, day] = serverDate.split('-').map(Number);
+  const [year, month, day] = serverDate.split("-").map(Number);
   const t = new Date(year, month - 1, day);
   t.setHours(0, 0, 0, 0);
   d.setHours(0, 0, 0, 0);
@@ -29,13 +29,13 @@ const statusOf = (donation, serverDate) => {
   const d = daysUntil(donation?.expiration_date, serverDate);
   if (d === null) return "fresh";
   if (d <= 0) return "expired";
-  
+
   const threshold = Number(donation?.threshold);
-  
+
   // Match inventory logic: threshold 0 means check if d <= 1
   if (threshold === 0 && d <= 1) return "soon";
   if (d <= threshold) return "soon";
-  
+
   return "fresh";
 };
 
@@ -141,31 +141,34 @@ export default function CharityDonation() {
   const [selectedDonation, setSelectedDonation] = useState(null);
   const [currentServerDate, setCurrentServerDate] = useState(null);
 
-  // Fetch server date on mount
-useEffect(() => {
-  const fetchServerDate = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get(`${API}/server-time`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setCurrentServerDate(res.data.date);
-    } catch (err) {
-      console.error("Failed to fetch server date:", err);
-      const today = new Date();
-      const yyyy = today.getFullYear();
-      const mm = String(today.getMonth() + 1).padStart(2, '0');
-      const dd = String(today.getDate()).padStart(2, '0');
-      setCurrentServerDate(`${yyyy}-${mm}-${dd}`);
-    }
-  };
-  
-  fetchServerDate();
-  const interval = setInterval(fetchServerDate, 60 * 60 * 1000); // Refresh every hour
-  return () => clearInterval(interval);
-}, []);
+  // pagination state
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
 
-  // Fetching data
+  // Fetch server date on mount
+  useEffect(() => {
+    const fetchServerDate = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await axios.get(`${API}/server-time`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setCurrentServerDate(res.data.date);
+      } catch (err) {
+        console.error("Failed to fetch server date:", err);
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, "0");
+        const dd = String(today.getDate()).padStart(2, "0");
+        setCurrentServerDate(`${yyyy}-${mm}-${dd}`);
+      }
+    };
+
+    fetchServerDate();
+    const interval = setInterval(fetchServerDate, 60 * 60 * 1000); // Refresh every hour
+    return () => clearInterval(interval);
+  }, []);
+
   // Fetching data
   const fetchData = async () => {
     try {
@@ -195,79 +198,87 @@ useEffect(() => {
 
   useEffect(() => {
     fetchData();
-    
-    // Auto-refresh every 5 seconds
+
+    // Auto-refresh every 1 second
     const refreshInterval = setInterval(() => {
       fetchData();
     }, 1000);
-    
+
     return () => clearInterval(refreshInterval);
   }, []);
 
+  // keep page within bounds when donations change
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(donations.length / PAGE_SIZE));
+    if (page > totalPages) setPage(totalPages);
+  }, [donations.length, page]);
+
   // Request donation
-const requestDonation = async (donation) => {
-   console.log("DONATION OBJECT BEING REQUESTED:", donation);
-   console.log("bakery_inventory_id on donation:", donation.bakery_inventory_id);
-  try {
-    const token = localStorage.getItem("token");
-    const res = await axios.post(
-      `${API}/donation/request`,
-      { donation_id: donation.id, bakery_id: donation.bakery_id },
-      { headers: { Authorization: `Bearer ${token}` } }
+  const requestDonation = async (donation) => {
+    console.log("DONATION OBJECT BEING REQUESTED:", donation);
+    console.log(
+      "bakery_inventory_id on donation:",
+      donation.bakery_inventory_id
     );
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.post(
+        `${API}/donation/request`,
+        { donation_id: donation.id, bakery_id: donation.bakery_id },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-    const requestId = res.data.request_id;
-    
-    // FETCH the full DonationRequest that was just created
-    const requestRes = await axios.get(
-      `${API}/donation/my_requests`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    
-    // Find the one we just created
-    const newRequest = requestRes.data.find((req) => req.id === requestId);
+      const requestId = res.data.request_id;
 
-    setRequestedDonations((prev) => {
-      const updated = { ...prev, [donation.id]: requestId };
-      return updated;
-    });
+      // FETCH the full DonationRequest that was just created
+      const requestRes = await axios.get(`${API}/donation/my_requests`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    // Combine request data with full donation object
-    const donationCardData = {
-      ...newRequest,                   
-      id: newRequest.id,                
-      product_name: donation.name,      
-      name: donation.name,              
-      image: donation.image,            
-      quantity: newRequest.donation_quantity || donation.quantity,  
-      expiration_date: donation.expiration_date,
-      bakery_id: donation.bakery_id,
-      bakery_name: donation.bakery_name,
-      bakery_profile_picture: donation.bakery_profile_picture,
-      bakery_inventory_id: newRequest.bakery_inventory_id  
-    };
+      // Find the one we just created
+      const newRequest = requestRes.data.find((req) => req.id === requestId);
 
-    // Handoff to Messenger with complete data
-    const bakeryInfo = {
-      id: donation.bakery_id,
-      name: donation.bakery_name,
-      profile_picture: donation.bakery_profile_picture || null,
-    };
-    
-    localStorage.setItem("open_chat_with", JSON.stringify(bakeryInfo));
-    localStorage.setItem("send_donation", JSON.stringify(donationCardData));
-    window.dispatchEvent(new Event("open_chat"));
+      setRequestedDonations((prev) => {
+        const updated = { ...prev, [donation.id]: requestId };
+        return updated;
+      });
 
-    Swal.fire("Success", "Donation request sent!", "success");
-  } catch (err) {
-    console.error(err);
-    Swal.fire(
-      "Error",
-      err.response?.data?.detail || "Failed to request donation",
-      "error"
-    );
-  }
-};
+      // Combine request data with full donation object
+      const donationCardData = {
+        ...newRequest,
+        id: newRequest.id,
+        product_name: donation.name,
+        name: donation.name,
+        image: donation.image,
+        quantity: newRequest.donation_quantity || donation.quantity,
+        expiration_date: donation.expiration_date,
+        bakery_id: donation.bakery_id,
+        bakery_name: donation.bakery_name,
+        bakery_profile_picture: donation.bakery_profile_picture,
+        bakery_inventory_id: newRequest.bakery_inventory_id,
+      };
+
+      // Handoff to Messenger with complete data
+      const bakeryInfo = {
+        id: donation.bakery_id,
+        name: donation.bakery_name,
+        profile_picture: donation.bakery_profile_picture || null,
+      };
+
+      localStorage.setItem("open_chat_with", JSON.stringify(bakeryInfo));
+      localStorage.setItem("send_donation", JSON.stringify(donationCardData));
+      window.dispatchEvent(new Event("open_chat"));
+
+      Swal.fire("Success", "Donation request sent!", "success");
+    } catch (err) {
+      console.error(err);
+      Swal.fire(
+        "Error",
+        err.response?.data?.detail || "Failed to request donation",
+        "error"
+      );
+    }
+  };
 
   const cancelRequest = async (donation_id) => {
     const request_id = requestedDonations[donation_id];
@@ -301,71 +312,99 @@ const requestDonation = async (donation) => {
 
   // Listen for highlight_donation event (from notification)
   useEffect(() => {
-  const handleHighlightDonation = (e) => {
-    const donationId = Number(e.detail?.donation_id);
-    console.log("🟢 [Event Received] highlight_donation fired with ID:", donationId);
-    if (!donationId) return;
-    console.warn("⚠️ [HighlightDonation] No donation_id found in event detail.");
+    const handleHighlightDonation = (e) => {
+      const donationId = Number(e.detail?.donation_id);
+      console.log(
+        "🟢 [Event Received] highlight_donation fired with ID:",
+        donationId
+      );
+      if (!donationId) return;
+      console.warn(
+        "⚠️ [HighlightDonation] No donation_id found in event detail."
+      );
 
-   const targetDonation = donations.find((d) => Number(d.id) === donationId);
-   console.log("🔍 [HighlightDonation] Searching donation in main list...");
-    if (!targetDonation) return;
+      const targetDonation = donations.find((d) => Number(d.id) === donationId);
+      console.log("🔍 [HighlightDonation] Searching donation in main list...");
+      if (!targetDonation) return;
 
-    setSelectedDonation(targetDonation);
+      setSelectedDonation(targetDonation);
 
-    const element = document.getElementById(`donation-${donationId}`);
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "center" });
-      element.classList.add("animate-highlight");
-      setTimeout(() => element.classList.remove("animate-highlight"), 1500);
-    }
-  };
-
-  window.addEventListener("highlight_donation", handleHighlightDonation);
-  return () => window.removeEventListener("highlight_donation", handleHighlightDonation);
-}, [donations]);
-
-//Cancel is auto trigger if bakery click cancel in cards
-useEffect(() => {
-  const handleExternalCancel = (e) => {
-    const donationId = Number(e?.detail?.donation_id);
-    if (!donationId) return;
-    console.log("Received external cancel event for donation:", donationId);
-
-    // Remove request mapping if present
-    setRequestedDonations((prev) => {
-      const updated = { ...prev };
-      if (updated.hasOwnProperty(donationId)) {
-        delete updated[donationId];
+      const element = document.getElementById(`donation-${donationId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        element.classList.add("animate-highlight");
+        setTimeout(() => element.classList.remove("animate-highlight"), 1500);
       }
-      // keep localStorage sync if you still use it elsewhere (optional)
-      try {
-        localStorage.setItem("requestedDonations", JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
+    };
 
-    // Remove donation card from visible list
-    setDonations((prev) => prev.filter((d) => Number(d.id) !== Number(donationId)));
+    window.addEventListener("highlight_donation", handleHighlightDonation);
+    return () =>
+      window.removeEventListener("highlight_donation", handleHighlightDonation);
+  }, [donations]);
 
-    // Optional small feedback
-    Swal.fire("Info", "Donation request canceled", "info");
-  };
+  //Cancel is auto trigger if bakery click cancel in cards
+  useEffect(() => {
+    const handleExternalCancel = (e) => {
+      const donationId = Number(e?.detail?.donation_id);
+      if (!donationId) return;
+      console.log("Received external cancel event for donation:", donationId);
 
-  window.addEventListener("donation_cancelled_by_messages", handleExternalCancel);
-  window.addEventListener("donation_cancelled", handleExternalCancel);
-  return () => {
-    window.removeEventListener("donation_cancelled_by_messages", handleExternalCancel);
-    window.removeEventListener("donation_cancelled", handleExternalCancel);
-  };
-}, []);
+      // Remove request mapping if present
+      setRequestedDonations((prev) => {
+        const updated = { ...prev };
+        if (updated.hasOwnProperty(donationId)) {
+          delete updated[donationId];
+        }
+        // keep localStorage sync if you still use it elsewhere (optional)
+        try {
+          localStorage.setItem("requestedDonations", JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+
+      // Remove donation card from visible list
+      setDonations((prev) =>
+        prev.filter((d) => Number(d.id) !== Number(donationId))
+      );
+
+      // Optional small feedback
+      Swal.fire("Info", "Donation request canceled", "info");
+    };
+
+    window.addEventListener(
+      "donation_cancelled_by_messages",
+      handleExternalCancel
+    );
+    window.addEventListener("donation_cancelled", handleExternalCancel);
+    return () => {
+      window.removeEventListener(
+        "donation_cancelled_by_messages",
+        handleExternalCancel
+      );
+      window.removeEventListener("donation_cancelled", handleExternalCancel);
+    };
+  }, []);
+
+  // pagination derived values
+  const totalPages = Math.max(1, Math.ceil(donations.length / PAGE_SIZE));
+  const startIndex = (page - 1) * PAGE_SIZE;
+  const pageDonations = donations.slice(startIndex, startIndex + PAGE_SIZE);
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
+
+  const pagerBtn =
+    "min-w-[80px] rounded-full border border-[#f2d4b5] bg-white/95 px-4 py-1.5 text-xs sm:text-sm font-semibold text-[#6b4b2b] shadow-sm hover:bg-white transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/95";
 
   return (
     <>
       <Styles />
 
       {/* HEADER + CONTENT PANEL */}
-      <div className={`space-y-4 p-6 transition-all duration-300 ${selectedDonation ? "blur-sm" : ""}`}>
+      <div
+        className={`space-y-4 p-6 transition-all duration-300 ${
+          selectedDonation ? "blur-sm" : ""
+        }`}
+      >
         <div className="flex items-center justify-between">
           <h2
             className="text-3xl sm:text-4xl font-extrabold"
@@ -393,178 +432,206 @@ useEffect(() => {
               </p>
             </div>
           ) : (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {donations.map((donation) => {
-                const requestId = requestedDonations[donation.id];
-                const isRequested = !!requestId;
-                const chip = statusChip(donation,  currentServerDate);
+            <>
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {pageDonations.map((donation) => {
+                  const requestId = requestedDonations[donation.id];
+                  const isRequested = !!requestId;
+                  const chip = statusChip(donation, currentServerDate);
 
-                return (
-                  <div
-                    key={donation.id}
-                    id={`donation-${donation.id}`}
-                    className={`
+                  return (
+                    <div
+                      key={donation.id}
+                      id={`donation-${donation.id}`}
+                      className={`
                       card-bouncy group overflow-hidden
                       hover:ring-1 hover:ring-[#E49A52]/35 donation-card
                     `}
-                  >
-                    {/* Image header with status chip */}
-                    <div className="relative h-40 overflow-hidden">
-                      {donation.image ? (
-                        <img
-                          src={`${API}/${donation.image}`}
-                          alt={donation.name}
-                          className="h-full w-full object-cover donation-img"
-                          onError={(e) => {
-                            e.currentTarget.src = `${API}/static/placeholder.png`;
-                          }}
-                        />
-                      ) : (
-                        <div className="h-full w-full grid place-items-center bg-[#FFF6E9] text-[#b88a5a]">
-                          No Image
-                        </div>
-                      )}
+                    >
+                      {/* Image header with status chip */}
+                      <div className="relative h-40 overflow-hidden">
+                        {donation.image ? (
+                          <img
+                            src={`${API}/${donation.image}`}
+                            alt={donation.name}
+                            className="h-full w-full object-cover donation-img"
+                            onError={(e) => {
+                              e.currentTarget.src = `${API}/static/placeholder.png`;
+                            }}
+                          />
+                        ) : (
+                          <div className="h-full w-full grid place-items-center bg-[#FFF6E9] text-[#b88a5a]">
+                            No Image
+                          </div>
+                        )}
 
-                      <div
-                        className={`
+                        <div
+                          className={`
                           absolute top-3 right-3 text-[11px] font-bold
                           inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${chip.cls}
                         `}
-                      >
-                        {chip.icon}
-                        {chip.text}
-                      </div>
-                    </div>
-
-                    {/* Body */}
-                    <div className="p-4">
-                      {/* Bakery badge */}
-                      <div className="flex items-center gap-2">
-                        <img
-                          src={
-                            donation.bakery_profile_picture
-                              ? `${API}/${donation.bakery_profile_picture}`
-                              : `${API}/uploads/placeholder.png`
-                          }
-                          alt={donation.bakery_name}
-                          className="h-10 w-10 rounded-full object-cover border border-[#f2e3cf]"
-                        />
-                        <div className="min-w-0">
-                          <div
-                            className="text-sm font-semibold truncate"
-                            style={{ color: "#3b2a18" }}
-                          >
-                            {donation.bakery_name}
-                          </div>
-                          <div
-                            className="text-[11px]"
-                            style={{ color: "#7b5836" }}
-                          >
-                            Donor
-                          </div>
+                        >
+                          {chip.icon}
+                          {chip.text}
                         </div>
                       </div>
 
-                      <h3
-                        className="text-lg font-semibold mt-3"
-                        style={{ color: "#3b2a18" }}
-                      >
-                        {donation.name}
-                      </h3>
+                      {/* Body */}
+                      <div className="p-4">
+                        {/* Bakery badge */}
+                        <div className="flex items-center gap-2">
+                          <img
+                            src={
+                              donation.bakery_profile_picture
+                                ? `${API}/${donation.bakery_profile_picture}`
+                                : `${API}/uploads/placeholder.png`
+                            }
+                            alt={donation.bakery_name}
+                            className="h-10 w-10 rounded-full object-cover border border-[#f2e3cf]"
+                          />
+                          <div className="min-w-0">
+                            <div
+                              className="text-sm font-semibold truncate"
+                              style={{ color: "#3b2a18" }}
+                            >
+                              {donation.bakery_name}
+                            </div>
+                            <div
+                              className="text-[11px]"
+                              style={{ color: "#7b5836" }}
+                            >
+                              Donor
+                            </div>
+                          </div>
+                        </div>
 
-                      {/* meta chips */}
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <span
-                          className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full
+                        <h3
+                          className="text-lg font-semibold mt-3"
+                          style={{ color: "#3b2a18" }}
+                        >
+                          {donation.name}
+                        </h3>
+
+                        {/* meta chips */}
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <span
+                            className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full
                                      bg-[#FFEFD9] border border-[#f3ddc0]"
-                          style={{ color: "#6b4b2b" }}
-                        >
-                          Qty: {donation.quantity}
-                        </span>
-                        <span
-                          className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full
+                            style={{ color: "#6b4b2b" }}
+                          >
+                            Qty: {donation.quantity}
+                          </span>
+                          <span
+                            className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full
                                      bg-[#FFF6E9] border border-[#f4e6cf]"
-                          style={{ color: "#6b4b2b" }}
-                        >
-                          Threshold: {donation.threshold ?? "—"}
-                        </span>
-                      </div>
-
-                      {/* dates grid */}
-                      <div
-                        className="mt-3 grid grid-cols-2 gap-2 text-xs"
-                        style={{ color: "#7b5836" }}
-                      >
-                        <div className="rounded-lg border border-[#f2e3cf] bg-white/60 p-2">
-                          <div className="font-semibold">Created</div>
-                          <div>
-                            {donation.creation_date
-                              ? new Date(
-                                  donation.creation_date
-                                ).toLocaleDateString()
-                              : "—"}
-                          </div>
+                            style={{ color: "#6b4b2b" }}
+                          >
+                            Threshold: {donation.threshold ?? "—"}
+                          </span>
                         </div>
-                        <div className="rounded-lg border border-[#f2e3cf] bg-white/60 p-2">
-                          <div className="font-semibold">Expires</div>
-                          <div>
-                            {donation.expiration_date
-                              ? new Date(
-                                  donation.expiration_date
-                                ).toLocaleDateString()
-                              : "—"}
-                          </div>
-                        </div>
-                      </div>
 
-                      {/* description */}
-                      {donation.description && (
-                        <p
-                          className="mt-3 text-sm"
+                        {/* dates grid */}
+                        <div
+                          className="mt-3 grid grid-cols-2 gap-2 text-xs"
                           style={{ color: "#7b5836" }}
                         >
-                          {donation.description}
-                        </p>
-                      )}
-                      {donation.distance_km !== null && (
-                        <span className="text-gray-400">
-                          Approx: {donation.distance_km} km
-                        </span>
-                      )}
+                          <div className="rounded-lg border border-[#f2e3cf] bg-white/60 p-2">
+                            <div className="font-semibold">Created</div>
+                            <div>
+                              {donation.creation_date
+                                ? new Date(
+                                    donation.creation_date
+                                  ).toLocaleDateString()
+                                : "—"}
+                            </div>
+                          </div>
+                          <div className="rounded-lg border border-[#f2e3cf] bg-white/60 p-2">
+                            <div className="font-semibold">Expires</div>
+                            <div>
+                              {donation.expiration_date
+                                ? new Date(
+                                    donation.expiration_date
+                                  ).toLocaleDateString()
+                                : "—"}
+                            </div>
+                          </div>
+                        </div>
 
-                      {/* actions (logic unchanged) */}
-                      <div className="mt-4 space-y-2">
-                        <button
-                          className={`w-full rounded-full px-4 py-2 font-semibold transition
+                        {/* description */}
+                        {donation.description && (
+                          <p
+                            className="mt-3 text-sm"
+                            style={{ color: "#7b5836" }}
+                          >
+                            {donation.description}
+                          </p>
+                        )}
+                        {donation.distance_km !== null && (
+                          <span className="text-gray-400">
+                            Approx: {donation.distance_km} km
+                          </span>
+                        )}
+
+                        {/* actions */}
+                        <div className="mt-4 space-y-2">
+                          <button
+                            className={`w-full rounded-full px-4 py-2 font-semibold transition
                                       ring-1 ring-white/60 shadow-[0_10px_26px_rgba(201,124,44,.18)]
                                       ${
                                         isRequested
                                           ? "bg-gradient-to-r from-[#D9D9D9] to-[#BDBDBD] text-white cursor-not-allowed"
                                           : "bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white hover:-translate-y-0.5 active:scale-95"
                                       }`}
-                          disabled={isRequested}
-                          onClick={() => requestDonation(donation)}
-                        >
-                          {isRequested ? "Request Sent" : "Request Donation"}
-                        </button>
-
-                        {isRequested && (
-                          <button
-                            className="w-full rounded-full border border-[#f2d4b5] text-[#6b4b2b] bg-white px-4 py-2 shadow-sm hover:bg-white/90 transition"
-                            onClick={() => cancelRequest(donation.id)}
+                            disabled={isRequested}
+                            onClick={() => requestDonation(donation)}
                           >
-                            Cancel Request
+                            {isRequested ? "Request Sent" : "Request Donation"}
                           </button>
-                        )}
+
+                          {isRequested && (
+                            <button
+                              className="w-full rounded-full border border-[#f2d4b5] text-[#6b4b2b] bg-white px-4 py-2 shadow-sm hover:bg-white/90 transition"
+                              onClick={() => cancelRequest(donation.id)}
+                            >
+                              Cancel Request
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+
+              {/* Pagination controls */}
+              {donations.length > 0 && (
+                <div className="mt-6 flex items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    className={pagerBtn}
+                    disabled={!canPrev}
+                    onClick={() => canPrev && setPage((p) => p - 1)}
+                  >
+                    Prev
+                  </button>
+                  <span className="text-xs sm:text-sm font-semibold text-[#6b4b2b]">
+                    Page {page} of {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className={pagerBtn}
+                    disabled={!canNext}
+                    onClick={() => canNext && setPage((p) => p + 1)}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
+
       {selectedDonation && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fadeIn"
@@ -601,7 +668,7 @@ useEffect(() => {
 
               {/* Status chip (same logic as main donation cards) */}
               {(() => {
-                const chip = statusChip(selectedDonation,  currentServerDate);
+                const chip = statusChip(selectedDonation, currentServerDate);
                 return (
                   <div
                     className={`absolute top-3 right-3 text-[11px] font-bold inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${chip.cls}`}
@@ -673,7 +740,9 @@ useEffect(() => {
                   <div className="font-semibold">Created</div>
                   <div>
                     {selectedDonation.creation_date
-                      ? new Date(selectedDonation.creation_date).toLocaleDateString()
+                      ? new Date(
+                          selectedDonation.creation_date
+                        ).toLocaleDateString()
                       : "—"}
                   </div>
                 </div>
@@ -681,7 +750,9 @@ useEffect(() => {
                   <div className="font-semibold">Expires</div>
                   <div>
                     {selectedDonation.expiration_date
-                      ? new Date(selectedDonation.expiration_date).toLocaleDateString()
+                      ? new Date(
+                          selectedDonation.expiration_date
+                        ).toLocaleDateString()
                       : "—"}
                   </div>
                 </div>

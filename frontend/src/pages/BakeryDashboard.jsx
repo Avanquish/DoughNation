@@ -28,7 +28,7 @@ import {
   Medal,
   Store,
 } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { useEmployeeAuth } from "../context/EmployeeAuthContext";
 import BakeryInventory from "./BakeryInventory";
 import BakeryEmployee from "./BakeryEmployee";
@@ -44,7 +44,6 @@ import RecentDonations from "./RecentDonations";
 import DashboardSearch from "./DashboardSearch";
 import UserBadge from "./UserBadge";
 import Messages1 from "./Messages1";
-import { Link } from "react-router-dom";
 
 const API = "http://localhost:8000";
 
@@ -89,7 +88,7 @@ const BakeryDashboard = () => {
   const [employeeRole, setEmployeeRole] = useState(null);
   const [isEmployeeMode, setIsEmployeeMode] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [showTop, setShowTop] = useState(false); // You used this inside useEffect
+  const [showTop, setShowTop] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -103,20 +102,16 @@ const BakeryDashboard = () => {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // initialize from URL, localStorage, or default (always prefer "dashboard" on fresh load)
+  // initialize from URL, localStorage, or default
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const fromUrl = params.get("tab");
-
-      // If URL has tab param, use it
       if (fromUrl && ALLOWED_TABS.includes(fromUrl)) return fromUrl;
 
-      // Otherwise, check localStorage (but only if URL doesn't exist)
       const fromStorage = localStorage.getItem(TAB_KEY);
       if (fromStorage && ALLOWED_TABS.includes(fromStorage)) return fromStorage;
 
-      // Default to dashboard
       return "dashboard";
     } catch {
       return "dashboard";
@@ -148,46 +143,30 @@ const BakeryDashboard = () => {
       setEmployeeRole(employee.employee_role);
       setName(employee.employee_name);
 
-      // 🏢 FETCH BAKERY NAME AND VERIFICATION STATUS FROM TOKEN
       const employeeToken = localStorage.getItem("employeeToken");
 
       if (employeeToken) {
         try {
           const decoded = JSON.parse(atob(employeeToken.split(".")[1]));
-          console.log("🔍 Decoded employee token:", decoded);
-
-          // Token includes bakery_name and bakery_verified from backend
           const bakeryNameFromToken = decoded.bakery_name;
           const bakeryVerifiedFromToken = decoded.bakery_verified;
 
           if (bakeryNameFromToken) {
-            console.log(
-              "✅ Using bakery name from token:",
-              bakeryNameFromToken
-            );
             setBakeryName(bakeryNameFromToken);
           } else {
-            // Fallback: fetch from backend if not in token
-            console.log("⚠️ No bakery_name in token, fetching from backend...");
             fetchBakeryNameFromBackend(employee.bakery_id);
           }
-          
-          // Set verification status from token
+
           if (bakeryVerifiedFromToken !== undefined) {
-            console.log("✅ Using bakery verification status from token:", bakeryVerifiedFromToken);
             setIsVerified(bakeryVerifiedFromToken);
           } else {
-            console.log("⚠️ No bakery_verified in token, defaulting to false");
             setIsVerified(false);
           }
-        } catch (err) {
-          console.error("❌ Failed to decode token:", err);
-          // Fallback to backend fetch
+        } catch {
           fetchBakeryNameFromBackend(employee.bakery_id);
           setIsVerified(false);
         }
       } else {
-        console.log("❌ No employee token found");
         fetchBakeryNameFromBackend(employee.bakery_id);
         setIsVerified(false);
       }
@@ -203,49 +182,28 @@ const BakeryDashboard = () => {
       });
 
       if (res.data && res.data.name) {
-        console.log("✅ Fetched bakery name from backend:", res.data.name);
         setBakeryName(res.data.name);
       } else {
-        console.log("❌ No bakery name in response");
         setBakeryName("Bakery");
       }
-    } catch (err) {
-      console.error("❌ Failed to fetch bakery name:", err);
+    } catch {
       setBakeryName("Bakery");
     }
   };
 
   // Determine which tabs are visible based on role
   const getVisibleTabs = () => {
-    if (!isEmployeeMode || !employeeRole) {
-      // All tabs visible for bakery owner
-      return ALLOWED_TABS;
-    }
+    if (!isEmployeeMode || !employeeRole) return ALLOWED_TABS;
 
-    // Normalize role for comparison (remove spaces, hyphens, lowercase)
     const role = employeeRole.toLowerCase().replace(/[-\s]/g, "");
 
-    // 👑 OWNER & MANAGER: Full access to ALL tabs
-    if (role === "owner" || role === "manager") {
-      return ALLOWED_TABS;
-    }
-
-    // 👷 FULL-TIME: Limited access
-    // Can access: dashboard, inventory, donations, donation status, complaints, feedback (view only), badges
-    // Cannot access: employee management, reports
-    else if (role.includes("fulltime") || role === "full") {
+    if (role === "owner" || role === "manager") return ALLOWED_TABS;
+    else if (role.includes("fulltime") || role === "full")
       return ALLOWED_TABS.filter(
         (tab) => tab !== "employee" && tab !== "reports"
       );
-    }
+    else if (role.includes("parttime") || role === "part") return [];
 
-    // 🚫 PART-TIME: Should not be able to log in (handled at backend)
-    // If they somehow access, show nothing
-    else if (role.includes("parttime") || role === "part") {
-      return [];
-    }
-
-    // Default: show all tabs (fallback for unknown roles)
     return ALLOWED_TABS;
   };
 
@@ -258,8 +216,6 @@ const BakeryDashboard = () => {
       localStorage.setItem(TAB_KEY, activeTab);
 
       const params = new URLSearchParams(window.location.search);
-
-      // For "dashboard"
       if (activeTab === "dashboard") {
         if (params.has("tab")) {
           params.delete("tab");
@@ -278,7 +234,7 @@ const BakeryDashboard = () => {
         }
       }
     } catch {
-      // ignore persistence errors
+      // ignore
     }
   }, [activeTab]);
 
@@ -286,12 +242,9 @@ const BakeryDashboard = () => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
-    let decoded;
     try {
-      decoded = JSON.parse(atob(token.split(".")[1]));
-      // Only set name and bakeryName for bakery owners (not employees)
+      const decoded = JSON.parse(atob(token.split(".")[1]));
       if (!isEmployeeMode) {
-        // For bakery owner: name should be owner's name (contact_person)
         setName(decoded.contact_person || "Owner");
         setOwnerName(decoded.contact_person || "Owner");
         setBakeryName(decoded.name || "Bakery");
@@ -299,12 +252,8 @@ const BakeryDashboard = () => {
       setIsVerified(decoded.is_verified);
       const userId =
         decoded.sub || decoded.id || decoded.user_id || decoded._id;
-      if (!userId) {
-        console.error("User ID missing in token:", decoded);
-        return;
-      }
+      if (!userId) return;
 
-      // Fetch badges for the user
       axios
         .get(`${API}/badges/user/${userId}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -339,7 +288,6 @@ const BakeryDashboard = () => {
     const employeeToken = localStorage.getItem("employeeToken");
     if (!employeeToken) return;
 
-    // Fetch badges for the bakery (so employees can see the bakery's badges)
     axios
       .get(`${API}/badges/user/${employee.bakery_id}`, {
         headers: { Authorization: `Bearer ${employeeToken}` },
@@ -355,8 +303,7 @@ const BakeryDashboard = () => {
           employee_role: employee.employee_role,
         });
       })
-      .catch((err) => {
-        console.error("Failed to fetch badges for employee:", err);
+      .catch(() => {
         setBadges([]);
         setCurrentUser({
           id: employee.bakery_id,
@@ -371,7 +318,6 @@ const BakeryDashboard = () => {
 
   // Fetch inventory, employees, uploaded and donated products
   useEffect(() => {
-    // Get the appropriate token based on mode
     const token = isEmployeeMode
       ? localStorage.getItem("employeeToken")
       : localStorage.getItem("token");
@@ -477,19 +423,15 @@ const BakeryDashboard = () => {
 
     fetchStats();
 
-    // Refresh stats every 30 seconds
     const interval = setInterval(fetchStats, 30000);
-
     return () => clearInterval(interval);
   }, [isEmployeeMode]);
 
   // ui helpers
   const handleLogout = () => {
     if (isEmployeeMode) {
-      // Employee logout
       employeeLogout();
     } else {
-      // Bakery owner logout
       localStorage.removeItem("token");
     }
     navigate("/");
@@ -555,9 +497,7 @@ const BakeryDashboard = () => {
     fetchUploadedProducts();
   }, [isEmployeeMode]);
 
-  // If user is not verified, show "verification pending" screen
-  // This now applies to BOTH bakery owners and employees of unverified bakeries
-
+  // ================= CSS (UI only) =================
   const Styles = () => (
     <style>{`
     :root{
@@ -614,15 +554,13 @@ const BakeryDashboard = () => {
     border: 1px solid rgba(0, 0, 0, .07);
     border-radius: 12px;
     padding: .3rem;
-    box-shadow: 0 8px 24px rgba(201, 124, 44, .10);}
+    box-shadow: 0 8px 24px rgba(201,124,44, .10);}
     .seg [role="tab"]{border-radius:10px; padding:.48rem .95rem; color:#6b4b2b; font-weight:700}
     .seg [role="tab"][data-state="active"]{color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); box-shadow:0 8px 18px rgba(201,124,44,.28)}
-    .seg [role="tab"]:hover{
-      background:#FFF2E0;
-    }
+    .seg [role="tab"]:hover{ background:#FFF2E0; }
     .seg [role="tab"][data-state="active"]{
-    color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3));
-    box-shadow:0 8px 18px rgba(201,124,44,.28)
+      color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3));
+      box-shadow:0 8px 18px rgba(201,124,44,.28)
     }
 
     .iconbar{display:flex; align-items:center; gap:.5rem}
@@ -647,37 +585,15 @@ const BakeryDashboard = () => {
       box-shadow: 0 10px 24px rgba(201,124,44,.20), inset 0 1px 0 rgba(255,255,255,.8);
       border: 1px solid rgba(255,255,255,.8);
     }
-    .chip svg{
-      width:22px; height:22px;
-      color:#8a5a25;
-    }
+    .chip svg{ width:22px; height:22px; color:#8a5a25; }
     
-    .hover-lift{
-      transition:transform .35s cubic-bezier(.22,.98,.4,1), box-shadow .35s;
-    }
-    .hover-lift:hover{
-      transform:translateY(-4px); 
-      box-shadow:0 18px 38px rgba(201,124,44,.14);
-    }
+    .hover-lift{ transition:transform .35s cubic-bezier(.22,.98,.4,1), box-shadow .35s; }
+    .hover-lift:hover{ transform:translateY(-4px); box-shadow:0 18px 38px rgba(201,124,44,.14); }
     
-    .reveal{
-      opacity:0; 
-      transform:translateY(8px) scale(.985); 
-      animation:rise .6s ease forwards;
-    }
-    .r1{animation-delay:.05s}
-    .r2{animation-delay:.1s}
-    .r3{animation-delay:.15s}
-    .r4{animation-delay:.2s}
-    .r5{animation-delay:.25s}
-    .r6{animation-delay:.3s}
-    
-    @keyframes rise{
-      to{
-        opacity:1; 
-        transform:translateY(0) scale(1);
-      }
-    }
+    .reveal{ opacity:0; transform:translateY(8px) scale(.985); animation:rise .6s ease forwards; }
+    .r1{animation-delay:.05s} .r2{animation-delay:.1s} .r3{animation-delay:.15s}
+    .r4{animation-delay:.2s} .r5{animation-delay:.25s} .r6{animation-delay:.3s}
+    @keyframes rise{ to{ opacity:1; transform:translateY(0) scale(1);} }
 
     .overlay-root{position:fixed; inset:0; z-index:50;}
     .overlay-bg{position:absolute; inset:0; background:rgba(0,0,0,.32); backdrop-filter: blur(6px); opacity:0; animation: showBg .2s ease forwards}
@@ -686,8 +602,95 @@ const BakeryDashboard = () => {
     .overlay-enter{transform:translateY(10px) scale(.98); opacity:0; animation: pop .22s ease forwards}
     @keyframes pop{to{transform:translateY(0) scale(1); opacity:1}}
 
-    .msg-wrap{position:relative}
-    .msg-panel{position:absolute; right:0; top:48px; width:340px; background:rgba(255,255,255,.98); border:1px solid rgba(0,0,0,.06); border-radius:14px; box-shadow:0 18px 40px rgba(0,0,0,.14); overflow:hidden; animation: pop .18s ease forwards}
+    /* ==== Notifications & Messages POPUP (under header icons) ==== */
+    .msg-wrap{
+      position:relative;
+    }
+
+    .msg-panel{
+      position:absolute;
+      right:0;
+      top:52px;
+      width:360px;
+      border-radius:18px;
+      overflow:hidden;
+      background:
+        linear-gradient(
+          to bottom,
+          #FFF2DF 0px,
+          #FFE7CB 54px,
+          #FFFFFF 54px,
+          #FFFFFF 100%
+        );
+      border:1px solid rgba(243,194,126,.9);
+      box-shadow:
+        0 18px 40px rgba(0,0,0,.16),
+        0 0 0 1px rgba(255,255,255,.7);
+      animation: pop .18s ease forwards;
+      backdrop-filter: blur(6px);
+      z-index:60;
+    }
+
+    .msg-panel-header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:10px 16px;
+      font-size:.9rem;
+      font-weight:600;
+      color:#7a4f1c;
+    }
+    .msg-panel-header-title{
+      display:flex;
+      align-items:center;
+      gap:.5rem;
+    }
+    .msg-panel-header-title svg{
+      width:16px;
+      height:16px;
+    }
+    .msg-panel-header-close{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:26px;
+      height:26px;
+      border-radius:9999px;
+      border:1px solid rgba(244,204,150,.9);
+      background:#fff7ec;
+      box-shadow:0 4px 8px rgba(201,124,44,.25);
+      cursor:pointer;
+      transition:transform .15s ease, box-shadow .15s ease, background .15s ease;
+    }
+    .msg-panel-header-close:hover{
+      background:#ffe9cf;
+      transform:translateY(-1px);
+      box-shadow:0 6px 14px rgba(201,124,44,.32);
+    }
+
+    .msg-panel-body{
+      padding:8px 0 10px;
+      max-height:420px;
+      overflow-y:auto;
+      background:#ffffff;
+    }
+
+    .msg-panel-footer{
+      padding:8px 16px 12px;
+      border-top:1px solid rgba(240,210,168,.85);
+      background:#ffffff;
+      font-size:.88rem;
+      color:#7a4f1c;
+      text-align:center;
+    }
+
+    @media (max-width:480px){
+      .msg-panel{
+        right:8px;
+        width:min(100vw - 24px, 360px);
+      }
+    }
+
     .skeleton{position:relative; overflow:hidden; background:#f3f3f3}
     .skeleton::after{content:""; position:absolute; inset:0; transform:translateX(-100%); background:linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.6), rgba(255,255,255,0)); animation: shimmer 1.2s infinite}
     
@@ -701,17 +704,16 @@ const BakeryDashboard = () => {
       animation: brandShimmer 6s ease-in-out infinite;
       letter-spacing: .2px;
     }
-    
-    @keyframes brandShimmer{
-      0%{background-position:0% 50%}
-      50%{background-position:100% 50%}
-      100%{background-position:0% 50%}
+    @keyframes brandShimmer{ 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+    @keyframes shimmer{ from{transform:translateX(-100%)} to{transform:translateX(100%)} }
+
+    /* ===== UI PATCH: tighter but neat icons on small screens ===== */
+    @media (max-width: 420px){
+      .iconbar .icon-btn{ width:36px; height:36px; }
+      .brand-title{ margin-right:.25rem; }
     }
-    
-    @keyframes shimmer{
-      from{transform:translateX(-100%)}
-      to{transform:translateX(100%)}
-    }
+    .hdr-left{ flex: 1 1 auto; min-width: 0; }
+    .hdr-right{ flex: 0 0 auto; margin-left: auto; }
   `}</style>
   );
 
@@ -731,9 +733,10 @@ const BakeryDashboard = () => {
             scrolled ? "is-scrolled" : ""
           }`}
         >
+          {/* ===== Header Row (brand on left, icons on right) ===== */}
           <div className="max-w-7xl mx-auto px-4 py-3 hdr-pad flex items-center justify-between relative">
-            <div className="flex items-center gap-3">
-              {/* DoughNation Logo - Disabled when logged in */}
+            {/* LEFT: brand + (desktop) identity */}
+            <div className="flex items-center gap-3 hdr-left">
               {isVerified ? (
                 <div
                   className="flex items-center gap-3 cursor-not-allowed opacity-60"
@@ -750,7 +753,7 @@ const BakeryDashboard = () => {
                     }}
                   />
                   <span
-                    className="font-extrabold brand-pop"
+                    className="brand-title font-extrabold brand-pop"
                     style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}
                   >
                     DoughNation
@@ -769,7 +772,7 @@ const BakeryDashboard = () => {
                     }}
                   />
                   <span
-                    className="font-extrabold brand-pop"
+                    className="brand-title font-extrabold brand-pop"
                     style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}
                   >
                     DoughNation
@@ -777,7 +780,7 @@ const BakeryDashboard = () => {
                 </Link>
               )}
 
-              {/* Owner/Employee & Bakery Name Display - Beside DoughNation */}
+              {/* Owner/Employee & Bakery Name (desktop only) */}
               {(isEmployeeMode || ownerName) && (
                 <div
                   className="hidden lg:flex flex-col items-start justify-center ml-4 pl-4 border-l-2"
@@ -828,19 +831,23 @@ const BakeryDashboard = () => {
               )}
             </div>
 
-            {/* Desktop nav */}
-            <nav className="items-center gap-5" style={{ fontSize: 15 }}>
-              <div className="pt-1 flex items-center gap-3 relative">
-                <div className="iconbar">
+            {/* RIGHT: actions */}
+            <nav
+              className="items-center gap-5 hdr-right"
+              style={{ fontSize: 15 }}
+            >
+              <div className="pt-1 flex items-center gap-2 sm:gap-3 relative">
+                <div className="iconbar shrink-0">
+                  {/* desktop search only; mobile search below */}
                   <DashboardSearch size="sm" className="hidden md:flex" />
 
-                  {/* Messages Button */}
+                  {/* Messages */}
                   <Messages1 currentUser={currentUser} />
 
-                  {/* Notifications Bell */}
+                  {/* Notifications */}
                   <BakeryNotification />
 
-                  {/* Profile Icon */}
+                  {/* Profile */}
                   <button
                     className="icon-btn"
                     aria-label="Open profile"
@@ -870,7 +877,47 @@ const BakeryDashboard = () => {
               </div>
             </nav>
           </div>
-          {/* Mobile dropdown panel */}
+
+          {/* ===== Mobile info & search strip (UI-only) ===== */}
+          {(isEmployeeMode || ownerName) && (
+            <div className="md:hidden px-4 pb-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4" style={{ color: "#7a4f1c" }} />
+                  <span
+                    className="text-sm font-semibold"
+                    style={{ color: "#7a4f1c" }}
+                  >
+                    {name}
+                  </span>
+                  <span
+                    className="text-[11px] px-2 py-0.5 rounded-full"
+                    style={{
+                      background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
+                      color: "#7a4f1c",
+                      border: "1px solid #fff3e0",
+                    }}
+                  >
+                    {employeeRole ? employeeRole : "Owner"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <Store className="h-3.5 w-3.5" style={{ color: "#a47134" }} />
+                <span className="text-xs" style={{ color: "#a47134" }}>
+                  {bakeryName}
+                </span>
+              </div>
+
+              {/* Mobile search (same component) */}
+              <div className="w-full">
+                <DashboardSearch size="sm" className="md:hidden w-full" />
+              </div>
+            </div>
+          )}
+
+          {/* Mobile dropdown panel (left as-is) */}
           <div
             id="mobile-menu"
             className={`md:hidden transition-all duration-200 ease-out ${
@@ -880,8 +927,7 @@ const BakeryDashboard = () => {
             } overflow-hidden`}
           >
             <div className="px-4 pb-3 pt-1 flex flex-col">
-              {/*
-        <NotificationAction /> */}
+              {/* extra mobile content */}
             </div>
           </div>
         </div>
@@ -1186,66 +1232,64 @@ const BakeryDashboard = () => {
                     </CardDescription>
                   </CardHeader>
 
-                  {/* >>> BADGES GRID — EXACTLY 5 PER ROW + SMALLER ICONS <<< */}
-                  <CardContent
-                    className="
-                      min-h-[404px]
-                      grid
-                      [grid-template-columns:repeat(5,minmax(0,1fr))]
-                      gap-x-[clamp(12px,2.6vw,32px)]
-                      gap-y-[clamp(10px,2vw,24px)]
-                      items-start
-                    "
-                  >
+                  {/* === CLEAN BADGE LAYOUT (UI ONLY) === */}
+                  <CardContent className="pt-4 pb-6 min-h-[220px]">
                     {badges && badges.length > 0 ? (
-                      badges.map((userBadge) => (
+                      <div className="max-h-[260px] lg:max-h-none overflow-y-auto">
                         <div
-                          key={userBadge.id}
-                          className="flex flex-col items-center justify-start"
+                          className="
+              grid
+              grid-cols-3 sm:grid-cols-4 lg:grid-cols-5
+              gap-x-8 gap-y-6
+            "
                         >
-                          <img
-                            src={
-                              userBadge.badge?.icon_url
-                                ? `${API}/${userBadge.badge.icon_url}`
-                                : "/placeholder-badge.png"
-                            }
-                            alt={userBadge.badge?.name}
-                            title={userBadge.badge?.name}
-                            className="hover:scale-110 transition-transform"
-                            style={{
-                              /* smaller icons */
-                              width: "clamp(44px,5.5vw,64px)",
-                              height: "clamp(44px,5.5vw,64px)",
-                              objectFit: "contain",
-                            }}
-                          />
-                          {/* Keep label block-level; slightly narrower width to match smaller icon */}
-                          <span
-                            className="
-                              block
-                              text-[11px]
-                              mt-2
-                              leading-tight
-                              text-center
-                              truncate
-                              w-[96px]
-                            "
-                            title={
+                          {badges.map((userBadge) => {
+                            const displayName =
                               userBadge.badge_name &&
                               userBadge.badge_name.trim() !== ""
                                 ? userBadge.badge_name
-                                : userBadge.badge?.name
-                            }
-                          >
-                            {userBadge.badge_name &&
-                            userBadge.badge_name.trim() !== ""
-                              ? userBadge.badge_name
-                              : userBadge.badge?.name}
-                          </span>
+                                : userBadge.badge?.name;
+
+                            return (
+                              <div
+                                key={userBadge.id}
+                                className="flex flex-col items-center gap-2"
+                              >
+                                <img
+                                  src={
+                                    userBadge.badge?.icon_url
+                                      ? `${API}/${userBadge.badge.icon_url}`
+                                      : "/placeholder-badge.png"
+                                  }
+                                  alt={displayName}
+                                  title={displayName}
+                                  className="hover:scale-110 transition-transform"
+                                  style={{
+                                    width: "clamp(48px,5.5vw,64px)",
+                                    height: "clamp(48px,5.5vw,64px)",
+                                    objectFit: "contain",
+                                  }}
+                                />
+                                <span
+                                  className="
+                      block
+                      text-[11px]
+                      leading-tight
+                      text-center
+                      text-[#7b5836]
+                      max-w-[110px]
+                      whitespace-normal
+                    "
+                                >
+                                  {displayName}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
-                      ))
+                      </div>
                     ) : (
-                      <p className="text-sm" style={{ color: "#7b5836" }}>
+                      <p className="text-sm mt-2" style={{ color: "#7b5836" }}>
                         No badges unlocked yet.
                       </p>
                     )}

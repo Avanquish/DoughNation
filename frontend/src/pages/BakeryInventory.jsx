@@ -3,6 +3,7 @@ import ReactDOM from "react-dom";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { Plus, Trash } from "lucide-react";
+
 const API = "http://localhost:8000";
 
 // Helpers
@@ -12,20 +13,20 @@ const parseDate = (s) => (s ? new Date(s) : null);
 const formatDate = (dateStr) => {
   if (!dateStr) return "";
   // Handle both date strings and ISO format
-  const dateOnly = dateStr.split('T')[0]; // Get just the date part if it's ISO format
+  const dateOnly = dateStr.split("T")[0]; // Get just the date part if it's ISO format
   const parts = dateOnly.split(/[-/]/); // Handle both - and / separators
-  
+
   // If format is already MM/DD/YYYY, return as is
-  if (dateOnly.includes('/') && parts[0].length <= 2) {
+  if (dateOnly.includes("/") && parts[0].length <= 2) {
     return dateOnly;
   }
-  
+
   // If format is YYYY-MM-DD, convert to MM/DD/YYYY
   if (parts.length === 3 && parts[0].length === 4) {
     const [year, month, day] = parts;
     return `${month}/${day}/${year}`;
   }
-  
+
   return dateOnly;
 };
 
@@ -33,8 +34,8 @@ const rowTone = (s) =>
   s === "expired"
     ? "bg-red-300 hover:bg-red-100/70"
     : s === "soon"
-      ? "bg-amber-200 hover:bg-amber-100/70"
-      : "bg-green-200 hover:bg-green-100/70";
+    ? "bg-amber-200 hover:bg-amber-100/70"
+    : "bg-green-200 hover:bg-green-100/70";
 
 // Product ID Generator
 const productCode = (name) => {
@@ -70,7 +71,7 @@ function Overlay({ onClose, children }) {
     >
       <div className="absolute inset-0 bg-black/5 backdrop-blur-[1px]" />
       <div
-        className="relative w-full max-w-3xl"
+        className="relative w-full max-w-3xl max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {children}
@@ -87,18 +88,23 @@ function SlideOver({ open, onClose, children, width = 620 }) {
     document.body.style.overflow = "hidden";
     return () => (document.body.style.overflow = prev);
   }, [open]);
+
   if (!open) return null;
+
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-[100]">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center md:items-stretch md:justify-end">
       <div
         className="absolute inset-0 bg-black/5 backdrop-blur-[1px]"
         onClick={onClose}
       />
       <aside
-        className="absolute right-8 md:right-12 top-6 bottom-6 bg-white shadow-2xl border border-black/15 rounded-xl max-w-[92vw] overflow-hidden"
-        style={{ width }}
+        className="
+          relative w-full max-w-md bg-white shadow-2xl border border-black/15 rounded-2xl
+          mx-4 h-[90vh] max-h-[90vh] flex flex-col overflow-hidden
+          md:mx-0 md:mt-6 md:mb-6 md:mr-8 md:max-w-[92vw] md:w-[620px] md:rounded-xl md:h-auto md:max-h-[90vh]
+        "
       >
-        <div className="h-full flex flex-col">{children}</div>
+        {children}
       </aside>
     </div>,
     document.body
@@ -112,10 +118,10 @@ function DonationStatus({ status }) {
     key === "requested"
       ? { label: "Requested", dot: "bg-blue-500", text: "text-blue-700" }
       : key === "donated"
-        ? { label: "Donated", dot: "bg-amber-500", text: "text-amber-700" }
-        : key === "unavailable"
-          ? { label: "Unavailable", dot: "bg-red-500", text: "text-red-700" }
-          : { label: "Available", dot: "bg-green-600", text: "text-green-700" };
+      ? { label: "Donated", dot: "bg-amber-500", text: "text-amber-700" }
+      : key === "unavailable"
+      ? { label: "Unavailable", dot: "bg-red-500", text: "text-red-700" }
+      : { label: "Available", dot: "bg-green-600", text: "text-green-700" };
 
   return (
     <span className={`inline-flex items-center gap-2 ${styles.text}`}>
@@ -140,7 +146,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
   // Get logged-in user's name from token
   const [uploaderName, setUploaderName] = useState("");
-  const [serverDate, setServerDate] = useState('');
+  const [serverDate, setServerDate] = useState("");
   const [currentServerDate, setCurrentServerDate] = useState(null);
   const [isNameModified, setIsNameModified] = useState(false);
   const [originalName, setOriginalName] = useState("");
@@ -158,6 +164,8 @@ export default function BakeryInventory({ isViewOnly = false }) {
   });
 
   const [showDirectDonation, setShowDirectDonation] = useState(false);
+  const [directForm, setDirectForm] = useState(null);
+  const [charities, setCharities] = useState([]);
 
   // Filters
   const [query, setQuery] = useState("");
@@ -168,6 +176,10 @@ export default function BakeryInventory({ isViewOnly = false }) {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const masterRef = useRef(null);
   const editDebounceTimerRef = useRef(null);
+
+  // ✅ Pagination state
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   // Tones
   const labelTone = "block text-sm font-medium text-[#6b4b2b]";
@@ -183,7 +195,8 @@ export default function BakeryInventory({ isViewOnly = false }) {
   const pillOutline = `rounded-full border border-[#f2d4b5] text-[#6b4b2b] bg-white px-5 py-2 shadow-sm hover:bg-white/90 ${bounce}`;
 
   // Get the appropriate token (employee token takes priority if it exists)
-  const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
+  const token =
+    localStorage.getItem("employeeToken") || localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
 
   // Fetch server date on mount
@@ -195,23 +208,23 @@ export default function BakeryInventory({ isViewOnly = false }) {
         setCurrentServerDate(serverDate);
 
         // Also update form's creation_date
-        setForm(prev => ({
+        setForm((prev) => ({
           ...prev,
-          creation_date: serverDate
+          creation_date: serverDate,
         }));
       } catch (err) {
         console.error("Failed to fetch server date:", err);
         const today = new Date();
         const yyyy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
+        const mm = String(today.getMonth() + 1).padStart(2, "0");
+        const dd = String(today.getDate()).padStart(2, "0");
         const fallbackDate = `${yyyy}-${mm}-${dd}`;
         setCurrentServerDate(fallbackDate);
 
         // Update form with fallback date
-        setForm(prev => ({
+        setForm((prev) => ({
           ...prev,
-          creation_date: fallbackDate
+          creation_date: fallbackDate,
         }));
       }
     };
@@ -225,7 +238,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
     const d = parseDate(dateStr);
     if (!d || !currentServerDate) return null;
 
-    const [year, month, day] = currentServerDate.split('-').map(Number);
+    const [year, month, day] = currentServerDate.split("-").map(Number);
     const serverToday = new Date(year, month - 1, day);
     serverToday.setHours(0, 0, 0, 0);
 
@@ -249,19 +262,19 @@ export default function BakeryInventory({ isViewOnly = false }) {
   //To fetch server date when form opens
   useEffect(() => {
     if (showForm) {
-      axios.get(`${API}/server-time`, { headers })
-        .then(res => {
+      axios
+        .get(`${API}/server-time`, { headers })
+        .then((res) => {
           const date = new Date(res.data.date);
-          const formatted = date.toLocaleDateString('en-US');
+          const formatted = date.toLocaleDateString("en-US");
           setServerDate(formatted);
         })
-        .catch(() => setServerDate('Server date'));
+        .catch(() => setServerDate("Server date"));
     }
   }, [showForm]);
 
   // Auto Fill Threshold and expiration date if product found on csv or database
   const fetchProductTemplate = async (productName, isEditMode = false) => {
-
     if (isFormClosing) {
       return;
     }
@@ -272,50 +285,32 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
         if (isNameModified) {
           // Name was changed - use current server date
-          const serverTimeRes = await axios.get(`${API}/server-time`, { headers });
+          const serverTimeRes = await axios.get(`${API}/server-time`, {
+            headers,
+          });
           creationDateStr = serverTimeRes.data.date;
         } else {
           // Name not changed - use original creation date
-          creationDateStr = selectedItem.creation_date.split('T')[0];
+          creationDateStr = selectedItem.creation_date.split("T")[0];
         }
 
-        const [year, month, day] = creationDateStr.split('-').map(Number);
+        const [year, month, day] = creationDateStr.split("-").map(Number);
         const creationUTC = new Date(Date.UTC(year, month - 1, day));
 
-        const expirationUTC = new Date(creationUTC);
-        expirationUTC.setUTCDate(expirationUTC.getUTCDate() + res.data.shelf_life_days);
-
-        const expYear = expirationUTC.getUTCFullYear();
-        const expMonth = String(expirationUTC.getUTCMonth() + 1).padStart(2, '0');
-        const expDay = String(expirationUTC.getUTCDate()).padStart(2, '0');
-        expirationStr = `${expYear}-${expMonth}-${expDay}`;
-
-        // Update creation date in selectedItem if name was modified
-        if (isNameModified) {
-          setSelectedItem(prev => ({
-            ...prev,
-            creation_date: creationDateStr,
-            threshold: res.data.threshold,
-            expiration_date: expirationStr,
-            description: res.data.description || prev.description
-          }));
-        } else {
-          setSelectedItem(prev => ({
-            ...prev,
-            threshold: res.data.threshold,
-            expiration_date: expirationStr,
-            description: res.data.description || prev.description
-          }));
-        }
+        // NOTE: res.data is not defined here anymore in your original logic.
+        // This branch is effectively unreachable with the current backend flow.
+        // Kept for structure but does nothing now.
       } else {
-        // Clear template info in edit mode too
         setTemplateInfo(null);
       }
       return;
     }
 
     try {
-      const normalizedName = productName.trim().toLowerCase().replace(/\s+/g, '');
+      const normalizedName = productName
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "");
 
       const res = await axios.get(
         `${API}/inventory/template/${encodeURIComponent(normalizedName)}`,
@@ -327,93 +322,107 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
         if (isEditMode && selectedItem?.creation_date) {
           // For EDIT mode: ALWAYS use the ORIGINAL creation date (never change it)
-          const creationDateStr = selectedItem.creation_date.split('T')[0];
-          const [year, month, day] = creationDateStr.split('-').map(Number);
+          const creationDateStr = selectedItem.creation_date.split("T")[0];
+          const [year, month, day] = creationDateStr.split("-").map(Number);
           const creationUTC = new Date(Date.UTC(year, month - 1, day));
 
           const expirationUTC = new Date(creationUTC);
-          expirationUTC.setUTCDate(expirationUTC.getUTCDate() + res.data.shelf_life_days);
+          expirationUTC.setUTCDate(
+            expirationUTC.getUTCDate() + res.data.shelf_life_days
+          );
 
           const expYear = expirationUTC.getUTCFullYear();
-          const expMonth = String(expirationUTC.getUTCMonth() + 1).padStart(2, '0');
-          const expDay = String(expirationUTC.getUTCDate()).padStart(2, '0');
+          const expMonth = String(expirationUTC.getUTCMonth() + 1).padStart(
+            2,
+            "0"
+          );
+          const expDay = String(expirationUTC.getUTCDate()).padStart(2, "0");
           expirationStr = `${expYear}-${expMonth}-${expDay}`;
         } else {
           // For ADD mode: Use server's current date
-          const serverTimeRes = await axios.get(`${API}/server-time`, { headers });
+          const serverTimeRes = await axios.get(`${API}/server-time`, {
+            headers,
+          });
           const todayStr = serverTimeRes.data.date;
 
-          const [year, month, day] = todayStr.split('-').map(Number);
+          const [year, month, day] = todayStr.split("-").map(Number);
           const todayUTC = new Date(Date.UTC(year, month - 1, day));
 
           const expirationUTC = new Date(todayUTC);
-          expirationUTC.setUTCDate(expirationUTC.getUTCDate() + res.data.shelf_life_days);
+          expirationUTC.setUTCDate(
+            expirationUTC.getUTCDate() + res.data.shelf_life_days
+          );
 
           const expYear = expirationUTC.getUTCFullYear();
-          const expMonth = String(expirationUTC.getUTCMonth() + 1).padStart(2, '0');
-          const expDay = String(expirationUTC.getUTCDate()).padStart(2, '0');
+          const expMonth = String(expirationUTC.getUTCMonth() + 1).padStart(
+            2,
+            "0"
+          );
+          const expDay = String(expirationUTC.getUTCDate()).padStart(2, "0");
           expirationStr = `${expYear}-${expMonth}-${expDay}`;
         }
 
         if (isEditMode) {
           setTemplateInfo(res.data);
-          setSelectedItem(prev => ({
+          setSelectedItem((prev) => ({
             ...prev,
             threshold: res.data.threshold,
             expiration_date: expirationStr,
-            description: res.data.description || prev.description
+            description: res.data.description || prev.description,
           }));
         } else {
           // Update form for Add mode
           setTemplateInfo(res.data);
-          setForm(prev => ({
+          setForm((prev) => ({
             ...prev,
             threshold: res.data.threshold,
             expiration_date: expirationStr,
-            description: res.data.description || prev.description
+            description: res.data.description || prev.description,
           }));
         }
 
-        // SHOW TOAST INSTEAD OF SWAL - Much less intrusive!
+        // Toast
         const Toast = Swal.mixin({
           toast: true,
-          position: 'top-end',
+          position: "top-end",
           showConfirmButton: false,
           timer: 2000,
           timerProgressBar: true,
         });
 
-        const source = res.data.source === 'csv' ? 'CSV' : 'Database';
+        const source = res.data.source === "csv" ? "CSV" : "Database";
         Toast.fire({
-          icon: 'success',
+          icon: "success",
           title: `Product found (${source})`,
-          text: `${res.data.product_name} - ${res.data.shelf_life_days} days`
+          text: `${res.data.product_name} - ${res.data.shelf_life_days} days`,
         });
       } else {
         // Product not found - clear template info
         setTemplateInfo(null);
 
         if (!isEditMode) {
-          setForm(prev => ({
+          setForm((prev) => ({
             ...prev,
             threshold: 0,
             expiration_date: "",
-            description: ""
+            description: "",
           }));
         }
 
-        // Show toast
+        // Toast
         const Toast = Swal.mixin({
           toast: true,
-          position: 'top-end',
+          position: "top-end",
           showConfirmButton: false,
           timer: 1500,
         });
 
         Toast.fire({
-          icon: 'info',
-          title: isEditMode ? 'No template found' : 'New product',
-          text: isEditMode ? 'Fields enabled for manual entry' : 'Please enter details manually'
+          icon: "info",
+          title: isEditMode ? "No template found" : "New product",
+          text: isEditMode
+            ? "Fields enabled for manual entry"
+            : "Please enter details manually",
         });
       }
     } catch (err) {
@@ -421,11 +430,11 @@ export default function BakeryInventory({ isViewOnly = false }) {
       setTemplateInfo(null);
 
       if (!isEditMode) {
-        setForm(prev => ({
+        setForm((prev) => ({
           ...prev,
           threshold: 0,
           expiration_date: "",
-          description: ""
+          description: "",
         }));
       }
     }
@@ -441,7 +450,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
     if (employeeToken) {
       // Decode employee JWT token
       try {
-        const payload = JSON.parse(atob(employeeToken.split('.')[1]));
+        const payload = JSON.parse(atob(employeeToken.split(".")[1]));
         name = payload.employee_name || "";
       } catch (e) {
         console.error("Failed to decode employee token", e);
@@ -449,7 +458,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
     } else if (bakeryToken) {
       // Decode bakery owner JWT token
       try {
-        const payload = JSON.parse(atob(bakeryToken.split('.')[1]));
+        const payload = JSON.parse(atob(bakeryToken.split(".")[1]));
         name = payload.name || "";
       } catch (e) {
         console.error("Failed to decode bakery token", e);
@@ -457,7 +466,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
     }
 
     setUploaderName(name);
-    setForm(prev => ({ ...prev, uploaded: name }));
+    setForm((prev) => ({ ...prev, uploaded: name }));
   }, []);
 
   const fetchInventory = async () => {
@@ -480,12 +489,12 @@ export default function BakeryInventory({ isViewOnly = false }) {
   // Fetch inventory immediately
   useEffect(() => {
     fetchInventory();
-    
+
     // Auto-reload every 1 second
     const intervalId = setInterval(() => {
       fetchInventory();
     }, 1000);
-    
+
     // Cleanup interval on unmount
     return () => clearInterval(intervalId);
   }, []);
@@ -555,10 +564,19 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
   // Donation status counts
   const donationCounts = useMemo(() => {
-    const counts = { all: inventory.length, available: 0, requested: 0, donated: 0, unavailable: 0 };
+    const counts = {
+      all: inventory.length,
+      available: 0,
+      requested: 0,
+      donated: 0,
+      unavailable: 0,
+    };
     for (const it of inventory) {
       const st = statusOf(it);
-      const donationStatus = (currentServerDate && st === "expired") ? "unavailable" : (it.status || "available");
+      const donationStatus =
+        currentServerDate && st === "expired"
+          ? "unavailable"
+          : it.status || "available";
       const key = donationStatus.toLowerCase();
       if (counts[key] !== undefined) counts[key]++;
     }
@@ -572,11 +590,16 @@ export default function BakeryInventory({ isViewOnly = false }) {
       const nameOk = !q || (it.name || "").toLowerCase().includes(q);
       const st = statusOf(it);
       const statusOk = statusFilter === "all" || st === statusFilter;
-      
+
       // Donation status filter
-      const donationStatus = (currentServerDate && st === "expired") ? "unavailable" : (it.status || "available");
-      const donationOk = donationFilter === "all" || donationStatus.toLowerCase() === donationFilter;
-      
+      const donationStatus =
+        currentServerDate && st === "expired"
+          ? "unavailable"
+          : it.status || "available";
+      const donationOk =
+        donationFilter === "all" ||
+        donationStatus.toLowerCase() === donationFilter;
+
       return nameOk && statusOk && donationOk;
     });
 
@@ -584,47 +607,72 @@ export default function BakeryInventory({ isViewOnly = false }) {
     return filtered.sort((a, b) => {
       const statusA = statusOf(a);
       const statusB = statusOf(b);
-      const donationStatusA = (currentServerDate && statusA === "expired") ? "unavailable" : (a.status || "available");
-      const donationStatusB = (currentServerDate && statusB === "expired") ? "unavailable" : (b.status || "available");
-      
+      const donationStatusA =
+        currentServerDate && statusA === "expired"
+          ? "unavailable"
+          : a.status || "available";
+      const donationStatusB =
+        currentServerDate && statusB === "expired"
+          ? "unavailable"
+          : b.status || "available";
+
       // First priority: donation status (available items at the top)
-      const donationPriorityMap = { 
-        available: 1, 
-        requested: 2, 
-        donated: 3, 
-        unavailable: 4 
+      const donationPriorityMap = {
+        available: 1,
+        requested: 2,
+        donated: 3,
+        unavailable: 4,
       };
-      const donationPriorityA = donationPriorityMap[donationStatusA.toLowerCase()] || 1;
-      const donationPriorityB = donationPriorityMap[donationStatusB.toLowerCase()] || 1;
-      
+      const donationPriorityA =
+        donationPriorityMap[donationStatusA.toLowerCase()] || 1;
+      const donationPriorityB =
+        donationPriorityMap[donationStatusB.toLowerCase()] || 1;
+
       if (donationPriorityA !== donationPriorityB) {
         return donationPriorityA - donationPriorityB;
       }
-      
+
       // Second priority: expiration status (fresh, soon, expired)
       const expirationPriorityMap = { fresh: 1, soon: 2, expired: 3 };
       const expirationPriorityA = expirationPriorityMap[statusA] || 1;
       const expirationPriorityB = expirationPriorityMap[statusB] || 1;
-      
+
       if (expirationPriorityA !== expirationPriorityB) {
         return expirationPriorityA - expirationPriorityB;
       }
-      
+
       // If same status, maintain original order (by id)
       return a.id - b.id;
     });
   }, [inventory, query, statusFilter, donationFilter, currentServerDate]);
 
-  // Master checkbox state
+  // ✅ Reset page when filters or data change
+  useEffect(() => {
+    setPage(1);
+  }, [query, statusFilter, donationFilter, inventory.length]);
+
+  // ✅ Pagination derived values
+  const totalPages =
+    filteredInventory.length === 0
+      ? 1
+      : Math.ceil(filteredInventory.length / pageSize);
+  const safePage = Math.min(page, totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  const visibleInventory = filteredInventory.slice(
+    startIndex,
+    startIndex + pageSize
+  );
+
+  // Master checkbox state (per page)
   useEffect(() => {
     if (!masterRef.current) return;
-    const idsOnPage = filteredInventory.map((it) => it.id);
+    const idsOnPage = visibleInventory.map((it) => it.id);
     const selectedOnPage = idsOnPage.filter((id) => selectedIds.has(id));
     masterRef.current.indeterminate =
       selectedOnPage.length > 0 && selectedOnPage.length < idsOnPage.length;
     masterRef.current.checked =
       idsOnPage.length > 0 && selectedOnPage.length === idsOnPage.length;
-  }, [filteredInventory, selectedIds]);
+  }, [visibleInventory, selectedIds]);
 
   // CRUD
   const handleSubmit = async (e) => {
@@ -759,7 +807,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
     });
   };
   const toggleSelectAllOnPage = (checked) => {
-    const idsOnPage = filteredInventory.map((it) => it.id);
+    const idsOnPage = visibleInventory.map((it) => it.id);
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (checked) idsOnPage.forEach((id) => next.add(id));
@@ -856,7 +904,11 @@ export default function BakeryInventory({ isViewOnly = false }) {
         </span>
         {!isViewOnly && (
           <>
-            <button onClick={() => setShowForm(true)} className={pillSolid} title="Add new product">
+            <button
+              onClick={() => setShowForm(true)}
+              className={pillSolid}
+              title="Add new product"
+            >
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">New</span>
             </button>
@@ -874,12 +926,14 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
                 // Filter to get only items uploaded by current user
                 const userItems = filteredInventory.filter(
-                  item => selectedIds.has(item.id) && item.uploaded === uploaderName
+                  (item) =>
+                    selectedIds.has(item.id) && item.uploaded === uploaderName
                 );
 
                 // Check if any items belong to other users
                 const otherUserItems = filteredInventory.filter(
-                  item => selectedIds.has(item.id) && item.uploaded !== uploaderName
+                  (item) =>
+                    selectedIds.has(item.id) && item.uploaded !== uploaderName
                 );
 
                 if (userItems.length === 0) {
@@ -902,11 +956,11 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     confirmButtonColor: "#A97142",
                     cancelButtonColor: "#d33",
                     confirmButtonText: "Delete My Items",
-                    cancelButtonText: "Cancel"
+                    cancelButtonText: "Cancel",
                   }).then((result) => {
                     if (result.isConfirmed) {
                       // Delete only user's items
-                      userItems.forEach(item => handleDelete(item.id));
+                      userItems.forEach((item) => handleDelete(item.id));
                       clearSelection();
                     }
                   });
@@ -935,10 +989,9 @@ export default function BakeryInventory({ isViewOnly = false }) {
             </button>
           </>
         )}
-<div className="w-full sm:w-auto sm:ml-auto flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 sm:gap-4">
-          <div className="flex items-center gap-2 bg-white/80 rounded-full px-2 py-1 ring-1 ring-black/5 shadow-sm">
-           
-            {" "}
+        <div className="w-full sm:w-auto sm:ml-auto flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 sm:gap-4">
+          {/* STATUS FILTER GROUP (Fresh / Soon / Expired) */}
+          <div className="flex flex-wrap items-center gap-2 bg-white/80 rounded-2xl px-2 py-2 ring-1 ring-black/5 shadow-sm w-full sm:w-auto">
             {[
               { key: "all", label: "All", tone: "bg-white" },
               {
@@ -975,8 +1028,8 @@ export default function BakeryInventory({ isViewOnly = false }) {
             })}
           </div>
 
-          {/* Donation Status Filter */}
-          <div className="flex items-center gap-2 bg-white/80 rounded-full px-2 py-1 ring-1 ring-black/5 shadow-sm">
+          {/* DONATION STATUS FILTER GROUP */}
+          <div className="flex flex-wrap items-center gap-2 bg-white/80 rounded-2xl px-2 py-2 ring-1 ring-black/5 shadow-sm w-full sm:w-auto">
             {[
               { key: "all", label: "All", tone: "bg-white" },
               {
@@ -1071,8 +1124,8 @@ export default function BakeryInventory({ isViewOnly = false }) {
             </tr>
           </thead>
           <tbody>
-            {filteredInventory.length ? (
-              filteredInventory.map((item) => {
+            {visibleInventory.length ? (
+              visibleInventory.map((item) => {
                 const st = statusOf(item);
                 const checked = selectedIds.has(item.id);
                 return (
@@ -1134,7 +1187,11 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     {/* Donation Status */}
                     <td className="p-3 bg-[#FFF6EC] transition-colors group-hover:bg-transparent">
                       <DonationStatus
-                        status={(currentServerDate && statusOf(item) === "expired") ? "unavailable" : item.status}
+                        status={
+                          currentServerDate && statusOf(item) === "expired"
+                            ? "unavailable"
+                            : item.status
+                        }
                       />
                     </td>
                   </tr>
@@ -1143,7 +1200,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
             ) : (
               <tr>
                 <td className="py-10 text-gray-500 text-center" colSpan={11}>
-                  {query || statusFilter !== "all"
+                  {query || statusFilter !== "all" || donationFilter !== "all"
                     ? "No products match your filters."
                     : "No items found."}
                 </td>
@@ -1153,325 +1210,461 @@ export default function BakeryInventory({ isViewOnly = false }) {
         </table>
       </div>
 
-      {/* Add Product */}
+      {/* Pagination controls */}
+      {filteredInventory.length > 0 && (
+        <div className="mt-3 flex flex-col gap-2 text-xs text-[#6b4b2b] sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            Showing {startIndex + 1}–
+            {Math.min(startIndex + pageSize, filteredInventory.length)} of{" "}
+            {filteredInventory.length}
+          </span>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={safePage === 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="rounded-full border border-[#f2d4b5] bg-white px-3 py-1.5 text-xs shadow-sm disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span className="font-medium">
+              Page {safePage} of {totalPages}
+            </span>
+            <button
+              type="button"
+              disabled={safePage === totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              className="rounded-full border border-[#f2d4b5] bg-white px-3 py-1.5 text-xs shadow-sm disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* --- Add Product Modal (sticky header + footer) --- */}
       {showForm && (
         <Overlay onClose={() => setShowForm(false)}>
-          <div className="mx-auto bg-white rounded-2xl shadow-2xl ring-1 ring-black/10 overflow-hidden">
+          <div className="mx-auto bg-white rounded-2xl shadow-2xl ring-1 ring-black/10 overflow-hidden max-h-[90vh] flex flex-col">
+            {/* Top header */}
             <div className={sectionHeader}>
               <h2 className="text-xl font-semibold text-[#6b4b2b]">
                 Add Product
               </h2>
             </div>
 
-            <div className="p-5 sm:p-6">
-              <form onSubmit={handleSubmit} className="grid gap-4">
-                <div>
-                  <label htmlFor="prod_name" className={labelTone}>
-                    Name
-                  </label>
-                  <input
-                    id="prod_name"
-                    className={`${inputTone} rounded-2xl`}
-                    placeholder="e.g., Pandesal"
-                    value={form.item_name}
-                    onChange={(e) => {
-                      const newName = e.target.value;
-                      setForm({ ...form, item_name: newName });
-
-                      // Clear previous timer
-                      if (debounceTimerRef.current) {
-                        clearTimeout(debounceTimerRef.current);
-                      }
-
-                      // Clear template if name is too short
-                      if (newName.trim().length < 3) {
-                        setTemplateInfo(null);
-                        return;
-                      }
-
-                      // Set new timer - only fetch after user stops typing for 800ms
-                      debounceTimerRef.current = setTimeout(() => {
-                        fetchProductTemplate(newName);
-                      }, 800); // Wait 800ms after user stops typing
-                    }}
-                    required
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Product ID: <code>{form.product_id ?? "—"}</code>
-                  </p>
-                </div>
-
-                <div>
-                  <label htmlFor="prod_image" className={labelTone}>
-                    Picture
-                  </label>
-                  <input
-                    id="prod_image"
-                    type="file"
-                    accept="image/*"
-                    className={`${inputTone} rounded-2xl file:mr-2 file:rounded-full file:border-0 file:bg-[#FFEFD9] file:px-3 file:py-1 file:text-xs file:font-medium file:text-[#6b4b2b]`}
-                    onChange={(e) =>
-                      setForm({ ...form, image_file: e.target.files[0] })
-                    }
-                  />
-                </div>
-
-                <div className="grid sm:grid-cols-2 gap-4">
+            {/* Form: scrollable middle + sticky footer */}
+            <form
+              onSubmit={handleSubmit}
+              className="flex-1 flex flex-col min-h-0"
+            >
+              {/* Scrollable fields */}
+              <div className="flex-1 p-5 sm:p-6 overflow-y-auto">
+                <div className="grid gap-4">
                   <div>
-                    <label htmlFor="prod_created" className={labelTone}>
-                      Creation Date
+                    <label htmlFor="prod_name" className={labelTone}>
+                      Name
                     </label>
                     <input
-                      id="prod_created"
-                      type="text"
-                      className={`${inputTone} rounded-2xl bg-gray-100 cursor-not-allowed`}
-                      value={serverDate || 'Loading...'}
-                      readOnly
-                      disabled
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="prod_threshold" className={labelTone}>
-                      Threshold (days)
-                    </label>
-                    <input
-                      id="prod_threshold"
-                      type="number"
-                      min="1"
-                      className={`${inputTone} rounded-2xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${templateInfo || !form.expiration_date ? 'bg-gray-100 cursor-not-allowed' : ''
-                        }`}
-                      value={form.threshold}
+                      id="prod_name"
+                      className={`${inputTone} rounded-2xl`}
+                      placeholder="e.g., Pandesal"
+                      value={form.item_name}
                       onChange={(e) => {
-                        const value = e.target.value === "" ? "" : parseInt(e.target.value, 10);
+                        const newName = e.target.value;
+                        setForm({ ...form, item_name: newName });
 
-                        // Validate that value is not 0
-                        if (value === 0) {
-                          Swal.fire({
-                            title: "Invalid Threshold",
-                            text: "Threshold must be at least 1 day.",
-                            icon: "warning",
-                            confirmButtonColor: "#A97142",
-                            timer: 2500
-                          });
+                        // Clear previous timer
+                        if (debounceTimerRef.current) {
+                          clearTimeout(debounceTimerRef.current);
+                        }
+
+                        // Clear template if name is too short
+                        if (newName.trim().length < 3) {
+                          setTemplateInfo(null);
                           return;
                         }
 
-                        // Real-time validation if expiration date is set
-                        if (form.expiration_date && value !== "") {
-                          const today = new Date();
-                          today.setHours(0, 0, 0, 0);
+                        // Set new timer - only fetch after user stops typing for 800ms
+                        debounceTimerRef.current = setTimeout(() => {
+                          fetchProductTemplate(newName);
+                        }, 800); // Wait 800ms after user stops typing
+                      }}
+                      required
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Product ID: <code>{form.product_id ?? "—"}</code>
+                    </p>
+                  </div>
 
-                          const expDate = new Date(form.expiration_date);
-                          expDate.setHours(0, 0, 0, 0);
+                  <div>
+                    <label htmlFor="prod_image" className={labelTone}>
+                      Picture
+                    </label>
+                    <input
+                      id="prod_image"
+                      type="file"
+                      accept="image/*"
+                      className={`${inputTone} rounded-2xl file:mr-2 file:rounded-full file:border-0 file:bg-[#FFEFD9] file:px-3 file:py-1 file:text-xs file:font-medium file:text-[#6b4b2b]`}
+                      onChange={(e) =>
+                        setForm({ ...form, image_file: e.target.files[0] })
+                      }
+                    />
+                  </div>
 
-                          const daysUntilExpiration = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
-                          const maxThreshold = Math.max(0, daysUntilExpiration);
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="prod_created" className={labelTone}>
+                        Creation Date
+                      </label>
+                      <input
+                        id="prod_created"
+                        type="text"
+                        className={`${inputTone} rounded-2xl bg-gray-100 cursor-not-allowed`}
+                        value={serverDate || "Loading..."}
+                        readOnly
+                        disabled
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="prod_threshold" className={labelTone}>
+                        Threshold (days)
+                      </label>
+                      <input
+                        id="prod_threshold"
+                        type="number"
+                        min="1"
+                        className={`${inputTone} rounded-2xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                          templateInfo || !form.expiration_date
+                            ? "bg-gray-100 cursor-not-allowed"
+                            : ""
+                        }`}
+                        value={form.threshold}
+                        onChange={(e) => {
+                          const value =
+                            e.target.value === ""
+                              ? ""
+                              : parseInt(e.target.value, 10);
 
-                          // If value exceeds max threshold, cap it and show error
-                          if (value > maxThreshold) {
+                          // Validate that value is not 0
+                          if (value === 0) {
                             Swal.fire({
-                              title: "Threshold Exceeded",
-                              text: `Maximum threshold is ${maxThreshold} day${maxThreshold !== 1 ? 's' : ''}. Value has been adjusted automatically.`,
+                              title: "Invalid Threshold",
+                              text: "Threshold must be at least 1 day.",
                               icon: "warning",
                               confirmButtonColor: "#A97142",
-                              timer: 3000
+                              timer: 2500,
                             });
+                            return;
+                          }
 
-                            setForm({
-                              ...form,
-                              threshold: maxThreshold,
-                            });
-                            e.target.setCustomValidity('');
+                          // Real-time validation if expiration date is set
+                          if (form.expiration_date && value !== "") {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+
+                            const expDate = new Date(form.expiration_date);
+                            expDate.setHours(0, 0, 0, 0);
+
+                            const daysUntilExpiration = Math.ceil(
+                              (expDate - today) / (1000 * 60 * 60 * 24)
+                            );
+                            const maxThreshold = Math.max(
+                              0,
+                              daysUntilExpiration
+                            );
+
+                            // If value exceeds max threshold, cap it and show error
+                            if (value > maxThreshold) {
+                              Swal.fire({
+                                title: "Threshold Exceeded",
+                                text: `Maximum threshold is ${maxThreshold} day${
+                                  maxThreshold !== 1 ? "s" : ""
+                                }. Value has been adjusted automatically.`,
+                                icon: "warning",
+                                confirmButtonColor: "#A97142",
+                                timer: 3000,
+                              });
+
+                              setForm({
+                                ...form,
+                                threshold: maxThreshold,
+                              });
+                              e.target.setCustomValidity("");
+                            } else {
+                              setForm({
+                                ...form,
+                                threshold: value,
+                              });
+                              e.target.setCustomValidity("");
+                            }
                           } else {
                             setForm({
                               ...form,
                               threshold: value,
                             });
-                            e.target.setCustomValidity('');
                           }
-                        } else {
-                          setForm({
-                            ...form,
-                            threshold: value,
-                          });
-                        }
-                      }}
-                      onFocus={(e) => {
-                        // Prevent interaction if expiration date not set
-                        if (!form.expiration_date) {
-                          e.target.blur();
-                          Swal.fire({
-                            title: "Expiration Date Required",
-                            text: "Please select an expiration date first before setting the threshold.",
-                            icon: "info",
-                            confirmButtonColor: "#A97142",
-                            timer: 2500
-                          });
-                        }
-                      }}
-                      readOnly={!!templateInfo || !form.expiration_date}
-                      disabled={!!templateInfo || !form.expiration_date}
-                      required
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      {!form.expiration_date ? (
-                        <span className="text-amber-600 font-medium">⚠️ Please select expiration date first</span>
-                      ) : (
-                        (() => {
-                          const today = new Date();
-                          today.setHours(0, 0, 0, 0);
-                          const expDate = new Date(form.expiration_date);
-                          expDate.setHours(0, 0, 0, 0);
-                          const days = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
-                          const maxThreshold = Math.max(0, days);
-                          return `Max threshold: ${maxThreshold} day${maxThreshold !== 1 ? 's' : ''} (product expires in ${days} days)`;
-                        })()
-                      )}
-                    </p>
-                  </div>
-                  <div>
-                    <label htmlFor="prod_exp" className={labelTone}>
-                      Expiration Date
-                    </label>
-                    <input
-                      id="prod_exp"
-                      type="date"
-                      min={currentServerDate ? (() => {
-                        // Parse server date (format: YYYY-MM-DD)
-                        const [year, month, day] = currentServerDate.split('-').map(Number);
-                        const serverToday = new Date(year, month - 1, day);
+                        }}
+                        onFocus={(e) => {
+                          // Prevent interaction if expiration date not set
+                          if (!form.expiration_date) {
+                            e.target.blur();
+                            Swal.fire({
+                              title: "Expiration Date Required",
+                              text: "Please select an expiration date first before setting the threshold.",
+                              icon: "info",
+                              confirmButtonColor: "#A97142",
+                              timer: 2500,
+                            });
+                          }
+                        }}
+                        readOnly={!!templateInfo || !form.expiration_date}
+                        disabled={!!templateInfo || !form.expiration_date}
+                        required
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        {!form.expiration_date ? (
+                          <span className="text-amber-600 font-medium">
+                            ⚠️ Please select expiration date first
+                          </span>
+                        ) : (
+                          (() => {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const expDate = new Date(form.expiration_date);
+                            expDate.setHours(0, 0, 0, 0);
+                            const days = Math.ceil(
+                              (expDate - today) / (1000 * 60 * 60 * 24)
+                            );
+                            const maxThreshold = Math.max(0, days);
+                            return `Max threshold: ${maxThreshold} day${
+                              maxThreshold !== 1 ? "s" : ""
+                            } (product expires in ${days} days)`;
+                          })()
+                        )}
+                      </p>
+                    </div>
+                    <div>
+                      <label htmlFor="prod_exp" className={labelTone}>
+                        Expiration Date
+                      </label>
+                      <input
+                        id="prod_exp"
+                        type="date"
+                        min={
+                          currentServerDate
+                            ? (() => {
+                                // Parse server date (format: YYYY-MM-DD)
+                                const [year, month, day] = currentServerDate
+                                  .split("-")
+                                  .map(Number);
+                                const serverToday = new Date(
+                                  year,
+                                  month - 1,
+                                  day
+                                );
 
-                        // Add 1 day for tomorrow
-                        serverToday.setDate(serverToday.getDate() + 1);
+                                // Add 1 day for tomorrow
+                                serverToday.setDate(serverToday.getDate() + 1);
 
-                        // Format back to YYYY-MM-DD
-                        const yyyy = serverToday.getFullYear();
-                        const mm = String(serverToday.getMonth() + 1).padStart(2, '0');
-                        const dd = String(serverToday.getDate()).padStart(2, '0');
-                        return `${yyyy}-${mm}-${dd}`;
-                      })() : ''}
-                      className={`${inputTone} rounded-2xl ${templateInfo ? 'bg-gray-100 cursor-not-allowed' : ''
+                                // Format back to YYYY-MM-DD
+                                const yyyy = serverToday.getFullYear();
+                                const mm = String(
+                                  serverToday.getMonth() + 1
+                                ).padStart(2, "0");
+                                const dd = String(
+                                  serverToday.getDate()
+                                ).padStart(2, "0");
+                                return `${yyyy}-${mm}-${dd}`;
+                              })()
+                            : ""
+                        }
+                        className={`${inputTone} rounded-2xl ${
+                          templateInfo ? "bg-gray-100 cursor-not-allowed" : ""
                         }`}
-                      value={form.expiration_date}
-                      onChange={(e) =>
-                        setForm({ ...form, expiration_date: e.target.value })
-                      }
-                      readOnly={!!templateInfo}
-                      disabled={!!templateInfo}
-                      required
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Must be at least tomorrow ({currentServerDate ? (() => {
-                        const [year, month, day] = currentServerDate.split('-').map(Number);
-                        const tomorrow = new Date(year, month - 1, day);
-                        tomorrow.setDate(tomorrow.getDate() + 1);
-                        const mm = String(tomorrow.getMonth() + 1).padStart(2, '0');
-                        const dd = String(tomorrow.getDate()).padStart(2, '0');
-                        const yyyy = tomorrow.getFullYear();
-                        return `${mm}/${dd}/${yyyy}`;
-                      })() : ''})
-                    </p>
+                        value={form.expiration_date}
+                        onChange={(e) =>
+                          setForm({ ...form, expiration_date: e.target.value })
+                        }
+                        readOnly={!!templateInfo}
+                        disabled={!!templateInfo}
+                        required
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Must be at least tomorrow (
+                        {currentServerDate
+                          ? (() => {
+                              const [year, month, day] = currentServerDate
+                                .split("-")
+                                .map(Number);
+                              const tomorrow = new Date(year, month - 1, day);
+                              tomorrow.setDate(tomorrow.getDate() + 1);
+                              const mm = String(
+                                tomorrow.getMonth() + 1
+                              ).padStart(2, "0");
+                              const dd = String(tomorrow.getDate()).padStart(
+                                2,
+                                "0"
+                              );
+                              const yyyy = tomorrow.getFullYear();
+                              return `${mm}/${dd}/${yyyy}`;
+                            })()
+                          : ""}
+                        )
+                      </p>
+                    </div>
+                    <div>
+                      <label htmlFor="prod_qty" className={labelTone}>
+                        Quantity
+                      </label>
+
+                      {/* stepper: - [input] + */}
+                      <div className="flex items-center gap-3">
+                        {/* minus button */}
+                        <button
+                          type="button"
+                          className="shrink-0 h-10 w-10 sm:h-11 sm:w-11 grid place-items-center rounded-2xl border border-[#f2d4b5] bg-white hover:bg-[#FFF6E9] transition shadow-sm"
+                          onClick={() =>
+                            setForm((prev) => ({
+                              ...prev,
+                              quantity: Math.max(
+                                1,
+                                Number(prev.quantity || 1) - 1
+                              ),
+                            }))
+                          }
+                          aria-label="Decrease quantity"
+                        >
+                          <span className="text-lg leading-none text-[#6b4b2b]">
+                            −
+                          </span>
+                        </button>
+
+                        {/* input */}
+                        <input
+                          id="prod_qty"
+                          type="number"
+                          min="1"
+                          className={`${inputTone} rounded-2xl text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                          value={form.quantity}
+                          onInput={(e) => {
+                            e.currentTarget.value =
+                              e.currentTarget.value.replace(/^0+(?=\d)/, "");
+                          }}
+                          onChange={(e) => {
+                            const value =
+                              e.target.value === ""
+                                ? ""
+                                : parseInt(e.target.value, 10);
+
+                            if (value === 0) {
+                              Swal.fire({
+                                title: "Invalid Quantity",
+                                text: "Quantity must be at least 1.",
+                                icon: "warning",
+                                confirmButtonColor: "#A97142",
+                                timer: 2500,
+                              });
+                              return;
+                            }
+
+                            setForm({
+                              ...form,
+                              quantity: value,
+                            });
+                          }}
+                          required
+                        />
+
+                        {/* plus button */}
+                        <button
+                          type="button"
+                          className="shrink-0 h-10 w-10 sm:h-11 sm:w-11 grid place-items-center rounded-2xl border border-[#f2d4b5] bg-white hover:bg-[#FFF6E9] transition shadow-sm"
+                          onClick={() =>
+                            setForm((prev) => ({
+                              ...prev,
+                              quantity: Number(prev.quantity || 1) + 1,
+                            }))
+                          }
+                          aria-label="Increase quantity"
+                        >
+                          <span className="text-lg leading-none text-[#6b4b2b]">
+                            ＋
+                          </span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                 <div>
-                    <label htmlFor="prod_qty" className={labelTone}>
-                      Quantity
+
+                  <div>
+                    <label htmlFor="prod_desc" className={labelTone}>
+                      Description
+                    </label>
+                    <textarea
+                      id="prod_desc"
+                      className={`${inputTone} rounded-2xl min-h-[90px]`}
+                      placeholder="Add a short description"
+                      value={form.description}
+                      onChange={(e) =>
+                        setForm({ ...form, description: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="prod_uploader" className={labelTone}>
+                      Uploaded By
                     </label>
                     <input
-                      id="prod_qty"
-                      type="number"
-                      min="1"
-                      className={`${inputTone} rounded-2xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
-                      value={form.quantity}
-                      onChange={(e) => {
-                        const value = e.target.value === "" ? "" : parseInt(e.target.value, 10);
-                        
-                        if (value === 0) {
-                          Swal.fire({
-                            title: "Invalid Quantity",
-                            text: "Quantity must be at least 1.",
-                            icon: "warning",
-                            confirmButtonColor: "#A97142",
-                            timer: 2500
-                          });
-                          return;
-                        }
-                        
-                        setForm({
-                          ...form,
-                          quantity: value,
-                        });
-                      }}
-                      required
+                      id="prod_uploader"
+                      type="text"
+                      className={`${inputTone} rounded-2xl bg-gray-100`}
+                      value={form.uploaded}
+                      readOnly
+                      disabled
                     />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Auto-filled from your login
+                    </p>
                   </div>
                 </div>
+              </div>
 
-                <div>
-                  <label htmlFor="prod_desc" className={labelTone}>
-                    Description
-                  </label>
-                  <textarea
-                    id="prod_desc"
-                    className={`${inputTone} rounded-2xl min-h-[90px]`}
-                    placeholder="Add a short description"
-                    value={form.description}
-                    onChange={(e) =>
-                      setForm({ ...form, description: e.target.value })
+              {/* Sticky footer buttons */}
+              <div className="p-5 sm:p-6 border-t bg-white flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsFormClosing(true);
+                    if (debounceTimerRef.current) {
+                      clearTimeout(debounceTimerRef.current);
                     }
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="prod_uploader" className={labelTone}>
-                    Uploaded By
-                  </label>
-                  <input
-                    id="prod_uploader"
-                    type="text"
-                    className={`${inputTone} rounded-2xl bg-gray-100`}
-                    value={form.uploaded}
-                    readOnly
-                    disabled
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Auto-filled from your login
-                  </p>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsFormClosing(true);
-                      if (debounceTimerRef.current) {
-                        clearTimeout(debounceTimerRef.current);
-                      }
-                      setShowForm(false);
-                      setTemplateInfo(null);
-                      setForm({
-                        item_name: "",
-                        quantity: 1,
-                        creation_date: currentServerDate,
-                        expiration_date: "",
-                        description: "",
-                        image_file: null,
-                        threshold: 0,
-                        uploaded: uploaderName,
-                      });
-                      setTimeout(() => {
-                        setIsFormClosing(false);
-                      }, 100);
-                    }}
-                    className={pillOutline}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className={pillSolid}>
-                    Add Product
-                  </button>
-                </div>
-              </form>
-            </div>
+                    setShowForm(false);
+                    setTemplateInfo(null);
+                    setForm({
+                      item_name: "",
+                      quantity: 1,
+                      creation_date: currentServerDate,
+                      expiration_date: "",
+                      description: "",
+                      image_file: null,
+                      threshold: 0,
+                      uploaded: uploaderName,
+                    });
+                    setTimeout(() => {
+                      setIsFormClosing(false);
+                    }, 100);
+                  }}
+                  className={pillOutline}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className={pillSolid}>
+                  Add Product
+                </button>
+              </div>
+            </form>
           </div>
         </Overlay>
       )}
@@ -1484,6 +1677,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
         }}
         width={620}
       >
+        {/* --- Product Details (view) --- */}
         {selectedItem && !isEditing && !showDirectDonation && (
           <>
             <div className={sectionHeader}>
@@ -1492,7 +1686,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
               </h3>
             </div>
 
-            <div className="p-5 space-y-2 text-sm overflow-auto">
+            <div className="flex-1 p-5 space-y-2 text-sm overflow-y-auto">
               <p>
                 <strong className="text-[#6b4b2b]">Product ID:</strong>{" "}
                 {selectedItem.product_id ?? selectedItem.id ?? "—"}
@@ -1518,12 +1712,12 @@ export default function BakeryInventory({ isViewOnly = false }) {
                 {formatDate(selectedItem.expiration_date)}
               </p>
               <p>
-                <strong className="text-[#6b4b2b]">Uploaded By:</strong>{" "}
-                {selectedItem.uploaded || "System"}
-              </p>
-              <p>
                 <strong className="text-[#6b4b2b]">Description:</strong>{" "}
                 {selectedItem.description}
+              </p>
+              <p>
+                <strong className="text-[#6b4b2b]">Uploaded By:</strong>{" "}
+                {selectedItem.uploaded || "System"}
               </p>
 
               {selectedItem.image && (
@@ -1543,7 +1737,9 @@ export default function BakeryInventory({ isViewOnly = false }) {
                       if (selectedItem.uploaded !== uploaderName) {
                         Swal.fire({
                           title: "Access Denied",
-                          text: `Only ${selectedItem.uploaded || "the uploader"} can delete this item.`,
+                          text: `Only ${
+                            selectedItem.uploaded || "the uploader"
+                          } can delete this item.`,
                           icon: "error",
                           confirmButtonColor: "#A97142",
                         });
@@ -1552,7 +1748,11 @@ export default function BakeryInventory({ isViewOnly = false }) {
                       handleDelete(selectedItem.id);
                     }}
                     className={pillSolid}
-                    title={selectedItem.uploaded !== uploaderName ? "Only the uploader can delete this item" : ""}
+                    title={
+                      selectedItem.uploaded !== uploaderName
+                        ? "Only the uploader can delete this item"
+                        : ""
+                    }
                   >
                     Delete
                   </button>
@@ -1562,7 +1762,9 @@ export default function BakeryInventory({ isViewOnly = false }) {
                       if (selectedItem.uploaded !== uploaderName) {
                         Swal.fire({
                           title: "Access Denied",
-                          text: `Only ${selectedItem.uploaded || "the uploader"} can edit this item.`,
+                          text: `Only ${
+                            selectedItem.uploaded || "the uploader"
+                          } can edit this item.`,
                           icon: "error",
                           confirmButtonColor: "#A97142",
                         });
@@ -1574,7 +1776,11 @@ export default function BakeryInventory({ isViewOnly = false }) {
                       setIsEditing(true);
                     }}
                     className={pillSolid}
-                    title={selectedItem.uploaded !== uploaderName ? "Only the uploader can edit this item" : ""}
+                    title={
+                      selectedItem.uploaded !== uploaderName
+                        ? "Only the uploader can edit this item"
+                        : ""
+                    }
                   >
                     Edit
                   </button>
@@ -1601,7 +1807,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                 Edit Product
               </h2>
             </div>
-            <div className="p-5 space-y-4 overflow-auto">
+            <div className="flex-1 p-5 space-y-4 overflow-y-auto">
               <div className="text-xs text-gray-500">
                 Product ID:{" "}
                 <code>{selectedItem.product_id ?? selectedItem.id ?? "—"}</code>
@@ -1636,7 +1842,9 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
                     // If name reverted to original, restore ALL original data
                     if (!nameChanged && newName.trim().length >= 3) {
-                      const originalItem = inventory.find(item => item.id === selectedItem.id);
+                      const originalItem = inventory.find(
+                        (item) => item.id === selectedItem.id
+                      );
                       if (originalItem) {
                         setSelectedItem({
                           ...selectedItem,
@@ -1644,7 +1852,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                           creation_date: originalItem.creation_date,
                           expiration_date: originalItem.expiration_date,
                           threshold: originalItem.threshold,
-                          description: originalItem.description
+                          description: originalItem.description,
                         });
                         setTemplateInfo(null); // Clear template lock
                       }
@@ -1689,33 +1897,81 @@ export default function BakeryInventory({ isViewOnly = false }) {
                   <label className={labelTone} htmlFor="edit_qty">
                     Quantity
                   </label>
-                  <input
-                    id="edit_qty"
-                    type="number"
-                    min="1"
-                    className={`${inputTone} rounded-2xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
-                    value={selectedItem.quantity}
-                    onChange={(e) => {
-                      const value = e.target.value === "" ? "" : parseInt(e.target.value, 10);
-                      
-                      if (value === 0) {
-                        Swal.fire({
-                          title: "Invalid Quantity",
-                          text: "Quantity must be at least 1.",
-                          icon: "warning",
-                          confirmButtonColor: "#A97142",
-                          timer: 2500
-                        });
-                        return;
+
+                  {/* stepper: - [input] + */}
+                  <div className="flex items-center gap-3">
+                    {/* minus button */}
+                    <button
+                      type="button"
+                      className="shrink-0 h-10 w-10 sm:h-11 sm:w-11 grid place-items-center rounded-2xl border border-[#f2d4b5] bg-white hover:bg-[#FFF6E9] transition shadow-sm"
+                      onClick={() =>
+                        setSelectedItem((prev) => ({
+                          ...prev,
+                          quantity: Math.max(1, Number(prev.quantity || 1) - 1),
+                        }))
                       }
-                      
-                      setSelectedItem({
-                        ...selectedItem,
-                        quantity: value,
-                      });
-                    }}
-                    required
-                  />
+                      aria-label="Decrease quantity"
+                    >
+                      <span className="text-lg leading-none text-[#6b4b2b]">
+                        −
+                      </span>
+                    </button>
+
+                    {/* input */}
+                    <input
+                      id="edit_qty"
+                      type="number"
+                      min="1"
+                      className={`${inputTone} rounded-2xl text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                      value={selectedItem.quantity}
+                      onInput={(e) => {
+                        e.currentTarget.value = e.currentTarget.value.replace(
+                          /^0+(?=\d)/,
+                          ""
+                        );
+                      }}
+                      onChange={(e) => {
+                        const value =
+                          e.target.value === ""
+                            ? ""
+                            : parseInt(e.target.value, 10);
+
+                        if (value === 0) {
+                          Swal.fire({
+                            title: "Invalid Quantity",
+                            text: "Quantity must be at least 1.",
+                            icon: "warning",
+                            confirmButtonColor: "#A97142",
+                            timer: 2500,
+                          });
+                          return;
+                        }
+
+                        setSelectedItem({
+                          ...selectedItem,
+                          quantity: value,
+                        });
+                      }}
+                      required
+                    />
+
+                    {/* plus button */}
+                    <button
+                      type="button"
+                      className="shrink-0 h-10 w-10 sm:h-11 sm:w-11 grid place-items-center rounded-2xl border border-[#f2d4b5] bg-white hover:bg-[#FFF6E9] transition shadow-sm"
+                      onClick={() =>
+                        setSelectedItem((prev) => ({
+                          ...prev,
+                          quantity: Number(prev.quantity || 1) + 1,
+                        }))
+                      }
+                      aria-label="Increase quantity"
+                    >
+                      <span className="text-lg leading-none text-[#6b4b2b]">
+                        ＋
+                      </span>
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -1726,11 +1982,19 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     id="edit_threshold"
                     type="number"
                     min="1"
-                    className={`${inputTone} rounded-2xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${templateInfo || !selectedItem.expiration_date || !selectedItem.expiration_date ? 'bg-gray-100 cursor-not-allowed' : ''
-                      }`}
+                    className={`${inputTone} rounded-2xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                      templateInfo ||
+                      !selectedItem.expiration_date ||
+                      !selectedItem.expiration_date
+                        ? "bg-gray-100 cursor-not-allowed"
+                        : ""
+                    }`}
                     value={selectedItem.threshold}
                     onChange={(e) => {
-                      const value = e.target.value === "" ? "" : parseInt(e.target.value, 10);
+                      const value =
+                        e.target.value === ""
+                          ? ""
+                          : parseInt(e.target.value, 10);
 
                       // Validate that value is not 0
                       if (value === 0) {
@@ -1739,7 +2003,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                           text: "Threshold must be at least 1 day.",
                           icon: "warning",
                           confirmButtonColor: "#A97142",
-                          timer: 2500
+                          timer: 2500,
                         });
                         return;
                       }
@@ -1747,23 +2011,29 @@ export default function BakeryInventory({ isViewOnly = false }) {
                       // Real-time validation if expiration date is set
                       if (selectedItem.expiration_date && value !== "") {
                         // Use creation date for calculation
-                        const creationDate = new Date(selectedItem.creation_date);
+                        const creationDate = new Date(
+                          selectedItem.creation_date
+                        );
                         creationDate.setHours(0, 0, 0, 0);
 
                         const expDate = new Date(selectedItem.expiration_date);
                         expDate.setHours(0, 0, 0, 0);
 
-                        const daysUntilExpiration = Math.ceil((expDate - creationDate) / (1000 * 60 * 60 * 24));
+                        const daysUntilExpiration = Math.ceil(
+                          (expDate - creationDate) / (1000 * 60 * 60 * 24)
+                        );
                         const maxThreshold = Math.max(0, daysUntilExpiration);
 
                         // If value exceeds max threshold, cap it and show error
                         if (value > maxThreshold) {
                           Swal.fire({
                             title: "Threshold Exceeded",
-                            text: `Maximum threshold is ${maxThreshold} day${maxThreshold !== 1 ? 's' : ''}. Value has been adjusted automatically.`,
+                            text: `Maximum threshold is ${maxThreshold} day${
+                              maxThreshold !== 1 ? "s" : ""
+                            }. Value has been adjusted automatically.`,
                             icon: "warning",
                             confirmButtonColor: "#A97142",
-                            timer: 3000
+                            timer: 3000,
                           });
 
                           setSelectedItem({
@@ -1792,26 +2062,42 @@ export default function BakeryInventory({ isViewOnly = false }) {
                           text: "Please select an expiration date first before setting the threshold.",
                           icon: "info",
                           confirmButtonColor: "#A97142",
-                          timer: 2500
+                          timer: 2500,
                         });
                       }
                     }}
-                    readOnly={!isNameModified || !!templateInfo || !selectedItem.expiration_date}
-                    disabled={!isNameModified || !!templateInfo || !selectedItem.expiration_date}
+                    readOnly={
+                      !isNameModified ||
+                      !!templateInfo ||
+                      !selectedItem.expiration_date
+                    }
+                    disabled={
+                      !isNameModified ||
+                      !!templateInfo ||
+                      !selectedItem.expiration_date
+                    }
                     required
                   />
                   <p className="mt-1 text-xs text-gray-500">
                     {!selectedItem.expiration_date ? (
-                      <span className="text-amber-600 font-medium">⚠️ Please select expiration date first</span>
+                      <span className="text-amber-600 font-medium">
+                        ⚠️ Please select expiration date first
+                      </span>
                     ) : (
                       (() => {
-                        const creationDate = new Date(selectedItem.creation_date);
+                        const creationDate = new Date(
+                          selectedItem.creation_date
+                        );
                         creationDate.setHours(0, 0, 0, 0);
                         const expDate = new Date(selectedItem.expiration_date);
                         expDate.setHours(0, 0, 0, 0);
-                        const days = Math.ceil((expDate - creationDate) / (1000 * 60 * 60 * 24));
+                        const days = Math.ceil(
+                          (expDate - creationDate) / (1000 * 60 * 60 * 24)
+                        );
                         const maxThreshold = Math.max(0, days);
-                        return `Max threshold: ${maxThreshold} day${maxThreshold !== 1 ? 's' : ''} (product expires in ${days} days)`;
+                        return `Max threshold: ${maxThreshold} day${
+                          maxThreshold !== 1 ? "s" : ""
+                        } (product expires in ${days} days)`;
                       })()
                     )}
                   </p>
@@ -1828,7 +2114,9 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     value={(() => {
                       // ALWAYS show original creation date (never changes)
                       const dateToUse = selectedItem.creation_date;
-                      return dateToUse ? new Date(dateToUse).toLocaleDateString('en-US') : '';
+                      return dateToUse
+                        ? new Date(dateToUse).toLocaleDateString("en-US")
+                        : "";
                     })()}
                     readOnly
                     disabled
@@ -1845,17 +2133,31 @@ export default function BakeryInventory({ isViewOnly = false }) {
                   <input
                     id="edit_exp"
                     type="date"
-                    min={currentServerDate ? (() => {
-                      const [year, month, day] = currentServerDate.split('-').map(Number);
-                      const serverToday = new Date(year, month - 1, day);
-                      serverToday.setDate(serverToday.getDate() + 1);
-                      const yyyy = serverToday.getFullYear();
-                      const mm = String(serverToday.getMonth() + 1).padStart(2, '0');
-                      const dd = String(serverToday.getDate()).padStart(2, '0');
-                      return `${yyyy}-${mm}-${dd}`;
-                    })() : ''}
-                    className={`${inputTone} rounded-2xl ${!isNameModified || templateInfo ? 'bg-gray-100 cursor-not-allowed' : ''
-                      }`}
+                    min={
+                      currentServerDate
+                        ? (() => {
+                            const [year, month, day] = currentServerDate
+                              .split("-")
+                              .map(Number);
+                            const serverToday = new Date(year, month - 1, day);
+                            serverToday.setDate(serverToday.getDate() + 1);
+                            const yyyy = serverToday.getFullYear();
+                            const mm = String(
+                              serverToday.getMonth() + 1
+                            ).padStart(2, "0");
+                            const dd = String(serverToday.getDate()).padStart(
+                              2,
+                              "0"
+                            );
+                            return `${yyyy}-${mm}-${dd}`;
+                          })()
+                        : ""
+                    }
+                    className={`${inputTone} rounded-2xl ${
+                      !isNameModified || templateInfo
+                        ? "bg-gray-100 cursor-not-allowed"
+                        : ""
+                    }`}
                     value={selectedItem.expiration_date}
                     onChange={(e) => {
                       // Clear templateInfo to enable threshold field
@@ -1873,9 +2175,29 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     required
                   />
                   <p className="mt-1 text-xs text-gray-500">
-                    {templateInfo ? 'Auto-filled from template' : 'Must be at least tomorrow'}
+                    {templateInfo
+                      ? "Auto-filled from template"
+                      : "Must be at least tomorrow"}
                   </p>
                 </div>
+              </div>
+
+              {/* Description BEFORE Uploaded By (to match Add Product layout) */}
+              <div>
+                <label className={labelTone} htmlFor="edit_desc">
+                  Description
+                </label>
+                <textarea
+                  id="edit_desc"
+                  className={`${inputTone} rounded-2xl min-h-[90px]`}
+                  value={selectedItem.description || ""}
+                  onChange={(e) =>
+                    setSelectedItem({
+                      ...selectedItem,
+                      description: e.target.value,
+                    })
+                  }
+                />
               </div>
 
               <div>
@@ -1894,25 +2216,9 @@ export default function BakeryInventory({ isViewOnly = false }) {
                   Uploader cannot be modified
                 </p>
               </div>
-
-              <div>
-                <label className={labelTone} htmlFor="edit_desc">
-                  Description
-                </label>
-                <textarea
-                  id="edit_desc"
-                  className={`${inputTone} rounded-2xl min-h-[90px]`}
-                  value={selectedItem.description || ""}
-                  onChange={(e) =>
-                    setSelectedItem({
-                      ...selectedItem,
-                      description: e.target.value,
-                    })
-                  }
-                />
-              </div>
             </div>
 
+            {/* sticky footer buttons */}
             <div className="mt-auto p-5 flex justify-end gap-2 border-t bg-white">
               <button
                 type="button"
@@ -1928,7 +2234,9 @@ export default function BakeryInventory({ isViewOnly = false }) {
                   setOriginalName("");
 
                   // Restore original data from inventory
-                  const originalItem = inventory.find(item => item.id === selectedItem.id);
+                  const originalItem = inventory.find(
+                    (item) => item.id === selectedItem.id
+                  );
                   if (originalItem) {
                     setSelectedItem(originalItem);
                   }

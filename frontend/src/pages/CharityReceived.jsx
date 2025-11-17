@@ -55,6 +55,13 @@ const CharityReceived = () => {
   const [directDonations, setDirectDonations] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
 
+  // --- UI: search & pagination state ---
+  const [searchRequested, setSearchRequested] = useState("");
+  const [searchDirect, setSearchDirect] = useState("");
+  const [pageRequested, setPageRequested] = useState(1);
+  const [pageDirect, setPageDirect] = useState(1);
+  const pageSize = 10;
+
   // Load current user
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -124,6 +131,59 @@ const CharityReceived = () => {
     fetchDirectDonations();
   }, [currentUser]);
 
+  // reset pages when search text or data length changes
+  useEffect(() => {
+    setPageRequested(1);
+  }, [searchRequested, receivedDonations.length]);
+
+  useEffect(() => {
+    setPageDirect(1);
+  }, [searchDirect, directDonations.length]);
+
+  // --- Helpers for filtering & pagination ---
+
+  const filterDonations = (list, term) => {
+    const q = term.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((d) => {
+      const fields = [
+        d.name,
+        d.bakery_name,
+        d.quantity && String(d.quantity),
+        d.type,
+      ];
+      return fields.some((v) =>
+        String(v || "")
+          .toLowerCase()
+          .includes(q)
+      );
+    });
+  };
+
+  const filteredRequested = filterDonations(receivedDonations, searchRequested);
+  const filteredDirect = filterDonations(directDonations, searchDirect);
+
+  const totalRequestedPages =
+    filteredRequested.length === 0
+      ? 1
+      : Math.ceil(filteredRequested.length / pageSize);
+  const totalDirectPages =
+    filteredDirect.length === 0
+      ? 1
+      : Math.ceil(filteredDirect.length / pageSize);
+
+  const startRequested = (pageRequested - 1) * pageSize;
+  const paginatedRequested = filteredRequested.slice(
+    startRequested,
+    startRequested + pageSize
+  );
+
+  const startDirect = (pageDirect - 1) * pageSize;
+  const paginatedDirect = filteredDirect.slice(
+    startDirect,
+    startDirect + pageSize
+  );
+
   // Avatar component
   const Avatar = ({ src, alt }) =>
     src ? (
@@ -140,7 +200,7 @@ const CharityReceived = () => {
 
   const Card = ({ d }) => (
     <div className="card">
-      <div className="relative h-40 overflow-hidden">
+      <div className="relative h-36 overflow-hidden">
         {d.image ? (
           <img
             src={`${API}/${d.image}`}
@@ -154,7 +214,11 @@ const CharityReceived = () => {
         )}
         <div className="absolute top-3 right-3">
           <span className="badge">
-            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
+            <svg
+              viewBox="0 0 24 24"
+              className="w-3.5 h-3.5"
+              fill="currentColor"
+            >
               <path d="M21 7l-8 10-5-5-5 6h18z" />
             </svg>
             Completed
@@ -162,12 +226,15 @@ const CharityReceived = () => {
         </div>
       </div>
 
-      <div className="p-4">
+      <div className="p-3.5">
         {d.bakery_name && (
           <div className="flex items-center mb-2 gap-2">
             <Avatar src={d.bakery_profile_picture} alt={d.bakery_name} />
             <div className="min-w-0">
-              <div className="text-sm font-semibold truncate" style={{ color: "#3b2a18" }}>
+              <div
+                className="text-sm font-semibold truncate"
+                style={{ color: "#3b2a18" }}
+              >
                 {d.bakery_name}
               </div>
               <div className="text-[11px]" style={{ color: "#7b5836" }}>
@@ -177,7 +244,7 @@ const CharityReceived = () => {
           </div>
         )}
 
-        <h3 className="text-lg font-semibold" style={{ color: "#3b2a18" }}>
+        <h3 className="text-[15px] font-semibold" style={{ color: "#3b2a18" }}>
           {d.name}
         </h3>
 
@@ -194,7 +261,9 @@ const CharityReceived = () => {
           {d.tracking_completed_at && (
             <div className="meta-tile">
               <div className="font-semibold">Completed</div>
-              <div>{new Date(d.tracking_completed_at).toLocaleDateString()}</div>
+              <div>
+                {new Date(d.tracking_completed_at).toLocaleDateString()}
+              </div>
             </div>
           )}
           {/* spacer tile for neat grid */}
@@ -209,7 +278,7 @@ const CharityReceived = () => {
 
   const DirectCard = ({ d }) => (
     <div className="card">
-      <div className="relative h-40 overflow-hidden">
+      <div className="relative h-36 overflow-hidden">
         {d.image ? (
           <img
             src={`${API}/${d.image}`}
@@ -223,7 +292,11 @@ const CharityReceived = () => {
         )}
         <div className="absolute top-3 right-3">
           <span className="badge">
-            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
+            <svg
+              viewBox="0 0 24 24"
+              className="w-3.5 h-3.5"
+              fill="currentColor"
+            >
               <path d="M21 7l-8 10-5-5-5 6h18z" />
             </svg>
             Completed
@@ -231,12 +304,15 @@ const CharityReceived = () => {
         </div>
       </div>
 
-      <div className="p-4">
+      <div className="p-3.5">
         {d.bakery_name && (
           <div className="flex items-center mb-2 gap-2">
             <Avatar src={d.bakery_profile_picture} alt={d.bakery_name} />
             <div className="min-w-0">
-              <div className="text-sm font-semibold truncate" style={{ color: "#3b2a18" }}>
+              <div
+                className="text-sm font-semibold truncate"
+                style={{ color: "#3b2a18" }}
+              >
                 {d.bakery_name}
               </div>
               <div className="text-[11px]" style={{ color: "#7b5836" }}>
@@ -246,7 +322,7 @@ const CharityReceived = () => {
           </div>
         )}
 
-        <h3 className="text-lg font-semibold" style={{ color: "#3b2a18" }}>
+        <h3 className="text-[15px] font-semibold" style={{ color: "#3b2a18" }}>
           {d.name}
         </h3>
 
@@ -263,7 +339,9 @@ const CharityReceived = () => {
           {d.btracking_completed_at && (
             <div className="meta-tile">
               <div className="font-semibold">Completed</div>
-              <div>{new Date(d.btracking_completed_at).toLocaleDateString()}</div>
+              <div>
+                {new Date(d.btracking_completed_at).toLocaleDateString()}
+              </div>
             </div>
           )}
           <div className="meta-tile">
@@ -281,54 +359,192 @@ const CharityReceived = () => {
 
       {/* Header */}
       <div className="mb-4">
-        <h2 className="text-3xl sm:text-4xl font-extrabold" style={{ color: "#6B4B2B" }}>
+        <h2
+          className="text-3xl sm:text-4xl font-extrabold"
+          style={{ color: "#6B4B2B" }}
+        >
           Received Donations
         </h2>
       </div>
 
-      {/* NEW: Requested Donations subtitle (matches Direct Donations styling) */}
-      <div className="mb-4">
+      {/* Requested Donations Header + Search */}
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-2xl font-bold" style={{ color: "#6B4B2B" }}>
           Requested Donations
         </h2>
+
+        <div className="relative w-full max-w-xs">
+          <input
+            value={searchRequested}
+            onChange={(e) => setSearchRequested(e.target.value)}
+            placeholder="Search requested donations..."
+            className="h-9 w-full rounded-full border border-[#f2d4b5] bg-white/95 pl-9 pr-3 text-sm text-[#4b3a28] shadow-sm outline-none focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+          />
+          <span className="pointer-events-none absolute inset-y-0 left-3 grid place-items-center">
+            <svg
+              viewBox="0 0 24 24"
+              className="w-3.5 h-3.5 text-[#4b5563]"
+              stroke="currentColor"
+              strokeWidth="2.1"
+              fill="none"
+            >
+              <circle cx="11" cy="11" r="6" />
+              <line x1="16" y1="16" x2="21" y2="21" />
+            </svg>
+          </span>
+        </div>
       </div>
 
       {/* Normal Donations */}
       <div className="panel-wrap p-5 mb-8">
-        {receivedDonations.length > 0 ? (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {receivedDonations.map((d) => (
-              <Card key={d.id} d={d} />
-            ))}
-          </div>
-        ) : (
+        {receivedDonations.length === 0 ? (
           <div className="grid place-items-center h-40 rounded-2xl border border-[#eadfce] bg-white/60 shadow-[0_2px_8px_rgba(93,64,28,.06)]">
             <p className="text-sm" style={{ color: "#7b5836" }}>
               No donations received yet.
             </p>
           </div>
+        ) : filteredRequested.length === 0 ? (
+          <div className="grid place-items-center h-40 rounded-2xl border border-[#eadfce] bg-white/60 shadow-[0_2px_8px_rgba(93,64,28,.06)]">
+            <p className="text-sm" style={{ color: "#7b5836" }}>
+              No requested donations match your search.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {paginatedRequested.map((d) => (
+                <Card key={d.id} d={d} />
+              ))}
+            </div>
+
+            {/* Pagination */}
+            {filteredRequested.length > 0 && (
+              <div className="mt-4 flex flex-col items-center gap-2 text-xs text-[#6b4b2b] sm:flex-row sm:justify-between">
+                <span>
+                  Showing {startRequested + 1}–
+                  {Math.min(
+                    startRequested + pageSize,
+                    filteredRequested.length
+                  )}{" "}
+                  of {filteredRequested.length}
+                </span>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={pageRequested === 1}
+                    onClick={() => setPageRequested((p) => Math.max(1, p - 1))}
+                    className="rounded-full border border-[#f2d4b5] bg-white px-3 py-1.5 text-xs shadow-sm disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <span className="font-medium">
+                    Page {pageRequested} of {totalRequestedPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={pageRequested === totalRequestedPages}
+                    onClick={() =>
+                      setPageRequested((p) =>
+                        Math.min(totalRequestedPages, p + 1)
+                      )
+                    }
+                    className="rounded-full border border-[#f2d4b5] bg-white px-3 py-1.5 text-xs shadow-sm disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
-      {/* Direct Donations */}
-      <div className="mb-4">
+      {/* Direct Donations Header + Search */}
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-2xl font-bold" style={{ color: "#6B4B2B" }}>
           Direct Donations
         </h2>
+
+        <div className="relative w-full max-w-xs">
+          <input
+            value={searchDirect}
+            onChange={(e) => setSearchDirect(e.target.value)}
+            placeholder="Search direct donations..."
+            className="h-9 w-full rounded-full border border-[#f2d4b5] bg-white/95 pl-9 pr-3 text-sm text-[#4b3a28] shadow-sm outline-none focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+          />
+          <span className="pointer-events-none absolute inset-y-0 left-3 grid place-items-center">
+            <svg
+              viewBox="0 0 24 24"
+              className="w-3.5 h-3.5 text-[#4b5563]"
+              stroke="currentColor"
+              strokeWidth="2.1"
+              fill="none"
+            >
+              <circle cx="11" cy="11" r="6" />
+              <line x1="16" y1="16" x2="21" y2="21" />
+            </svg>
+          </span>
+        </div>
       </div>
+
+      {/* Direct Donations */}
       <div className="panel-wrap p-5">
-        {directDonations.length > 0 ? (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {directDonations.map((d) => (
-              <DirectCard key={d.id} d={d} />
-            ))}
-          </div>
-        ) : (
+        {directDonations.length === 0 ? (
           <div className="grid place-items-center h-40 rounded-2xl border border-[#eadfce] bg-white/60 shadow-[0_2px_8px_rgba(93,64,28,.06)]">
             <p className="text-sm" style={{ color: "#7b5836" }}>
               No direct donations received yet.
             </p>
           </div>
+        ) : filteredDirect.length === 0 ? (
+          <div className="grid place-items-center h-40 rounded-2xl border border-[#eadfce] bg-white/60 shadow-[0_2px_8px_rgba(93,64,28,.06)]">
+            <p className="text-sm" style={{ color: "#7b5836" }}>
+              No direct donations match your search.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {paginatedDirect.map((d) => (
+                <DirectCard key={d.id} d={d} />
+              ))}
+            </div>
+
+            {/* Pagination */}
+            {filteredDirect.length > 0 && (
+              <div className="mt-4 flex flex-col items-center gap-2 text-xs text-[#6b4b2b] sm:flex-row sm:justify-between">
+                <span>
+                  Showing {startDirect + 1}–
+                  {Math.min(startDirect + pageSize, filteredDirect.length)} of{" "}
+                  {filteredDirect.length}
+                </span>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={pageDirect === 1}
+                    onClick={() => setPageDirect((p) => Math.max(1, p - 1))}
+                    className="rounded-full border border-[#f2d4b5] bg-white px-3 py-1.5 text-xs shadow-sm disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <span className="font-medium">
+                    Page {pageDirect} of {totalDirectPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={pageDirect === totalDirectPages}
+                    onClick={() =>
+                      setPageDirect((p) => Math.min(totalDirectPages, p + 1))
+                    }
+                    className="rounded-full border border-[#f2d4b5] bg-white px-3 py-1.5 text-xs shadow-sm disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

@@ -46,6 +46,7 @@ const ALLOWED_TABS = [
   "reports",
 ];
 
+/* ================= UI STYLES ONLY ================= */
 const Styles = () => (
   <style>{`
     :root{
@@ -109,9 +110,9 @@ const Styles = () => (
     .btn-logout:before{content:""; position:absolute; top:-40%; bottom:-40%; left:-70%; width:60%; transform:rotate(10deg); background:linear-gradient(90deg, rgba(255,255,255,.26), rgba(255,255,255,0) 55%); animation: shine 3.2s linear infinite}
     @keyframes shine{from{left:-70%}to{left:120%}}
     .btn-logout:hover{
-    transform: translateY(-1px) scale(1.02);
-    box-shadow: 0 12px 34px rgba(201,124,44,.32);
-    filter: saturate(1.05);
+      transform: translateY(-1px) scale(1.02);
+      box-shadow: 0 12px 34px rgba(201,124,44,.32);
+      filter: saturate(1.05);
     }
 
     .gwrap{position:relative; border-radius:16px; padding:1px; background:linear-gradient(135deg, rgba(247,199,137,.9), rgba(201,124,44,.55)); background-size:200% 200%; animation:borderShift 8s ease-in-out infinite}
@@ -125,6 +126,14 @@ const Styles = () => (
     .reveal{opacity:0; transform:translateY(8px) scale(.985); animation:rise .6s ease forwards}
     .r1{animation-delay:.05s}.r2{animation-delay:.1s}.r3{animation-delay:.15s}.r4{animation-delay:.2s}.r5{animation-delay:.25s}.r6{animation-delay:.3s}
     @keyframes rise{to{opacity:1; transform:translateY(0) scale(1)}}
+
+    /* Small UI tweaks for mobile (similar to BakeryDashboard) */
+    @media (max-width: 420px){
+      .iconbar .icon-btn{ width:36px; height:36px; }
+      .brand-title{ margin-right:.25rem; }
+    }
+    .hdr-left{ flex: 1 1 auto; min-width: 0; }
+    .hdr-right{ flex: 0 0 auto; margin-left: auto; }
   `}</style>
 );
 
@@ -309,7 +318,7 @@ const CharityDashboard = () => {
         <span className="blob b" />
       </div>
 
-      {/* Header */}
+      {/* ================= HEADER ================= */}
       <header className="head fixed top-0 left-0 right-0 z-[80]">
         <div className="head-bg" />
         <div
@@ -318,8 +327,8 @@ const CharityDashboard = () => {
           }`}
         >
           <div className="max-w-7xl mx-auto px-4 py-3 hdr-pad flex items-center justify-between relative">
-            <div className="flex items-center gap-3">
-              {/* Brand on the left must be DoughNation */}
+            {/* LEFT: brand + (desktop) charity identity */}
+            <div className="flex items-center gap-3 hdr-left">
               {isVerified ? (
                 <div
                   className="flex items-center gap-3 cursor-not-allowed opacity-60"
@@ -336,7 +345,7 @@ const CharityDashboard = () => {
                     }}
                   />
                   <span
-                    className="font-extrabold brand-pop"
+                    className="brand-title font-extrabold brand-pop"
                     style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}
                   >
                     DoughNation
@@ -355,7 +364,7 @@ const CharityDashboard = () => {
                     }}
                   />
                   <span
-                    className="font-extrabold brand-pop"
+                    className="brand-title font-extrabold brand-pop"
                     style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}
                   >
                     DoughNation
@@ -363,7 +372,7 @@ const CharityDashboard = () => {
                 </Link>
               )}
 
-              {/* Identity block to the right of divider */}
+              {/* Identity block (desktop) */}
               <div
                 className="hidden lg:flex flex-col items-start justify-center ml-4 pl-4 border-l-2"
                 style={{ borderColor: "#E3B57E" }}
@@ -396,10 +405,14 @@ const CharityDashboard = () => {
               </div>
             </div>
 
-            {/* Desktop nav */}
-            <nav className="items-center gap-5" style={{ fontSize: 15 }}>
+            {/* RIGHT: header actions */}
+            <nav
+              className="items-center gap-5 hdr-right"
+              style={{ fontSize: 15 }}
+            >
               <div className="pt-1 flex items-center gap-3 relative">
                 <div className="iconbar">
+                  {/* desktop search only; mobile search below */}
                   <DashboardSearch size="sm" className="hidden md:flex" />
 
                   {/* Messages Button */}
@@ -442,7 +455,45 @@ const CharityDashboard = () => {
             </nav>
           </div>
 
-          {/* Mobile dropdown panel */}
+          {/* ===== Mobile info & search strip (UI-only) ===== */}
+          {name && (
+            <div className="md:hidden px-4 pb-3 space-y-2">
+              {/* row: user + current tab */}
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4" style={{ color: "#7a4f1c" }} />
+                <span
+                  className="text-sm font-semibold"
+                  style={{ color: "#7a4f1c" }}
+                >
+                  {name}
+                </span>
+                <span
+                  className="text-[11px] px-2 py-0.5 rounded-full"
+                  style={{
+                    background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
+                    color: "#7a4f1c",
+                    border: "1px solid #fff3e0",
+                  }}
+                >
+                  {statusText}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <Store className="h-3.5 w-3.5" style={{ color: "#a47134" }} />
+                <span className="text-xs" style={{ color: "#a47134" }}>
+                  Charity
+                </span>
+              </div>
+
+              {/* mobile search bar */}
+              <div className="w-full">
+                <DashboardSearch size="sm" className="md:hidden w-full" />
+              </div>
+            </div>
+          )}
+
+          {/* Mobile dropdown panel (placeholder) */}
           <div
             id="mobile-menu"
             className={`md:hidden transition-all duration-200 ease-out ${
@@ -451,12 +502,14 @@ const CharityDashboard = () => {
                 : "max-h-0 opacity-0 pointer-events-none"
             } overflow-hidden`}
           >
-            <div className="px-4 pb-3 pt-1 flex flex-col">{/* reserved */}</div>
+            <div className="px-4 pb-3 pt-1 flex flex-col">
+              {/* reserved for extra mobile content */}
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Tabs */}
+      {/* ================= TABS ================= */}
       <Tabs
         value={activeTab}
         onValueChange={(v) => {
@@ -525,7 +578,7 @@ const CharityDashboard = () => {
           </div>
         </div>
 
-        {/* Content */}
+        {/* ================= CONTENT ================= */}
         <div className="max-w-7xl mx-auto px-1 py-4">
           {/* Dashboard */}
           <TabsContent value="dashboard" className="space-y-6">

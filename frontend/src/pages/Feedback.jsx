@@ -7,6 +7,7 @@ export default function Feedback({ donationId, isDirect, onSubmitted }) {
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [rating, setRating] = useState(5);
+  const [hoverRating, setHoverRating] = useState(null); // UI only
   const [files, setFiles] = useState([]); // store images/videos
 
   const handleFileChange = (e) => {
@@ -40,6 +41,7 @@ export default function Feedback({ donationId, isDirect, onSubmitted }) {
       setMessage("");
       setRating(5);
       setFiles([]);
+      setHoverRating(null);
     } catch (err) {
       console.error("Failed to submit feedback:", err);
     }
@@ -49,10 +51,10 @@ export default function Feedback({ donationId, isDirect, onSubmitted }) {
 
   return (
     <>
-      {/* Trigger button — match system (BDonationStatus) */}
+      {/* Trigger button — same gradient style */}
       <button
         onClick={() => setIsOpen(true)}
-        className="mt-6 w-full rounded-full py-4 px-4 text-white font-semibold
+        className="mt-6 w-full rounded-full py-3.5 px-4 text-sm sm:text-base text-white font-semibold
                    bg-gradient-to-r from-[#E7B77A] to-[#D89555]
                    shadow-[0_6px_16px_rgba(191,115,39,.25)]
                    hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#E7B77A]
@@ -65,76 +67,123 @@ export default function Feedback({ donationId, isDirect, onSubmitted }) {
       {isOpen &&
         createPortal(
           <div
-            className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-md z-50"
+            className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 sm:py-10
+                       bg-black/40 backdrop-blur-md"
             onClick={() => setIsOpen(false)}
           >
             <div
-              className="bg-white p-6 rounded-2xl shadow-2xl w-96 transform transition-transform duration-300 scale-100"
+              className="w-full max-w-md max-h-[90vh]
+                         rounded-3xl overflow-hidden bg-white
+                         shadow-[0_18px_40px_rgba(0,0,0,.25)] ring-1 ring-black/10
+                         flex flex-col transform transition-transform duration-300 scale-100"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Modal header — subtle system gradient bar */}
-              <div className="mb-4 -mx-6 -mt-6 px-6 py-3 rounded-t-2xl bg-gradient-to-r from-[#FFE4C5] via-[#FFD49B] to-[#F0A95F]">
+              {/* Header */}
+              <div className="px-5 py-3 bg-gradient-to-r from-[#FFE4C5] via-[#FFD49B] to-[#F0A95F]">
                 <h2 className="text-base sm:text-lg font-bold text-[#4A2F17]">
                   Submit Feedback
                 </h2>
               </div>
 
-              {/* Inputs — light system shell */}
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Write your feedback..."
-                className="w-full p-3 rounded-xl border border-[#f0e3d0] bg-white/80 focus:bg-white
-                           focus:outline-none focus:ring-2 focus:ring-[#E7B77A] text-sm mb-4"
-                rows={4}
-              />
-
-              <label className="block mb-2 text-sm font-medium text-[#4A2F17]">
-                Rating
-              </label>
-              <select
-                value={rating}
-                onChange={(e) => setRating(Number(e.target.value))}
-                className="w-full p-2.5 rounded-xl border border-[#f0e3d0] bg-white/80 focus:bg-white
-                           focus:outline-none focus:ring-2 focus:ring-[#E7B77A] text-sm mb-4"
-              >
-                <option value={1}>⭐</option>
-                <option value={2}>⭐⭐</option>
-                <option value={3}>⭐⭐⭐</option>
-                <option value={4}>⭐⭐⭐⭐</option>
-                <option value={5}>⭐⭐⭐⭐⭐</option>
-              </select>
-
-              <label className="block mb-2 text-sm font-medium text-[#4A2F17]">
-                Upload Images/Videos
-              </label>
-              <input
-                type="file"
-                multiple
-                accept="image/*,video/*"
-                onChange={handleFileChange}
-                className="mb-4 block w-full text-sm file:mr-4 file:py-2.5 file:px-4
-                           file:rounded-full file:border-0 file:font-semibold
-                           file:bg-gradient-to-r file:from-[#E7B77A] file:to-[#D89555] file:text-white
-                           hover:file:opacity-95"
-              />
-
-              {/* Preview selected files */}
-              {files.length > 0 && (
-                <div className="mb-4 space-y-2">
-                  {files.map((file, i) => (
-                    <p key={i} className="text-sm text-[#7b5836]">
-                      {file.name}
-                    </p>
-                  ))}
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                {/* Feedback textarea */}
+                <div className="space-y-1">
+                  <label className="text-sm font-semibold text-[#4A2F17]">
+                    Write your feedback
+                  </label>
+                  <textarea
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    placeholder="Write your feedback..."
+                    className="w-full rounded-2xl border border-[#f0e3d0] bg-[#FFFBF5]/80
+                               px-3 py-2 text-sm text-[#3b2a18]
+                               placeholder:text-[#c29b72]
+                               focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E7B77A]"
+                    rows={3}
+                  />
                 </div>
-              )}
 
-              {/* Actions — Cancel (subtle), Save (primary gradient) */}
-              <div className="flex justify-end gap-2">
+                {/* Rating: stars (no big select) */}
+                <div className="space-y-1">
+                  <label className="block text-sm font-semibold text-[#4A2F17]">
+                    Rating
+                  </label>
+
+                  <div className="inline-flex items-center gap-2">
+                    <div
+                      className="inline-flex items-center gap-1.5 rounded-2xl border border-[#f0e3d0]
+                                 bg-[#FFFBF5] px-3 py-2"
+                    >
+                      {[1, 2, 3, 4, 5].map((value) => {
+                        const active = (hoverRating ?? rating) >= value;
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => setRating(value)}
+                            onMouseEnter={() => setHoverRating(value)}
+                            onMouseLeave={() => setHoverRating(null)}
+                            className={`transition-transform ${
+                              active
+                                ? "scale-110"
+                                : "opacity-60 hover:opacity-100"
+                            }`}
+                          >
+                            <svg
+                              viewBox="0 0 20 20"
+                              className={`w-5 h-5 ${
+                                active ? "text-[#F6B94E]" : "text-[#D5B18A]"
+                              }`}
+                              fill="currentColor"
+                            >
+                              <path d="M10 1.5l2.47 4.99 5.51.8-3.99 3.89.94 5.47L10 13.9l-4.93 2.6.94-5.47-3.99-3.89 5.51-.8L10 1.5z" />
+                            </svg>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <span className="text-xs font-medium text-[#7b5836]">
+                      {rating} / 5
+                    </span>
+                  </div>
+                </div>
+
+                {/* Upload */}
+                <div className="space-y-1">
+                  <label className="block text-sm font-semibold text-[#4A2F17]">
+                    Upload Images/Videos
+                  </label>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*,video/*"
+                    onChange={handleFileChange}
+                    className="block w-full text-xs sm:text-sm
+                               file:mr-4 file:py-2 file:px-4
+                               file:rounded-full file:border-0 file:font-semibold
+                               file:bg-gradient-to-r file:from-[#E7B77A] file:to-[#D89555] file:text-white
+                               hover:file:opacity-95"
+                  />
+                </div>
+
+                {/* Preview selected files */}
+                {files.length > 0 && (
+                  <div className="space-y-1">
+                    {files.map((file, i) => (
+                      <p key={i} className="text-xs sm:text-sm text-[#7b5836]">
+                        {file.name}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer actions */}
+              <div className="px-5 py-3 border-t border-[#f0e3d0] flex justify-end gap-2 bg-white">
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="px-4 py-2.5 rounded-full font-medium
+                  className="px-4 py-2.5 rounded-full text-sm font-medium
                              bg-white border border-[#f0e3d0] text-[#4A2F17]
                              hover:bg-[#FFFBF5] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#E7B77A]
                              transition"
@@ -143,7 +192,7 @@ export default function Feedback({ donationId, isDirect, onSubmitted }) {
                 </button>
                 <button
                   onClick={handleSave}
-                  className="px-5 py-2.5 rounded-full text-white font-semibold
+                  className="px-5 py-2.5 rounded-full text-sm font-semibold text-white
                              bg-gradient-to-r from-[#E7B77A] to-[#D89555]
                              shadow-[0_6px_16px_rgba(191,115,39,.25)]
                              hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#E7B77A]

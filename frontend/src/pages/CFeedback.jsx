@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { FaStar } from "react-icons/fa";
+import { Search } from "lucide-react";
 
 const API = "http://localhost:8000";
 
@@ -15,7 +16,7 @@ const brand = {
 const headerWrap =
   "rounded-[28px] border border-[#eadfce] bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9] shadow-[0_2px_8px_rgba(93,64,28,.06)]";
 const cardBase =
-  "group rounded-3xl border bg-white/70 border-[#f2e3cf] shadow-[0_2px_12px_rgba(93,64,28,.06)] overflow-hidden transition-all duration-300 hover:scale-[1.012] hover:shadow-[0_14px_32px_rgba(191,115,39,.18)] hover:ring-1 hover:ring-[#E49A52]/35";
+  "group rounded-2xl border bg-white/80 border-[#f2e3cf] shadow-[0_2px_10px_rgba(93,64,28,.06)] overflow-hidden transition-all duration-200 hover:scale-[1.006] hover:shadow-[0_12px_28px_rgba(191,115,39,.18)] hover:ring-1 hover:ring-[#E49A52]/35";
 const primaryBtn =
   "rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 font-semibold shadow-[0_10px_26px_rgba(201,124,44,.25)] ring-1 ring-white/60 transition-transform hover:-translate-y-0.5 active:scale-95";
 const cancelBtn =
@@ -75,6 +76,12 @@ export default function MyFeedback() {
   const [editMessage, setEditMessage] = useState("");
   const [editRating, setEditRating] = useState(0);
   const [editFile, setEditFile] = useState(null);
+
+  // search + pagination
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
   const token = localStorage.getItem("token");
   const rootRef = useRef(null);
 
@@ -100,6 +107,39 @@ export default function MyFeedback() {
     );
     if (matches.length > 1) matches[0].style.display = "none";
   }, []);
+
+  // reset page on search/length change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, feedbacks.length]);
+
+  // filter + paginate
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const filteredFeedbacks = feedbacks.filter((f) => {
+    if (!normalizedSearch) return true;
+    const fields = [
+      f.message,
+      f.product_name,
+      f.bakery_name,
+      f.rating && String(f.rating),
+    ];
+    return fields.some((v) =>
+      String(v || "")
+        .toLowerCase()
+        .includes(normalizedSearch)
+    );
+  });
+
+  const totalPages =
+    filteredFeedbacks.length === 0
+      ? 1
+      : Math.ceil(filteredFeedbacks.length / pageSize);
+
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedFeedbacks = filteredFeedbacks.slice(
+    startIndex,
+    startIndex + pageSize
+  );
 
   const startEdit = (f) => {
     setEditing(f.id);
@@ -160,7 +200,25 @@ export default function MyFeedback() {
       </div>
 
       {/* Content */}
-      <div className="px-4 sm:px-6 mt-6">
+      <div className="px-4 sm:px-6 mt-6 space-y-4">
+        {/* Search bar */}
+        <div className="flex justify-end">
+          <div className="relative w-full max-w-xs">
+            <input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search feedback..."
+              className="h-9 w-full rounded-full border border-[#f2d4b5] bg-white/95 pl-9 pr-3 text-sm text-[#4b3a28] shadow-sm outline-none focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+            />
+            <span className="pointer-events-none absolute inset-y-0 left-3 grid place-items-center">
+              <Search
+                className="h-3.5 w-3.5 text-[#4b5563]"
+                strokeWidth={2.2}
+              />
+            </span>
+          </div>
+        </div>
+
         {feedbacks.length === 0 ? (
           <div className={`${headerWrap} grid place-items-center h-56`}>
             <div className="text-center">
@@ -171,218 +229,271 @@ export default function MyFeedback() {
             </div>
           </div>
         ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {feedbacks.map((f) => {
-              const mediaUrl = f.media_file
-                ? `${API}/uploads/${f.media_file}`
-                : null;
-              const isVideo = mediaUrl
-                ? /\.(mp4|webm|ogg)$/i.test(f.media_file)
-                : false;
-
-              // bakery reply fields (variations handled)
-              const replyText =
-                f.bakery_reply ??
-                f.reply ??
-                f.reply_message ??
-                (typeof f.response === "string" ? f.response : undefined) ??
-                (typeof f.bakery_response === "string"
-                  ? f.bakery_response
-                  : undefined);
-
-              const repliedAt =
-                f.reply_created_at ??
-                f.bakery_reply_created_at ??
-                f.response_created_at ??
-                null;
-
-              return (
-                <div key={f.id} className={cardBase}>
-                  {/* Media header */}
-                  <div className="relative aspect-[16/10] bg-[#FFF6E9]">
-                    {f.product_image ? (
-                      <img
-                        src={`${API}/${f.product_image}`}
-                        alt={f.product_name || "Product"}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="grid place-items-center h-full">
-                        <span
-                          className="text-sm font-semibold"
-                          style={{ color: brand.text }}
-                        >
-                          {f.product_name || "Donated Item"}
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="absolute top-3 left-3 flex gap-2">
-                      {f.donation_request_id && (
-                        <Badge tone="blue">Donation Request</Badge>
-                      )}
-                      {f.direct_donation_id && (
-                        <Badge tone="green">Direct Donation</Badge>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Card body */}
-                  <div className="p-5">
-                    {/* Bakery identity */}
-                    <div className="flex items-center gap-3">
-                      {f.bakery_profile_picture && (
-                        <img
-                          src={avatar(f.bakery_profile_picture)}
-                          alt={f.bakery_name}
-                          className="w-11 h-11 rounded-full border border-[#f2e3cf] object-cover"
-                        />
-                      )}
-                      <div className="min-w-0">
-                        <div
-                          className="font-semibold truncate"
-                          style={{ color: "#3b2a18" }}
-                        >
-                          {f.bakery_name || "Unknown Bakery"}
-                        </div>
-                        <div
-                          className="text-xs"
-                          style={{ color: brand.subtext }}
-                        >
-                          {new Date(f.created_at).toLocaleString()}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Meta chips */}
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {f.product_name && <Pill>{f.product_name}</Pill>}
-                      {typeof f.product_quantity !== "undefined" && (
-                        <Pill>Qty: {f.product_quantity}</Pill>
-                      )}
-                      <Pill>
-                        Rating&nbsp;
-                        <StarDisplay rating={f.rating || 0} />
-                      </Pill>
-                    </div>
-
-                    {/* Feedback content (view or edit) */}
-                    {editing === f.id ? (
-                      <div className="mt-4">
-                        <div
-                          className="text-[13px] font-bold tracking-wide"
-                          style={{ color: brand.text, letterSpacing: ".02em" }}
-                        >
-                          EDIT FEEDBACK
-                        </div>
-
-                        <textarea
-                          value={editMessage}
-                          onChange={(e) => setEditMessage(e.target.value)}
-                          placeholder="Update your feedback."
-                          className="mt-2 w-full rounded-xl border border-[#f2d4b5] bg-white p-2.5 outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52]"
-                        />
-
-                        <label
-                          className="block mt-3 text-sm font-semibold"
-                          style={{ color: brand.text }}
-                        >
-                          Rating
-                        </label>
-                        <select
-                          value={editRating}
-                          onChange={(e) =>
-                            setEditRating(Number(e.target.value))
-                          }
-                          className="mt-1 w-full rounded-xl border border-[#f2d4b5] bg-white p-2.5 outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52]"
-                        >
-                          {[1, 2, 3, 4, 5].map((r) => (
-                            <option key={r} value={r}>
-                              {"⭐".repeat(r)}
-                            </option>
-                          ))}
-                        </select>
-
-                        <label
-                          className="block mt-3 text-sm font-semibold"
-                          style={{ color: brand.text }}
-                        >
-                          Replace / add media (image/video)
-                        </label>
-                        <input
-                          type="file"
-                          accept="image/*,video/*"
-                          onChange={(e) =>
-                            setEditFile(e.target.files?.[0] || null)
-                          }
-                          className="mt-1 block w-full text-sm file:mr-3 file:rounded-full file:border file:border-[#f2d4b5] file:bg-white file:px-4 file:py-1.5 hover:file:bg-white/95"
-                        />
-
-                        <div className="mt-3 flex flex-wrap justify-end gap-2">
-                          <button onClick={saveEdit} className={primaryBtn}>
-                            Save Changes
-                          </button>
-                          <button onClick={cancelEdit} className={cancelBtn}>
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        {/* Original message */}
-                        <p
-                          className="mt-3 text-[15px] leading-relaxed"
-                          style={{ color: brand.text }}
-                        >
-                          {f.message}
-                        </p>
-
-                        {/* Attached media preview */}
-                        {mediaUrl && (
-                          <div
-                            className="mt-4 overflow-hidden rounded-2xl border"
-                            style={{ borderColor: brand.cardBorder }}
-                          >
-                            {isVideo ? (
-                              <video
-                                controls
-                                className="w-full h-36 object-cover bg-black/5"
-                                src={mediaUrl}
-                              />
-                            ) : (
-                              <img
-                                src={mediaUrl}
-                                alt="Feedback media"
-                                className="w-full h-36 object-cover"
-                              />
-                            )}
-                          </div>
-                        )}
-
-                        {/* Bakery Reply */}
-                        {replyText && (
-                          <div className="mt-4 rounded-xl bg-[#e9f9ef] border border-[#c7ecd5] px-3.5 py-2 text-[13px] text-[#1b5c30]">
-                            <span className="font-semibold">Bakery Reply:</span>{" "}
-                            {replyText}
-                          </div>
-                        )}
-
-                        {/* Edit button */}
-                        <div className="mt-4 flex justify-end">
-                          <button
-                            onClick={() => startEdit(f)}
-                            className={primaryBtn}
-                          >
-                            Edit
-                          </button>
-                        </div>
-                      </>
-                    )}
+          <>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredFeedbacks.length === 0 ? (
+                <div className="col-span-full">
+                  <div className="rounded-2xl border border-[#eadfce] bg-white/80 p-6 text-center text-sm text-[#7b5836]">
+                    No feedback matches your search.
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              ) : (
+                paginatedFeedbacks.map((f) => {
+                  const mediaUrl = f.media_file
+                    ? `${API}/uploads/${f.media_file}`
+                    : null;
+                  const isVideo = mediaUrl
+                    ? /\.(mp4|webm|ogg)$/i.test(f.media_file)
+                    : false;
+
+                  // bakery reply fields (variations handled)
+                  const replyText =
+                    f.bakery_reply ??
+                    f.reply ??
+                    f.reply_message ??
+                    (typeof f.response === "string" ? f.response : undefined) ??
+                    (typeof f.bakery_response === "string"
+                      ? f.bakery_response
+                      : undefined);
+
+                  const repliedAt =
+                    f.reply_created_at ??
+                    f.bakery_reply_created_at ??
+                    f.response_created_at ??
+                    null;
+
+                  return (
+                    <div key={f.id} className={cardBase}>
+                      {/* Media header */}
+                      <div className="relative aspect-[16/10] bg-[#FFF6E9]">
+                        {f.product_image ? (
+                          <img
+                            src={`${API}/${f.product_image}`}
+                            alt={f.product_name || "Product"}
+                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="grid place-items-center h-full">
+                            <span
+                              className="text-sm font-semibold"
+                              style={{ color: brand.text }}
+                            >
+                              {f.product_name || "Donated Item"}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="absolute top-3 left-3 flex gap-2">
+                          {f.donation_request_id && (
+                            <Badge tone="blue">Donation Request</Badge>
+                          )}
+                          {f.direct_donation_id && (
+                            <Badge tone="green">Direct Donation</Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Card body */}
+                      <div className="p-4 sm:p-5">
+                        {/* Bakery identity */}
+                        <div className="flex items-center gap-3">
+                          {f.bakery_profile_picture && (
+                            <img
+                              src={avatar(f.bakery_profile_picture)}
+                              alt={f.bakery_name}
+                              className="w-10 h-10 rounded-full border border-[#f2e3cf] object-cover"
+                            />
+                          )}
+                          <div className="min-w-0">
+                            <div
+                              className="font-semibold truncate text-sm sm:text-[15px]"
+                              style={{ color: "#3b2a18" }}
+                            >
+                              {f.bakery_name || "Unknown Bakery"}
+                            </div>
+                            <div
+                              className="text-xs"
+                              style={{ color: brand.subtext }}
+                            >
+                              {new Date(f.created_at).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Meta chips */}
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {f.product_name && <Pill>{f.product_name}</Pill>}
+                          {typeof f.product_quantity !== "undefined" && (
+                            <Pill>Qty: {f.product_quantity}</Pill>
+                          )}
+                          <Pill>
+                            Rating&nbsp;
+                            <StarDisplay rating={f.rating || 0} />
+                          </Pill>
+                        </div>
+
+                        {/* Feedback content (view or edit) */}
+                        {editing === f.id ? (
+                          <div className="mt-4">
+                            <div
+                              className="text-[13px] font-bold tracking-wide"
+                              style={{
+                                color: brand.text,
+                                letterSpacing: ".02em",
+                              }}
+                            >
+                              EDIT FEEDBACK
+                            </div>
+
+                            <textarea
+                              value={editMessage}
+                              onChange={(e) => setEditMessage(e.target.value)}
+                              placeholder="Update your feedback."
+                              className="mt-2 w-full rounded-xl border border-[#f2d4b5] bg-white p-2.5 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52]"
+                            />
+
+                            <label
+                              className="block mt-3 text-sm font-semibold"
+                              style={{ color: brand.text }}
+                            >
+                              Rating
+                            </label>
+                            <select
+                              value={editRating}
+                              onChange={(e) =>
+                                setEditRating(Number(e.target.value))
+                              }
+                              className="mt-1 w-full rounded-xl border border-[#f2d4b5] bg-white p-2.5 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52]"
+                            >
+                              {[1, 2, 3, 4, 5].map((r) => (
+                                <option key={r} value={r}>
+                                  {"⭐".repeat(r)}
+                                </option>
+                              ))}
+                            </select>
+
+                            <label
+                              className="block mt-3 text-sm font-semibold"
+                              style={{ color: brand.text }}
+                            >
+                              Replace / add media (image/video)
+                            </label>
+                            <input
+                              type="file"
+                              accept="image/*,video/*"
+                              onChange={(e) =>
+                                setEditFile(e.target.files?.[0] || null)
+                              }
+                              className="mt-1 block w-full text-sm file:mr-3 file:rounded-full file:border file:border-[#f2d4b5] file:bg-white file:px-4 file:py-1.5 hover:file:bg-white/95"
+                            />
+
+                            <div className="mt-3 flex flex-wrap justify-end gap-2">
+                              <button onClick={saveEdit} className={primaryBtn}>
+                                Save Changes
+                              </button>
+                              <button
+                                onClick={cancelEdit}
+                                className={cancelBtn}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            {/* Original message */}
+                            <p
+                              className="mt-3 text-[15px] leading-relaxed line-clamp-4"
+                              style={{ color: brand.text }}
+                            >
+                              {f.message}
+                            </p>
+
+                            {/* Attached media preview */}
+                            {mediaUrl && (
+                              <div
+                                className="mt-4 overflow-hidden rounded-2xl border"
+                                style={{ borderColor: brand.cardBorder }}
+                              >
+                                {isVideo ? (
+                                  <video
+                                    controls
+                                    className="w-full h-32 object-cover bg-black/5"
+                                    src={mediaUrl}
+                                  />
+                                ) : (
+                                  <img
+                                    src={mediaUrl}
+                                    alt="Feedback media"
+                                    className="w-full h-32 object-cover"
+                                  />
+                                )}
+                              </div>
+                            )}
+
+                            {/* Bakery Reply */}
+                            {replyText && (
+                              <div className="mt-4 rounded-xl bg-[#e9f9ef] border border-[#c7ecd5] px-3.5 py-2 text-[13px] text-[#1b5c30]">
+                                <span className="font-semibold">
+                                  Bakery Reply:
+                                </span>{" "}
+                                {replyText}
+                              </div>
+                            )}
+
+                            {/* Edit button */}
+                            <div className="mt-4 flex justify-end">
+                              <button
+                                onClick={() => startEdit(f)}
+                                className={primaryBtn}
+                              >
+                                Edit
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Pagination */}
+            {filteredFeedbacks.length > 0 && (
+              <div className="mt-4 flex flex-col items-center gap-2 text-xs text-[#6b4b2b] sm:flex-row sm:justify-between">
+                <span>
+                  Showing {startIndex + 1}–
+                  {Math.min(startIndex + pageSize, filteredFeedbacks.length)} of{" "}
+                  {filteredFeedbacks.length}
+                </span>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className="rounded-full border border-[#f2d4b5] bg-white px-3 py-1.5 text-xs shadow-sm disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <span className="font-medium">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={currentPage === totalPages}
+                    onClick={() =>
+                      setCurrentPage((p) => Math.min(totalPages, p + 1))
+                    }
+                    className="rounded-full border border-[#f2d4b5] bg-white px-3 py-1.5 text-xs shadow-sm disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

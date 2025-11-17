@@ -270,20 +270,63 @@ const Section = ({ title, count, children }) => (
   </div>
 );
 
-const ScrollColumn = ({ title, items, emptyText, renderItem }) => (
-  <div className="min-w-0 w-full flex flex-col rounded-xl border border-[#f2e3cf] bg-white/60">
-    <div className="sticky top-0 z-10 px-4 py-2 border-b border-[#f2e3cf] bg-white/90 rounded-t-xl">
-      <p className="text-sm font-semibold text-[#4A2F17]">{title}</p>
-    </div>
-    <div className="max-h-[520px] overflow-y-auto overscroll-contain p-4 space-y-4">
-      {items.length ? (
-        items.map(renderItem)
-      ) : (
-        <p className="text-sm text-[#7b5836]">{emptyText}</p>
+// ScrollColumn with pagination (Prev / Page X of Y / Next, max 10)
+const ScrollColumn = ({ title, items, emptyText, renderItem }) => {
+  const PAGE_SIZE = 10;
+  const [page, setPage] = React.useState(1);
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [items]);
+
+  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  const start = (page - 1) * PAGE_SIZE;
+  const pageItems = items.slice(start, start + PAGE_SIZE);
+
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
+
+  const pagerBtn =
+    "min-w-[80px] rounded-full border border-[#f2d4b5] bg-white/95 px-4 py-1.5 text-xs sm:text-sm font-semibold text-[#6b4b2b] shadow-sm hover:bg-white transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/95";
+
+  return (
+    <div className="min-w-0 w-full flex flex-col rounded-xl border border-[#f2e3cf] bg-white/60">
+      <div className="sticky top-0 z-10 px-4 py-2 border-b border-[#f2e3cf] bg-white/90 rounded-t-xl">
+        <p className="text-sm font-semibold text-[#4A2F17]">{title}</p>
+      </div>
+      <div className="max-h-[520px] overflow-y-auto overscroll-contain p-4 space-y-4 flex-1">
+        {items.length ? (
+          pageItems.map(renderItem)
+        ) : (
+          <p className="text-sm text-[#7b5836]">{emptyText}</p>
+        )}
+      </div>
+      {items.length > 0 && (
+        <div className="px-4 pb-3 pt-1 border-t border-[#f2e3cf] bg-white/80 rounded-b-xl flex items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => canPrev && setPage((p) => p - 1)}
+            disabled={!canPrev}
+            className={pagerBtn}
+          >
+            Prev
+          </button>
+          <span className="text-xs sm:text-sm font-semibold text-[#6b4b2b]">
+            Page {page} of {totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => canNext && setPage((p) => p + 1)}
+            disabled={!canNext}
+            className={pagerBtn}
+          >
+            Next
+          </button>
+        </div>
       )}
     </div>
-  </div>
-);
+  );
+};
 
 const Card = ({ d, highlightedId, onClick, compact = false }) => {
   const left = daysUntil(d.expiration_date);
@@ -389,57 +432,124 @@ const Card = ({ d, highlightedId, onClick, compact = false }) => {
   );
 };
 
+/* -------- updated Stepper to match BDonationStatus (mobile + desktop) -------- */
 const Stepper = ({ status }) => {
   const raw = (status || "pending").toLowerCase();
   const normalized = raw === "pending" ? "preparing" : raw;
   const idx = Math.max(0, statusOrder.indexOf(normalized));
   const pct = idx / (statusOrder.length - 1);
   const activeTheme = statusTheme(normalized);
+
   return (
-    <div className="rounded-2xl border border-[#f2e3cf] bg-[#FFFBF5] p-5">
-      <div className="relative mx-8">
-        <div className="h-1 w-full rounded-full bg-[#EFD7BE]" />
-        <div
-          className={`h-1 rounded-full absolute left-0 top-0 ${activeTheme.bar}`}
-          style={{ width: `${pct * 100}%` }}
-        />
-        <div className="absolute inset-x-0 -top-6 flex justify-between items-end">
-          {statusOrder.map((s, i) => {
-            const theme = statusTheme(s);
-            const active = i === idx;
-            const passed = i < idx || normalized === "complete";
-            return (
-              <div key={s} className="flex flex-col items-center min-w-[78px]">
-                <div
-                  className={`w-12 h-12 rounded-full grid place-items-center shadow ${
-                    theme.text
-                  } ${
+    <div className="rounded-2xl border border-[#f2e3cf] bg-[#FFFBF5] p-4 sm:p-5">
+      {/* Mobile: vertical layout with full-line highlight */}
+      <div className="space-y-3 sm:hidden">
+        {statusOrder.map((s, i) => {
+          const theme = statusTheme(s);
+          const active = i === idx;
+          const passed = i < idx || normalized === "complete";
+
+          const rowClasses = active
+            ? "bg-[#FFF3E0] border-[#F3C48C] shadow-[0_8px_18px_rgba(191,115,39,.18)]"
+            : passed
+            ? "bg-white border-[#f2e3cf]"
+            : "bg-[#FDF5EB] border-transparent";
+
+          return (
+            <div
+              key={s}
+              className={`flex items-center gap-3 px-3 py-2 rounded-xl border transition-all duration-300 ${rowClasses}`}
+            >
+              <div
+                className={`flex-shrink-0 w-9 h-9 rounded-full grid place-items-center shadow transition-all duration-300
+                  ${theme.text}
+                  ${
                     active
-                      ? `translate-y-[-6px] ring-2 ${theme.ring} bg-white`
+                      ? `ring-2 ${theme.ring} bg-white`
                       : passed
                       ? "bg-white"
                       : "bg-[#EADFCC]"
                   }`}
-                >
-                  <StatusIcon
-                    status={
-                      passed && i === statusOrder.length - 1 ? "complete" : s
-                    }
-                    className="w-6 h-6"
-                  />
-                </div>
+              >
+                <StatusIcon
+                  status={passed && i === statusOrder.length - 1 ? "complete" : s}
+                  className="w-5 h-5"
+                />
+              </div>
+              <div className="flex-1 flex items-center justify-between gap-2">
                 <span
-                  className={`mt-2 text-[13px] ${
+                  className={`text-sm ${
                     active ? "font-semibold text-[#3b2a18]" : "text-[#6b4b2b]"
                   }`}
                 >
                   {nice(s)}
                 </span>
+                {active && (
+                  <span className={`text-[11px] font-semibold ${theme.text}`}>
+                    Current
+                  </span>
+                )}
               </div>
-            );
-          })}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop / tablet: horizontal bar */}
+      <div className="hidden sm:block">
+        <div className="relative">
+          <div className="relative mx-6">
+            <div className="h-1 w-full rounded-full bg-[#EFD7BE]" />
+            <div
+              className={`h-1 rounded-full absolute left-0 top-0 ${activeTheme.bar} transition-all`}
+              style={{ width: `${pct * 100}%` }}
+            />
+            <div className="absolute inset-x-0 -top-7 flex justify-between items-end">
+              {statusOrder.map((s, i) => {
+                const theme = statusTheme(s);
+                const active = i === idx;
+                const passed = i < idx || normalized === "complete";
+                return (
+                  <div
+                    key={s}
+                    className="flex flex-col items-center min-w-[72px]"
+                  >
+                    <div
+                      className={`w-11 h-11 rounded-full grid place-items-center shadow transition-all duration-300
+                        ${theme.text}
+                        ${
+                          active
+                            ? `translate-y-[-4px] ring-2 ${theme.ring} bg-white`
+                            : passed
+                            ? "bg-white"
+                            : "bg-[#EADFCC]"
+                        }`}
+                    >
+                      <StatusIcon
+                        status={
+                          passed && i === statusOrder.length - 1
+                            ? "complete"
+                            : s
+                        }
+                        className="w-6 h-6"
+                      />
+                    </div>
+                    <span
+                      className={`mt-2 text-[13px] text-center leading-tight ${
+                        active
+                          ? "font-semibold text-[#3b2a18]"
+                          : "text-[#6b4b2b]"
+                      }`}
+                    >
+                      {nice(s)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div className="pt-11" />
         </div>
-        <div className="pt-12" />
       </div>
     </div>
   );
@@ -603,8 +713,10 @@ const CDonationStatus = () => {
     !term || haystack(d).includes(toStr(term));
 
   // Splitters for exactly two columns per section
-const onlyPreparing = (s) =>
-  ["preparing", "ready_for_pickup", "in_transit", "received"].includes((s || "").toLowerCase());
+  const onlyPreparing = (s) =>
+    ["preparing", "ready_for_pickup", "in_transit", "received"].includes(
+      (s || "").toLowerCase()
+    );
   const requestedPreparing = receivedDonations.filter((d) =>
     onlyPreparing(d.tracking_status)
   );
@@ -617,9 +729,7 @@ const onlyPreparing = (s) =>
     onlyPreparing(d.btracking_status)
   );
 
-  // ⬇️ ADD THESE LINES here (right after the Splitters block)
-
-  // Requested section (apply qReq)
+  // Requested section (apply qReq) – pending & preparing
   const reqPendingFiltered = pendingDonations.filter((d) =>
     matchesQuery(d, qReq)
   );
@@ -627,8 +737,10 @@ const onlyPreparing = (s) =>
     matchesQuery(d, qReq)
   );
 
-  // Direct section (apply qDir)
-  const dirPendingFiltered = directPending.filter((d) => matchesQuery(d, qDir));
+  // Direct section (apply qDir) – pending & preparing
+  const dirPendingFiltered = directPending.filter((d) =>
+    matchesQuery(d, qDir)
+  );
   const dirPreparingFiltered = directPreparing.filter((d) =>
     matchesQuery(d, qDir)
   );
@@ -661,6 +773,7 @@ const onlyPreparing = (s) =>
             />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
+            {/* Requested Pending with pagination */}
             <ScrollColumn
               title={`Pending (${reqPendingFiltered.length})`}
               items={reqPendingFiltered}
@@ -675,6 +788,7 @@ const onlyPreparing = (s) =>
                 />
               )}
             />
+            {/* Requested Preparing with pagination */}
             <ScrollColumn
               title={`Preparing (${reqPreparingFiltered.length})`}
               items={reqPreparingFiltered}
@@ -709,6 +823,7 @@ const onlyPreparing = (s) =>
             />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
+            {/* Direct Pending with pagination */}
             <ScrollColumn
               title={`Pending (${dirPendingFiltered.length})`}
               items={dirPendingFiltered}
@@ -723,6 +838,7 @@ const onlyPreparing = (s) =>
                 />
               )}
             />
+            {/* Direct Preparing with pagination */}
             <ScrollColumn
               title={`Preparing (${dirPreparingFiltered.length})`}
               items={dirPreparingFiltered}
@@ -740,14 +856,18 @@ const onlyPreparing = (s) =>
         </Section>
       )}
 
-      {/* Details modal (unchanged actions) */}
+      {/* Details modal with updated layout */}
       {selectedDonation && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 bg-[#FFF1E3]/70 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 sm:py-10
+                     bg-[#FFF1E3]/70 backdrop-blur-sm"
           onClick={() => setSelectedDonation(null)}
         >
           <div
-            className="w-full max-w-3xl rounded-3xl overflow-hidden bg-white shadow-[0_24px_60px_rgba(191,115,39,.25)] ring-1 ring-black/10"
+            className="w-full max-w-3xl sm:max-w-4xl max-h-[90vh] sm:max-h-[88vh]
+                       rounded-3xl overflow-hidden bg-white
+                       shadow-[0_24px_60px_rgba(191,115,39,.25)] ring-1 ring-black/10
+                       flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="relative px-6 py-4 bg-gradient-to-r from-[#FFE4C5] via-[#FFD49B] to-[#F0A95F]">
@@ -765,16 +885,16 @@ const onlyPreparing = (s) =>
               </button>
             </div>
 
-            <div className="p-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
               {selectedDonation.image && (
                 <div className="relative">
                   <img
                     src={`${API}/${selectedDonation.image}`}
                     alt={selectedDonation.name}
-                    className="h-64 w-full object-cover rounded-2xl"
+                    className="w-full h-48 sm:h-56 md:h-64 object-cover rounded-2xl"
                   />
                   <span
-                    className={`absolute right-3 top-3 text-xs font-semibold px-2 py-1 rounded-full border ${statusColor(
+                    className={`absolute right-3 top-3 text-[11px] sm:text-xs font-semibold px-2 py-1 rounded-full border ${statusColor(
                       selectedDonation.tracking_status ||
                         selectedDonation.btracking_status ||
                         selectedDonation.status
@@ -805,7 +925,7 @@ const onlyPreparing = (s) =>
 
               <div className="mt-5 grid grid-cols-12 gap-4">
                 <div className="col-span-12 md:col-span-6">
-                  <h3 className="text-2xl font-semibold text-[#3b2a18]">
+                  <h3 className="text-xl sm:text-2xl font-semibold text-[#3b2a18]">
                     {selectedDonation.name}
                   </h3>
                   {selectedDonation.description && (
@@ -814,7 +934,7 @@ const onlyPreparing = (s) =>
                     </p>
                   )}
                 </div>
-                <div className="col-span-12 md:col-span-3">
+                <div className="col-span-6 md:col-span-3">
                   <div className="rounded-xl border border-[#f2e3cf] bg-white/70 p-3">
                     <div className="text-xs text-[#7b5836]">Quantity</div>
                     <div className="text-lg font-semibold text-[#3b2a18]">
@@ -822,7 +942,7 @@ const onlyPreparing = (s) =>
                     </div>
                   </div>
                 </div>
-                <div className="col-span-12 md:col-span-3">
+                <div className="col-span-6 md:col-span-3">
                   <div className="rounded-xl border border-[#f2e3cf] bg-white/70 p-3">
                     <div className="text-xs text-[#7b5836]">Expires</div>
                     <div className="text-lg font-semibold text-[#3b2a18]">

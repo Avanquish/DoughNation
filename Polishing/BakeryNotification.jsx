@@ -332,6 +332,19 @@ export default function BakeryNotification() {
   const renderNotificationPanelContent = () => (
     <div className="gwrap rounded-2xl shadow-xl w-full">
       <div className="glass-card rounded-[18px] overflow-hidden">
+        {/* header with title + X close */}
+        <div className="cl-head">
+          <div className="cl-title">Notifications</div>
+          <button
+            type="button"
+            className="cl-close-btn"
+            aria-label="Close notifications"
+            onClick={handleClosePanel}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
         {/* tabs */}
         <div className="flex items-center">
           {[
@@ -527,7 +540,7 @@ export default function BakeryNotification() {
         </div>
 
         {/* pagination + close */}
-        {tab === "products" && products.length > 0 && (
+        {tab === "products" && (
           <div className="px-3 pt-2 pb-2 bg-white border-t border-[rgba(0,0,0,0.04)] text-[#8a5a25]">
             <div className="text-center text-[11px] mb-1">
               Page {productPage} of {productTotalPages}
@@ -539,12 +552,6 @@ export default function BakeryNotification() {
                 className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
               >
                 Prev
-              </button>
-              <button
-                onClick={handleClosePanel}
-                className="px-4 py-1 rounded-full border border-[#f2d4b5] bg-[#fffdf7] font-semibold text-[#7a4f1c]"
-              >
-                Close
               </button>
               <button
                 onClick={() =>
@@ -559,7 +566,7 @@ export default function BakeryNotification() {
           </div>
         )}
 
-        {tab === "messages" && messages.length > 0 && (
+        {tab === "messages" && (
           <div className="px-3 pt-2 pb-2 bg-white border-t border-[rgba(0,0,0,0.04)] text-[#8a5a25]">
             <div className="text-center text-[11px] mb-1">
               Page {messagePage} of {messageTotalPages}
@@ -571,12 +578,6 @@ export default function BakeryNotification() {
                 className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
               >
                 Prev
-              </button>
-              <button
-                onClick={handleClosePanel}
-                className="px-4 py-1 rounded-full border border-[#f2d4b5] bg-[#fffdf7] font-semibold text-[#7a4f1c]"
-              >
-                Close
               </button>
               <button
                 onClick={() =>

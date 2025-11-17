@@ -106,6 +106,21 @@ const Styles = () => (
 
     .cl-head{display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--line); background:var(--cream)}
     .cl-title{font-weight:800; font-size:18px; flex:1; color:var(--ink)}
+        .cl-close-btn{
+      margin-left:auto;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:30px;
+      height:30px;
+      border-radius:9999px;
+      border:1px solid #f2d4b5;
+      background:#fff;
+      box-shadow:0 1px 0 rgba(0,0,0,.03);
+      color:var(--ink);
+      cursor:pointer;
+    }
+    .cl-close-btn:hover{background:#fff4e6;}
     .cl-search{padding:10px 14px; border-bottom:1px solid var(--line)}
     .cl-search input{width:100%; border:1px solid #f2d4b5; background:#fff; padding:10px 12px; border-radius:9999px; outline:none; font-size:14px;}
     .cl-search input:focus{box-shadow:0 0 0 2px #E49A5233}
@@ -120,8 +135,12 @@ const Styles = () => (
     .snippet{font-size:13px; color:#6b4b2b; opacity:.8}
     .dot{width:8px; height:8px; border-radius:9999px; background:var(--brand2)}
     .time{font-size:12px; color:#8b6b48}
-    .cl-foot{padding:10px 14px; border-top:1px solid var(--line); display:flex; justify-content:center; background:#fffdf7;}
-    
+    .cl-foot{
+      padding:10px 14px;
+      border-top:1px solid var(--line);
+      background:#fffdf7;
+    }    
+
     .seeall{font-size:13px;font-weight:600;color:#7a4f1c;padding:6px 12px;border-radius:9999px;border:1px solid #f2d4b5;background:#fffaf3;}
     .seeall:hover{background:#ffe8c8;}
 
@@ -232,37 +251,41 @@ const Styles = () => (
     .scroll-btn{position:absolute; right:12px; bottom:70px; background:#ffffff; border:1px solid rgba(0,0,0,.08); border-radius:9999px; padding:6px 10px; font-weight:800; color:#7a4f1c; box-shadow:0 8px 18px rgba(0,0,0,.12); font-size:13px;}
 
 
-    /* === Responsive tweaks (mobile) === */
-    @media (max-width: 768px){
+  /* === Responsive tweaks (mobile) === */
+  @media (max-width: 768px){
 
-      /* CHAT LIST – centered card, no overlay blur */
-      .chatlist-layer{
-        position: fixed;
-        top: 0;
-        right: 0;
-        bottom: 0;
-        left: 0;
-        margin-top: 0;
-        background: transparent;
-        z-index: 9999;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-      }
+    /* CHAT LIST */
+    .chatlist-layer{
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      margin-top: 0;
+      background: transparent;
+      z-index: 9999;
+      display:flex;
+      align-items:center;
+      justify-content:center;
 
-      .chatlist-dropdown{
-        position: absolute;
-        top: 50%;
-        left: 4%;
-        transform: translate(-50%, -50%);
-        box-sizing: border-box;
-        width: calc(100% - 32px);
-        max-width: 360px;
-        max-height: 80vh;
-        margin: 0;
-        border-radius: 22px;
-        box-shadow: 0 18px 40px rgba(191,115,39,.25);
-      }
+      pointer-events: none;
+    }
+
+  .chatlist-dropdown{
+    position: absolute;
+    top: 50%;
+    left: 4%;
+    transform: translate(-50%, -50%);
+    box-sizing: border-box;
+    width: calc(100% - 32px);
+    max-width: 360px;
+    max-height: 80vh;
+    margin: 0;
+    border-radius: 22px;
+    box-shadow: 0 18px 40px rgba(191,115,39,.25);
+
+    pointer-events: auto;
+  }
 
       /* CHAT DOCK – bottom sheet style, NOT full screen */
       .dock-root{
@@ -1103,6 +1126,16 @@ export default function Messages({ currentUser: currentUserProp }) {
     safePage * CHAT_PAGE_SIZE + CHAT_PAGE_SIZE
   );
 
+  useEffect(() => {
+    const handleNotifOpen = () => {
+      // kapag nag-open ang notifications, auto-close chat list
+      setOpenList(false);
+    };
+    window.addEventListener("ui:notifications-open", handleNotifOpen);
+    return () =>
+      window.removeEventListener("ui:notifications-open", handleNotifOpen);
+  }, []);
+
   /* ---- Effects ---- */
   useEffect(() => {
     fetchRemovedProducts();
@@ -1527,9 +1560,14 @@ export default function Messages({ currentUser: currentUserProp }) {
           aria-label="Open messages"
           title="Messages"
           onClick={() => {
-            const willOpen = !openList;
-            setOpenList(willOpen);
-            if (willOpen) window.dispatchEvent(new Event("ui:messages-open"));
+            setOpenList((prev) => {
+              const willOpen = !prev;
+              if (willOpen) {
+                // 🔔 tell notifications to close
+                window.dispatchEvent(new Event("ui:messages-open"));
+              }
+              return willOpen;
+            });
           }}
         >
           <MessageSquareText className="h-[18px] w-[18px] text-black" />
@@ -1548,6 +1586,14 @@ export default function Messages({ currentUser: currentUserProp }) {
             <div className="chatlist-dropdown">
               <div className="cl-head">
                 <div className="cl-title">Chats</div>
+                <button
+                  type="button"
+                  className="cl-close-btn"
+                  aria-label="Close chats"
+                  onClick={() => setOpenList(false)}
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
               <div className="cl-search">
@@ -1786,6 +1832,11 @@ export default function Messages({ currentUser: currentUserProp }) {
               </div>
 
               <div className="cl-foot">
+                {/* Page label sa gitna, same feel as bakery notif */}
+                <div className="text-center text-[11px] text-[#8a5a25] mb-1">
+                  Page {safePage + 1} of {totalChatPages}
+                </div>
+
                 <div className="page-nav">
                   <button
                     className="page-btn"
@@ -1793,10 +1844,6 @@ export default function Messages({ currentUser: currentUserProp }) {
                     onClick={() => setChatPage((p) => (p > 0 ? p - 1 : 0))}
                   >
                     Prev
-                  </button>
-
-                  <button className="seeall" onClick={() => setOpenList(false)}>
-                    Close
                   </button>
 
                   <button

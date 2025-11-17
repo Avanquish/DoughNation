@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
-import { Bell, ChevronRight } from "lucide-react";
+import { Bell, ChevronRight, X } from "lucide-react";
 
 // Small unread/read circle indicator
 function UnreadCircle({ read }) {
@@ -287,6 +287,19 @@ export default function NotificationBell() {
           <div className="chatlist-dropdown w-[460px] max-w-[90vw]">
             <div className="gwrap rounded-2xl shadow-xl w-full">
               <div className="glass-card rounded-[14px] overflow-hidden">
+                {/* Header with title + X close */}
+                <div className="cl-head">
+                  <div className="cl-title">Notifications</div>
+                  <button
+                    type="button"
+                    className="cl-close-btn"
+                    aria-label="Close notifications"
+                    onClick={() => setOpen(false)}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
                 {/* Tabs */}
                 <div className="flex items-center">
                   {[
@@ -538,7 +551,7 @@ export default function NotificationBell() {
 
                 {/* FOOTERS WITH PREV / CLOSE / NEXT (always visible) */}
                 {tab === "donations" && (
-                  <div className="px-3 pt-2 pb-2 bg-white border-t border-[rgba(0,0,0,0.04)] text-[#8a5a25]">
+                  <div className="px-3 pt-2 pb-3 bg-white border-t border-[rgba(0,0,0,0.04)] text-[#8a5a25]">
                     <div className="text-center text-[11px] mb-1">
                       Page {donationPage} of {donationTotalPages}
                     </div>
@@ -554,12 +567,6 @@ export default function NotificationBell() {
                         className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
                       >
                         Prev
-                      </button>
-                      <button
-                        onClick={() => setOpen(false)}
-                        className="px-4 py-1 rounded-full border border-[#f2d4b5] bg-[#fffdf7] font-semibold text-[#7a4f1c]"
-                      >
-                        Close
                       </button>
                       <button
                         onClick={() =>
@@ -580,7 +587,7 @@ export default function NotificationBell() {
                 )}
 
                 {tab === "receivedDonations" && (
-                  <div className="px-3 pt-2 pb-2 bg-white border-t border-[rgba(0,0,0,0.04)] text-[#8a5a25]">
+                  <div className="px-3 pt-2 pb-3 bg-white border-t border-[rgba(0,0,0,0.04)] text-[#8a5a25]">
                     <div className="text-center text-[11px] mb-1">
                       Page {receivedPage} of {receivedTotalPages}
                     </div>
@@ -595,12 +602,6 @@ export default function NotificationBell() {
                         className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
                       >
                         Prev
-                      </button>
-                      <button
-                        onClick={() => setOpen(false)}
-                        className="px-4 py-1 rounded-full border border-[#f2d4b5] bg-[#fffdf7] font-semibold text-[#7a4f1c]"
-                      >
-                        Close
                       </button>
                       <button
                         onClick={() =>
@@ -621,7 +622,7 @@ export default function NotificationBell() {
                 )}
 
                 {tab === "messages" && (
-                  <div className="px-3 pt-2 pb-2 bg-white border-t border-[rgba(0,0,0,0.04)] text-[#8a5a25]">
+                  <div className="px-3 pt-2 pb-3 bg-white border-t border-[rgba(0,0,0,0.04)] text-[#8a5a25]">
                     <div className="text-center text-[11px] mb-1">
                       Page {messagePage} of {messageTotalPages}
                     </div>
@@ -634,12 +635,6 @@ export default function NotificationBell() {
                         className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
                       >
                         Prev
-                      </button>
-                      <button
-                        onClick={() => setOpen(false)}
-                        className="px-4 py-1 rounded-full border border-[#f2d4b5] bg-[#fffdf7] font-semibold text-[#7a4f1c]"
-                      >
-                        Close
                       </button>
                       <button
                         onClick={() =>

@@ -127,38 +127,78 @@ const Styles = () => (
     .r1{animation-delay:.05s}.r2{animation-delay:.1s}.r3{animation-delay:.15s}.r4{animation-delay:.2s}.r5{animation-delay:.25s}.r6{animation-delay:.3s}
     @keyframes rise{to{opacity:1; transform:translateY(0) scale(1)}}
 
-  /* Small UI tweaks for mobile  */
-  @media (max-width: 480px){
-    .iconbar{
-      gap: .35rem;
+    /* Small UI tweaks for mobile  */
+    @media (max-width: 480px){
+      .iconbar{
+        gap: .35rem;
+      }
+
+      .iconbar .icon-btn{
+        width: 32px;
+        height: 32px;
+      }
+
+      .iconbar .icon-btn svg{
+        width: 16px;
+        height: 16px;
+      }
+
+      .btn-logout{
+        padding: .35rem .55rem;
+      }
+
+      .btn-logout svg{
+        width: 16px;
+        height: 16px;
+      }
+
+      .brand-title{
+        margin-right: .25rem;
+      }
     }
 
-    .iconbar .icon-btn{
-      width: 32px;
-      height: 32px;
+    .hdr-left{ flex: 1 1 auto; min-width: 0; }
+    .hdr-right{ flex: 0 0 auto; margin-left: auto; }
+
+    /* Scrollable tabs strip (same behavior as Bakery, UI-only) */
+    .tabs-scroll{
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      flex-wrap: nowrap;
+    }
+    .tabs-scroll::-webkit-scrollbar{
+      display: none;
     }
 
-    .iconbar .icon-btn svg{
-      width: 16px;
-      height: 16px;
+    /* Compact dashboard stat card on mobile */
+    .dashboard-stat-card .stat-card-content{
+      transition: padding .2s ease;
     }
 
-    .btn-logout{
-      padding: .35rem .55rem;
+    @media (max-width: 640px){
+      .dashboard-stat-grid{
+        gap: 1rem;
+      }
+      .dashboard-stat-card .stat-card-content{
+        padding: 0.75rem 0.9rem;
+      }
+      .dashboard-stat-card .stat-label{
+        font-size: 0.78rem;
+      }
+      .dashboard-stat-card .stat-value{
+        font-size: 1.5rem;
+        line-height: 1.7rem;
+      }
+      .dashboard-stat-card .chip{
+        width: 42px;
+        height: 42px;
+      }
+      .dashboard-stat-card .chip svg{
+        width: 18px;
+        height: 18px;
+      }
     }
-
-    .btn-logout svg{
-      width: 16px;
-      height: 16px;
-    }
-
-    .brand-title{
-      margin-right: .25rem;
-    }
-  }
-
-  .hdr-left{ flex: 1 1 auto; min-width: 0; }
-  .hdr-right{ flex: 0 0 auto; margin-left: auto; }
 
   `}</style>
 );
@@ -544,7 +584,7 @@ const CharityDashboard = () => {
       >
         <div className="seg-wrap">
           <div className="seg justify-center">
-            <TabsList className="bg-transparent p-0 border-0 flex flex-wrap gap-2">
+            <TabsList className="tabs-scroll flex items-center gap-2 bg-transparent p-0 border-0">
               <TabsTrigger
                 value="donation"
                 className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
@@ -608,19 +648,20 @@ const CharityDashboard = () => {
         <div className="max-w-7xl mx-auto px-1 py-4">
           {/* Dashboard */}
           <TabsContent value="dashboard" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6">
-              <div className="gwrap reveal r1 hover-lift">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6 dashboard-stat-grid">
+              <div className="gwrap reveal r1 hover-lift dashboard-stat-card">
                 <Card className="glass-card shadow-none">
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-5 md:p-6 stat-card-content">
                     <div className="flex items-center justify-between">
                       <div>
                         <CardTitle
+                          className="stat-label"
                           style={{ color: "#6B4B2B", fontWeight: 700 }}
                         >
                           Total Donations Received
                         </CardTitle>
                         <div
-                          className="text-3xl font-extrabold"
+                          className="text-3xl font-extrabold stat-value"
                           style={{ color: "#2b1a0b" }}
                         >
                           {totals.grand_total}

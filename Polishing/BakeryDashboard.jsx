@@ -197,12 +197,13 @@ const BakeryDashboard = () => {
 
     const role = employeeRole.toLowerCase().replace(/[-\s]/g, "");
 
+    // Owner and Manager have full access
     if (role === "owner" || role === "manager") return ALLOWED_TABS;
-    else if (role.includes("fulltime") || role === "full")
+    // Employee cannot access Employee tab and Reports
+    else if (role === "employee")
       return ALLOWED_TABS.filter(
         (tab) => tab !== "employee" && tab !== "reports"
       );
-    else if (role.includes("parttime") || role === "part") return [];
 
     return ALLOWED_TABS;
   };
@@ -332,7 +333,12 @@ const BakeryDashboard = () => {
     const loadEmployees = () =>
       axios
         .get(`${API}/employees`, { headers })
-        .then((r) => setEmployeeCount((r.data || []).length))
+        .then((r) => {
+          const activeEmployees = (r.data || []).filter(
+            (emp) => emp?.role?.toLowerCase() !== "owner"
+          );
+          setEmployeeCount(activeEmployees.length);
+        })
         .catch(() => setEmployeeCount(0));
 
     const loadUploadedProducts = () =>
@@ -708,19 +714,31 @@ const BakeryDashboard = () => {
     @keyframes shimmer{ from{transform:translateX(-100%)} to{transform:translateX(100%)} }
 
     /* ===== UI PATCH: tighter but neat icons on small screens ===== */
+
+    /* === SCROLLABLE TABS STRIP (dashboard tabs) === */
+    .tabs-scroll{
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch; 
+      flex-wrap: nowrap;                  
+    }
+    .tabs-scroll::-webkit-scrollbar{
+      display: none;                      
+    }
+      
     @media (max-width: 480px){
       .iconbar{
-        gap: .35rem;              /* smaller spacing between icons */
-      }
+        gap: .35rem;
+}
 
       .iconbar .icon-btn{
         width: 32px;
-        height: 32px;             /* smaller circular buttons */
+        height: 32px;
       }
 
       .iconbar .icon-btn svg{
         width: 16px;
-        height: 16px;             /* shrink actual icon inside */
+        height: 16px;
       }
 
       .btn-logout{
@@ -734,6 +752,40 @@ const BakeryDashboard = () => {
 
       .brand-title{
         margin-right: .25rem;  
+      }
+    }
+
+    /* === DASHBOARD STAT CARDS (MOBILE-ONLY SIZE TWEAK) === */
+    .dashboard-stat-card .stat-card-content{
+      transition: padding .2s ease;
+    }
+
+    @media (max-width: 640px){
+      .dashboard-stat-grid{
+        gap: 1rem; /* mas dikit ng konti yung pagitan ng cards sa mobile */
+      }
+
+      .dashboard-stat-card .stat-card-content{
+        padding: 0.75rem 0.9rem; /* mas maliit na padding sa mobile */
+      }
+
+      .dashboard-stat-card .stat-label{
+        font-size: 0.78rem;
+      }
+
+      .dashboard-stat-card .stat-value{
+        font-size: 1.5rem;
+        line-height: 1.7rem;
+      }
+
+      .dashboard-stat-card .chip{
+        width: 42px;
+        height: 42px;
+      }
+
+      .dashboard-stat-card .chip svg{
+        width: 18px;
+        height: 18px;
       }
     }
 
@@ -975,7 +1027,7 @@ const BakeryDashboard = () => {
       >
         <div className="seg-wrap">
           <div className="seg justify-center">
-            <TabsList className="flex items-center gap-1 bg-transparent p-0 border-0 overflow-x-auto no-scrollbar">
+            <TabsList className="tabs-scroll flex items-center gap-1 bg-transparent p-0 border-0">
               {visibleTabs.includes("dashboard") && (
                 <TabsTrigger
                   value="dashboard"
@@ -1073,21 +1125,21 @@ const BakeryDashboard = () => {
         {/* Content */}
         <div className="max-w-7xl mx-auto px-2 sm:px-2 lg:px-2 py-2">
           <TabsContent value="dashboard" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6 dashboard-stat-grid">
               {/* Stat cards */}
-              <div className="gwrap reveal r1 hover-lift">
+              <div className="gwrap reveal r1 hover-lift dashboard-stat-card">
                 <Card className="glass-card shadow-none">
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-5 md:p-6 stat-card-content">
                     <div className="flex items-center justify-between">
                       <div>
                         <p
-                          className="text-sm font-medium"
+                          className="text-sm font-medium stat-label"
                           style={{ color: "#6B4B2B" }}
                         >
                           Total Donations
                         </p>
                         <p
-                          className="text-3xl font-extrabold"
+                          className="text-3xl font-extrabold stat-value"
                           style={{ color: "#2b1a0b" }}
                         >
                           {totals.grand_total.toLocaleString()}
@@ -1101,19 +1153,19 @@ const BakeryDashboard = () => {
                 </Card>
               </div>
 
-              <div className="gwrap reveal r2 hover-lift">
+              <div className="gwrap reveal r2 hover-lift dashboard-stat-card">
                 <Card className="glass-card shadow-none">
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-5 md:p-6 stat-card-content">
                     <div className="flex items-center justify-between">
                       <div>
                         <p
-                          className="text-sm font-medium"
+                          className="text-sm font-medium stat-label"
                           style={{ color: "#6B4B2B" }}
                         >
                           Product in Inventory
                         </p>
                         <p
-                          className="text-3xl font-extrabold"
+                          className="text-3xl font-extrabold stat-value"
                           style={{ color: "#2b1a0b" }}
                         >
                           {stats.totalInventory}
@@ -1127,19 +1179,19 @@ const BakeryDashboard = () => {
                 </Card>
               </div>
 
-              <div className="gwrap reveal r3 hover-lift">
+              <div className="gwrap reveal r3 hover-lift dashboard-stat-card">
                 <Card className="glass-card shadow-none">
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-5 md:p-6 stat-card-content">
                     <div className="flex items-center justify-between">
                       <div>
                         <p
-                          className="text-sm font-medium"
+                          className="text-sm font-medium stat-label"
                           style={{ color: "#6B4B2B" }}
                         >
                           Uploaded Products
                         </p>
                         <p
-                          className="text-3xl font-extrabold"
+                          className="text-3xl font-extrabold stat-value"
                           style={{ color: "#2b1a0b" }}
                         >
                           {uploadedProducts}
@@ -1153,19 +1205,19 @@ const BakeryDashboard = () => {
                 </Card>
               </div>
 
-              <div className="gwrap reveal r4 hover-lift">
+              <div className="gwrap reveal r4 hover-lift dashboard-stat-card">
                 <Card className="glass-card shadow-none">
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-5 md:p-6 stat-card-content">
                     <div className="flex items-center justify-between">
                       <div>
                         <p
-                          className="text-sm font-medium"
+                          className="text-sm font-medium stat-label"
                           style={{ color: "#6B4B2B" }}
                         >
                           Employee
                         </p>
                         <p
-                          className="text-3xl font-extrabold"
+                          className="text-3xl font-extrabold stat-value"
                           style={{ color: "#2b1a0b" }}
                         >
                           {stats.employeeCount}
@@ -1179,19 +1231,19 @@ const BakeryDashboard = () => {
                 </Card>
               </div>
 
-              <div className="gwrap reveal r5 hover-lift">
+              <div className="gwrap reveal r5 hover-lift dashboard-stat-card">
                 <Card className="glass-card shadow-none">
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-5 md:p-6 stat-card-content">
                     <div className="flex items-center justify-between">
                       <div>
                         <p
-                          className="text-sm font-medium"
+                          className="text-sm font-medium stat-label"
                           style={{ color: "#6B4B2B" }}
                         >
                           Expired Product
                         </p>
                         <p
-                          className="text-3xl font-extrabold"
+                          className="text-3xl font-extrabold stat-value"
                           style={{ color: "#2b1a0b" }}
                         >
                           {stats.expiredProducts}
@@ -1205,19 +1257,19 @@ const BakeryDashboard = () => {
                 </Card>
               </div>
 
-              <div className="gwrap reveal r6 hover-lift">
+              <div className="gwrap reveal r6 hover-lift dashboard-stat-card">
                 <Card className="glass-card shadow-none">
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-5 md:p-6 stat-card-content">
                     <div className="flex items-center justify-between">
                       <div>
                         <p
-                          className="text-sm font-medium"
+                          className="text-sm font-medium stat-label"
                           style={{ color: "#6B4B2B" }}
                         >
                           Nearing Expiration
                         </p>
                         <p
-                          className="text-3xl font-extrabold"
+                          className="text-3xl font-extrabold stat-value"
                           style={{ color: "#2b1a0b" }}
                         >
                           {stats.nearingExpiration}
@@ -1259,7 +1311,6 @@ const BakeryDashboard = () => {
                   </CardHeader>
 
                   <CardContent className="pt-0 pb-4">
-                    {/* height-matched panel, same feel as RecentDonations */}
                     <div
                       className="
           mt-2

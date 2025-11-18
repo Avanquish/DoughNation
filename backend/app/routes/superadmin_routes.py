@@ -851,8 +851,11 @@ def get_admin_dashboard_analytics(
     """
     require_super_admin(current_admin)
     
-    # User statistics
-    total_users = db.query(models.User).filter(models.User.role != "Admin").count()
+    # User statistics - only count verified users
+    total_users = db.query(models.User).filter(
+        models.User.role != "Admin",
+        models.User.verified == True
+    ).count()
     active_users = db.query(models.User).filter(
         models.User.status == "Active",
         models.User.role != "Admin"
@@ -878,8 +881,14 @@ def get_admin_dashboard_analytics(
         models.User.role != "Admin"
     ).count()
     
-    total_bakeries = db.query(models.User).filter(models.User.role == "Bakery").count()
-    total_charities = db.query(models.User).filter(models.User.role == "Charity").count()
+    total_bakeries = db.query(models.User).filter(
+        models.User.role == "Bakery",
+        models.User.verified == True
+    ).count()
+    total_charities = db.query(models.User).filter(
+        models.User.role == "Charity",
+        models.User.verified == True
+    ).count()
     
     # Donation statistics
     total_donations = db.query(models.Donation).count()

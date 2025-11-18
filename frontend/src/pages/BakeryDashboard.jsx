@@ -197,12 +197,14 @@ const BakeryDashboard = () => {
 
     const role = employeeRole.toLowerCase().replace(/[-\s]/g, "");
 
+    // Owner and Manager have full access
     if (role === "owner" || role === "manager") return ALLOWED_TABS;
-    else if (role.includes("fulltime") || role === "full")
+    
+    // Employee cannot access Employee tab and Reports
+    else if (role === "employee")
       return ALLOWED_TABS.filter(
         (tab) => tab !== "employee" && tab !== "reports"
       );
-    else if (role.includes("parttime") || role === "part") return [];
 
     return ALLOWED_TABS;
   };

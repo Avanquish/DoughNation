@@ -16,7 +16,8 @@ def get_pending_users(db: Session = Depends(database.get_db), admin=Depends(get_
             "name": u.name,
             "email": u.email,
             "role": u.role,
-            "proof_file": u.proof_of_validity  # Include proof file in response
+            "proof_file": u.proof_of_validity,  # Include proof file in response
+            "created_at": u.created_at.isoformat() if u.created_at else None  # Add created_at for notifications
         }
         for u in users
     ]

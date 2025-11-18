@@ -108,7 +108,7 @@ def reply_to_complaint(
     complaint.replied_by = current_user.id
     
     # Create a system notification for the user
-    from app.admin_models import SystemNotification
+    from app.admin_models import SystemNotification, NotificationReceipt
     notification = SystemNotification(
         title=f"Complaint Response: {complaint.subject}",
         message=f"Admin has replied to your complaint.\n\nStatus: {reply.status}\n\nResponse: {reply.message}",
@@ -121,6 +121,16 @@ def reply_to_complaint(
         priority="high"
     )
     db.add(notification)
+    db.flush()  # Get the notification ID
+    
+    # Create notification receipt for the user
+    receipt = NotificationReceipt(
+        notification_id=notification.id,
+        user_id=user.id,
+        is_read=False,
+        received_at=datetime.utcnow()
+    )
+    db.add(receipt)
     
     db.commit()
     

@@ -55,13 +55,22 @@ const AdminUser = () => {
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      Swal.fire("Approved!", "User has been verified.", "success");
+      
+      // Remove from pending users immediately
       setPendingUsers((prev) => prev.filter((u) => u.id !== id));
-      // refresh verified users (same as your original)
-      const res = await axios.get(`${API}/admin/all-users`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setUsers(res.data.filter((u) => u.verified === true));
+      
+      // Refresh verified users
+      try {
+        const res = await axios.get(`${API}/admin/all-users`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setUsers(res.data.filter((u) => u.verified === true));
+      } catch (fetchError) {
+        console.error("Error fetching updated users:", fetchError);
+        // Don't fail the whole operation if refresh fails
+      }
+      
+      Swal.fire("Approved!", "User has been verified.", "success");
     } catch (e) {
       console.error("Error verifying user:", e);
       Swal.fire("Error", "Failed to verify user.", "error");

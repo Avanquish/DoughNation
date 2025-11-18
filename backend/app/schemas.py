@@ -355,7 +355,10 @@ class ComplaintOut(ComplaintBase):
     updated_at: datetime 
     user_id: int
     user_name: Optional[str] = None  
-    user_email: Optional[str] = None  
+    user_email: Optional[str] = None
+    admin_reply: Optional[str] = None
+    replied_at: Optional[datetime] = None
+    replied_by: Optional[int] = None
 
     class Config:
         from_attributes = True

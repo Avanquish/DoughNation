@@ -54,6 +54,89 @@ const NotificationAction = () => {
 
     const navigate = useNavigate();
 
+    // Fetch pending users
+    useEffect(() => {
+        (async () => {
+            try {
+                const token = localStorage.getItem("token");
+                const res = await axios.get("/admin/pending-users", {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                setPendingUsers(res.data || []);
+            } catch (e) {
+                console.error("Failed to fetch pending users:", e);
+                setPendingUsers([]);
+            }
+        })();
+    }, []);
+
+    // Fetch complaints
+    useEffect(() => {
+        (async () => {
+            try {
+                const token = localStorage.getItem("token");
+                const res = await axios.get("/complaints", {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                setComplaints(res.data || []);
+            } catch (e) {
+                console.error("Failed to fetch complaints:", e);
+                setComplaints([]);
+            }
+        })();
+    }, []);
+
+    // Fetch feedbacks/reports
+    useEffect(() => {
+        (async () => {
+            try {
+                const token = localStorage.getItem("token");
+                const res = await axios.get("/admin/feedbacks", {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                setFeedbacks(res.data || []);
+            } catch (e) {
+                console.error("Failed to fetch feedbacks:", e);
+                setFeedbacks([]);
+            }
+        })();
+    }, []);
+
+    // Auto-refresh notifications every 5 seconds
+    useEffect(() => {
+        const fetchAllNotifications = async () => {
+            try {
+                const token = localStorage.getItem("token");
+                
+                // Fetch pending users
+                const pendingRes = await axios.get("/admin/pending-users", {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                setPendingUsers(pendingRes.data || []);
+                
+                // Fetch complaints
+                const complaintsRes = await axios.get("/complaints", {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                setComplaints(complaintsRes.data || []);
+                
+                // Fetch feedbacks
+                const feedbacksRes = await axios.get("/admin/feedbacks", {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                setFeedbacks(feedbacksRes.data || []);
+            } catch (e) {
+                console.error("Error refreshing notifications:", e);
+            }
+        };
+
+        // Set up interval for auto-refresh
+        const intervalId = setInterval(fetchAllNotifications, 5000);
+
+        // Cleanup interval on unmount
+        return () => clearInterval(intervalId);
+    }, []);
+
     // Close dropdown on outside click
     useEffect(() => {
         if (!notifOpen) return;
@@ -107,7 +190,7 @@ const NotificationAction = () => {
         try {
             const token = localStorage.getItem("token");
             await axios.post(
-                `/notifications/mark-read/${notifId}`,
+                `/admin/notifications/mark-read/${notifId}`,
                 {},
                 {
                     headers: { Authorization: `Bearer ${token}` },
@@ -123,12 +206,13 @@ const NotificationAction = () => {
         (async () => {
             try {
                 const token = localStorage.getItem("token");
-                const res = await axios.get("/notifications/read", {
+                const res = await axios.get("/admin/notifications/read", {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 setReadNotifs(new Set(res.data || []));
             } catch (e) {
                 console.error("Failed to load read notifications:", e);
+                setReadNotifs(new Set());
             }
         })();
     }, []);
@@ -216,7 +300,7 @@ const NotificationAction = () => {
                                             notifTab === t.key
                                                 ? {
                                                     background:
-                                                        "linear-gradient(90deg, var(--brand1,#F6C17C), var(--brand2,#E49A52), var(--brand3,#BF7327))",
+                                                        "linear-gradient(90deg, var(--brand1,#F6C17C), var(--brand2,#E4952), var(--brand3,#BF7327))",
                                                 }
                                                 : { background: "transparent" }
                                         }
@@ -253,7 +337,6 @@ const NotificationAction = () => {
                                                     onClick={() => {
                                                         markAsRead(n.id);
                                                         setNotifOpen(false);
-                                                        setActiveTab("users");
                                                     }}
                                                     className={`w-full p-3 focus:outline-none transition-colors flex items-center ${n.isRead
                                                         ? "bg-white hover:bg-[#fff6ec]"
@@ -301,7 +384,6 @@ const NotificationAction = () => {
                                                     onClick={() => {
                                                         markAsRead(n.id);
                                                         setNotifOpen(false);
-                                                        setActiveTab("complaints");
                                                     }}
                                                     className={`w-full p-3 focus:outline-none transition-colors flex items-center ${n.isRead
                                                         ? "bg-white hover:bg-[#fff6ec]"
@@ -349,7 +431,6 @@ const NotificationAction = () => {
                                                     onClick={() => {
                                                         markAsRead(n.id);
                                                         setNotifOpen(false);
-                                                        setActiveTab("reports");
                                                     }}
                                                     className={`w-full p-3 focus:outline-none transition-colors flex items-center ${n.isRead
                                                         ? "bg-white hover:bg-[#fff6ec]"

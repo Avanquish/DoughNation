@@ -348,7 +348,7 @@ const AdminDashboard = () => {
     try {
       const token = localStorage.getItem("token");
       await axios.post(
-        `/notifications/mark-read/${notifId}`,
+        `/admin/notifications/mark-read/${notifId}`,
         {},
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -364,7 +364,7 @@ const AdminDashboard = () => {
     (async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await axios.get("/notifications/read", {
+        const res = await axios.get("/admin/notifications/read", {
           headers: { Authorization: `Bearer ${token}` },
         });
         setReadNotifs(new Set(res.data || []));

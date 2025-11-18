@@ -58,7 +58,7 @@ const AdminUser = () => {
       Swal.fire("Approved!", "User has been verified.", "success");
       setPendingUsers((prev) => prev.filter((u) => u.id !== id));
       // refresh verified users (same as your original)
-      const res = await axios.get(`${API}/all-users`, {
+      const res = await axios.get(`${API}/admin/all-users`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setUsers(res.data.filter((u) => u.verified === true));

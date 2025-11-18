@@ -253,7 +253,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
     const threshold = Number(item.threshold);
 
-    if (threshold === 0 && d <= 1) return "soon";
+    if (threshold === 0 && d < 1) return "soon";
     if (d <= threshold) return "soon";
 
     return "fresh";

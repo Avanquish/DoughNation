@@ -20,7 +20,7 @@ const AdminUser = () => {
     (async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await axios.get(`${API}/pending-users`, {
+        const res = await axios.get(`${API}/admin/pending-users`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setPendingUsers(res.data || []);
@@ -35,7 +35,7 @@ const AdminUser = () => {
     (async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await axios.get(`${API}/all-users`, {
+        const res = await axios.get(`${API}/admin/all-users`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const verifiedUsers = res.data.filter((u) => u.verified === true);
@@ -51,7 +51,7 @@ const AdminUser = () => {
     try {
       const token = localStorage.getItem("token");
       await axios.post(
-        `${API}/verify-user/${id}`,
+        `${API}/admin/verify-user/${id}`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -73,7 +73,7 @@ const AdminUser = () => {
     try {
       const token = localStorage.getItem("token");
       await axios.post(
-        `${API}/reject-user/${id}`,
+        `${API}/admin/reject-user/${id}`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -99,7 +99,7 @@ const AdminUser = () => {
 
     try {
       const token = localStorage.getItem("token");
-      await axios.delete(`${API}/users/${id}`, {
+      await axios.delete(`${API}/admin/users/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setUsers((prev) => prev.filter((u) => u.id !== id));

@@ -338,6 +338,28 @@ export default function ComplaintModule({ isViewOnly = false }) {
                         </p>
                       )}
 
+                      {c.admin_reply && (
+                        <div className="mt-3 rounded-lg border border-[#d4f4dd] bg-gradient-to-br from-[#f0fdf4] to-[#dcfce7] p-3 shadow-sm">
+                          <div className="mb-1.5 flex items-center gap-2">
+                            <CheckCircle2 className="h-4 w-4 text-[#166534]" />
+                            <span className="text-[12px] font-bold text-[#166534]">
+                              Admin Response
+                            </span>
+                            {c.replied_at && (
+                              <>
+                                <span className="opacity-40 text-[#166534]">•</span>
+                                <span className="text-[11px] text-[#166534]/80">
+                                  {formatDate(c.replied_at)}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                          <p className="text-[13px] leading-relaxed text-[#15803d]">
+                            {c.admin_reply}
+                          </p>
+                        </div>
+                      )}
+
                       <div className="mt-3 flex flex-wrap items-center gap-3 text-[12px] text-[#6b4b2b]">
                         <span className="font-semibold text-[#4A2F17]">
                           Status:

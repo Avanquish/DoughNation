@@ -9,10 +9,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import Swal from "sweetalert2";
 
 export default function AdminComplaints() {
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedComplaint, setSelectedComplaint] = useState(null);
+  const [replyMessage, setReplyMessage] = useState("");
 
   // Auth token for API requests
   const token = localStorage.getItem("token");
@@ -45,6 +50,54 @@ export default function AdminComplaints() {
     } catch (err) {
       console.error("Error updating complaint status:", err);
     }
+  };
+
+  // Send reply to user
+  const sendReply = async () => {
+    if (!selectedComplaint || !replyMessage.trim()) {
+      Swal.fire({
+        icon: "warning",
+        title: "Missing Information",
+        text: "Please enter a reply message.",
+      });
+      return;
+    }
+
+    try {
+      await axios.post(
+        `http://localhost:8000/complaints/${selectedComplaint.id}/reply`,
+        { 
+          message: replyMessage,
+          status: "Resolved" 
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      Swal.fire({
+        icon: "success",
+        title: "Reply Sent",
+        text: "Your reply has been sent to the user and the complaint has been marked as resolved.",
+        timer: 2500,
+        showConfirmButton: false,
+      });
+
+      setSelectedComplaint(null);
+      setReplyMessage("");
+      fetchComplaints();
+    } catch (err) {
+      console.error("Error sending reply:", err);
+      Swal.fire({
+        icon: "error",
+        title: "Failed to Send Reply",
+        text: err.response?.data?.detail || "An error occurred while sending the reply.",
+      });
+    }
+  };
+
+  // Open reply dialog
+  const openReplyDialog = (complaint) => {
+    setSelectedComplaint(complaint);
+    setReplyMessage("");
   };
 
   useEffect(() => {
@@ -104,8 +157,8 @@ export default function AdminComplaints() {
                       <th className="px-3 py-3 text-center font-semibold w-[170px]">
                         Created
                       </th>
-                      <th className="px-3 py-3 text-center font-semibold w-[150px]">
-                        Action
+                      <th className="px-3 py-3 text-center font-semibold w-[200px]">
+                        Actions
                       </th>
                     </tr>
                   </thead>
@@ -136,45 +189,56 @@ export default function AdminComplaints() {
                         <td className="px-3 py-3 text-center text-[#7b5836]">
                           {new Date(c.created_at).toLocaleString()}
                         </td>
-                        <td className="px-3 py-3 text-center">
-                          <Select
-                            onValueChange={(val) => updateStatus(c.id, val)}
-                            defaultValue={c.status}
-                          >
-                            <SelectTrigger className="w-[140px] rounded-full bg-white ring-1 ring-[#f2e3cf] text-[#6b4b2b] font-semibold">
-                              <SelectValue placeholder="Update status" />
-                            </SelectTrigger>
+                        <td className="px-3 py-3">
+                          <div className="flex items-center justify-center gap-2">
+                            <Select
+                              onValueChange={(val) => updateStatus(c.id, val)}
+                              defaultValue={c.status}
+                            >
+                              <SelectTrigger className="w-[120px] rounded-full bg-white ring-1 ring-[#f2e3cf] text-[#6b4b2b] font-semibold text-xs">
+                                <SelectValue placeholder="Status" />
+                              </SelectTrigger>
 
-                            {/* White dropdown */}
-                            <SelectContent className="bg-white shadow-lg rounded-md ring-1 ring-[#f2e3cf]">
-                              <SelectItem
-                                value="Pending"
-                                className="relative pl-8 pr-8 py-2 text-sm rounded-sm cursor-default select-none outline-none
-               data-[highlighted]:bg-[#fff6ec] data-[highlighted]:text-[#6b4b2b]
-               data-[state=checked]:font-semibold"
-                              >
-                                Pending
-                              </SelectItem>
+                              <SelectContent className="bg-white shadow-lg rounded-md ring-1 ring-[#f2e3cf]">
+                                <SelectItem
+                                  value="Pending"
+                                  className="relative pl-8 pr-8 py-2 text-sm rounded-sm cursor-default select-none outline-none
+                   data-[highlighted]:bg-[#fff6ec] data-[highlighted]:text-[#6b4b2b]
+                   data-[state=checked]:font-semibold"
+                                >
+                                  Pending
+                                </SelectItem>
 
-                              <SelectItem
-                                value="In Review"
-                                className="relative pl-8 pr-8 py-2 text-sm rounded-sm cursor-default select-none outline-none
-               data-[highlighted]:bg-[#fff6ec] data-[highlighted]:text-[#6b4b2b]
-               data-[state=checked]:font-semibold"
-                              >
-                                In Review
-                              </SelectItem>
+                                <SelectItem
+                                  value="In Review"
+                                  className="relative pl-8 pr-8 py-2 text-sm rounded-sm cursor-default select-none outline-none
+                   data-[highlighted]:bg-[#fff6ec] data-[highlighted]:text-[#6b4b2b]
+                   data-[state=checked]:font-semibold"
+                                >
+                                  In Review
+                                </SelectItem>
 
-                              <SelectItem
-                                value="Resolved"
-                                className="relative pl-8 pr-8 py-2 text-sm rounded-sm cursor-default select-none outline-none
-               data-[highlighted]:bg-[#fff6ec] data-[highlighted]:text-[#6b4b2b]
-               data-[state=checked]:font-semibold"
-                              >
-                                Resolved
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
+                                <SelectItem
+                                  value="Resolved"
+                                  className="relative pl-8 pr-8 py-2 text-sm rounded-sm cursor-default select-none outline-none
+                   data-[highlighted]:bg-[#fff6ec] data-[highlighted]:text-[#6b4b2b]
+                   data-[state=checked]:font-semibold"
+                                >
+                                  Resolved
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+
+                            <Button
+                              onClick={() => openReplyDialog(c)}
+                              className="rounded-full px-3 py-1 text-xs font-semibold text-white
+                                       bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327]
+                                       shadow-sm hover:brightness-105"
+                              size="sm"
+                            >
+                              Send Message
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -195,6 +259,88 @@ export default function AdminComplaints() {
           )}
         </div>
       </div>
+
+      {/* Reply Modal */}
+      {selectedComplaint && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6
+                     bg-black/40 backdrop-blur-sm"
+          onClick={() => setSelectedComplaint(null)}
+        >
+          <div
+            className="w-full max-w-2xl max-h-[85vh]
+                       rounded-3xl overflow-hidden bg-white
+                       shadow-[0_24px_60px_rgba(0,0,0,.25)] ring-1 ring-black/10
+                       flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-[#FFE4C5] via-[#FFD49B] to-[#F0A95F]">
+              <h3 className="text-xl font-extrabold text-[#4A2F17]">
+                Send Reply to Complaint
+              </h3>
+              <p className="text-sm text-[#6b4b2b] mt-1">
+                Complaint ID: {selectedComplaint.id} | Subject: {selectedComplaint.subject}
+              </p>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div>
+                <p className="text-sm font-semibold text-[#4A2F17] mb-2">
+                  Complaint Details:
+                </p>
+                <div className="rounded-xl bg-[#FFF9F1] border border-[#f2e3cf] p-4">
+                  <p className="text-sm text-[#6b4b2b]">
+                    <strong>User:</strong> {selectedComplaint.user_name || "Unknown"}
+                  </p>
+                  <p className="text-sm text-[#6b4b2b] mt-2">
+                    <strong>Subject:</strong> {selectedComplaint.subject}
+                  </p>
+                  <p className="text-sm text-[#7b5836] mt-2">
+                    <strong>Created:</strong> {new Date(selectedComplaint.created_at).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-[#4A2F17] mb-2">
+                  Your Reply Message <span className="text-red-500">*</span>
+                </label>
+                <Textarea
+                  value={replyMessage}
+                  onChange={(e) => setReplyMessage(e.target.value)}
+                  placeholder="Type your reply to the user here..."
+                  rows={6}
+                  className="w-full rounded-xl border-[#f2e3cf] focus:ring-2 focus:ring-[#E49A52] resize-none"
+                />
+                <p className="text-xs text-[#7b5836] mt-2">
+                  This message will be sent to the user and the complaint will be marked as "Resolved".
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-[#FFF9F1] border-t border-[#f2e3cf] flex items-center justify-end gap-3">
+              <Button
+                onClick={() => setSelectedComplaint(null)}
+                variant="outline"
+                className="rounded-full border-[#e9d7c3] text-[#6b4b2b] hover:bg-[#fff6ec]"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={sendReply}
+                className="rounded-full px-5 font-semibold text-white
+                         bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327]
+                         shadow-md hover:brightness-105"
+              >
+                Send Reply & Resolve
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

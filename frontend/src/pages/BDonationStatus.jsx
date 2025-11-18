@@ -643,24 +643,14 @@ const BDonationStatus = () => {
     const stat = (d.tracking_status || d.status || "pending").toLowerCase();
     const theme = statusTheme(stat);
 
-    // Only allow clicks for employees
-    const handleClick = currentUser?.isEmployee ? onClick : undefined;
-    const cursorClass = currentUser?.isEmployee
-      ? "cursor-pointer"
-      : "cursor-not-allowed opacity-60";
-
     return (
       <div
         id={`received-${d.donation_id || d.id}`}
-        onClick={handleClick}
+        onClick={onClick}
         className={`group rounded-2xl border border-[#f2e3cf] bg-white/70
             shadow-[0_2px_10px_rgba(93,64,28,.05)]
-            overflow-hidden transition-all duration-300 ${cursorClass}
-            ${
-              currentUser?.isEmployee
-                ? `hover:scale-[1.015] hover:shadow-[0_14px_32px_rgba(191,115,39,.18)] hover:ring-1 ${theme.hoverRing}`
-                : ""
-            }
+            overflow-hidden transition-all duration-300 cursor-pointer
+            hover:scale-[1.015] hover:shadow-[0_14px_32px_rgba(191,115,39,.18)] hover:ring-1 ${theme.hoverRing}
             ${
               highlightedId === (d.donation_id || d.id)
                 ? `ring-2 ${theme.ring}`
@@ -1254,27 +1244,26 @@ const BDonationStatus = () => {
               </div>
 
               {/* CTA*/}
-              {currentUser?.isEmployee &&
-                (selectedDonation.tracking_status === "preparing" ||
-                  selectedDonation.tracking_status === "ready_for_pickup") && (
-                  <button
-                    onClick={() =>
-                      handleUpdateTracking(
-                        selectedDonation.id,
-                        selectedDonation.tracking_status,
-                        selectedDonation.btracking_status !== undefined
-                      )
-                    }
-                    className="mt-6 w-full rounded-full px-5 py-3 font-semibold text-white
+              {(selectedDonation.tracking_status === "preparing" ||
+                selectedDonation.tracking_status === "ready_for_pickup") && (
+                <button
+                  onClick={() =>
+                    handleUpdateTracking(
+                      selectedDonation.id,
+                      selectedDonation.tracking_status,
+                      selectedDonation.btracking_status !== undefined
+                    )
+                  }
+                  className="mt-6 w-full rounded-full px-5 py-3 font-semibold text-white
                            bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327]
                            shadow-[0_10px_26px_rgba(201,124,44,.25)]
                            hover:brightness-[1.05] transition"
-                  >
-                    {selectedDonation.tracking_status === "preparing"
-                      ? "Mark as Ready for Pickup"
-                      : "Mark as In Transit"}
-                  </button>
-                )}
+                >
+                  {selectedDonation.tracking_status === "preparing"
+                    ? "Mark as Ready for Pickup"
+                    : "Mark as In Transit"}
+                </button>
+              )}
             </div>
           </div>
         </div>

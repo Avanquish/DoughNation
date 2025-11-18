@@ -60,7 +60,7 @@ class User(Base):
     sent_messages = relationship("Message", back_populates="sender", foreign_keys="Message.sender_id")
     received_messages = relationship("Message", back_populates="receiver", foreign_keys="Message.receiver_id")
 
-    complaints = relationship("Complaint", back_populates="user")
+    complaints = relationship("Complaint", back_populates="user", foreign_keys="Complaint.user_id")
 
     badges = relationship("UserBadge", back_populates="user", cascade="all, delete-orphan")
     badge_progress = relationship("BadgeProgress", back_populates="user", cascade="all, delete-orphan")
@@ -276,8 +276,13 @@ class Complaint(Base):
     status = Column(Enum(ComplaintStatus), default=ComplaintStatus.pending)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Admin reply fields
+    admin_reply = Column(Text, nullable=True)
+    replied_at = Column(DateTime, nullable=True)
+    replied_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 
-    user = relationship("User", back_populates="complaints")
+    user = relationship("User", back_populates="complaints", foreign_keys=[user_id])
 
 #--------Badges------------    
 class Badge(Base):

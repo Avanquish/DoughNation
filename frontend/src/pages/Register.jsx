@@ -256,12 +256,18 @@ export default function Register() {
     >
       {/* Fluid Sizing */}
       <style>{`
-        :root{
-          --title-lg: clamp(28px, 2.2vw + 1rem, 40px);
-          --brand: clamp(22px, 1.2vw + 1rem, 24px);
-          --text: clamp(.95rem, .85rem + .25vw, 1.05rem);
-        }
-      `}</style>
+      :root{
+        --title-lg: clamp(28px, 2.2vw + 1rem, 40px);
+        --brand: clamp(22px, 1.2vw + 1rem, 24px);
+        --text: clamp(.95rem, .85rem + .25vw, 1.05rem);
+      }
+
+      /* Hide browser's built-in password reveal icon (Edge/IE) */
+      input[type="password"]::-ms-reveal,
+      input[type="password"]::-ms-clear {
+        display: none;
+      }
+    `}</style>
 
       {/* Background layers */}
       <div

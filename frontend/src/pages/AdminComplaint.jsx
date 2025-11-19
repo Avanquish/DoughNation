@@ -24,13 +24,18 @@ export default function AdminComplaints() {
 
   // Fetch all complaints
   const fetchComplaints = async () => {
-    //
     try {
       setLoading(true);
       const res = await axios.get("http://localhost:8000/complaints/", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setComplaints(res.data);
+
+      // KEEP COMPLAINT ORDER STABLE
+      const sortedComplaints = [...res.data].sort(
+        (a, b) => new Date(a.created_at) - new Date(b.created_at)
+      );
+
+      setComplaints(sortedComplaints);
     } catch (err) {
       console.error("Error fetching complaints:", err);
     } finally {
@@ -66,9 +71,9 @@ export default function AdminComplaints() {
     try {
       await axios.post(
         `http://localhost:8000/complaints/${selectedComplaint.id}/reply`,
-        { 
+        {
           message: replyMessage,
-          status: "Resolved" 
+          status: "Resolved",
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -89,7 +94,9 @@ export default function AdminComplaints() {
       Swal.fire({
         icon: "error",
         title: "Failed to Send Reply",
-        text: err.response?.data?.detail || "An error occurred while sending the reply.",
+        text:
+          err.response?.data?.detail ||
+          "An error occurred while sending the reply.",
       });
     }
   };
@@ -111,8 +118,8 @@ export default function AdminComplaints() {
       v === "resolved"
         ? "bg-[#e8f7ee] text-[#166534] ring-[#bbecd0]"
         : v === "in review"
-          ? "bg-[#fff7e6] text-[#8a5a25] ring-[#f3ddc0]"
-          : "bg-[#fff1f1] text-[#991b1b] ring-[#f5caca]";
+        ? "bg-[#fff7e6] text-[#8a5a25] ring-[#f3ddc0]"
+        : "bg-[#fff1f1] text-[#991b1b] ring-[#f5caca]";
     return (
       <span
         className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ring-1 ${styles}`}
@@ -168,9 +175,8 @@ export default function AdminComplaints() {
                     {complaints.map((c) => (
                       <tr
                         key={c.id}
-                        className="odd:bg-white even:bg-white/80 hover:bg-[#fff6ec] relative z-[1] transform-gpu transition-colors transition-transform duration-200 hover:scale-[1.015] hover:shadow-[0_12px_28px_rgba(201,124,44,0.18)] hover:ring-1 hover:ring-[#e9d7c3]"
+                        className="odd:bg-white even:bg-white/80 hover:bg-[#fff6ec] relative z-[1] transition-colors duration-200 hover:shadow-[0_12px_28px_rgba(201,124,44,0.18)] hover:ring-1 hover:ring-[#e9d7c3]"
                       >
-                        {" "}
                         <td className="px-3 py-3 text-center font-medium text-[#6b4b2b]">
                           {c.id}
                         </td>
@@ -191,40 +197,44 @@ export default function AdminComplaints() {
                         </td>
                         <td className="px-3 py-3">
                           <div className="flex items-center justify-center gap-2">
+                            {/* STATUS DROPDOWN */}
                             <Select
                               onValueChange={(val) => updateStatus(c.id, val)}
                               defaultValue={c.status}
                             >
-                              <SelectTrigger className="w-[120px] rounded-full bg-white ring-1 ring-[#f2e3cf] text-[#6b4b2b] font-semibold text-xs">
+                              <SelectTrigger className="w-[150px] justify-between rounded-full border border-[#f2e3cf] bg-[#FFF9F1] px-4 py-2 text-xs sm:text-sm font-semibold text-[#6b4b2b] shadow-sm hover:bg-[#FFEBD5] focus:ring-2 focus:ring-[#E49A52] focus:ring-offset-0">
                                 <SelectValue placeholder="Status" />
                               </SelectTrigger>
 
-                              <SelectContent className="bg-white shadow-lg rounded-md ring-1 ring-[#f2e3cf]">
+                              <SelectContent className="min-w-[180px] rounded-2xl border border-[#f2e3cf] bg-white shadow-xl py-1">
                                 <SelectItem
                                   value="Pending"
-                                  className="relative pl-8 pr-8 py-2 text-sm rounded-sm cursor-default select-none outline-none
-                   data-[highlighted]:bg-[#fff6ec] data-[highlighted]:text-[#6b4b2b]
-                   data-[state=checked]:font-semibold"
+                                  className="relative cursor-pointer select-none px-4 py-2 text-sm text-[#4A2F17] outline-none data-[highlighted]:bg-[#FFF6EC] data-[highlighted]:text-[#4A2F17] data-[state=checked]:bg-[#FFF1DA] data-[state=checked]:font-semibold [&>span:first-child]:hidden"
                                 >
-                                  Pending
+                                  <div className="flex items-center gap-2">
+                                    <span className="h-2.5 w-2.5 rounded-full bg-[#F97316]" />
+                                    <span>Pending</span>
+                                  </div>
                                 </SelectItem>
 
                                 <SelectItem
                                   value="In Review"
-                                  className="relative pl-8 pr-8 py-2 text-sm rounded-sm cursor-default select-none outline-none
-                   data-[highlighted]:bg-[#fff6ec] data-[highlighted]:text-[#6b4b2b]
-                   data-[state=checked]:font-semibold"
+                                  className="relative cursor-pointer select-none px-4 py-2 text-sm text-[#4A2F17] outline-none data-[highlighted]:bg-[#FFF6EC] data-[highlighted]:text-[#4A2F17] data-[state=checked]:bg-[#FFF1DA] data-[state=checked]:font-semibold [&>span:first-child]:hidden"
                                 >
-                                  In Review
+                                  <div className="flex items-center gap-2">
+                                    <span className="h-2.5 w-2.5 rounded-full bg-[#FACC15]" />
+                                    <span>In Review</span>
+                                  </div>
                                 </SelectItem>
 
                                 <SelectItem
                                   value="Resolved"
-                                  className="relative pl-8 pr-8 py-2 text-sm rounded-sm cursor-default select-none outline-none
-                   data-[highlighted]:bg-[#fff6ec] data-[highlighted]:text-[#6b4b2b]
-                   data-[state=checked]:font-semibold"
+                                  className="relative cursor-pointer select-none px-4 py-2 text-sm text-[#4A2F17] outline-none data-[highlighted]:bg-[#FFF6EC] data-[highlighted]:text-[#4A2F17] data-[state=checked]:bg-[#FFF1DA] data-[state=checked]:font-semibold [&>span:first-child]:hidden"
                                 >
-                                  Resolved
+                                  <div className="flex items-center gap-2">
+                                    <span className="h-2.5 w-2.5 rounded-full bg-[#22C55E]" />
+                                    <span>Resolved</span>
+                                  </div>
                                 </SelectItem>
                               </SelectContent>
                             </Select>
@@ -263,15 +273,17 @@ export default function AdminComplaints() {
       {/* Reply Modal */}
       {selectedComplaint && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6
+          className="fixed inset-0 z-50 flex items-center justify-center px-4 sm:px-6
                      bg-black/40 backdrop-blur-sm"
           onClick={() => setSelectedComplaint(null)}
         >
           <div
-            className="w-full max-w-2xl max-h-[85vh]
+            className="w-full max-w-lg sm:max-w-2xl
+                       max-h-[78vh] sm:max-h-[72vh]
                        rounded-3xl overflow-hidden bg-white
                        shadow-[0_24px_60px_rgba(0,0,0,.25)] ring-1 ring-black/10
-                       flex flex-col"
+                       flex flex-col
+                       translate-y-10 sm:translate-y-14"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -280,7 +292,8 @@ export default function AdminComplaints() {
                 Send Reply to Complaint
               </h3>
               <p className="text-sm text-[#6b4b2b] mt-1">
-                Complaint ID: {selectedComplaint.id} | Subject: {selectedComplaint.subject}
+                Complaint ID: {selectedComplaint.id} | Subject:{" "}
+                {selectedComplaint.subject}
               </p>
             </div>
 
@@ -292,13 +305,15 @@ export default function AdminComplaints() {
                 </p>
                 <div className="rounded-xl bg-[#FFF9F1] border border-[#f2e3cf] p-4">
                   <p className="text-sm text-[#6b4b2b]">
-                    <strong>User:</strong> {selectedComplaint.user_name || "Unknown"}
+                    <strong>User:</strong>{" "}
+                    {selectedComplaint.user_name || "Unknown"}
                   </p>
                   <p className="text-sm text-[#6b4b2b] mt-2">
                     <strong>Subject:</strong> {selectedComplaint.subject}
                   </p>
                   <p className="text-sm text-[#7b5836] mt-2">
-                    <strong>Created:</strong> {new Date(selectedComplaint.created_at).toLocaleString()}
+                    <strong>Created:</strong>{" "}
+                    {new Date(selectedComplaint.created_at).toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -315,7 +330,8 @@ export default function AdminComplaints() {
                   className="w-full rounded-xl border-[#f2e3cf] focus:ring-2 focus:ring-[#E49A52] resize-none"
                 />
                 <p className="text-xs text-[#7b5836] mt-2">
-                  This message will be sent to the user and the complaint will be marked as "Resolved".
+                  This message will be sent to the user and the complaint will
+                  be marked as "Resolved".
                 </p>
               </div>
             </div>

@@ -388,9 +388,11 @@ export default function BakeryProfile() {
 
     try {
       // ✅ Use different endpoint based on who is logged in
-      const endpoint = employeeToken ? "/employee-change-password" : "/changepass";
+      const endpoint = employeeToken
+        ? "/employee-change-password"
+        : "/changepass";
       const method = employeeToken ? "post" : "put"; // Employee uses POST, Bakery uses PUT
-      
+
       await axios({
         method: method,
         url: `${API}${endpoint}`,
@@ -402,7 +404,7 @@ export default function BakeryProfile() {
       });
 
       setIsChangePassOpen(false);
-      
+
       // ✅ If employee changed password successfully, update token and show message
       if (employeeToken) {
         Swal.fire({
@@ -423,10 +425,11 @@ export default function BakeryProfile() {
       }
     } catch (err) {
       console.error("Failed to change password:", err);
-      
-      const errorMessage = err.response?.data?.detail || 
+
+      const errorMessage =
+        err.response?.data?.detail ||
         "There was an error updating your password. Please try again.";
-      
+
       Swal.fire({
         icon: "error",
         title: "Update Failed",
@@ -495,7 +498,9 @@ export default function BakeryProfile() {
         Swal.fire({
           icon: "error",
           title: "Deactivation Failed",
-          text: err.response?.data?.detail || "Failed to deactivate account. Please try again.",
+          text:
+            err.response?.data?.detail ||
+            "Failed to deactivate account. Please try again.",
         });
       }
     }
@@ -666,6 +671,112 @@ export default function BakeryProfile() {
       .modal-head{background:linear-gradient(180deg,#fff,#fff8ef); border-bottom:1px solid rgba(0,0,0,.06)}
       .modal-input{border-radius:10px; padding:.65rem .8rem; border:1px solid rgba(0,0,0,.18)}
       .modal-input:focus{outline:none; border-color:#E49A52; box-shadow:0 0 0 3px rgba(228,154,82,.2)}
+
+      /* Mobile header icons */
+      @media (max-width: 480px){
+        .hdr-container .iconbar{
+          gap: .35rem;
+        }
+
+        .hdr-container .iconbar .icon-btn{
+          width: 32px;
+          height: 32px;
+        }
+
+        .hdr-container .iconbar .icon-btn svg{
+          width: 16px;
+          height: 16px;
+        }
+
+        .btn-logout{
+          padding: .35rem .55rem;
+        }
+
+        .btn-logout svg{
+          width: 16px;
+          height: 16px;
+        }
+
+        .brand-pop{
+          margin-right: .25rem;
+        }
+      }
+
+      /* ===== Danger Zone (About tab) ===== */
+      .danger-zone{
+        position:relative;
+        border-radius:14px;
+        padding:1rem 1.1rem 1.1rem;
+        background:linear-gradient(135deg,#fef2f2,#fee2e2);
+        border:1px solid rgba(248,113,113,.6);
+        box-shadow:0 12px 30px rgba(248,113,113,.18);
+        overflow:hidden;
+      }
+      .danger-zone::before{
+        content:"";
+        position:absolute;
+        inset:0;
+        background:radial-gradient(circle at top left, rgba(248,250,252,.85) 0, transparent 55%);
+        opacity:.7;
+        pointer-events:none;
+      }
+
+      .danger-zone-eyebrow{
+        font-size:.68rem;
+        text-transform:uppercase;
+        letter-spacing:.12em;
+        font-weight:700;
+        color:rgba(127,29,29,.85);
+      }
+      .danger-zone-title{
+        font-weight:800;
+        font-size:1rem;
+        color:#7f1d1d;
+        margin-top:.25rem;
+      }
+      .danger-zone-text{
+        font-size:.78rem;
+        color:#b91c1c;
+        margin-top:.4rem;
+      }
+      .danger-zone-list{
+        margin-top:.5rem;
+        font-size:.75rem;
+        color:#7f1d1d;
+        padding-left:1.1rem;
+      }
+      .danger-zone-list li{
+        list-style:disc;
+        margin-bottom:.15rem;
+      }
+      .danger-zone-icon{
+        width:40px;
+        height:40px;
+        border-radius:9999px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        background:rgba(254,202,202,.9);
+        border:1px solid rgba(248,113,113,.7);
+        box-shadow:0 8px 18px rgba(248,113,113,.35);
+        color:#7f1d1d;
+        flex-shrink:0;
+      }
+      .danger-zone-btn{
+        border-radius:9999px;
+        padding:.55rem 1.1rem;
+        font-weight:700;
+        font-size:.8rem;
+        background:linear-gradient(135deg,#dc2626,#b91c1c);
+        border:1px solid rgba(254,242,242,.7);
+        box-shadow:0 10px 26px rgba(220,38,38,.4);
+      }
+      .danger-zone-btn:hover{
+        filter:brightness(1.02);
+        transform:translateY(-1px);
+        box-shadow:0 14px 32px rgba(185,28,28,.55);
+      }
+
     `}</style>
   );
 
@@ -1039,22 +1150,54 @@ export default function BakeryProfile() {
 
                       {/* Deactivate Account - Only for Owner */}
                       {!isEmployeeMode && (
-                        <CardContent className="pt-0 border-t border-gray-200">
-                          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                            <h3 className="text-sm font-semibold text-red-800 mb-2">
-                              Danger Zone
-                            </h3>
-                            <p className="text-xs text-red-600 mb-3">
-                              Deactivating your account will disable login and hide your bakery from the platform. Only the bakery owner can perform this action.
-                            </p>
-                            <Button
-                              onClick={handleDeactivateAccount}
-                              variant="destructive"
-                              size="sm"
-                              className="bg-red-600 hover:bg-red-700"
-                            >
-                              Deactivate Account
-                            </Button>
+                        <CardContent className="pt-4 mt-4 border-t border-red-100">
+                          <div className="danger-zone">
+                            <div className="relative flex items-start gap-3">
+                              {/* Icon bubble */}
+                              <div className="danger-zone-icon">
+                                <AlertTriangle className="w-5 h-5" />
+                              </div>
+
+                              {/* Text + button */}
+                              <div className="flex-1">
+                                <p className="danger-zone-eyebrow">
+                                  Account Status
+                                </p>
+                                <h3 className="danger-zone-title">
+                                  Danger Zone
+                                </h3>
+
+                                <p className="danger-zone-text">
+                                  Deactivating your bakery will:
+                                </p>
+
+                                <ul className="danger-zone-list">
+                                  <li>Disable login access for this bakery</li>
+                                  <li>
+                                    Hide your bakery from the DoughNation
+                                    platform
+                                  </li>
+                                  <li>
+                                    Prevent new donations from being requested
+                                  </li>
+                                </ul>
+
+                                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                                  <p className="text-[0.7rem] text-red-500/80">
+                                    Only the bakery owner can perform this
+                                    action.
+                                  </p>
+                                  <Button
+                                    onClick={handleDeactivateAccount}
+                                    variant="destructive"
+                                    size="sm"
+                                    className="danger-zone-btn"
+                                  >
+                                    Deactivate Account
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </CardContent>
                       )}

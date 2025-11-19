@@ -1,7 +1,15 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
-import { Crown, Medal, TrendingUp, Users, PackageCheck, Building2, HeartHandshake } from "lucide-react";
+import {
+  Crown,
+  Medal,
+  TrendingUp,
+  Users,
+  PackageCheck,
+  Building2,
+  HeartHandshake,
+} from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -43,7 +51,9 @@ const Leaderboards = () => {
   if (loading) {
     return (
       <div className="p-4 sm:p-6">
-        <p className="text-center text-[#6b4b2b]">Loading leaderboard data...</p>
+        <p className="text-center text-[#6b4b2b]">
+          Loading leaderboard data...
+        </p>
       </div>
     );
   }
@@ -79,14 +89,24 @@ const Leaderboards = () => {
   const LeaderboardTable = ({ data, type }) => (
     <div className="overflow-hidden rounded-2xl bg-white/95 shadow ring-1 ring-[#e9d7c3]">
       <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
+        <table className="min-w-full text-xs sm:text-sm">
           <thead className="bg-[#EADBC8] text-[#4A2F17]">
             <tr>
-              <th className="px-4 py-3 text-left font-semibold w-[100px]">Rank</th>
-              <th className="px-4 py-3 text-left font-semibold">{type === 'bakery' ? 'Bakery' : 'Charity'}</th>
-              <th className="px-4 py-3 text-right font-semibold w-[120px]">Count</th>
-              <th className="px-4 py-3 text-right font-semibold w-[140px]">Total Items</th>
-              <th className="px-4 py-3 text-right font-semibold w-[140px]">Latest Date</th>
+              <th className="px-4 py-3 text-left font-semibold w-[100px]">
+                Rank
+              </th>
+              <th className="px-4 py-3 text-left font-semibold">
+                {type === "bakery" ? "Bakery" : "Charity"}
+              </th>
+              <th className="px-4 py-3 text-right font-semibold w-[120px]">
+                Count
+              </th>
+              <th className="px-4 py-3 text-right font-semibold w-[140px]">
+                Total Items
+              </th>
+              <th className="px-4 py-3 text-right font-semibold w-[140px]">
+                Latest Date
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#f2d4b5]">
@@ -102,30 +122,45 @@ const Leaderboards = () => {
 
               return (
                 <tr
-                  key={type === 'bakery' ? item.bakery_id : item.charity_id}
-                  className={`${topRow} hover:bg-[#fff6ec] transition-all duration-200 transform-gpu hover:scale-[1.01] hover:shadow-lg relative z-[1]`}
+                  key={type === "bakery" ? item.bakery_id : item.charity_id}
+                  className={`${topRow} hover:bg-[#fff6ec] transition-all duration-150 hover:shadow-sm`}
                 >
                   <td className="px-4 py-3">
                     <RankBadge rank={item.rank} />
                   </td>
                   <td className="px-4 py-3 text-[#3b2a18] font-medium">
-                    {type === 'bakery' ? item.bakery_name : item.charity_name}
+                    {type === "bakery" ? item.bakery_name : item.charity_name}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold text-[#6b4b2b]">
-                    {formatNumber(type === 'bakery' ? item.total_donations : item.total_received)}
+                    {formatNumber(
+                      type === "bakery"
+                        ? item.total_donations
+                        : item.total_received
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right font-extrabold text-[#2a170a]">
-                    {formatNumber(type === 'bakery' ? item.total_quantity : item.total_quantity_received)}
+                    {formatNumber(
+                      type === "bakery"
+                        ? item.total_quantity
+                        : item.total_quantity_received
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right text-[#7b5836] text-xs">
-                    {formatDate(type === 'bakery' ? item.latest_donation_date : item.latest_received_date)}
+                    {formatDate(
+                      type === "bakery"
+                        ? item.latest_donation_date
+                        : item.latest_received_date
+                    )}
                   </td>
                 </tr>
               );
             })}
             {data.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-[#6b4b2b]/70">
+                <td
+                  colSpan={5}
+                  className="px-4 py-10 text-center text-[#6b4b2b]/70"
+                >
                   No data available yet.
                 </td>
               </tr>
@@ -141,7 +176,7 @@ const Leaderboards = () => {
       {/* Stats Overview */}
       {stats && (
         <div className="p-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Card className="bg-gradient-to-br from-white to-[#FFF9F1] border-[#e8d8c2] shadow-md">
+          <Card className="bg-gradient-to-br from-white to-[#FFF9F1] border-[#e8d8c2] shadow-sm transition-transform duration-200 hover:shadow-md hover:scale-[1.01]">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold text-[#6b4b2b] flex items-center gap-2">
                 <Building2 className="w-4 h-4" />
@@ -149,12 +184,14 @@ const Leaderboards = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-[#2a170a]">{stats.active_bakeries} / {stats.total_bakeries}</div>
+              <div className="text-2xl font-bold text-[#2a170a]">
+                {stats.active_bakeries} / {stats.total_bakeries}
+              </div>
               <p className="text-xs text-[#7b5836] mt-1">Active contributors</p>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-white to-[#FFF9F1] border-[#e8d8c2] shadow-md">
+          <Card className="bg-gradient-to-br from-white to-[#FFF9F1] border-[#e8d8c2] shadow-sm transition-transform duration-200 hover:shadow-md hover:scale-[1.01]">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold text-[#6b4b2b] flex items-center gap-2">
                 <HeartHandshake className="w-4 h-4" />
@@ -162,12 +199,14 @@ const Leaderboards = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-[#2a170a]">{stats.active_charities} / {stats.total_charities}</div>
+              <div className="text-2xl font-bold text-[#2a170a]">
+                {stats.active_charities} / {stats.total_charities}
+              </div>
               <p className="text-xs text-[#7b5836] mt-1">Active recipients</p>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-white to-[#FFF9F1] border-[#e8d8c2] shadow-md">
+          <Card className="bg-gradient-to-br from-white to-[#FFF9F1] border-[#e8d8c2] shadow-sm transition-transform duration-200 hover:shadow-md hover:scale-[1.01]">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold text-[#6b4b2b] flex items-center gap-2">
                 <PackageCheck className="w-4 h-4" />
@@ -175,8 +214,13 @@ const Leaderboards = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-[#2a170a]">{formatNumber(stats.total_items_donated)}</div>
-              <p className="text-xs text-[#7b5836] mt-1">Items donated ({formatNumber(stats.total_donations_completed)} donations)</p>
+              <div className="text-2xl font-bold text-[#2a170a]">
+                {formatNumber(stats.total_items_donated)}
+              </div>
+              <p className="text-xs text-[#7b5836] mt-1">
+                Items donated ({formatNumber(stats.total_donations_completed)}{" "}
+                donations)
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -188,16 +232,15 @@ const Leaderboards = () => {
           {/* Header with Tabs */}
           <div className="px-2 pt-2 pb-4 border-b border-[#e8d8c2]/70">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              
               <TabsList className="bg-[#EADBC8]/50 p-1 rounded-xl w-full sm:w-auto">
-                <TabsTrigger 
-                  value="bakeries" 
+                <TabsTrigger
+                  value="bakeries"
                   className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:to-[#E49A52] data-[state=active]:text-white rounded-lg px-6"
                 >
                   <Building2 className="w-4 h-4 mr-2" />
                   Bakeries
                 </TabsTrigger>
-                <TabsTrigger 
+                <TabsTrigger
                   value="charities"
                   className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:to-[#E49A52] data-[state=active]:text-white rounded-lg px-6"
                 >
@@ -220,7 +263,8 @@ const Leaderboards = () => {
             <TabsContent value="charities" className="mt-0">
               <LeaderboardTable data={charityLeaderboard} type="charity" />
               <p className="mt-4 text-center text-[#6b4b2b]/70 text-xs">
-                Rankings based on total received items (completed donations only)
+                Rankings based on total received items (completed donations
+                only)
               </p>
             </TabsContent>
           </div>

@@ -9,7 +9,8 @@ import {
   ShieldAlert,
   Activity,
   Filter,
-  RefreshCw
+  RefreshCw,
+  Users,
 } from "lucide-react";
 import axios from "axios";
 import Swal from "sweetalert2";
@@ -33,9 +34,7 @@ export default function AdminReports() {
   const normalizePath = (path) => path.replace(/\\/g, "/");
 
   // Report types
-  const reportTypes = [
-    { key: "manage_users", label: "Manage Users" }
-  ];
+  const reportTypes = [{ key: "manage_users", label: "Manage Users" }];
 
   // Event type labels for display
   const eventTypeLabels = {
@@ -44,7 +43,7 @@ export default function AdminReports() {
     sos_alert: "SOS Alert",
     geofence_breach: "Geofence Breach",
     uptime: "System Uptime",
-    downtime: "System Downtime"
+    downtime: "System Downtime",
   };
 
   // Predefined event types
@@ -54,14 +53,14 @@ export default function AdminReports() {
     "sos_alert",
     "geofence_breach",
     "uptime",
-    "downtime"
+    "downtime",
   ];
 
   // Severity colors
   const severityColors = {
     info: "bg-blue-100 text-blue-800 border-blue-300",
     warning: "bg-yellow-100 text-yellow-800 border-yellow-300",
-    critical: "bg-red-100 text-red-800 border-red-300"
+    critical: "bg-red-100 text-red-800 border-red-300",
   };
 
   const getReportLabel = (key) => {
@@ -211,8 +210,9 @@ export default function AdminReports() {
 
       Swal.update({
         title: "Generating Report...",
-        html: `Processed ${Math.min(i + batchSize, reportData.length)} of ${reportData.length
-          } records`,
+        html: `Processed ${Math.min(i + batchSize, reportData.length)} of ${
+          reportData.length
+        } records`,
         allowOutsideClick: false,
         didOpen: () => {
           Swal.showLoading();
@@ -329,25 +329,26 @@ export default function AdminReports() {
           </thead>
           <tbody>
             ${reportData
-        .map(
-          (row) => `
+              .map(
+                (row) => `
               <tr>
                 <td>${row.role}</td>
                 <td>${row.name}</td>
                 <td>${row.email}</td>
                 <td>${row.contact_person}</td>
                 <td>${row.address}</td>
-                <td>${row.profile_picture
-              ? `<img src="${API_URL}/${normalizePath(
-                row.profile_picture
-              )}"/>`
-              : ""
-            }</td>
+                <td>${
+                  row.profile_picture
+                    ? `<img src="${API_URL}/${normalizePath(
+                        row.profile_picture
+                      )}"/>`
+                    : ""
+                }</td>
                 <td>${row.created_at}</td>
               </tr>
             `
-        )
-        .join("")}
+              )
+              .join("")}
           </tbody>
         </table>
       </body>
@@ -378,7 +379,7 @@ export default function AdminReports() {
       const params = {
         start_date: startDate,
         end_date: endDate,
-        limit: 1000
+        limit: 1000,
       };
 
       if (eventType) params.event_type = eventType;
@@ -386,7 +387,7 @@ export default function AdminReports() {
 
       const res = await axios.get(`${API_URL}/superadmin/events`, {
         headers: { Authorization: `Bearer ${token}` },
-        params
+        params,
       });
 
       setEventData(res.data.events || []);
@@ -420,7 +421,7 @@ export default function AdminReports() {
       const token = localStorage.getItem("token");
       const res = await axios.get(`${API_URL}/superadmin/events/summary`, {
         headers: { Authorization: `Bearer ${token}` },
-        params: { start_date: startDate, end_date: endDate }
+        params: { start_date: startDate, endDate: endDate },
       });
 
       setEventSummary(res.data);
@@ -442,34 +443,34 @@ export default function AdminReports() {
       "User ID",
       "User Name",
       "User Email",
-      "User Role"
+      "User Role",
     ];
 
     const rows = eventData.map((event) => {
-    const date = new Date(event.timestamp);
-    date.setHours(date.getHours() + 8);
-    const formattedDate = date.toLocaleString('en-PH', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true
+      const date = new Date(event.timestamp);
+      date.setHours(date.getHours() + 8);
+      const formattedDate = date.toLocaleString("en-PH", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      });
+
+      return [
+        `"${event.id}"`,
+        `"${event.event_type}"`,
+        `"${event.description}"`,
+        `"${event.severity}"`,
+        `"${formattedDate}"`,
+        `"${event.user?.id || "N/A"}"`,
+        `"${event.user?.name || "N/A"}"`,
+        `"${event.user?.email || "N/A"}"`,
+        `"${event.user?.role || "N/A"}"`,
+      ].join(",");
     });
-    
-    return [
-      `"${event.id}"`,
-      `"${event.event_type}"`,
-      `"${event.description}"`,
-      `"${event.severity}"`,
-      `"${formattedDate}"`,
-      `"${event.user?.id || 'N/A'}"`,
-      `"${event.user?.name || 'N/A'}"`,
-      `"${event.user?.email || 'N/A'}"`,
-      `"${event.user?.role || 'N/A'}"`
-    ].join(",");
-  });
 
     const csvContent = [headers.join(","), ...rows].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -505,12 +506,9 @@ export default function AdminReports() {
     // Date range
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text(
-      `Period: ${startDate} to ${endDate}`,
-      pageWidth / 2,
-      currentY,
-      { align: "center" }
-    );
+    doc.text(`Period: ${startDate} to ${endDate}`, pageWidth / 2, currentY, {
+      align: "center",
+    });
     currentY += 25;
 
     // Summary stats if available
@@ -527,7 +525,9 @@ export default function AdminReports() {
 
       const sevCounts = eventSummary.severities || {};
       doc.text(
-        `Critical: ${sevCounts.critical || 0} | Warning: ${sevCounts.warning || 0} | Info: ${sevCounts.info || 0}`,
+        `Critical: ${sevCounts.critical || 0} | Warning: ${
+          sevCounts.warning || 0
+        } | Info: ${sevCounts.info || 0}`,
         40,
         currentY
       );
@@ -542,32 +542,33 @@ export default function AdminReports() {
       "Severity",
       "Timestamp",
       "User",
-      "Role"
+      "Role",
     ];
 
     const rows = eventData.map((event) => {
-    const date = new Date(event.timestamp);
-    date.setHours(date.getHours() + 8);
-    const formattedDate = date.toLocaleString('en-PH', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true
+      const date = new Date(event.timestamp);
+      date.setHours(date.getHours() + 8);
+      const formattedDate = date.toLocaleString("en-PH", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      });
+
+      return [
+        event.id,
+        event.event_type,
+        event.description.substring(0, 50) +
+          (event.description.length > 50 ? "..." : ""),
+        event.severity,
+        formattedDate,
+        event.user?.name || "System",
+        event.user?.role || "N/A",
+      ];
     });
-    
-    return [
-      event.id,
-      event.event_type,
-      event.description.substring(0, 50) + (event.description.length > 50 ? "..." : ""),
-      event.severity,
-      formattedDate,
-      event.user?.name || "System",
-      event.user?.role || "N/A"
-    ];
-  });
 
     autoTable(doc, {
       head: [headers],
@@ -617,7 +618,9 @@ export default function AdminReports() {
           <h2>System Events & Alerts Report</h2>
           <p style="text-align: center;">Period: ${startDate} to ${endDate}</p>
           
-          ${eventSummary ? `
+          ${
+            eventSummary
+              ? `
             <div class="summary">
               <h3>Summary Statistics</h3>
               <p><strong>Total Events:</strong> ${eventSummary.total_events}</p>
@@ -628,7 +631,9 @@ export default function AdminReports() {
                 Info: ${eventSummary.severities?.info || 0}
               </p>
             </div>
-          ` : ''}
+          `
+              : ""
+          }
           
           <table>
             <thead>
@@ -644,25 +649,27 @@ export default function AdminReports() {
             </thead>
             <tbody>
               ${eventData
-        .map(
-          (event) => `
+                .map(
+                  (event) => `
                 <tr class="${event.severity}">
                   <td>${event.id}</td>
-                  <td>${eventTypeLabels[event.event_type] || event.event_type}</td>
+                  <td>${
+                    eventTypeLabels[event.event_type] || event.event_type
+                  }</td>
                   <td>${event.description}</td>
                   <td>${event.severity.toUpperCase()}</td>
                   <td className="px-4 py-3 text-xs whitespace-nowrap"> 
                   ${(() => {
                     const date = new Date(event.timestamp);
                     date.setHours(date.getHours() + 8);
-                    return date.toLocaleString('en-PH', {
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                      hour12: true
+                    return date.toLocaleString("en-PH", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                      hour12: true,
                     });
                   })()}
                 </td>
@@ -670,8 +677,8 @@ export default function AdminReports() {
                   <td>${event.user?.role || "N/A"}</td>
                 </tr>
               `
-        )
-        .join("")}
+                )
+                .join("")}
             </tbody>
           </table>
         </body>
@@ -695,7 +702,11 @@ export default function AdminReports() {
   // Render system events table
   const renderEventsTable = (data) => {
     if (!Array.isArray(data) || data.length === 0) {
-      return <p className="text-[#6b4b2b]/70 text-center py-8">No events available</p>;
+      return (
+        <p className="text-[#6b4b2b]/70 text-center py-8">
+          No events available
+        </p>
+      );
     }
 
     return (
@@ -724,26 +735,33 @@ export default function AdminReports() {
                     {eventTypeLabels[event.event_type] || event.event_type}
                   </span>
                 </td>
-                <td className="px-4 py-3 max-w-md truncate" title={event.description}>
+                <td
+                  className="px-4 py-3 max-w-md truncate"
+                  title={event.description}
+                >
                   {event.description}
                 </td>
                 <td className="px-4 py-3 text-center">
-                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${severityColors[event.severity]}`}>
+                  <span
+                    className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${
+                      severityColors[event.severity]
+                    }`}
+                  >
                     {event.severity.toUpperCase()}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-xs whitespace-nowrap"> 
+                <td className="px-4 py-3 text-xs whitespace-nowrap">
                   {(() => {
                     const date = new Date(event.timestamp);
                     date.setHours(date.getHours() + 8);
-                    return date.toLocaleString('en-PH', {
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                      hour12: true
+                    return date.toLocaleString("en-PH", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                      hour12: true,
                     });
                   })()}
                 </td>
@@ -768,8 +786,12 @@ export default function AdminReports() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-blue-700 font-medium">Total Events</p>
-                <p className="text-3xl font-bold text-blue-900">{eventSummary.total_events}</p>
+                <p className="text-sm text-blue-700 font-medium">
+                  Total Events
+                </p>
+                <p className="text-3xl font-bold text-blue-900">
+                  {eventSummary.total_events}
+                </p>
               </div>
               <Activity className="h-10 w-10 text-blue-600" />
             </div>
@@ -781,7 +803,9 @@ export default function AdminReports() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-red-700 font-medium">Critical Events</p>
+                <p className="text-sm text-red-700 font-medium">
+                  Critical Events
+                </p>
                 <p className="text-3xl font-bold text-red-900">
                   {eventSummary.severities?.critical || 0}
                 </p>
@@ -796,7 +820,9 @@ export default function AdminReports() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-yellow-700 font-medium">Warning Events</p>
+                <p className="text-sm text-yellow-700 font-medium">
+                  Warning Events
+                </p>
                 <p className="text-3xl font-bold text-yellow-900">
                   {eventSummary.severities?.warning || 0}
                 </p>
@@ -823,7 +849,12 @@ export default function AdminReports() {
               <th className="px-4 py-2 font-semibold">Name</th>
               <th className="px-4 py-2 font-semibold">Email</th>
               <th className="px-4 py-2 font-semibold">Contact Person</th>
-              <th className="px-4 py-2 font-semibold">Address</th>
+
+              {/* Address column - UI tweak */}
+              <th className="px-4 py-2 font-semibold text-left min-w-[220px]">
+                Address
+              </th>
+
               <th className="px-4 py-2 font-semibold">Profile Picture</th>
               <th className="px-4 py-2 font-semibold">Registration Date</th>
             </tr>
@@ -838,7 +869,15 @@ export default function AdminReports() {
                 <td className="px-4 py-2">{row.name}</td>
                 <td className="px-4 py-2">{row.email}</td>
                 <td className="px-4 py-2">{row.contact_person}</td>
-                <td className="px-4 py-2">{row.address}</td>
+
+                {/* Address cell - UI tweak (buong address visible pa rin) */}
+                <td
+                  className="px-4 py-2 text-left align-top text-[13px] leading-snug min-w-[220px] max-w-[320px]"
+                  title={row.address}
+                >
+                  {row.address}
+                </td>
+
                 <td className="px-4 py-2">
                   {row.profile_picture ? (
                     <img
@@ -863,11 +902,18 @@ export default function AdminReports() {
     <div className="space-y-6">
       <div className="p-2 pt-4 sm:p-4 md:p-6">
         <div>
-          <h2 className="text-3xl font-extrabold text-[#6b4b2b]">Report Generation</h2>
-          <p className="mt-1 text-sm text-[#7b5836]">Reports</p>
+          <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
+            Report Generation
+          </h2>
+          <p className="mt-1 text-sm text-[#7b5836]">
+            Generate reports from user records
+          </p>
         </div>
         <div className="rounded-3xl bg-gradient-to-br overflow-hidden">
-          <Tabs value={activeReport} onValueChange={(val) => setActiveReport(val)}>
+          <Tabs
+            value={activeReport}
+            onValueChange={(val) => setActiveReport(val)}
+          >
             <TabsList className="flex flex-wrap gap-2 bg-white/70 ring-1 ring-black/5 rounded-full px-2 py-1 shadow-sm">
               {reportTypes.map((r) => (
                 <TabsTrigger
@@ -875,7 +921,16 @@ export default function AdminReports() {
                   value={r.key}
                   className="data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] rounded-full px-3 py-1 text-sm hover:bg-amber-50"
                 >
-                  {r.label}
+                  {r.key === "manage_users" ? (
+                    <span className="flex items-center gap-2">
+                      {/* icon na laging visible */}
+                      <Users className="h-4 w-4" />
+                      {/* text na lalabas lang from sm: pataas (desktop/tablet) */}
+                      <span className="hidden sm:inline">{r.label}</span>
+                    </span>
+                  ) : (
+                    r.label
+                  )}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -1026,7 +1081,8 @@ export default function AdminReports() {
                         <CardContent className="p-8 text-center">
                           <ShieldAlert className="h-12 w-12 mx-auto text-[#6b4b2b]/30 mb-3" />
                           <p className="text-[#6b4b2b]/70">
-                            Select filters and click Generate Report to view system events.
+                            Select filters and click Generate Report to view
+                            system events.
                           </p>
                         </CardContent>
                       </Card>
@@ -1077,7 +1133,9 @@ export default function AdminReports() {
                       </div>
 
                       {loading ? (
-                        <p className="text-[#6b4b2b]/70">Generating report...</p>
+                        <p className="text-[#6b4b2b]/70">
+                          Generating report...
+                        </p>
                       ) : reportData ? (
                         <div>
                           {renderTable(reportData)}

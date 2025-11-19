@@ -34,7 +34,7 @@ import AdminReports from "./AdminReports";
 import AdminUser from "./AdminUser";
 import Leaderboards from "./Leaderboards";
 import Bakery from "./Bakery";
-import Charity from "./Charity"; 
+import Charity from "./Charity";
 
 import AuditLogViewer from "./AuditLogViewer";
 import NotificationCenter from "./NotificationCenter";
@@ -58,7 +58,7 @@ const ADMIN_ALLOWED_TABS = [
   "audit-logs",
   "notifications",
   "emergency",
-  "profile-editor"
+  "profile-editor",
 ];
 
 // Small unread/read circle indicator
@@ -193,7 +193,6 @@ const AdminDashboard = () => {
   }, []);
 
   // Complaints
-  // Complaints
   useEffect(() => {
     (async () => {
       try {
@@ -214,19 +213,19 @@ const AdminDashboard = () => {
     const fetchNotifications = async () => {
       try {
         const token = localStorage.getItem("token");
-        
+
         // Fetch pending users
         const pendingRes = await axios.get("/admin/pending-users", {
           headers: { Authorization: `Bearer ${token}` },
         });
         setPendingUsers(pendingRes.data || []);
-        
+
         // Fetch complaints
         const complaintsRes = await axios.get("/complaints", {
           headers: { Authorization: `Bearer ${token}` },
         });
         setComplaints(complaintsRes.data || []);
-        
+
         // Update stats
         const statsRes = await axios.get("/admin-dashboard-stats", {
           headers: { Authorization: `Bearer ${token}` },
@@ -248,7 +247,7 @@ const AdminDashboard = () => {
     // Cleanup interval on unmount
     return () => clearInterval(intervalId);
   }, []);
-  
+
   // Actions
   const handleVerify = async (id) => {
     try {
@@ -418,6 +417,7 @@ const AdminDashboard = () => {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // === UPDATED Styles component (added .tabs-scroll only) ===
   const Styles = () => (
     <style>{`
       :root {
@@ -538,7 +538,6 @@ const AdminDashboard = () => {
   box-shadow:0 8px 18px rgba(201,124,44,.28);
 }
 
-
 .btn-logout{position:relative; overflow:hidden; border-radius:9999px; padding:.58rem .95rem; gap:.5rem; background:linear-gradient(90deg,#F6C17C,#E49A52,#BF7327); color:#fff; border:1px solid rgba(255,255,255,.6); box-shadow:0 8px 26px rgba(201,124,44,.25); transition:transform .18s ease, box-shadow .18s ease, filter .18s ease}
 .btn-logout:before{content:""; position:absolute; top:-40%; bottom:-40%; left:-70%; width:60%; transform:rotate(10deg); background:linear-gradient(90deg, rgba(255,255,255,.26), rgba(255,255,255,0) 55%); animation: shine 3.2s linear infinite}
 @keyframes shine{from{left:-70%}to{left:120%}}
@@ -580,6 +579,18 @@ const AdminDashboard = () => {
 }
 
 thead{ background:#EADBC8; color:#4A2F17; }
+
+/* === Scrollable tabs strip (for mobile) === */
+.tabs-scroll{
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  flex-wrap: nowrap;
+}
+.tabs-scroll::-webkit-scrollbar{
+  display: none;
+}
+
 `}</style>
   );
 
@@ -896,7 +907,8 @@ thead{ background:#EADBC8; color:#4A2F17; }
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="seg-wrap">
           <div className="seg justify-center">
-            <TabsList className="flex items-center gap-1 bg-transparent p-0 border-0 overflow-x-auto no-scrollbar">
+            {/* UPDATED: TabsList now uses tabs-scroll for horizontal scrolling */}
+            <TabsList className="tabs-scroll flex items-center gap-1 bg-transparent p-0 border-0">
               <TabsTrigger
                 value="dashboard"
                 title="Dashboard"
@@ -986,7 +998,6 @@ thead{ background:#EADBC8; color:#4A2F17; }
                 <AlertTriangle className="w-4 h-4" />
                 <span className="hidden sm:inline">Emergency</span>
               </TabsTrigger>
-
             </TabsList>
           </div>
         </div>
@@ -998,18 +1009,17 @@ thead{ background:#EADBC8; color:#4A2F17; }
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  <div className="space-y-6">
-                    <div className="p-6">
-                      <div>
-                        <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
-                          Dashboard & Analytics
-                        </h2>
-                        <p className="mt-1 text-sm text-[#7b5836]">Overview and Metrics</p>
-                      </div>
-                    </div>
+                  {/* Page heading */}
+                  <div className="mb-4 sm:mb-5">
+                    <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
+                      Dashboard &amp; Analytics
+                    </h2>
+                    <p className="mt-1 text-sm text-[#7b5836]">
+                      Overview and Metrics
+                    </p>
                   </div>
-                  {/* Analytics Section */}
-                  <div className="mt-8 border-t pt-6">
+
+                  <div className="border-t border-[#e3b57e]/40 pt-4 sm:pt-5">
                     <AnalyticsDashboard />
                   </div>
                 </CardContent>
@@ -1043,8 +1053,21 @@ thead{ background:#EADBC8; color:#4A2F17; }
           <TabsContent value="users" className="reveal px-2">
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
-                <CardContent>
-                  <AdminUser />
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  {/* Section heading - User Verification */}
+                  <div className="mb-4 sm:mb-5">
+                    <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
+                      User Verification
+                    </h2>
+                    <p className="mt-1 text-sm text-[#7b5836]">
+                      Review and approve new user registrations and manage
+                      verification status.
+                    </p>
+                  </div>
+
+                  <div className="border-t border-[#e3b57e]/40 pt-4 sm:pt-5">
+                    <AdminUser />
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -1107,8 +1130,21 @@ thead{ background:#EADBC8; color:#4A2F17; }
           <TabsContent value="audit-logs" className="reveal px-2">
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
-                <CardContent className="sm:p-4 md:p-6">
-                  <AuditLogViewer />
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  {/* Section heading - Audit Logs */}
+                  <div className="mb-4 sm:mb-5">
+                    <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
+                      Audit Logs
+                    </h2>
+                    <p className="mt-1 text-sm text-[#7b5836]">
+                      View a complete timeline of system events, changes, and
+                      administrative activity.
+                    </p>
+                  </div>
+
+                  <div className="border-t border-[#e3b57e]/40 pt-4 sm:pt-5">
+                    <AuditLogViewer />
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -1118,8 +1154,21 @@ thead{ background:#EADBC8; color:#4A2F17; }
           <TabsContent value="notifications" className="reveal px-2">
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
-                <CardContent className="sm:p-4 md:p-6">
-                  <NotificationCenter />
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  {/* Section heading - Notification Center */}
+                  <div className="mb-4 sm:mb-5">
+                    <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
+                      Notification Center
+                    </h2>
+                    <p className="mt-1 text-sm text-[#7b5836]">
+                      Send system-wide announcements and targeted notifications
+                      to users.
+                    </p>
+                  </div>
+
+                  <div className="border-t border-[#e3b57e]/40 pt-4 sm:pt-5">
+                    <NotificationCenter />
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -1129,8 +1178,20 @@ thead{ background:#EADBC8; color:#4A2F17; }
           <TabsContent value="emergency" className="reveal px-2">
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
-                <CardContent className="sm:p-4 md:p-6">
-                  <EmergencyControlPanel />
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  {/* Section heading - Emergency Control Panel */}
+                  <div className="mb-4 sm:mb-5">
+                    <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
+                      Emergency Control Panel
+                    </h2>
+                    <p className="mt-1 text-sm text-[#7b5836]">
+                      Critical administrative actions - Use with extreme caution
+                    </p>
+                  </div>
+
+                  <div className="border-t border-[#e3b57e]/40 pt-4 sm:pt-5">
+                    <EmergencyControlPanel />
+                  </div>
                 </CardContent>
               </Card>
             </div>

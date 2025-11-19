@@ -55,10 +55,10 @@ const AdminUser = () => {
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
+
       // Remove from pending users immediately
       setPendingUsers((prev) => prev.filter((u) => u.id !== id));
-      
+
       // Refresh verified users
       try {
         const res = await axios.get(`${API}/admin/all-users`, {
@@ -69,7 +69,7 @@ const AdminUser = () => {
         console.error("Error fetching updated users:", fetchError);
         // Don't fail the whole operation if refresh fails
       }
-      
+
       Swal.fire("Approved!", "User has been verified.", "success");
     } catch (e) {
       console.error("Error verifying user:", e);
@@ -160,14 +160,57 @@ const AdminUser = () => {
     <div className="space-y-6">
       <div className="p-2 pt-4 sm:p-4 md:p-6">
         {/* 🔸 Pending Verification */}
-        <div className="mt-3 rounded-3xl border border-[#eadfce] bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9] shadow-[0_2px_8px_rgba(93,64,28,.06)] p-6 mb-8">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#6b4b2b]">
-              User Verification
-            </h2>
-            <span className="text-xs font-semibold px-2 py-1 rounded-full border bg-white/80 border-[#f2e3cf] text-[#6b4b2b]">
-              {pendingUsers.length} item{pendingUsers.length === 1 ? "" : "s"}
-            </span>
+        <div className="mt-3 rounded-3xl border border-[#eadfce] bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9] shadow-[0_2px_8px_rgba(93,64,28,.06)] p-4 sm:p-6 mb-8">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-[#fff4e4]">
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4 sm:h-5 sm:w-5 text-[#c47a27]"
+                  aria-hidden="true"
+                >
+                  <rect
+                    x="6"
+                    y="4"
+                    width="12"
+                    height="16"
+                    rx="2"
+                    ry="2"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                  />
+                  <path
+                    d="M10 9h4M10 12h4M10 15h2"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </div>
+
+              <div className="space-y-0.5">
+                <p className="text-sm font-semibold text-[#4A2F17]">
+                  Verification queue
+                </p>
+                <p className="text-xs text-[#8b6a44]">
+                  New sign-ups will appear here when they need review.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col items-start sm:items-end gap-1">
+              <span className="text-xs font-semibold px-2 py-1 rounded-full border bg-white/80 border-[#f2e3cf] text-[#6b4b2b]">
+                {pendingUsers.length} item{pendingUsers.length === 1 ? "" : "s"}
+              </span>
+
+              {pendingUsers.length === 0 && (
+                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#e8f7ee] text-[#166534] border border-[#bbecd0]">
+                  All clear
+                </span>
+              )}
+            </div>
           </div>
 
           {pendingUsers.length > 0 ? (
@@ -240,10 +283,11 @@ const AdminUser = () => {
                                 size="sm"
                                 onClick={() => reviewed && handleVerify(u.id)}
                                 disabled={!reviewed}
-                                className={`rounded-full ${reviewed
-                                  ? "bg-gradient-to-r from-[#22c55e] via-[#16a34a] to-[#15803d] text-white hover:brightness-105"
-                                  : "bg-gray-300 text-white"
-                                  }`}
+                                className={`rounded-full ${
+                                  reviewed
+                                    ? "bg-gradient-to-r from-[#22c55e] via-[#16a34a] to-[#15803d] text-white hover:brightness-105"
+                                    : "bg-gray-300 text-white"
+                                }`}
                                 title={
                                   reviewed
                                     ? "Approve this user"
@@ -270,41 +314,90 @@ const AdminUser = () => {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-[#6b4b2b]/80">No pending users for verification.</p>
+            <div className="mt-2 rounded-2xl border border-dashed border-[#e9d7c3] bg-gradient-to-br from-[#FFFDF8] via-[#FFF7EB] to-[#FFECD5] px-6 py-10 text-center shadow-inner">
+              <div className="mx-auto mb-4 flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-[#fff4e4]">
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-6 w-6 sm:h-7 sm:w-7 text-[#c47a27]"
+                  aria-hidden="true"
+                >
+                  <rect
+                    x="6"
+                    y="4"
+                    width="12"
+                    height="16"
+                    rx="2"
+                    ry="2"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                  />
+                  <path
+                    d="M10 9h4M10 12h4M10 15h2"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </div>
+              <h3 className="text-base font-semibold text-[#4A2F17]">
+                You’re all caught up
+              </h3>
+              <p className="mt-1 text-sm text-[#6b4b2b]/80">
+                There are currently no accounts waiting for verification.
+              </p>
+              <p className="mt-4 text-xs text-[#b07b3a]">
+                Keep this page open – new requests will show up here
+                automatically.
+              </p>
+            </div>
           )}
         </div>
       </div>
 
       {/* ===== Proof Viewer Modal (UI only) ===== */}
       {proofOpen && proofFor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 
+               flex items-start sm:items-center justify-center
+               px-3 sm:px-4 pt-20 pb-6 sm:py-10"
+        >
+          {" "}
           <div
             className="absolute inset-0 bg-black/40"
             onClick={() => setProofOpen(false)}
           />
-          <div className="relative z-10 w-full max-w-2xl rounded-2xl bg-white shadow-2xl ring-1 ring-[#e9d7c3] overflow-hidden">
-            <div className="px-5 py-4 border-b border-[#f2e3cf] bg-[#FFF7ED]">
-              <h3 className="text-lg font-extrabold text-[#6b4b2b]">
+          <div
+            className="relative z-10 
+             w-full max-w-xs sm:max-w-xl lg:max-w-3xl
+             rounded-3xl bg-white shadow-2xl ring-1 ring-[#e9d7c3]
+             overflow-hidden max-h-[75vh] sm:max-h-[80vh] flex flex-col"
+          >
+            {/* Header */}
+            <div className="px-4 py-3 sm:px-5 sm:py-4 border-b border-[#f2e3cf] bg-[#FFF7ED]">
+              <h3 className="text-base sm:text-lg font-extrabold text-[#6b4b2b]">
                 Proof – {proofFor.name}
               </h3>
-              <p className="text-xs text-[#7b5836] truncate">
+              <p className="text-[11px] sm:text-xs text-[#7b5836] truncate">
                 {proofFor.email}
               </p>
             </div>
 
-            <div className="p-5 max-h-[70vh] overflow-auto bg-white">
+            {/* Content (scrollable) */}
+            <div className="p-4 sm:p-5 flex-1 overflow-auto bg-white">
               {proofUrl ? (
                 isImage(proofUrl) ? (
                   <img
                     src={proofUrl}
                     alt="Proof"
-                    className="max-h-[60vh] w-auto mx-auto rounded-lg border border-[#f2e3cf]"
+                    className="max-h-[45vh] sm:max-h-[60vh] w-full object-contain mx-auto rounded-xl border border-[#f2e3cf]"
                   />
                 ) : isPDF(proofUrl) ? (
                   <iframe
                     src={proofUrl}
                     title="Proof PDF"
-                    className="w-full h-[60vh] rounded-lg border border-[#f2e3cf]"
+                    className="w-full h-[45vh] sm:h-[60vh] rounded-xl border border-[#f2e3cf]"
                   />
                 ) : (
                   <div className="text-center">
@@ -315,8 +408,8 @@ const AdminUser = () => {
                       href={proofUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center px-4 py-2 rounded-full text-white font-semibold
-                                 bg-gradient-to-r from-[#6b4b2b] via-[#5b3e21] to-[#3b2a18]"
+                      className="inline-flex items-center px-4 py-2 rounded-full text-white text-sm font-semibold
+                           bg-gradient-to-r from-[#6b4b2b] via-[#5b3e21] to-[#3b2a18]"
                     >
                       Open Proof
                     </a>
@@ -327,21 +420,25 @@ const AdminUser = () => {
               )}
             </div>
 
-            <div className="px-5 py-4 border-t border-[#f2e3cf] bg-white flex items-center justify-between gap-3">
-              <label className="flex items-center gap-2 text-sm text-[#3b2a18]">
+            {/* Footer / actions */}
+            <div className="px-4 py-3 sm:px-5 sm:py-4 border-t border-[#f2e3cf] bg-[#FFF9F2] flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <label className="flex items-start gap-2 text-xs sm:text-sm text-[#3b2a18]">
                 <input
                   type="checkbox"
                   checked={ackChecked}
                   onChange={(e) => setAckChecked(e.target.checked)}
+                  className="mt-[2px]"
                 />
-                I have reviewed this proof.
+                <span className="leading-snug">
+                  I have reviewed this proof.
+                </span>
               </label>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 sm:justify-end">
                 <Button
                   variant="secondary"
                   onClick={() => setProofOpen(false)}
-                  className="rounded-full"
+                  className="rounded-full px-4 py-2 text-xs sm:text-sm"
                 >
                   Close
                 </Button>
@@ -351,10 +448,11 @@ const AdminUser = () => {
                     markReviewed(proofFor.id);
                   }}
                   disabled={!ackChecked}
-                  className={`rounded-full ${ackChecked
-                    ? "bg-gradient-to-r from-[#22c55e] via-[#16a34a] to-[#15803d] text-white"
-                    : "bg-gray-300 text-white"
-                    }`}
+                  className={`rounded-full px-4 py-2 text-xs sm:text-sm ${
+                    ackChecked
+                      ? "bg-gradient-to-r from-[#22c55e] via-[#16a34a] to-[#15803d] text-white"
+                      : "bg-gray-300 text-white"
+                  }`}
                 >
                   Mark as reviewed
                 </Button>

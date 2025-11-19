@@ -30,15 +30,39 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FileText, Download, Filter, AlertCircle, Info, AlertTriangle, XCircle } from "lucide-react";
+import {
+  FileText,
+  Download,
+  Filter,
+  AlertCircle,
+  Info,
+  AlertTriangle,
+  XCircle,
+} from "lucide-react";
 import api from "../api/axios";
 import Swal from "sweetalert2";
+
+// ── UI theme tokens (visual only) ──
+const tones = {
+  textDark: "#4A2F17",
+  textMed: "#6b4b2b",
+  headerGrad: "bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]",
+  ring: "ring-1 ring-black/10",
+  pillPrimary:
+    "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] shadow-md shadow-[#BF7327]/25 ring-1 ring-white/60 hover:-translate-y-0.5 active:scale-95 transition-all",
+  pillGhost:
+    "inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-medium border border-[#f2d4b5] bg-white text-[#6b4b2b] shadow-sm hover:bg-[#FFF6EC] hover:-translate-y-0.5 active:scale-95 transition-all",
+};
+
+// ── Shared classes for all SelectItem ──
+const selectItemClass =
+  "relative flex w-full select-none items-center rounded-lg pl-8 pr-3 py-2 text-sm outline-none cursor-pointer text-[#4A2F17] hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] data-[state=checked]:bg-[#FFEFD9] data-[state=checked]:font-semibold";
 
 const AuditLogViewer = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
-  
+
   // Filters
   const [eventTypeFilter, setEventTypeFilter] = useState("");
   const [severityFilter, setSeverityFilter] = useState("");
@@ -53,6 +77,7 @@ const AuditLogViewer = () => {
 
   useEffect(() => {
     fetchLogs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventTypeFilter, severityFilter, startDate, endDate, page]);
 
   const fetchLogs = async () => {
@@ -65,7 +90,8 @@ const AuditLogViewer = () => {
 
       if (eventTypeFilter) params.append("event_type", eventTypeFilter);
       if (severityFilter) params.append("severity", severityFilter);
-      if (startDate) params.append("start_date", new Date(startDate).toISOString());
+      if (startDate)
+        params.append("start_date", new Date(startDate).toISOString());
       if (endDate) params.append("end_date", new Date(endDate).toISOString());
 
       const response = await api.get(`/admin/audit-logs?${params.toString()}`);
@@ -82,11 +108,14 @@ const AuditLogViewer = () => {
   const handleExport = async () => {
     try {
       const params = new URLSearchParams();
-      if (startDate) params.append("start_date", new Date(startDate).toISOString());
+      if (startDate)
+        params.append("start_date", new Date(startDate).toISOString());
       if (endDate) params.append("end_date", new Date(endDate).toISOString());
 
-      const response = await api.get(`/admin/audit-logs/export?${params.toString()}`);
-      
+      const response = await api.get(
+        `/admin/audit-logs/export?${params.toString()}`
+      );
+
       // Create and download JSON file
       const blob = new Blob([JSON.stringify(response.data, null, 2)], {
         type: "application/json",
@@ -94,7 +123,9 @@ const AuditLogViewer = () => {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `audit-logs-${new Date().toISOString().split('T')[0]}.json`;
+      link.download = `audit-logs-${
+        new Date().toISOString().split("T")[0]
+      }.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -117,19 +148,42 @@ const AuditLogViewer = () => {
 
   const getSeverityBadge = (severity) => {
     const badges = {
-      info: { bg: "bg-blue-100", text: "text-blue-800", icon: Info },
-      warning: { bg: "bg-yellow-100", text: "text-yellow-800", icon: AlertTriangle },
-      error: { bg: "bg-orange-100", text: "text-orange-800", icon: AlertCircle },
-      critical: { bg: "bg-red-100", text: "text-red-800", icon: XCircle },
+      info: {
+        bg: "bg-sky-50",
+        text: "text-sky-700",
+        icon: Info,
+        dot: "bg-sky-500",
+      },
+      warning: {
+        bg: "bg-amber-50",
+        text: "text-amber-800",
+        icon: AlertTriangle,
+        dot: "bg-amber-500",
+      },
+      error: {
+        bg: "bg-orange-50",
+        text: "text-orange-800",
+        icon: AlertCircle,
+        dot: "bg-orange-500",
+      },
+      critical: {
+        bg: "bg-red-50",
+        text: "text-red-800",
+        icon: XCircle,
+        dot: "bg-red-500",
+      },
     };
 
     const badge = badges[severity] || badges.info;
     const Icon = badge.icon;
 
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${badge.bg} ${badge.text}`}>
+      <span
+        className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${badge.bg} ${badge.text}`}
+      >
+        <span className={`h-2 w-2 rounded-full ${badge.dot}`} />
         <Icon className="w-3 h-3" />
-        {severity}
+        <span className="capitalize">{severity}</span>
       </span>
     );
   };
@@ -147,276 +201,517 @@ const AuditLogViewer = () => {
   if (loading && logs.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#BF7327] mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading audit logs...</p>
+        <div className="text-center space-y-3">
+          <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-[#FFEFD9]">
+            <FileText className="w-6 h-6 text-[#BF7327]" />
+          </div>
+          <p className="mt-1 text-sm font-medium text-[#4A2F17]">
+            Loading audit logs...
+          </p>
+          <p className="text-xs text-gray-500">
+            Please wait while we fetch recent system activity.
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5" />
-                Audit Log Viewer
-              </CardTitle>
+    <div className="w-full space-y-4">
+      <Card className="border-none bg-transparent shadow-none">
+        <div
+          className={`overflow-hidden rounded-[28px] bg-white ${tones.ring}`}
+        >
+          <CardHeader className="p-0 h-0 border-none bg-transparent">
+            <div className="sr-only">
+              <CardTitle>System Activity</CardTitle>
               <CardDescription>
-                Complete system event tracking and monitoring
+                Filter and export your audit logs
               </CardDescription>
             </div>
-            <Button onClick={handleExport} className="flex items-center gap-2">
-              <Download className="w-4 h-4" />
-              Export Logs
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {/* Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-            <Select value={eventTypeFilter || "all"} onValueChange={(value) => setEventTypeFilter(value === "all" ? "" : value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Event Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Events</SelectItem>
-                <SelectItem value="login_success">Login Success</SelectItem>
-                <SelectItem value="failed_login">Failed Login</SelectItem>
-                <SelectItem value="user_suspended">User Suspended</SelectItem>
-                <SelectItem value="user_banned">User Banned</SelectItem>
-                <SelectItem value="USER_REACTIVATED">User Reactivated</SelectItem>
-                <SelectItem value="USER_SELF_DEACTIVATE">User Self-Deactivated</SelectItem>
-                <SelectItem value="emergency_password_reset">Emergency Password Reset</SelectItem>
-                <SelectItem value="ownership_transfer">Ownership Transfer</SelectItem>
-                <SelectItem value="admin_edit_user">Admin Edit User</SelectItem>
-              </SelectContent>
-            </Select>
+          </CardHeader>
 
-            <Select value={severityFilter || "all"} onValueChange={(value) => setSeverityFilter(value === "all" ? "" : value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Severity" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Severities</SelectItem>
-                <SelectItem value="info">Info</SelectItem>
-                <SelectItem value="warning">Warning</SelectItem>
-                <SelectItem value="error">Error</SelectItem>
-                <SelectItem value="critical">Critical</SelectItem>
-              </SelectContent>
-            </Select>
+          <CardContent className="bg-white pt-4 pb-5 sm:pt-5 sm:pb-6 px-3 sm:px-6 space-y-5">
+            <div className="rounded-2xl border border-[#f2d4b5] bg-[#FFF9F1] px-3 py-3 sm:px-5 sm:py-4 shadow-[0_8px_18px_rgba(0,0,0,0.03)]">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6 sm:gap-4">
+                {/* Event type */}
+                <div className="space-y-1 lg:col-span-2">
+                  <span className="text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
+                    Event
+                  </span>
+                  <Select
+                    value={eventTypeFilter || "all"}
+                    onValueChange={(value) =>
+                      setEventTypeFilter(value === "all" ? "" : value)
+                    }
+                  >
+                    <SelectTrigger className="h-10 rounded-full border-[#f2d4b5] bg-white/90 px-4 text-xs sm:text-sm shadow-sm focus:ring-[#E49A52] focus-visible:ring-[#E49A52]">
+                      <SelectValue placeholder="All Events" />
+                    </SelectTrigger>
+                    <SelectContent className="z-50 max-h-64 overflow-y-auto rounded-2xl border border-[#f2d4b5] bg-white shadow-lg text-sm py-1">
+                      <SelectItem value="all" className={selectItemClass}>
+                        All Events
+                      </SelectItem>
+                      <SelectItem
+                        value="login_success"
+                        className={selectItemClass}
+                      >
+                        Login Success
+                      </SelectItem>
+                      <SelectItem
+                        value="failed_login"
+                        className={selectItemClass}
+                      >
+                        Failed Login
+                      </SelectItem>
+                      <SelectItem
+                        value="user_suspended"
+                        className={selectItemClass}
+                      >
+                        User Suspended
+                      </SelectItem>
+                      <SelectItem
+                        value="user_banned"
+                        className={selectItemClass}
+                      >
+                        User Banned
+                      </SelectItem>
+                      <SelectItem
+                        value="USER_REACTIVATED"
+                        className={selectItemClass}
+                      >
+                        User Reactivated
+                      </SelectItem>
+                      <SelectItem
+                        value="USER_SELF_DEACTIVATE"
+                        className={selectItemClass}
+                      >
+                        User Self-Deactivated
+                      </SelectItem>
+                      <SelectItem
+                        value="emergency_password_reset"
+                        className={selectItemClass}
+                      >
+                        Emergency Password Reset
+                      </SelectItem>
+                      <SelectItem
+                        value="ownership_transfer"
+                        className={selectItemClass}
+                      >
+                        Ownership Transfer
+                      </SelectItem>
+                      <SelectItem
+                        value="admin_edit_user"
+                        className={selectItemClass}
+                      >
+                        Admin Edit User
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              placeholder="Start Date"
-            />
+                {/* Severity */}
+                <div className="space-y-1 lg:col-span-1">
+                  <span className="text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
+                    Severity
+                  </span>
+                  <Select
+                    value={severityFilter || "all"}
+                    onValueChange={(value) =>
+                      setSeverityFilter(value === "all" ? "" : value)
+                    }
+                  >
+                    <SelectTrigger className="h-10 rounded-full border-[#f2d4b5] bg-white/90 px-4 text-xs sm:text-sm shadow-sm focus:ring-[#E49A52] focus-visible:ring-[#E49A52]">
+                      <SelectValue placeholder="All Severities" />
+                    </SelectTrigger>
+                    <SelectContent className="z-50 max-h-64 overflow-y-auto rounded-2xl border border-[#f2d4b5] bg-white shadow-lg text-sm py-1">
+                      <SelectItem value="all" className={selectItemClass}>
+                        All Severities
+                      </SelectItem>
+                      <SelectItem value="info" className={selectItemClass}>
+                        Info
+                      </SelectItem>
+                      <SelectItem value="warning" className={selectItemClass}>
+                        Warning
+                      </SelectItem>
+                      <SelectItem value="error" className={selectItemClass}>
+                        Error
+                      </SelectItem>
+                      <SelectItem value="critical" className={selectItemClass}>
+                        Critical
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <Input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              placeholder="End Date"
-            />
+                {/* Start date */}
+                <div className="space-y-1 lg:col-span-1">
+                  <span className="text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
+                    From
+                  </span>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="h-10 rounded-full border-[#f2d4b5] bg-white/90 px-4 text-xs sm:text-sm shadow-sm focus:ring-[#E49A52] focus-visible:ring-[#E49A52]"
+                  />
+                </div>
 
-            <Button
-              variant="outline"
-              onClick={clearFilters}
-              className="flex items-center gap-2"
-            >
-              <Filter className="w-4 h-4" />
-              Clear Filters
-            </Button>
-          </div>
+                {/* End date */}
+                <div className="space-y-1 lg:col-span-1">
+                  <span className="text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
+                    To
+                  </span>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="h-10 rounded-full border-[#f2d4b5] bg-white/90 px-4 text-xs sm:text-sm shadow-sm focus:ring-[#E49A52] focus-visible:ring-[#E49A52]"
+                  />
+                </div>
 
-          {/* Results Summary */}
-          <div className="mb-4 text-sm text-gray-600">
-            Showing {logs.length} of {totalCount} events
-            {(eventTypeFilter || severityFilter || startDate || endDate) && " (filtered)"}
-          </div>
+                {/* Clear button */}
+                <div className="sm:col-span-2 lg:col-span-1 flex items-end">
+                  <Button
+                    variant="outline"
+                    onClick={clearFilters}
+                    className={`${tones.pillGhost} w-full justify-center text-xs sm:text-sm`}
+                  >
+                    <Filter className="w-4 h-4" />
+                    Clear Filters
+                  </Button>
+                </div>
+              </div>
 
-          {/* Logs Table */}
-          <div className="border rounded-lg overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Timestamp</TableHead>
-                  <TableHead>Event</TableHead>
-                  <TableHead>Actor</TableHead>
-                  <TableHead>Target</TableHead>
-                  <TableHead>Severity</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {logs.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
-                      No audit logs found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  logs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell className="font-mono text-xs">
-                        {formatDate(log.timestamp)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium text-sm">{log.event_type}</div>
-                        <div className="text-xs text-gray-500">{log.event_category}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">{log.actor_name || "System"}</div>
-                        <div className="text-xs text-gray-500">{log.actor_type}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">{log.target_name || "N/A"}</div>
-                        <div className="text-xs text-gray-500">{log.target_type}</div>
-                      </TableCell>
-                      <TableCell>{getSeverityBadge(log.severity)}</TableCell>
-                      <TableCell>
-                        {log.success ? (
-                          <span className="text-green-600 text-sm">✓ Success</span>
-                        ) : (
-                          <span className="text-red-600 text-sm">✗ Failed</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => showLogDetails(log)}
-                        >
-                          Details
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+              {/* ROW */}
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-[11px] text-[#6b4b2b]/80">
+                  Showing {logs.length} of {totalCount} events
+                  {(eventTypeFilter ||
+                    severityFilter ||
+                    startDate ||
+                    endDate) && <span> (filtered)</span>}
+                </div>
 
-          {/* Pagination */}
-          {totalCount > limit && (
-            <div className="flex items-center justify-between mt-4">
-              <Button
-                variant="outline"
-                onClick={() => setPage(Math.max(0, page - 1))}
-                disabled={page === 0}
-              >
-                Previous
-              </Button>
-              <span className="text-sm text-gray-600">
-                Page {page + 1} of {Math.ceil(totalCount / limit)}
-              </span>
-              <Button
-                variant="outline"
-                onClick={() => setPage(page + 1)}
-                disabled={(page + 1) * limit >= totalCount}
-              >
-                Next
-              </Button>
+                <div className="flex flex-col items-end gap-1 sm:gap-2">
+                  <div className="hidden sm:block text-[11px] text-[#6b4b2b]/80">
+                    Tip: Combine date range + severity to quickly find critical
+                    incidents.
+                  </div>
+                  <Button
+                    onClick={handleExport}
+                    className={`${tones.pillPrimary} w-full sm:w-auto justify-center text-xs sm:text-sm`}
+                  >
+                    <Download className="w-4 h-4" />
+                    <span className="hidden sm:inline">Export Logs</span>
+                    <span className="sm:hidden">Export</span>
+                  </Button>
+                </div>
+              </div>
             </div>
-          )}
-        </CardContent>
+
+            {/* ── Logs table ── */}
+            <div className="w-full overflow-x-auto">
+              <div
+                className={`inline-block min-w-full align-middle rounded-2xl border border-[#f2d4b5] bg-white shadow-sm ${tones.ring}`}
+              >
+                <Table className="text-xs sm:text-sm min-w-[720px]">
+                  <TableHeader>
+                    <TableRow className="bg-[#EADBC8]">
+                      <TableHead className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-[#4A2F17]">
+                        Timestamp
+                      </TableHead>
+                      <TableHead className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-[#4A2F17]">
+                        Event
+                      </TableHead>
+                      <TableHead className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-[#4A2F17]">
+                        Actor
+                      </TableHead>
+                      <TableHead className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-[#4A2F17]">
+                        Target
+                      </TableHead>
+                      <TableHead className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-[#4A2F17]">
+                        Severity
+                      </TableHead>
+                      <TableHead className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-[#4A2F17]">
+                        Status
+                      </TableHead>
+                      <TableHead className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-[#4A2F17] text-right">
+                        Actions
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {logs.length === 0 ? (
+                      // ── Empty state ──
+                      <TableRow>
+                        <TableCell colSpan={7} className="py-8 sm:py-10">
+                          <div className="flex flex-col items-center gap-2 sm:gap-3 text-center">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FFEFD9]">
+                              <FileText className="w-5 h-5 text-[#BF7327]" />
+                            </div>
+                            <p className="text-sm font-semibold text-[#4A2F17]">
+                              No audit logs found
+                            </p>
+                            <p className="max-w-sm text-[11px] text-gray-500">
+                              Try adjusting the filters or expanding your date
+                              range to see more activity.
+                            </p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      logs.map((log) => (
+                        <TableRow
+                          key={log.id}
+                          className="group transition-colors hover:bg-[#FFF6EC]"
+                        >
+                          <TableCell className="font-mono text-[10px] sm:text-[11px] text-gray-700 align-top whitespace-nowrap">
+                            {formatDate(log.timestamp)}
+                          </TableCell>
+
+                          <TableCell className="align-top">
+                            <div className="text-xs sm:text-sm font-semibold text-[#4A2F17]">
+                              {log.event_type}
+                            </div>
+                            <div className="text-[10px] sm:text-[11px] text-gray-500">
+                              {log.event_category}
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="align-top">
+                            <div className="text-xs sm:text-sm text-[#4A2F17]">
+                              {log.actor_name || "System"}
+                            </div>
+                            <div className="text-[10px] sm:text-[11px] text-gray-500">
+                              {log.actor_type}
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="align-top">
+                            <div className="text-xs sm:text-sm text-[#4A2F17]">
+                              {log.target_name || "N/A"}
+                            </div>
+                            <div className="text-[10px] sm:text-[11px] text-gray-500">
+                              {log.target_type}
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="align-top">
+                            {getSeverityBadge(log.severity)}
+                          </TableCell>
+
+                          <TableCell className="align-top">
+                            {log.success ? (
+                              <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-[10px] sm:text-xs font-semibold text-emerald-700">
+                                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                Success
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-2 rounded-full bg-red-50 px-3 py-1 text-[10px] sm:text-xs font-semibold text-red-700">
+                                <span className="h-2 w-2 rounded-full bg-red-500" />
+                                Failed
+                              </span>
+                            )}
+                          </TableCell>
+
+                          <TableCell className="align-top text-right">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => showLogDetails(log)}
+                              className="rounded-full border-[#f2d4b5] bg-white px-3 py-1 text-[10px] sm:text-xs font-medium text-[#6b4b2b] shadow-sm hover:bg-[#FFF6EC]"
+                            >
+                              Details
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            {/* ── Pagination ── */}
+            {totalCount > limit && (
+              <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-[11px] sm:text-xs text-gray-500">
+                  Page {page + 1} of {Math.ceil(totalCount / limit)}
+                </div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 justify-end">
+                  <Button
+                    variant="outline"
+                    onClick={() => setPage(Math.max(0, page - 1))}
+                    disabled={page === 0}
+                    className={`${tones.pillGhost} w-full sm:w-auto justify-center text-xs disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setPage(page + 1)}
+                    disabled={(page + 1) * limit >= totalCount}
+                    className={`${tones.pillPrimary} w-full sm:w-auto justify-center text-xs disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </div>
       </Card>
 
-      {/* Log Details Dialog */}
+      {/* ── Log Details Dialog ── */}
       <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Audit Log Details</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-hidden p-0 [&>button[aria-label='Close']]:top-3 [&>button[aria-label='Close']]:right-3">
+          <DialogHeader
+            className={`${tones.headerGrad} px-4 sm:px-6 py-3 sm:py-4 border-b border-black/5`}
+          >
+            <DialogTitle className="text-sm sm:text-base text-[#4A2F17]">
+              Audit Log Details
+            </DialogTitle>
+            <DialogDescription className="text-[#7b5836] text-xs sm:text-sm font-medium">
               Complete information about this event
             </DialogDescription>
           </DialogHeader>
 
           {selectedLog && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-sm font-medium text-gray-600">Event ID</div>
-                  <div className="font-mono">{selectedLog.id}</div>
+            <div className="bg-white px-4 sm:px-6 py-4 sm:py-5 max-h-[70vh] overflow-y-auto space-y-4">
+              <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl border border-[#f2d4b5] bg-[#FFF9F1] px-4 py-3">
+                  <div className="text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
+                    Event ID
+                  </div>
+                  <div className="mt-1 font-mono text-[11px] text-[#4A2F17] break-all">
+                    {selectedLog.id}
+                  </div>
                 </div>
-                <div>
-                  <div className="text-sm font-medium text-gray-600">Timestamp</div>
-                  <div>{formatDate(selectedLog.timestamp)}</div>
+                <div className="rounded-2xl border border-[#f2d4b5] bg-[#FFF9F1] px-4 py-3">
+                  <div className="text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
+                    Timestamp
+                  </div>
+                  <div className="mt-1 text-xs sm:text-sm text-[#4A2F17]">
+                    {formatDate(selectedLog.timestamp)}
+                  </div>
                 </div>
-                <div>
-                  <div className="text-sm font-medium text-gray-600">Event Type</div>
-                  <div>{selectedLog.event_type}</div>
+                <div className="rounded-2xl border border-[#f2d4b5] bg-white px-4 py-3">
+                  <div className="text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
+                    Event Type
+                  </div>
+                  <div className="mt-1 text-xs sm:text-sm font-semibold text-[#4A2F17]">
+                    {selectedLog.event_type}
+                  </div>
                 </div>
-                <div>
-                  <div className="text-sm font-medium text-gray-600">Category</div>
-                  <div>{selectedLog.event_category || "N/A"}</div>
+                <div className="rounded-2xl border border-[#f2d4b5] bg-white px-4 py-3">
+                  <div className="text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
+                    Category
+                  </div>
+                  <div className="mt-1 text-xs sm:text-sm text-[#4A2F17]">
+                    {selectedLog.event_category || "N/A"}
+                  </div>
                 </div>
-                <div>
-                  <div className="text-sm font-medium text-gray-600">Severity</div>
+                <div className="rounded-2xl border border-[#f2d4b5] bg-white px-4 py-3 flex flex-col gap-1">
+                  <div className="text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
+                    Severity
+                  </div>
                   <div>{getSeverityBadge(selectedLog.severity)}</div>
                 </div>
-                <div>
-                  <div className="text-sm font-medium text-gray-600">Status</div>
+                <div className="rounded-2xl border border-[#f2d4b5] bg-white px-4 py-3 flex flex-col gap-1">
+                  <div className="text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
+                    Status
+                  </div>
                   <div>
                     {selectedLog.success ? (
-                      <span className="text-green-600">✓ Success</span>
+                      <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-[10px] sm:text-xs font-semibold text-emerald-700">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                        Success
+                      </span>
                     ) : (
-                      <span className="text-red-600">✗ Failed</span>
+                      <span className="inline-flex items-center gap-2 rounded-full bg-red-50 px-3 py-1 text-[10px] sm:text-xs font-semibold text-red-800">
+                        <span className="h-2 w-2 rounded-full bg-red-500" />
+                        Failed
+                      </span>
                     )}
                   </div>
                 </div>
               </div>
 
               <div>
-                <div className="text-sm font-medium text-gray-600 mb-1">Description</div>
-                <div className="bg-gray-50 p-3 rounded-lg">{selectedLog.description}</div>
+                <div className="mb-1 text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
+                  Description
+                </div>
+                <div className="rounded-2xl bg-[#FFF9F1] px-4 py-3 text-xs sm:text-sm text-[#4A2F17]">
+                  {selectedLog.description || "No description provided."}
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-sm font-medium text-gray-600">Actor</div>
-                  <div>{selectedLog.actor_name || "System"}</div>
-                  <div className="text-sm text-gray-500">{selectedLog.actor_type}</div>
+              <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl border border-[#f2d4b5] bg-white px-4 py-3">
+                  <div className="text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
+                    Actor
+                  </div>
+                  <div className="mt-1 text-xs sm:text-sm font-semibold text-[#4A2F17]">
+                    {selectedLog.actor_name || "System"}
+                  </div>
+                  <div className="text-[11px] text-gray-500">
+                    {selectedLog.actor_type}
+                  </div>
                 </div>
-                <div>
-                  <div className="text-sm font-medium text-gray-600">Target</div>
-                  <div>{selectedLog.target_name || "N/A"}</div>
-                  <div className="text-sm text-gray-500">{selectedLog.target_type}</div>
+                <div className="rounded-2xl border border-[#f2d4b5] bg-white px-4 py-3">
+                  <div className="text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
+                    Target
+                  </div>
+                  <div className="mt-1 text-xs sm:text-sm font-semibold text-[#4A2F17]">
+                    {selectedLog.target_name || "N/A"}
+                  </div>
+                  <div className="text-[11px] text-gray-500">
+                    {selectedLog.target_type}
+                  </div>
                 </div>
               </div>
 
               {selectedLog.ip_address && (
-                <div>
-                  <div className="text-sm font-medium text-gray-600">IP Address</div>
-                  <div className="font-mono text-sm">{selectedLog.ip_address}</div>
+                <div className="rounded-2xl border border-[#f2d4b5] bg-white px-4 py-3">
+                  <div className="text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
+                    IP Address
+                  </div>
+                  <div className="mt-1 font-mono text-[11px] text-[#4A2F17]">
+                    {selectedLog.ip_address}
+                  </div>
                 </div>
               )}
 
               {selectedLog.user_agent && (
-                <div>
-                  <div className="text-sm font-medium text-gray-600">User Agent</div>
-                  <div className="text-sm text-gray-600 break-all">{selectedLog.user_agent}</div>
+                <div className="rounded-2xl border border-[#f2d4b5] bg-white px-4 py-3">
+                  <div className="text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
+                    User Agent
+                  </div>
+                  <div className="mt-1 text-[11px] sm:text-xs text-gray-600 break-all">
+                    {selectedLog.user_agent}
+                  </div>
                 </div>
               )}
 
-              {selectedLog.metadata && Object.keys(selectedLog.metadata).length > 0 && (
-                <div>
-                  <div className="text-sm font-medium text-gray-600 mb-1">Additional Data</div>
-                  <pre className="bg-gray-50 p-3 rounded-lg text-xs overflow-auto max-h-40">
-                    {JSON.stringify(selectedLog.metadata, null, 2)}
-                  </pre>
-                </div>
-              )}
+              {selectedLog.metadata &&
+                Object.keys(selectedLog.metadata).length > 0 && (
+                  <div>
+                    <div className="mb-1 text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
+                      Additional Data
+                    </div>
+                    <pre className="max-h-40 overflow-auto rounded-2xl bg-[#0f172a] px-4 py-3 text-[10px] sm:text-[11px] leading-relaxed text-slate-100">
+                      {JSON.stringify(selectedLog.metadata, null, 2)}
+                    </pre>
+                  </div>
+                )}
 
               {selectedLog.error_message && (
                 <div>
-                  <div className="text-sm font-medium text-gray-600 mb-1">Error Message</div>
-                  <div className="bg-red-50 border border-red-200 p-3 rounded-lg text-sm text-red-800">
+                  <div className="mb-1 text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
+                    Error Message
+                  </div>
+                  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs sm:text-sm text-red-800">
                     {selectedLog.error_message}
                   </div>
                 </div>

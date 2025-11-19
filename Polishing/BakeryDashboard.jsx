@@ -1081,13 +1081,14 @@ const BakeryDashboard = () => {
               {visibleTabs.includes("complaints") && (
                 <TabsTrigger
                   value="complaints"
-                  title="Complaints"
+                  title="Concerns"
                   className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full text-[#6b4b2b] hover:bg-amber-50"
                 >
                   <MessageSquareWarning className="w-4 h-4" />
-                  <span className="hidden sm:inline">Complaints</span>
+                  <span className="hidden sm:inline">Concerns</span>
                 </TabsTrigger>
               )}
+
               {visibleTabs.includes("reports") && (
                 <TabsTrigger
                   value="reports"

@@ -318,7 +318,7 @@ const CharityDashboard = () => {
       case "feedback":
         return "Feedback";
       case "complaints":
-        return "Complaints";
+        return "Concerns";
       case "reports":
         return "Reports";
       default:
@@ -630,7 +630,7 @@ const CharityDashboard = () => {
                 className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
               >
                 <AlertTriangle className="w-4 h-4" />
-                <span className="hidden sm:inline">Complaints</span>
+                <span className="hidden sm:inline">Concerns</span>
               </TabsTrigger>
 
               <TabsTrigger

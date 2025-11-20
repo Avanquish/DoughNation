@@ -73,8 +73,8 @@ export default function ComplaintModule({ isViewOnly = false }) {
       setOpen(false);
       Swal.fire({
         icon: "success",
-        title: "Complaint Submitted",
-        text: "Your complaint has been successfully submitted.",
+        title: "Concern Submitted",
+        text: "Your concern has been successfully submitted.",
       });
 
       setFormData({ subject: "", description: "" });
@@ -152,7 +152,7 @@ export default function ComplaintModule({ isViewOnly = false }) {
       {/* Title + trigger */}
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-3xl font-extrabold tracking-tight text-[#4A2F17]">
-          Complaints
+          Concerns
         </h1>
 
         {!isViewOnly && (
@@ -163,7 +163,7 @@ export default function ComplaintModule({ isViewOnly = false }) {
                            bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327]
                            hover:brightness-[1.03]"
               >
-                Submit Complaint
+                Submit Concern
               </Button>
             </DialogTrigger>
 
@@ -183,7 +183,7 @@ export default function ComplaintModule({ isViewOnly = false }) {
                   </span>
                   <DialogHeader className="m-0 p-0">
                     <DialogTitle className="m-0 text-base font-semibold tracking-tight text-[#4A2F17] sm:text-lg">
-                      Submit a Complaint
+                      Submit a Concern
                     </DialogTitle>
                   </DialogHeader>
                 </div>
@@ -207,7 +207,7 @@ export default function ComplaintModule({ isViewOnly = false }) {
                       value={formData.subject}
                       onChange={handleChange}
                       required
-                      placeholder="Enter complaint subject"
+                      placeholder="Enter concern subject"
                       className="rounded-2xl border-[#f2d4b5] bg-white/95 pl-10
                                  shadow-sm focus-visible:border-[#E49A52] focus-visible:ring-[#E49A52]"
                     />
@@ -230,7 +230,7 @@ export default function ComplaintModule({ isViewOnly = false }) {
                       value={formData.description}
                       onChange={handleChange}
                       required
-                      placeholder="Describe your issue..."
+                      placeholder="Describe your concern..."
                       rows={4}
                       className="rounded-2xl border-[#f2d4b5] bg-white/95 pl-10
                                  shadow-sm focus-visible:border-[#E49A52] focus-visible:ring-[#E49A52]"
@@ -259,7 +259,7 @@ export default function ComplaintModule({ isViewOnly = false }) {
                                transition hover:-translate-y-0.5 hover:brightness-[1.03]
                                active:scale-95 sm:w-auto sm:flex-1"
                   >
-                    {loading ? "Submitting..." : "Submit Complaint"}
+                    {loading ? "Submitting..." : "Submit Concern"}
                   </Button>
                 </DialogFooter>
               </form>
@@ -272,14 +272,14 @@ export default function ComplaintModule({ isViewOnly = false }) {
         {/* --- UI: header + search bar --- */}
         <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-lg font-semibold text-[#4A2F17]">
-            My Complaints
+            My Concerns
           </CardTitle>
 
           <div className="relative w-full max-w-xs">
             <Input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search complaints..."
+              placeholder="Search concerns..."
               className="h-9 rounded-full border-[#f2d4b5] bg-white/95 pl-9 text-sm shadow-sm focus-visible:border-[#E49A52] focus-visible:ring-[#E49A52]"
             />
             <span className="pointer-events-none absolute inset-y-0 left-3 grid place-items-center">
@@ -294,12 +294,10 @@ export default function ComplaintModule({ isViewOnly = false }) {
         {/* --- UI: list + pagination --- */}
         <CardContent className="pb-4 pt-3">
           {complaints.length === 0 ? (
-            <p className="text-sm text-gray-500">
-              No complaints submitted yet.
-            </p>
+            <p className="text-sm text-gray-500">No concerns submitted yet.</p>
           ) : filteredComplaints.length === 0 ? (
             <p className="text-sm text-gray-500">
-              No complaints match your search.
+              No concerns match your search.
             </p>
           ) : (
             <>
@@ -347,7 +345,9 @@ export default function ComplaintModule({ isViewOnly = false }) {
                             </span>
                             {c.replied_at && (
                               <>
-                                <span className="opacity-40 text-[#166534]">•</span>
+                                <span className="opacity-40 text-[#166534]">
+                                  •
+                                </span>
                                 <span className="text-[11px] text-[#166534]/80">
                                   {formatDate(c.replied_at)}
                                 </span>

@@ -20,8 +20,9 @@ const AchievementBadges = () => {
   const [userBadges, setUserBadges] = useState([]);
   const [badgeProgress, setBadgeProgress] = useState([]);
   const [unlockedBadge, setUnlockedBadge] = useState(null);
+  const [badgeQueue, setBadgeQueue] = useState([]);
 
-  // Tracks which badge IDs have already shown the “unlocked” modal locally.
+  // Tracks which badge IDs have already shown the "unlocked" modal locally.
   const prevBadgeIds = useRef(
     new Set(JSON.parse(localStorage.getItem("shownBadges") || "[]"))
   );
@@ -107,23 +108,48 @@ const AchievementBadges = () => {
     };
   };
 
-  // Show modal if a new badge is unlocked
+  // Show modal if a new badge is unlocked - queue multiple badges
   useEffect(() => {
-    if (userBadges.length > 0) {
-      const latestBadgeId = userBadges[userBadges.length - 1].badge_id;
-      if (!prevBadgeIds.current.has(latestBadgeId)) {
-        const badgeObj = allBadges.find((b) => b.id === latestBadgeId);
-        if (badgeObj) {
-          setUnlockedBadge(badgeObj);
-          prevBadgeIds.current.add(latestBadgeId);
-          localStorage.setItem(
-            "shownBadges",
-            JSON.stringify(Array.from(prevBadgeIds.current))
-          );
+    if (userBadges.length > 0 && allBadges.length > 0) {
+      const newBadges = [];
+      
+      userBadges.forEach((userBadge) => {
+        if (!prevBadgeIds.current.has(userBadge.badge_id)) {
+          const badgeObj = allBadges.find((b) => b.id === userBadge.badge_id);
+          if (badgeObj) {
+            newBadges.push(badgeObj);
+            prevBadgeIds.current.add(userBadge.badge_id);
+          }
         }
+      });
+
+      if (newBadges.length > 0) {
+        // Update localStorage
+        localStorage.setItem(
+          "shownBadges",
+          JSON.stringify(Array.from(prevBadgeIds.current))
+        );
+        
+        // Add new badges to queue
+        setBadgeQueue((prev) => [...prev, ...newBadges]);
       }
     }
   }, [userBadges, allBadges]);
+
+  // Display badges one by one from queue
+  useEffect(() => {
+    if (badgeQueue.length > 0 && !unlockedBadge) {
+      // Show the first badge in queue
+      setUnlockedBadge(badgeQueue[0]);
+    }
+  }, [badgeQueue, unlockedBadge]);
+
+  // Handler to close modal and show next badge
+  const handleCloseModal = () => {
+    setUnlockedBadge(null);
+    // Remove the first badge from queue
+    setBadgeQueue((prev) => prev.slice(1));
+  };
 
   return (
     <div className="max-w-6xl mx-auto py-10 px-4">
@@ -254,7 +280,7 @@ const AchievementBadges = () => {
       {unlockedBadge && (
         <UnlockModalBadge
           badge={unlockedBadge}
-          onClose={() => setUnlockedBadge(null)}
+          onClose={handleCloseModal}
         />
       )}
     </div>

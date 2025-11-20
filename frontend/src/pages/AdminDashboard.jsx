@@ -94,6 +94,10 @@ const columns = [
   { accessorKey: "role", header: "Role", isHide: "false" },
 ];
 
+// === ADMIN NOTIF PAGINATION (UI ONLY) ===
+// Max number of notifications per page in the admin bell dropdown (same as bakery PAGE_SIZE=10)
+const ADMIN_NOTIF_PAGE_SIZE = 10;
+
 const AdminDashboard = () => {
   const [name, setName] = useState("Admin");
   const [activeTab, setActiveTab] = useState(() => {
@@ -140,7 +144,7 @@ const AdminDashboard = () => {
   // Notifications
   const [notifOpen, setNotifOpen] = useState(false);
   const [readNotifs, setReadNotifs] = useState(new Set());
-  const [notifTab, setNotifTab] = useState("verifications"); // "verifications" | "complaints" | "reports"
+  const [notifTab, setNotifTab] = useState("verifications"); // "verifications" | "complaints" (user concerns) | "reports"
   const dropdownRef = useRef(null);
   const bellRef = useRef(null);
 
@@ -331,7 +335,7 @@ const AdminDashboard = () => {
       kind: "complaint",
       id: `comp-${c.id}`,
       at: c.created_at || null,
-      title: `Complaint from ${c.user_name || "User"}`,
+      title: `Concern from ${c.user_name || "User"}`,
       subtitle: (c.subject || c.description || "").toString().slice(0, 120),
     }));
     return [...reg, ...fbs, ...complaintsNotifs]
@@ -387,7 +391,7 @@ const AdminDashboard = () => {
       users: "User Verification",
       reports: "Reports",
       track: "Donations",
-      complaints: "Complaints",
+      complaints: "User Concerns",
     };
     return map[activeTab] ?? "Dashboard";
   }, [activeTab]);
@@ -401,6 +405,47 @@ const AdminDashboard = () => {
 
   const unreadVerifications = verificationList.filter((n) => !n.isRead).length;
   const unreadComplaints = complaintsList.filter((n) => !n.isRead).length;
+
+  // === ADMIN NOTIF PAGINATION STATE (UI ONLY) ===
+  // separate page state for Verifications & User Concerns
+  const [verificationPage, setVerificationPage] = useState(1);
+  const [complaintsPage, setComplaintsPage] = useState(1);
+
+  const verificationTotalPages = Math.max(
+    1,
+    Math.ceil(verificationList.length / ADMIN_NOTIF_PAGE_SIZE) || 1
+  );
+  const complaintsTotalPages = Math.max(
+    1,
+    Math.ceil(complaintsList.length / ADMIN_NOTIF_PAGE_SIZE) || 1
+  );
+
+  const pagedVerificationList = useMemo(
+    () =>
+      verificationList.slice(
+        (verificationPage - 1) * ADMIN_NOTIF_PAGE_SIZE,
+        verificationPage * ADMIN_NOTIF_PAGE_SIZE
+      ),
+    [verificationList, verificationPage]
+  );
+
+  const pagedComplaintsList = useMemo(
+    () =>
+      complaintsList.slice(
+        (complaintsPage - 1) * ADMIN_NOTIF_PAGE_SIZE,
+        complaintsPage * ADMIN_NOTIF_PAGE_SIZE
+      ),
+    [complaintsList, complaintsPage]
+  );
+
+  // reset to first page whenever list length changes
+  useEffect(() => {
+    setVerificationPage(1);
+  }, [verificationList.length]);
+
+  useEffect(() => {
+    setComplaintsPage(1);
+  }, [complaintsList.length]);
 
   const [showTop, setShowTop] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -727,7 +772,7 @@ thead{ background:#EADBC8; color:#4A2F17; }
                             },
                             {
                               key: "complaints",
-                              label: "Complaints",
+                              label: "User Concerns",
                               count: unreadComplaints,
                             },
                           ].map((t) => (
@@ -766,7 +811,7 @@ thead{ background:#EADBC8; color:#4A2F17; }
 
                         {/* Lists */}
                         <div className="max-h-80 overflow-y-auto divide-y">
-                          {/* VERIFICATIONS */}
+                          {/* === VERIFICATIONS LIST (with pagination) === */}
                           {notifTab === "verifications" && (
                             <div>
                               {verificationList.length === 0 ? (
@@ -774,7 +819,7 @@ thead{ background:#EADBC8; color:#4A2F17; }
                                   No verification alerts
                                 </div>
                               ) : (
-                                verificationList.map((n) => (
+                                pagedVerificationList.map((n) => (
                                   <button
                                     key={n.id}
                                     onClick={() => {
@@ -816,15 +861,15 @@ thead{ background:#EADBC8; color:#4A2F17; }
                             </div>
                           )}
 
-                          {/* COMPLAINTS */}
+                          {/* === COMPLAINTS LIST (with pagination) === */}
                           {notifTab === "complaints" && (
                             <div>
                               {complaintsList.length === 0 ? (
                                 <div className="p-4 text-sm text-gray-500">
-                                  No complaints
+                                  No user concerns
                                 </div>
                               ) : (
-                                complaintsList.map((n) => (
+                                pagedComplaintsList.map((n) => (
                                   <button
                                     key={n.id}
                                     onClick={() => {
@@ -867,7 +912,79 @@ thead{ background:#EADBC8; color:#4A2F17; }
                           )}
                         </div>
 
-                        {/* Footer */}
+                        {/* === PAGINATION FOOTER FOR ADMIN NOTIFS (UI ONLY) === */}
+                        {notifTab === "verifications" &&
+                          verificationList.length > 0 && (
+                            <div className="px-3 pt-2 pb-2 bg-white border-t border-[rgba(0,0,0,0.04)] text-[#8a5a25]">
+                              <div className="text-center text-[11px] mb-1">
+                                Page {verificationPage} of{" "}
+                                {verificationTotalPages}
+                              </div>
+                              <div className="flex items-center justify-between gap-2 text-[12px]">
+                                <button
+                                  onClick={() =>
+                                    setVerificationPage((p) =>
+                                      p > 1 ? p - 1 : p
+                                    )
+                                  }
+                                  disabled={verificationPage === 1}
+                                  className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
+                                >
+                                  Prev
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    setVerificationPage((p) =>
+                                      p < verificationTotalPages ? p + 1 : p
+                                    )
+                                  }
+                                  disabled={
+                                    verificationPage >= verificationTotalPages
+                                  }
+                                  className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
+                                >
+                                  Next
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                        {notifTab === "complaints" &&
+                          complaintsList.length > 0 && (
+                            <div className="px-3 pt-2 pb-2 bg-white border-t border-[rgba(0,0,0,0.04)] text-[#8a5a25]">
+                              <div className="text-center text-[11px] mb-1">
+                                Page {complaintsPage} of {complaintsTotalPages}
+                              </div>
+                              <div className="flex items-center justify-between gap-2 text-[12px]">
+                                <button
+                                  onClick={() =>
+                                    setComplaintsPage((p) =>
+                                      p > 1 ? p - 1 : p
+                                    )
+                                  }
+                                  disabled={complaintsPage === 1}
+                                  className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
+                                >
+                                  Prev
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    setComplaintsPage((p) =>
+                                      p < complaintsTotalPages ? p + 1 : p
+                                    )
+                                  }
+                                  disabled={
+                                    complaintsPage >= complaintsTotalPages
+                                  }
+                                  className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
+                                >
+                                  Next
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                        {/* Footer tip (unchanged text, same idea as bakery tip) */}
                         <div className="px-3 py-2 text-[11px] text-[#8a5a25] bg-white/70">
                           Tip: Click a notification to jump to its section.
                         </div>
@@ -965,11 +1082,11 @@ thead{ background:#EADBC8; color:#4A2F17; }
 
               <TabsTrigger
                 value="complaints"
-                title="Complaints"
+                title="User Concerns"
                 className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
               >
                 <MessageSquareWarning className="w-4 h-4" />
-                <span className="hidden sm:inline">Complaints</span>
+                <span className="hidden sm:inline">User Concerns</span>
               </TabsTrigger>
 
               <TabsTrigger
@@ -1113,10 +1230,10 @@ thead{ background:#EADBC8; color:#4A2F17; }
               <Card className="glass-card shadow-none">
                 <CardHeader>
                   <CardTitle className="text-3xl font-extrabold text-[#6b4b2b]">
-                    Manage Complaints
+                    Manage User Concerns
                   </CardTitle>
                   <CardDescription>
-                    Review and respond to user complaints
+                    Review and respond to user concerns
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

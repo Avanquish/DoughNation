@@ -40,10 +40,10 @@ export default function DashboardSearch({
   const [loading, setLoading] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [open, setOpen] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   const boxRef = useRef(null);
   const inputRef = useRef(null);
-
   const sz = useMemo(() => SIZES[size] ?? SIZES.sm, [size]);
 
   // Close dropdown when clicking outside
@@ -69,7 +69,6 @@ export default function DashboardSearch({
       const employeeToken = localStorage.getItem("employeeToken");
       const bakeryToken = localStorage.getItem("token");
       const token = employeeToken || bakeryToken;
-
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const res = await axios.get(`${API}/search_users`, {
         params: { q, target: searchType },
@@ -105,7 +104,30 @@ export default function DashboardSearch({
   const runSearchClick = () => handleSearch();
 
   const shouldShowDropdown =
-    open && query.trim().length > 0 && (loading || results.length > 0);
+    (open || isFocused) &&
+    query.trim().length > 0 &&
+    (loading || results.length > 0 || !loading);
+
+  const onSelectResult = (item) => {
+    setSelectedUser({ id: item.id, type: item.type || item.role });
+    setQuery("");
+    setResults([]);
+    setOpen(false);
+    setIsFocused(false);
+    try {
+      inputRef.current?.blur();
+    } catch {}
+  };
+
+  // build the empty-state label depending on searchType
+  const emptyLabel = useMemo(() => {
+    const q = query.trim();
+    const msgFor = (what) =>
+      `${what} found${q ? ` for “${q}”` : ""}. Check spelling and try again.`;
+    if (searchType === "bakery") return msgFor("No bakeries");
+    if (searchType === "charity") return msgFor("No charities");
+    return msgFor("No bakeries or charities");
+  }, [query, searchType]);
 
   return (
     <div
@@ -117,28 +139,35 @@ export default function DashboardSearch({
       <div className="flex items-center gap-2">
         <div className="relative">
           <div
-            className={`${sz.h} ${sz.width} ${sz.inputPad} flex items-center rounded-full border border-black/70 bg-white`}
+            className={`${sz.h} ${sz.width} ${sz.inputPad} flex items-center rounded-full border border-[#E39A50] bg-white shadow-sm focus-within:ring-2 focus-within:ring-[#DE7F21]`}
           >
-            {/* INPUT — borderless/ringless (prevents “box inside box”) */}
             <input
               ref={inputRef}
               type="text"
-              placeholder="Search..."
+              placeholder="Search bakery or charity"
               value={query}
               onChange={onInputChange}
-              onFocus={() => query.trim() && setOpen(true)}
+              onFocus={() => {
+                setIsFocused(true);
+                if (query.trim()) setOpen(true);
+              }}
+              onBlur={() =>
+                setTimeout(() => {
+                  setIsFocused(false);
+                  setOpen(false);
+                }, 120)
+              }
               onKeyDown={onKeyDown}
               aria-label="Search"
-              className="w-full bg-transparent border-none outline-none ring-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 appearance-none"
+              className="w-full bg-transparent text-sm text-[#4A2F17] placeholder:text-gray-400 border-none outline-none ring-0 focus:outline-none focus:ring-0"
               style={{ boxShadow: "none" }}
             />
           </div>
           <Search
-            className={`${sz.icon} text-gray-600 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none`}
+            className={`${sz.icon} text-[#BF7327]/80 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none`}
           />
         </div>
 
-        {/* Brown-gradient pill button with hover zoom */}
         <button
           type="button"
           onClick={runSearchClick}
@@ -162,42 +191,51 @@ export default function DashboardSearch({
         </button>
       </div>
 
-      {/* Results dropdown (attached under the input) */}
+      {/* Results dropdown */}
       {shouldShowDropdown && (
         <div
-          className={`absolute z-50 top-full mt-2 ${sz.width} left-0 rounded-xl border border-black/10 bg-white shadow-lg`}
+          className={`absolute z-50 top-full mt-2 ${sz.width} left-0 rounded-2xl border border-[#f2d4b5] bg-white shadow-lg`}
           role="listbox"
           aria-label="Search results"
         >
-          <div className="max-h-56 overflow-y-auto py-2">
+          <div className="max-h-56 overflow-y-auto py-2 text-xs sm:text-sm">
             {loading ? (
-              <p className="px-3 py-1 text-gray-500 text-sm">Searching…</p>
+              <div className="py-6 text-center text-xs sm:text-sm text-gray-500">
+                Searching…
+              </div>
             ) : results.length === 0 ? (
-              <p className="px-3 py-1 text-gray-500 text-sm">No matches.</p>
+              <div className="py-6 px-4 text-center text-xs sm:text-sm text-[#4A2F17]">
+                {emptyLabel}
+              </div>
             ) : (
-              <ul>
+              <ul className="space-y-1">
                 {results.map((item) => (
-                  <li
-                    key={item.id}
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 cursor-pointer"
-                    onClick={() =>
-                      setSelectedUser({ id: item.id, type: item.type })
-                    }
-                  >
-                    {item.profile_picture ? (
-                      <img
-                        src={
-                          item.profile_picture
-                            ? encodeURI(`${API}/${item.profile_picture}`)
-                            : "/default-avatar.png"
-                        }
-                        alt={item.name}
-                        className="w-6 h-6 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-6 h-6 rounded-full bg-gray-300" />
-                    )}
-                    <span className="font-semibold">{item.name}</span>
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => onSelectResult(item)}
+                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] transition"
+                    >
+                      <div className="flex items-start gap-2">
+                        {item.profile_picture ? (
+                          <img
+                            src={
+                              item.profile_picture
+                                ? encodeURI(`${API}/${item.profile_picture}`)
+                                : "/default-avatar.png"
+                            }
+                            alt={item.name}
+                            className="w-6 h-6 rounded-full object-cover mt-0.5"
+                          />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-gray-300 mt-0.5" />
+                        )}
+                        <span className="font-medium text-[#4A2F17] leading-snug break-words">
+                          {item.name}
+                        </span>
+                      </div>
+                    </button>
                   </li>
                 ))}
               </ul>

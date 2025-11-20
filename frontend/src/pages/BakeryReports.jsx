@@ -415,7 +415,7 @@ export default function BakeryReports({ isViewOnly = false }) {
     } else if (bakeryToken) {
       try {
         const payload = JSON.parse(atob(bakeryToken.split(".")[1]));
-        name = payload.name || "Bakery Owner";
+        name = payload.contact_person || payload.name || "Bakery Owner";
       } catch (e) {
         console.error("Failed to decode bakery token", e);
       }

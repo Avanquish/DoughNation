@@ -188,12 +188,10 @@ const NotificationCenter = () => {
 
   return (
     <div className="w-full space-y-4">
-      {/* OUTER CARD WRAPPER */}
       <Card className="border-none bg-transparent shadow-none">
         <div
           className={`overflow-hidden rounded-[28px] bg-white ${tones.ring}`}
         >
-          {/* Hidden title */}
           <CardHeader className="p-0 h-0 border-none bg-transparent">
             <div className="sr-only">
               <CardTitle>Notification Center</CardTitle>
@@ -352,100 +350,101 @@ const NotificationCenter = () => {
                       </div>
                     </div>
 
-                    {/* Target Audience */}
-                    <div className="rounded-2xl border border-[#f2d4b5] bg-white px-3 py-3 sm:px-4 sm:py-4 space-y-3">
-                      <Label className="text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
-                        Target Audience
-                      </Label>
-                      <div className="space-y-2">
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id="target-all"
-                            checked={targetAll}
-                            onCheckedChange={(checked) => {
-                              setTargetAll(checked);
-                              if (checked) {
-                                setTargetRole("");
-                                setTargetUserId("");
-                              }
-                            }}
-                          />
-                          <label
-                            htmlFor="target-all"
-                            className="text-sm font-medium leading-none text-[#4A2F17]"
-                          >
-                            Send to all users
-                          </label>
-                        </div>
-
-                        {!targetAll && (
-                          <div className="pl-6 space-y-3">
-                            <div className="space-y-1">
-                              <Label
-                                htmlFor="target-role"
-                                className="text-xs font-medium text-[#6b4b2b]"
-                              >
-                                Or select role:
-                              </Label>
-                              <Select
-                                value={targetRole}
-                                onValueChange={(val) => {
-                                  setTargetRole(val);
-                                  setTargetUserId("");
-                                }}
-                              >
-                                <SelectTrigger className="h-9 rounded-full border-[#f2d4b5] bg-white px-3 text-xs sm:text-sm shadow-sm focus:ring-[#DE7F21] focus-visible:ring-[#DE7F21]">
-                                  <SelectValue placeholder="Select role" />
-                                </SelectTrigger>
-                                <SelectContent className="z-50 max-h-60 overflow-y-auto rounded-2xl border border-[#f2d4b5] bg-white shadow-lg text-sm py-1">
-                                  <SelectItem
-                                    value=""
-                                    className={selectItemClass}
-                                  >
-                                    None
-                                  </SelectItem>
-                                  <SelectItem
-                                    value="Bakery"
-                                    className={selectItemClass}
-                                  >
-                                    All Bakeries
-                                  </SelectItem>
-                                  <SelectItem
-                                    value="Charity"
-                                    className={selectItemClass}
-                                  >
-                                    All Charities
-                                  </SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            <div className="space-y-1">
-                              <Label
-                                htmlFor="target-user"
-                                className="text-xs font-medium text-[#6b4b2b]"
-                              >
-                                Or specific user ID:
-                              </Label>
-                              <Input
-                                id="target-user"
-                                type="number"
-                                placeholder="Enter user ID"
-                                value={targetUserId}
-                                onChange={(e) => {
-                                  setTargetUserId(e.target.value);
+                    {/* ── TARGET AUDIENCE + DELIVERY OPTIONS */}
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+                      {/* Target Audience */}
+                      <div className="rounded-2xl border border-[#f2d4b5] bg-white px-3 py-3 sm:px-4 sm:py-4 space-y-3">
+                        <Label className="text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
+                          Target Audience
+                        </Label>
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="target-all"
+                              checked={targetAll}
+                              onCheckedChange={(checked) => {
+                                setTargetAll(!!checked);
+                                if (checked) {
                                   setTargetRole("");
-                                }}
-                                className="h-9 rounded-xl border-[#f2d4b5] bg-white text-sm focus:ring-[#DE7F21] focus-visible:ring-[#DE7F21]"
-                              />
-                            </div>
+                                  setTargetUserId("");
+                                }
+                              }}
+                            />
+                            <label
+                              htmlFor="target-all"
+                              className="text-sm font-medium leading-none text-[#4A2F17]"
+                            >
+                              Send to all users
+                            </label>
                           </div>
-                        )}
-                      </div>
-                    </div>
 
-                    {/* Delivery + Expiration */}
-                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                          {!targetAll && (
+                            <div className="pl-6 space-y-3">
+                              <div className="space-y-1">
+                                <Label
+                                  htmlFor="target-role"
+                                  className="text-xs font-medium text-[#6b4b2b]"
+                                >
+                                  Or select role:
+                                </Label>
+                                <Select
+                                  value={targetRole}
+                                  onValueChange={(val) => {
+                                    setTargetRole(val);
+                                    setTargetUserId("");
+                                  }}
+                                >
+                                  <SelectTrigger className="h-9 rounded-full border-[#f2d4b5] bg-white px-3 text-xs sm:text-sm shadow-sm focus:ring-[#DE7F21] focus-visible:ring-[#DE7F21]">
+                                    <SelectValue placeholder="Select role" />
+                                  </SelectTrigger>
+                                  <SelectContent className="z-50 max-h-60 overflow-y-auto rounded-2xl border border-[#f2d4b5] bg-white shadow-lg text-sm py-1">
+                                    <SelectItem
+                                      value=""
+                                      className={selectItemClass}
+                                    >
+                                      None
+                                    </SelectItem>
+                                    <SelectItem
+                                      value="Bakery"
+                                      className={selectItemClass}
+                                    >
+                                      All Bakeries
+                                    </SelectItem>
+                                    <SelectItem
+                                      value="Charity"
+                                      className={selectItemClass}
+                                    >
+                                      All Charities
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <div className="space-y-1">
+                                <Label
+                                  htmlFor="target-user"
+                                  className="text-xs font-medium text-[#6b4b2b]"
+                                >
+                                  Or specific user ID:
+                                </Label>
+                                <Input
+                                  id="target-user"
+                                  type="number"
+                                  placeholder="Enter user ID"
+                                  value={targetUserId}
+                                  onChange={(e) => {
+                                    setTargetUserId(e.target.value);
+                                    setTargetRole("");
+                                  }}
+                                  className="h-9 rounded-xl border-[#f2d4b5] bg-white text-sm focus:ring-[#DE7F21] focus-visible:ring-[#DE7F21]"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Delivery Options */}
                       <div className="rounded-2xl border border-[#f2d4b5] bg-white px-3 py-3 sm:px-4 sm:py-4 space-y-2">
                         <Label className="text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
                           Delivery Options
@@ -454,7 +453,9 @@ const NotificationCenter = () => {
                           <Checkbox
                             id="send-email"
                             checked={sendEmail}
-                            onCheckedChange={setSendEmail}
+                            onCheckedChange={(checked) =>
+                              setSendEmail(!!checked)
+                            }
                           />
                           <label
                             htmlFor="send-email"
@@ -465,25 +466,6 @@ const NotificationCenter = () => {
                         </div>
                         <p className="text-[11px] text-gray-500 pl-6">
                           In-app notifications are always sent.
-                        </p>
-                      </div>
-
-                      <div className="rounded-2xl border border-[#f2d4b5] bg-white px-3 py-3 sm:px-4 sm:py-4 space-y-2">
-                        <Label
-                          htmlFor="expires"
-                          className="text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase"
-                        >
-                          Expiration Date (optional)
-                        </Label>
-                        <Input
-                          id="expires"
-                          type="datetime-local"
-                          value={expiresAt}
-                          onChange={(e) => setExpiresAt(e.target.value)}
-                          className="h-9 rounded-xl border-[#f2d4b5] bg-white text-xs sm:text-sm focus:ring-[#DE7F21] focus-visible:ring-[#DE7F21]"
-                        />
-                        <p className="text-[11px] text-gray-500">
-                          Notification will automatically hide after this date.
                         </p>
                       </div>
                     </div>

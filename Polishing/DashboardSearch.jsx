@@ -1,0 +1,260 @@
+import React, { useRef, useState, useEffect, useMemo } from "react";
+import axios from "axios";
+import { Search } from "lucide-react";
+import { createPortal } from "react-dom";
+import ShowSearchedProfile from "./ShowSearchedProfile";
+
+const API = "http://localhost:8000";
+
+const SIZES = {
+  sm: {
+    h: "h-10",
+    inputPad: "pl-9 pr-3",
+    btnPx: "px-3",
+    icon: "w-4 h-4",
+    width: "w-[240px]",
+  },
+  md: {
+    h: "h-11",
+    inputPad: "pl-9 pr-4",
+    btnPx: "px-4",
+    icon: "w-4 h-4",
+    width: "w-[260px]",
+  },
+  lg: {
+    h: "h-12",
+    inputPad: "pl-10 pr-4",
+    btnPx: "px-5",
+    icon: "w-5 h-5",
+    width: "w-[300px]",
+  },
+};
+
+export default function DashboardSearch({
+  searchType = "all",
+  className = "",
+  size = "sm",
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+
+  const boxRef = useRef(null);
+  const inputRef = useRef(null);
+  const sz = useMemo(() => SIZES[size] ?? SIZES.sm, [size]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (!boxRef.current) return;
+      if (!boxRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
+  const handleSearch = async (qToSearch) => {
+    const q = (qToSearch ?? query).trim();
+    if (!q) {
+      setResults([]);
+      setOpen(false);
+      return;
+    }
+    try {
+      setLoading(true);
+      setOpen(true);
+      const employeeToken = localStorage.getItem("employeeToken");
+      const bakeryToken = localStorage.getItem("token");
+      const token = employeeToken || bakeryToken;
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await axios.get(`${API}/search_users`, {
+        params: { q, target: searchType },
+        headers,
+      });
+      setResults(res.data || []);
+    } catch (err) {
+      console.error("Error searching users:", err);
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onInputChange = (e) => {
+    const v = e.target.value;
+    setQuery(v);
+    if (!v.trim()) {
+      setResults([]);
+      setOpen(false);
+      return;
+    }
+    handleSearch(v); // live search
+  };
+
+  const onKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleSearch();
+    }
+  };
+
+  const runSearchClick = () => handleSearch();
+
+  const shouldShowDropdown =
+    (open || isFocused) &&
+    query.trim().length > 0 &&
+    (loading || results.length > 0 || !loading);
+
+  const onSelectResult = (item) => {
+    setSelectedUser({ id: item.id, type: item.type || item.role });
+    setQuery("");
+    setResults([]);
+    setOpen(false);
+    setIsFocused(false);
+    try {
+      inputRef.current?.blur();
+    } catch {}
+  };
+
+  // build the empty-state label depending on searchType
+  const emptyLabel = useMemo(() => {
+    const q = query.trim();
+    const msgFor = (what) =>
+      `${what} found${q ? ` for “${q}”` : ""}. Check spelling and try again.`;
+    if (searchType === "bakery") return msgFor("No bakeries");
+    if (searchType === "charity") return msgFor("No charities");
+    return msgFor("No bakeries or charities");
+  }, [query, searchType]);
+
+  return (
+    <div
+      className={`relative ${className}`}
+      ref={boxRef}
+      onSubmit={(e) => e.preventDefault()}
+    >
+      {/* Search control */}
+      <div className="flex items-center gap-2">
+        <div className="relative">
+          <div
+            className={`${sz.h} ${sz.width} ${sz.inputPad} flex items-center rounded-full border border-[#E39A50] bg-white shadow-sm focus-within:ring-2 focus-within:ring-[#DE7F21]`}
+          >
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="Search bakery or charity"
+              value={query}
+              onChange={onInputChange}
+              onFocus={() => {
+                setIsFocused(true);
+                if (query.trim()) setOpen(true);
+              }}
+              onBlur={() =>
+                setTimeout(() => {
+                  setIsFocused(false);
+                  setOpen(false);
+                }, 120)
+              }
+              onKeyDown={onKeyDown}
+              aria-label="Search"
+              className="w-full bg-transparent text-sm text-[#4A2F17] placeholder:text-gray-400 border-none outline-none ring-0 focus:outline-none focus:ring-0"
+              style={{ boxShadow: "none" }}
+            />
+          </div>
+          <Search
+            className={`${sz.icon} text-[#BF7327]/80 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none`}
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={runSearchClick}
+          disabled={loading}
+          className={[
+            sz.h,
+            sz.btnPx,
+            "rounded-full text-white font-semibold inline-flex items-center justify-center",
+            "border border-white/60",
+            "bg-[linear-gradient(90deg,#F6C17C,#E49A52,#BF7327)]",
+            "shadow-[0_8px_20px_rgba(191,115,39,.28)]",
+            "transform-gpu transition-transform duration-200 will-change-transform",
+            "motion-safe:hover:scale-105 hover:brightness-105",
+            "active:scale-100 active:translate-y-[1px]",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C97C2C]/30",
+            "disabled:opacity-70 disabled:cursor-not-allowed",
+          ].join(" ")}
+          aria-label="Run search"
+        >
+          {loading ? "Searching..." : "Search"}
+        </button>
+      </div>
+
+      {/* Results dropdown */}
+      {shouldShowDropdown && (
+        <div
+          className={`absolute z-50 top-full mt-2 ${sz.width} left-0 rounded-2xl border border-[#f2d4b5] bg-white shadow-lg`}
+          role="listbox"
+          aria-label="Search results"
+        >
+          <div className="max-h-56 overflow-y-auto py-2 text-xs sm:text-sm">
+            {loading ? (
+              <div className="py-6 text-center text-xs sm:text-sm text-gray-500">
+                Searching…
+              </div>
+            ) : results.length === 0 ? (
+              <div className="py-6 px-4 text-center text-xs sm:text-sm text-[#4A2F17]">
+                {emptyLabel}
+              </div>
+            ) : (
+              <ul className="space-y-1">
+                {results.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => onSelectResult(item)}
+                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] transition"
+                    >
+                      <div className="flex items-start gap-2">
+                        {item.profile_picture ? (
+                          <img
+                            src={
+                              item.profile_picture
+                                ? encodeURI(`${API}/${item.profile_picture}`)
+                                : "/default-avatar.png"
+                            }
+                            alt={item.name}
+                            className="w-6 h-6 rounded-full object-cover mt-0.5"
+                          />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-gray-300 mt-0.5" />
+                        )}
+                        <span className="font-medium text-[#4A2F17] leading-snug break-words">
+                          {item.name}
+                        </span>
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Full-screen modal for selected profile */}
+      {selectedUser &&
+        createPortal(
+          <div className="fixed inset-0 z-50 bg-white overflow-auto">
+            <ShowSearchedProfile
+              id={selectedUser.id}
+              onBack={() => setSelectedUser(null)}
+            />
+          </div>,
+          document.body
+        )}
+    </div>
+  );
+}

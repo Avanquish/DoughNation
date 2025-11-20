@@ -116,29 +116,34 @@ export default function ComplaintModule({ isViewOnly = false }) {
       .trim()
       .toLowerCase();
 
+    // Resolved = GREEN (match filters)
     if (s === "resolved") {
       return {
         label: "Resolved",
         icon: <CheckCircle2 className="h-3.5 w-3.5" />,
-        cls: "bg-[#FFE8C2] border-[#F0D3A6] text-[#7A4A1B]",
-        bar: "bg-[#F6C17C]",
+        // badge
+        cls: "bg-green-100 border-green-200 text-green-800",
+        // left accent bar
+        bar: "bg-green-300",
       };
     }
 
+    // In Review = YELLOW (match filters)
     if (s === "in review") {
       return {
         label: "In Review",
         icon: <Clock className="h-3.5 w-3.5" />,
-        cls: "bg-[#FFF6E9] border-[#f4e6cf] text-[#8a5a25]",
-        bar: "bg-[#FAD7A5]",
+        cls: "bg-amber-100 border-amber-200 text-amber-800",
+        bar: "bg-amber-300",
       };
     }
 
+    // Pending = RED (match filters)
     return {
       label: "Pending",
       icon: <Clock className="h-3.5 w-3.5" />,
-      cls: "bg-[#FFF1F1] border-[#f5caca] text-[#991b1b]",
-      bar: "bg-[#F6C0C0]",
+      cls: "bg-red-100 border-red-200 text-red-800",
+      bar: "bg-red-300",
     };
   };
 

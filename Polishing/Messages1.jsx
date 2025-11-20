@@ -26,33 +26,57 @@ const fileUrl = (path) => {
 const mediaDataURL = (type, base64) =>
   type && base64 ? `data:${type};base64,${base64}` : "";
 
+/** Asia/Manila time formatting */
+// --- Helpers to normalize timestamps and render in Asia/Manila ---
+const toManilaDate = (ts) => {
+  if (!ts) return null;
+
+  // number => epoch ms
+  if (typeof ts === "number") return new Date(ts);
+
+  // string => ensure may timezone; if none, treat as UTC
+  const s = String(ts).trim().replace(" ", "T"); // normalize 'YYYY-MM-DD HH:mm:ss'
+  const hasTZ = /Z|[+-]\d{2}:\d{2}$/.test(s);
+  return new Date(hasTZ ? s : `${s}Z`);
+};
+
 const formatTime = (ts) => {
   try {
-    return new Date(ts).toLocaleTimeString([], {
+    const d = toManilaDate(ts);
+    if (!d || isNaN(d.getTime())) return String(ts);
+    return new Intl.DateTimeFormat("en-PH", {
       hour: "2-digit",
       minute: "2-digit",
-    });
+      hour12: true,
+      timeZone: "Asia/Manila",
+    }).format(d);
   } catch {
-    return ts;
+    return String(ts);
   }
 };
 
-const formatBytes = (bytes) => {
-  try {
-    if (bytes == null) return "";
-    const k = 1024,
-      u = ["KB", "MB", "GB", "TB"];
-    let i = -1;
-    if (Math.abs(bytes) < k) return bytes + " B";
-    do {
-      bytes /= k;
-      i++;
-    } while (Math.abs(bytes) >= k && i < u.length - 1);
-    return bytes.toFixed(1) + " " + u[i];
-  } catch {
-    return "";
-  }
+/** Helpers for day separators (Asia/Manila) */
+const dateInTz = (ts, tz = "Asia/Manila") =>
+  // convert to the same local day regardless of client timezone
+  new Date(new Date(ts).toLocaleString("en-US", { timeZone: tz }));
+
+const sameDay = (a, b) => {
+  const da = dateInTz(a);
+  const db = dateInTz(b);
+  return (
+    da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate()
+  );
 };
+
+const formatDayLabel = (ts) =>
+  dateInTz(ts).toLocaleDateString("en-PH", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 
 /* ==== Theme / UI ==== */
 const Styles = () => (
@@ -87,7 +111,7 @@ const Styles = () => (
       box-shadow: 0 4px 12px rgba(0,0,0,.06);
     }
 
-    /* === UI: chat list wrapper / modal (image 1) === */
+    /* === UI: chat list wrapper / modal === */
     .chatlist-layer{
       position:absolute;
       right:0;
@@ -106,7 +130,7 @@ const Styles = () => (
 
     .cl-head{display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--line); background:var(--cream)}
     .cl-title{font-weight:800; font-size:18px; flex:1; color:var(--ink)}
-        .cl-close-btn{
+    .cl-close-btn{
       margin-left:auto;
       display:inline-flex;
       align-items:center;
@@ -149,7 +173,7 @@ const Styles = () => (
     .page-btn:disabled{opacity:.4;cursor:default;}
     .page-label{flex:1;text-align:center;font-size:12px;color:#8b6b48;}
 
-    /* === UI: dock / chat box polish (image 2) === */
+    /* === UI: dock / chat box polish === */
     .dock-root{position:fixed; right:16px; bottom:16px; z-index:2100; pointer-events:none}
     .dock{
       width:380px; max-width:92vw; height:520px; max-height:calc(100vh - 64px);
@@ -183,9 +207,20 @@ const Styles = () => (
     .msg-row.right{justify-content:flex-end}
     .msg-row.left{justify-content:flex-start}
 
-    .left-controls{position:relative; align-self:flex-end}
+    /* context menu opens to the LEFT of the 3 dots */
+    .left-controls{ position:relative; align-self:flex-end; }
     .icon-btn-tiny{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:8px;border:1px solid var(--line);background:#fff;color:#7a4f1c}
     .icon-btn-tiny:hover{background:#fff4e6}
+    .left-controls .ctx-menu{
+      position:absolute;
+      top:50%;
+      transform: translateY(-50%);
+      right: calc(100% + 8px);
+      left:auto;
+      min-width:160px; background:#fff; border:1px solid rgba(0,0,0,.1); box-shadow:0 12px 28px rgba(0,0,0,.16); border-radius:8px; overflow:hidden; z-index:30
+    }
+    .ctx-item{display:block; width:100%; text-align:left; padding:10px 12px; font-size:13px; color:#4a2f17; background:#fff; cursor:pointer}
+    .ctx-item:hover, .ctx-item:focus-visible{background:#ffe7c5}
 
     .bubble{
       max-width:75%; padding:10px 12px 8px; border-radius:18px; word-break:break-word; overflow-wrap:anywhere;
@@ -213,11 +248,6 @@ const Styles = () => (
     .bubble.me .media-caption strong,
     .bubble.me .media-caption em{ color:#4a2f17; }
     .media-caption{ display:block; margin-top:6px; background:transparent; border:0; color:inherit; line-height:1.3; max-width:100%; }
-
-    .ctx-menu{position:absolute; min-width:160px; background:#fff; border:1px solid rgba(0,0,0,.1); box-shadow:0 12px 28px rgba(0,0,0,.16); border-radius:8px; overflow:hidden; z-index:30}
-    .left-controls .ctx-menu{ top: calc(100% + 6px); left: 50%; transform: translateX(-50%); }
-    .ctx-item{display:block; width:100%; text-align:left; padding:10px 12px; font-size:13px; color:#4a2f17; background:#fff; cursor:pointer}
-    .ctx-item:hover, .ctx-item:focus-visible{background:#ffe7c5}
 
     .meta{display:flex; align-items:center; gap:6px; justify-content:flex-end; margin-top:4px}
     .btime{font-size:11px; opacity:.75; color:#3d2a16}
@@ -250,76 +280,40 @@ const Styles = () => (
 
     .scroll-btn{position:absolute; right:12px; bottom:70px; background:#ffffff; border:1px solid rgba(0,0,0,.08); border-radius:9999px; padding:6px 10px; font-weight:800; color:#7a4f1c; box-shadow:0 8px 18px rgba(0,0,0,.12); font-size:13px;}
 
+    /* Typing tray (no background bar) */
+    .typing-tray{ display:flex; align-items:center; gap:8px; padding:0 16px 6px; background:transparent !important; border:0 !important; box-shadow:none !important; }
+    .typing-dot{ width:6px; height:6px; border-radius:9999px; background:var(--brand2); animation: blink 1s infinite ease-in-out; flex:0 0 auto; }
+    .typing-text{ font-size:12px; font-weight:700; color:#1f1f1f; }
+    @keyframes blink{ 50%{ opacity:.3 } }
 
-  /* === Responsive tweaks (mobile) === */
-  @media (max-width: 768px){
-
-    /* CHAT LIST */
-    .chatlist-layer{
-      position: fixed;
-      top: 0;
-      right: 0;
-      bottom: 0;
-      left: 0;
-      margin-top: 0;
-      background: transparent;
-      z-index: 9999;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-
-      pointer-events: none;
+    /* Deleted/tombstone bubble */
+    .bubble.tombstone{
+      background:#f7f7f7;
+      color:#6b7280;
+      border:1px dashed #e5e7eb;
+      font-style:italic;
     }
 
-  .chatlist-dropdown{
-    position: absolute;
-    top: 50%;
-    left: 4%;
-    transform: translate(-50%, -50%);
-    box-sizing: border-box;
-    width: calc(100% - 32px);
-    max-width: 360px;
-    max-height: 80vh;
-    margin: 0;
-    border-radius: 22px;
-    box-shadow: 0 18px 40px rgba(191,115,39,.25);
+    /* === Responsive tweaks (mobile) === */
+    @media (max-width: 768px){
+      .chatlist-layer{ position: fixed; top: 0; right: 0; bottom: 0; left: 0; margin-top: 0; background: transparent; z-index: 9999; display:flex; align-items:center; justify-content:center; pointer-events: none; }
+      .chatlist-dropdown{ position: absolute; top: 50%; left: 4%; transform: translate(-50%, -50%); box-sizing: border-box; width: calc(100% - 32px); max-width: 360px; max-height: 80vh; margin: 0; border-radius: 22px; box-shadow: 0 18px 40px rgba(191,115,39,.25); pointer-events: auto; }
 
-    pointer-events: auto;
-  }
-
-      /* CHAT DOCK – bottom sheet style, NOT full screen */
-      .dock-root{
-        right:0;
-        left:0;
-        bottom:0;
-        top:auto;
-        display:flex;
-        align-items:flex-end;
-        justify-content:center;
-      }
-      .dock{
-        width:100%;
-        max-width:100%;
-        height:70vh;
-        max-height:70vh;
-        border-radius:18px 18px 0 0;
-        box-shadow:0 -8px 24px rgba(0,0,0,.2);
-      }
-      .dock-head{
-        padding:12px 16px;
-      }
-      .dock-scroll{
-        padding:12px 12px 16px;
-      }
-      .dock-compose{
-        padding:10px 12px 12px;
-      }
-      .scroll-btn{
-        bottom:82px;
-        right:16px;
-      }
+      .dock-root{ right:0; left:0; bottom:0; top:auto; display:flex; align-items:flex-end; justify-content:center; }
+      .dock{ width:100%; max-width:100%; height:70vh; max-height:70vh; border-radius:18px 18px 0 0; box-shadow:0 -8px 24px rgba(0,0,0,.2); }
+      .dock-head{ padding:12px 16px; }
+      .dock-scroll{ padding:12px 12px 16px; }
+      .dock-compose{ padding:10px 12px 12px; }
+      .scroll-btn{ bottom:82px; right:16px; }
     }
-
+      /* Centered day/date separator */
+      .day-sep{display:flex;justify-content:center;margin:10px 0}
+      .day-sep span{
+        font-size:12px;font-weight:700;color:#8b6b48;
+        background:#fff7ea;border:1px solid #f2d4b5;
+        padding:6px 10px;border-radius:9999px;
+        box-shadow:0 1px 0 rgba(0,0,0,.03);
+      }
   `}</style>
 );
 
@@ -330,6 +324,7 @@ export default function Messages({ currentUser: currentUserProp }) {
   const [selectedUser, setSelectedUser] = useState(null);
   const [newMessage, setNewMessage] = useState("");
   const [chatPage, setChatPage] = useState(0); // for Prev/Next pages
+  const [remoteTyping, setRemoteTyping] = useState(false); // UI-only indicator for peer typing
 
   /* Data State - All in Memory */
   const [messages, setMessages] = useState([]);
@@ -707,12 +702,15 @@ export default function Messages({ currentUser: currentUserProp }) {
       }
 
       try {
+        // optional toast hooks if present
+        // eslint-disable-next-line no-undef
         toast?.success?.(`You accepted the donation: ${donation_name}`);
       } catch {}
       fetchActiveChats();
     } catch (err) {
       console.error("Failed to accept donation:", err);
       try {
+        // eslint-disable-next-line no-undef
         toast?.error?.("Failed to accept donation.");
       } catch {}
     } finally {
@@ -760,13 +758,8 @@ export default function Messages({ currentUser: currentUserProp }) {
         opts
       );
 
-      setMessages((prev) =>
-        prev.filter((m) => m.id !== donationCardMessage.id)
-      );
-      fetchActiveChats?.();
-
       try {
-        await deleteMessage(donationCardMessage.id, { for_all: true });
+        await deleteThisMessage(donationCardMessage.id);
       } catch (err) {
         console.error(err);
       }
@@ -807,31 +800,39 @@ export default function Messages({ currentUser: currentUserProp }) {
     }
   };
 
-  const deleteMessage = async (id) => {
-    setMessages((prev) => prev.filter((m) => m.id !== id));
-    try {
-      await axios.post(
-        `${API_URL}/messages/delete`,
-        { id, for_all: true },
-        makeAuthOpts()
-      );
-      fetchActiveChats();
-    } catch (err) {
-      console.debug("deleteMessage failed:", err?.message || err);
-    }
-  };
+  /* Unified delete */
+  const deleteThisMessage = async (id) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === id
+          ? {
+              ...m,
+              deleted_for_all: true,
+              content: (() => {
+                try {
+                  const p =
+                    typeof m.content === "string"
+                      ? JSON.parse(m.content)
+                      : m.content;
+                  return JSON.stringify({ ...(p || {}), type: "deleted" });
+                } catch {
+                  return JSON.stringify({ type: "deleted" });
+                }
+              })(),
+            }
+          : m
+      )
+    );
 
-  const deleteForMe = async (id) => {
-    setMessages((prev) => prev.filter((m) => m.id !== id));
     try {
       await axios.post(
         `${API_URL}/messages/delete`,
-        { id, for_all: false },
+        { id, for_all: true }, // reflect to both users
         makeAuthOpts()
       );
       fetchActiveChats();
     } catch (err) {
-      console.debug("deleteForMe failed:", err?.message || err);
+      console.debug("deleteThisMessage failed:", err?.message || err);
     }
   };
 
@@ -863,6 +864,19 @@ export default function Messages({ currentUser: currentUserProp }) {
         }
       } else {
         parsed = m.content;
+      }
+
+      // Deleted/tombstone support
+      if (parsed?.type === "deleted" || m.deleted_for_all) {
+        return {
+          isMedia: false,
+          tombstone: true,
+          body: (
+            <div>
+              <em>This message was deleted</em>
+            </div>
+          ),
+        };
       }
 
       if (parsed?.type === "donation_card") {
@@ -1128,7 +1142,6 @@ export default function Messages({ currentUser: currentUserProp }) {
 
   useEffect(() => {
     const handleNotifOpen = () => {
-      // kapag nag-open ang notifications, auto-close chat list
       setOpenList(false);
     };
     window.addEventListener("ui:notifications-open", handleNotifOpen);
@@ -1158,6 +1171,25 @@ export default function Messages({ currentUser: currentUserProp }) {
     };
     fetchAccepted();
   }, [currentUser]);
+
+  // UI-only: hide typing tray when dock closes or no active thread
+  useEffect(() => {
+    if (!openDock || !selectedUser) {
+      setRemoteTyping(false);
+    }
+  }, [openDock, selectedUser]);
+
+  // optional UI hook: trigger these custom events elsewhere to show/hide peer typing UI
+  useEffect(() => {
+    const onPeerTyping = () => setRemoteTyping(true);
+    const onPeerStop = () => setRemoteTyping(false);
+    window.addEventListener("messages:remote_typing", onPeerTyping);
+    window.addEventListener("messages:remote_stop_typing", onPeerStop);
+    return () => {
+      window.removeEventListener("messages:remote_typing", onPeerTyping);
+      window.removeEventListener("messages:remote_stop_typing", onPeerStop);
+    };
+  }, [selectedUser]);
 
   // reset chat page when search / list changes
   useEffect(() => {
@@ -1294,7 +1326,7 @@ export default function Messages({ currentUser: currentUserProp }) {
         }
       });
 
-      cardsToDelete.forEach((m) => deleteMessage(m.id));
+      cardsToDelete.forEach((m) => deleteThisMessage(m.id));
     };
 
     window.addEventListener("donation_cancelled", handleCancel);
@@ -1574,7 +1606,7 @@ export default function Messages({ currentUser: currentUserProp }) {
           {totalUnread > 0 && (
             <span
               className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-[5px] rounded-full
-                         text-[10px] font-bold flex items-center justify-content text-white msg-badge"
+                         text-[10px] font-bold flex items-center justify-center text-white msg-badge"
             >
               {totalUnread > 99 ? "99+" : totalUnread}
             </span>
@@ -1615,6 +1647,7 @@ export default function Messages({ currentUser: currentUserProp }) {
                     const last = sum?.last || u.last_message;
                     const unread = Number(sum?.unread || u.unread || 0);
 
+                    // prefetch history if snippet would be donation-only and not involved
                     try {
                       const peerIdNum = Number(u.id);
                       const parsedLast =
@@ -1650,10 +1683,11 @@ export default function Messages({ currentUser: currentUserProp }) {
                           );
                         }
                       }
-                    } catch (e) {
+                    } catch {
                       /* ignore */
                     }
 
+                    // avatar
                     const avatar = u.profile_picture ? (
                       <img
                         src={`${API_URL}/${u.profile_picture}`}
@@ -1667,6 +1701,7 @@ export default function Messages({ currentUser: currentUserProp }) {
                       </div>
                     );
 
+                    // snippet logic (respects deleted)
                     let snippet = "Start a conversation";
                     if (last) {
                       try {
@@ -1682,7 +1717,15 @@ export default function Messages({ currentUser: currentUserProp }) {
                           "donation_cancelled",
                         ];
 
-                        if (parsed && donationTypes.includes(parsed.type)) {
+                        if (
+                          parsed?.type === "deleted" ||
+                          last.deleted_for_all
+                        ) {
+                          snippet = "Message deleted";
+                        } else if (
+                          parsed &&
+                          donationTypes.includes(parsed.type)
+                        ) {
                           const me = Number(currentUser?.id);
                           const involved =
                             me &&
@@ -1747,13 +1790,13 @@ export default function Messages({ currentUser: currentUserProp }) {
                                 .reverse()
                                 .find((pm) => {
                                   try {
-                                    const parsed =
+                                    const parsedPm =
                                       typeof pm.content === "string"
                                         ? JSON.parse(pm.content)
                                         : pm.content;
                                     return (
-                                      parsed &&
-                                      donationTypes.includes(parsed.type)
+                                      parsedPm &&
+                                      donationTypes.includes(parsedPm.type)
                                     );
                                   } catch {
                                     return false;
@@ -1762,16 +1805,15 @@ export default function Messages({ currentUser: currentUserProp }) {
 
                               if (lastDonationMessage) {
                                 try {
-                                  const parsed = JSON.parse(
+                                  const parsed2 = JSON.parse(
                                     lastDonationMessage.content
                                   );
                                   snippet =
-                                    parsed.type === "donation_card"
+                                    parsed2.type === "donation_card"
                                       ? "Donation Request"
-                                      : parsed.type === "confirmed_donation"
+                                      : parsed2.type === "confirmed_donation"
                                       ? "Donation Request Confirmed"
-                                      : parsed.message || "Donation Update";
-                                  found = true;
+                                      : parsed2.message || "Donation Update";
                                 } catch {
                                   snippet = "Start a conversation";
                                 }
@@ -1832,7 +1874,6 @@ export default function Messages({ currentUser: currentUserProp }) {
               </div>
 
               <div className="cl-foot">
-                {/* Page label sa gitna, same feel as bakery notif */}
                 <div className="text-center text-[11px] text-[#8a5a25] mb-1">
                   Page {safePage + 1} of {totalChatPages}
                 </div>
@@ -1977,86 +2018,82 @@ export default function Messages({ currentUser: currentUserProp }) {
               )}
 
               <div ref={dockScrollRef} className="dock-scroll">
-                {filteredMessages.map((m) => {
+                {filteredMessages.map((m, i) => {
                   const me = Number(m.sender_id) === Number(currentUser?.id);
                   const render = renderMessageBody(m);
+
+                  // === Day separator: show when the day changes (Asia/Manila) ===
+                  const prev = filteredMessages[i - 1];
+                  const shouldShowDaySep =
+                    !prev || !sameDay(prev?.timestamp, m.timestamp);
+
                   return (
-                    <div
-                      key={`${m.id}-${m.timestamp ?? ""}`}
-                      ref={setMsgRef(m.id)}
-                      className={`msg-row ${me ? "right" : "left"}`}
-                    >
-                      {me && (
-                        <div className="left-controls">
-                          <button
-                            className="icon-btn-tiny"
-                            title="More"
-                            aria-label="More"
-                            onClick={() =>
-                              setMenuOpenId(menuOpenId === m.id ? null : m.id)
-                            }
-                          >
-                            <MoreVertical className="w-3 h-3" />
-                          </button>
-                          {menuOpenId === m.id && (
-                            <div className="ctx-menu">
-                              <button
-                                className="ctx-item"
-                                onClick={() => {
-                                  setMenuOpenId(null);
-                                  setMessages((p) =>
-                                    p.filter((x) => x.id !== m.id)
-                                  );
-                                  deleteForMe(m.id);
-                                }}
-                              >
-                                Delete for me
-                              </button>
-                              <button
-                                className="ctx-item"
-                                onClick={() => {
-                                  setMenuOpenId(null);
-                                  setMessages((p) =>
-                                    p.filter((x) => x.id !== m.id)
-                                  );
-                                  deleteMessage(m.id);
-                                }}
-                              >
-                                Delete for everyone
-                              </button>
-                            </div>
-                          )}
+                    <React.Fragment key={`${m.id}-${m.timestamp ?? ""}`}>
+                      {shouldShowDaySep && (
+                        <div className="day-sep">
+                          <span>{formatDayLabel(m.timestamp)}</span>
                         </div>
                       )}
 
                       <div
-                        className={`bubble ${me ? "me" : "them"} ${
-                          render.isMedia ? "media-card" : ""
-                        }`}
+                        ref={setMsgRef(m.id)}
+                        className={`msg-row ${me ? "right" : "left"}`}
                       >
-                        {render.body}
-                        <div className="meta">
-                          <div className="btime">{formatTime(m.timestamp)}</div>
-                          {me && (
-                            <div
-                              className={`readmark ${
-                                m.is_read ? "read" : "sent"
-                              }`}
+                        {me && (
+                          <div className="left-controls">
+                            <button
+                              className="icon-btn-tiny"
+                              title="More"
+                              aria-label="More"
+                              onClick={() =>
+                                setMenuOpenId(menuOpenId === m.id ? null : m.id)
+                              }
                             >
-                              {m.is_read ? "✓✓" : "✓"}
+                              <MoreVertical className="w-3 h-3" />
+                            </button>
+
+                            {menuOpenId === m.id && (
+                              <div className="ctx-menu">
+                                <button
+                                  className="ctx-item"
+                                  onClick={() => {
+                                    setMenuOpenId(null);
+                                    deleteThisMessage(m.id);
+                                  }}
+                                >
+                                  Delete this message
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div
+                          className={`bubble ${me ? "me" : "them"} ${
+                            render.isMedia ? "media-card" : ""
+                          } ${render.tombstone ? "tombstone" : ""}`}
+                        >
+                          {render.body}
+
+                          <div className="meta">
+                            <div className="btime">
+                              {formatTime(m.timestamp)}
                             </div>
-                          )}
+                            {me && (
+                              <div
+                                className={`readmark ${
+                                  m.is_read ? "read" : "sent"
+                                }`}
+                              >
+                                {m.is_read ? "✓✓" : "✓"}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    </React.Fragment>
                   );
                 })}
-
-                {localTyping && (
-                  <div className="text-xs text-[#6b4b2b] mt-1">
-                    You are typing...
-                  </div>
-                )}
 
                 {showScrollButton && (
                   <button
@@ -2074,6 +2111,20 @@ export default function Messages({ currentUser: currentUserProp }) {
                   </button>
                 )}
               </div>
+
+              {(localTyping || remoteTyping) &&
+                filteredMessages.length > 0 &&
+                openDock &&
+                selectedUser && (
+                  <div className="typing-tray">
+                    <span className="typing-dot" />
+                    <span className="typing-text truncate">
+                      {remoteTyping
+                        ? `${selectedUser.name || "They"} are typing…`
+                        : "You are typing…"}
+                    </span>
+                  </div>
+                )}
 
               <div className="dock-compose">
                 <label

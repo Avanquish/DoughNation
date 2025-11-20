@@ -23,14 +23,33 @@ export default function ComplaintModule({ isViewOnly = false }) {
 
   // --- UI: search & pagination state ---
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
   const formatDate = (s) => {
     if (!s) return "—";
-    const d = new Date(s);
+
+    let value = s;
+    if (
+      typeof s === "string" &&
+      !/[zZ]|[+\-]\d{2}:\d{2}$/.test(s) // no timezone suffix
+    ) {
+      value = s + "Z";
+    }
+
+    const d = new Date(value);
     if (isNaN(d)) return "—";
-    return d.toLocaleDateString("en-US");
+
+    // Display as local time (browser timezone, e.g. Asia/Manila)
+    return d.toLocaleString("en-US", {
+      month: "short",
+      day: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
   };
 
   const fetchComplaints = async () => {
@@ -53,7 +72,7 @@ export default function ComplaintModule({ isViewOnly = false }) {
   // --- UI: reset to page 1 if there are new search or new complaints ---
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, complaints.length]);
+  }, [searchTerm, statusFilter, complaints.length]);
 
   const handleChange = (e) => {
     setFormData((p) => ({ ...p, [e.target.name]: e.target.value }));
@@ -123,18 +142,75 @@ export default function ComplaintModule({ isViewOnly = false }) {
     };
   };
 
-  // --- UI: search filtering + pagination ---
+  // --- UI: search + status filter + pagination ---
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
-  const filteredComplaints = complaints.filter((c) => {
-    if (!normalizedSearch) return true;
-    const fields = [c.subject, c.description, c.status];
-    return fields.some((f) =>
-      String(f || "")
-        .toLowerCase()
-        .includes(normalizedSearch)
-    );
-  });
+  // status priority: Pending (top), In Review (mid), Resolved (bottom)
+  const getStatusPriority = (status) => {
+    const v = (status || "").toLowerCase();
+    if (v === "pending") return 0;
+    if (v === "in review") return 1;
+    if (v === "resolved") return 2;
+    return 3;
+  };
+
+  // counts for filter chips
+  const statusCounts = complaints.reduce(
+    (acc, c) => {
+      acc.All += 1;
+      const v = (c.status || "").toLowerCase();
+      if (v === "pending") acc.Pending += 1;
+      else if (v === "in review") acc["In Review"] += 1;
+      else if (v === "resolved") acc.Resolved += 1;
+      return acc;
+    },
+    { All: 0, Pending: 0, "In Review": 0, Resolved: 0 }
+  );
+
+  // filter buttons
+  const filterButtons = [
+    { key: "All", label: `All (${statusCounts.All})`, tone: "bg-white" },
+    {
+      key: "Pending",
+      label: `Pending (${statusCounts.Pending})`,
+      tone: "bg-red-100",
+    },
+    {
+      key: "In Review",
+      label: `In Review (${statusCounts["In Review"]})`,
+      tone: "bg-amber-100",
+    },
+    {
+      key: "Resolved",
+      label: `Resolved (${statusCounts.Resolved})`,
+      tone: "bg-green-100",
+    },
+  ];
+
+  // filter by status + search
+  const filteredComplaints = [...complaints]
+    .filter((c) => {
+      const v = (c.status || "").toLowerCase();
+      const filter = statusFilter.toLowerCase();
+      const matchesStatus = filter === "all" ? true : v === filter;
+
+      if (!normalizedSearch) return matchesStatus;
+
+      const haystack = [c.subject, c.description, c.status]
+        .map((f) => String(f || "").toLowerCase())
+        .join(" ");
+
+      return matchesStatus && haystack.includes(normalizedSearch);
+    })
+    .sort((a, b) => {
+      const pa = getStatusPriority(a.status);
+      const pb = getStatusPriority(b.status);
+      if (pa !== pb) return pa - pb;
+
+      const da = new Date(a.created_at || a.created || a.date);
+      const db = new Date(b.created_at || b.created || b.date);
+      return db - da;
+    });
 
   const totalPages =
     filteredComplaints.length === 0
@@ -270,24 +346,53 @@ export default function ComplaintModule({ isViewOnly = false }) {
 
       <Card className="rounded-2xl border border-[#eadfce] bg-white/80 shadow-[0_2px_10px_rgba(93,64,28,.06)]">
         {/* --- UI: header + search bar --- */}
-        <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle className="text-lg font-semibold text-[#4A2F17]">
-            My Concerns
-          </CardTitle>
+        <CardHeader className="space-y-3 pb-2">
+          {/* Row 1: Title only */}
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg font-semibold text-[#4A2F17]">
+              My Concerns
+            </CardTitle>
+          </div>
 
-          <div className="relative w-full max-w-xs">
-            <Input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search concerns..."
-              className="h-9 rounded-full border-[#f2d4b5] bg-white/95 pl-9 text-sm shadow-sm focus-visible:border-[#E49A52] focus-visible:ring-[#E49A52]"
-            />
-            <span className="pointer-events-none absolute inset-y-0 left-3 grid place-items-center">
-              <Search
-                className="h-3.5 w-3.5 text-[#4b5563]"
-                strokeWidth={2.2}
+          {/* Row 2: Filters LEFT, Search RIGHT */}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            {/* status filter pills */}
+            <div className="inline-flex flex-wrap items-center gap-1 rounded-full bg-[#FFF6EC] px-1 py-1 shadow-sm ring-1 ring-[#f2e3cf]">
+              {filterButtons.map(({ key, label, tone }) => {
+                const active = statusFilter === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setStatusFilter(key)}
+                    className={
+                      "text-xs sm:text-sm rounded-full px-3 py-1 transition font-semibold " +
+                      (active
+                        ? "text-white bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] shadow"
+                        : `text-[#6b4b2b] ${tone} hover:brightness-95`)
+                    }
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* search bar – laging nasa right sa large screens */}
+            <div className="relative w-full sm:w-64 md:w-80">
+              <Input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search concerns..."
+                className="h-9 rounded-full border-[#f2d4b5] bg-white/95 pl-9 text-sm shadow-sm focus-visible:border-[#E49A52] focus-visible:ring-[#E49A52]"
               />
-            </span>
+              <span className="pointer-events-none absolute inset-y-0 left-3 grid place-items-center">
+                <Search
+                  className="h-3.5 w-3.5 text-[#4b5563]"
+                  strokeWidth={2.2}
+                />
+              </span>
+            </div>
           </div>
         </CardHeader>
 

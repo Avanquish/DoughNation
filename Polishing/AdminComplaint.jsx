@@ -18,15 +18,43 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+const formatDate = (s) => {
+  if (!s) return "—";
+
+  let value = s;
+
+  // pag walang timezone, treat as UTC para hindi mag-shift
+  if (
+    typeof s === "string" &&
+    !/[zZ]|[+\-]\d{2}:\d{2}$/.test(s) // no Z or +08:00, etc.
+  ) {
+    value = s + "Z";
+  }
+
+  const d = new Date(value);
+  if (isNaN(d)) return "—";
+
+  return d.toLocaleString("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
+
 export default function AdminComplaints() {
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [replyMessage, setReplyMessage] = useState("");
 
-  // --- UI: search + status filter ---
+  // --- UI: search + status filter + pagination ---
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10; // max 10 concerns per page
 
   // --- COLUMN VISIBILITY STATE ---
   const columnConfig = [
@@ -61,7 +89,7 @@ export default function AdminComplaints() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      // KEEP COMPLAINT ORDER STABLE (by created_at asc)
+      // sort by created_at asc para stable base order
       const sortedComplaints = [...res.data].sort(
         (a, b) => new Date(a.created_at) - new Date(b.created_at)
       );
@@ -142,6 +170,11 @@ export default function AdminComplaints() {
     fetchComplaints();
   }, []);
 
+  // kapag nagbago search / filter / length -> balik page 1
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, complaints.length]);
+
   // DESIGN
   const StatusPill = ({ value }) => {
     const v = (value || "").toLowerCase();
@@ -207,11 +240,24 @@ export default function AdminComplaints() {
       const pb = getStatusPriority(b.status);
       if (pa !== pb) return pa - pb;
 
-      // 2) time/date (same as original: created_at ascending)
-      return new Date(a.created_at) - new Date(b.created_at);
+      // 2) created_at desc (latest first)
+      return new Date(b.created_at) - new Date(a.created_at);
     });
 
-  // --- STATUS FILTER CHIPS (BAKERY INVENTORY STYLE) ---
+  // --- PAGINATION COMPUTE (max 10 per page) ---
+  const totalPages =
+    filteredComplaints.length === 0
+      ? 1
+      : Math.ceil(filteredComplaints.length / pageSize);
+
+  const startIndex = (currentPage - 1) * pageSize;
+
+  const paginatedComplaints = filteredComplaints.slice(
+    startIndex,
+    startIndex + pageSize
+  );
+
+  // --- STATUS FILTER CHIPS ---
   const filterButtons = [
     {
       key: "All",
@@ -317,7 +363,8 @@ export default function AdminComplaints() {
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         placeholder="Search..."
-                        className="w-full rounded-full border border-[#e5e7eb] bg-white/90 py-2 pl-9 pr-3 text-sm text-[#374151] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#E49A52] focus:border-transparent"
+                        className="w-full rounded-full border border-[#e5e7eb] bg-white/90 py-2 pl-9 pr-3 text-sm text-[#374151] shadow-sm focus:outline-none
+                                   focus:ring-2 focus:ring-[#E49A52] focus:border-transparent"
                       />
                     </div>
                   </div>
@@ -380,14 +427,14 @@ export default function AdminComplaints() {
                         </td>
                       </tr>
                     ) : (
-                      filteredComplaints.map((c, index) => (
+                      paginatedComplaints.map((c, index) => (
                         <tr
                           key={c.id}
                           className="odd:bg-white even:bg-white/80 hover:bg-[#fff6ec] relative z-[1] transition-colors duration-200 hover:shadow-[0_12px_28px_rgba(201,124,44,0.18)] hover:ring-1 hover:ring-[#e9d7c3]"
                         >
                           {visibleColumns.id && (
                             <td className="px-3 py-3 text-center font-medium text-[#6b4b2b]">
-                              {index + 1}
+                              {startIndex + index + 1}
                             </td>
                           )}
                           {visibleColumns.user && (
@@ -412,9 +459,10 @@ export default function AdminComplaints() {
                           )}
                           {visibleColumns.created && (
                             <td className="px-3 py-3 text-center text-[#7b5836]">
-                              {new Date(c.created_at).toLocaleString()}
+                              {formatDate(c.created_at)}
                             </td>
                           )}
+
                           {visibleColumns.actions && (
                             <td className="px-3 py-3">
                               <div className="flex items-center justify-center gap-2">
@@ -479,7 +527,7 @@ export default function AdminComplaints() {
                     )}
                   </tbody>
 
-                  {/* Footer */}
+                  {/* Footer stripe */}
                   <tfoot>
                     <tr>
                       <td
@@ -489,6 +537,45 @@ export default function AdminComplaints() {
                     </tr>
                   </tfoot>
                 </table>
+              </div>
+
+              {/* --- PAGINATION FOOTER --- */}
+              <div className="flex flex-col gap-2 px-4 py-3 border-t border-[#f2d4b5] text-xs text-[#6b4b2b] sm:flex-row sm:items-center sm:justify-between">
+                <span className="opacity-80">
+                  Showing {filteredComplaints.length === 0 ? 0 : startIndex + 1}
+                  –{Math.min(startIndex + pageSize, filteredComplaints.length)}{" "}
+                  of {filteredComplaints.length}
+                </span>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className="h-8 rounded-full border-[#f2d4b5] bg-white/90 px-3 text-xs"
+                  >
+                    Previous
+                  </Button>
+
+                  <span className="text-[11px] font-medium">
+                    Page {currentPage} of {totalPages}
+                  </span>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage === totalPages}
+                    onClick={() =>
+                      setCurrentPage((p) => Math.min(totalPages, p + 1))
+                    }
+                    className="h-8 rounded-full border-[#f2d4b5] bg-white/90 px-3 text-xs"
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
             </div>
           )}
@@ -538,7 +625,7 @@ export default function AdminComplaints() {
                   </p>
                   <p className="text-sm text-[#7b5836] mt-2">
                     <strong>Created:</strong>{" "}
-                    {new Date(selectedComplaint.created_at).toLocaleString()}
+                    {formatDate(selectedComplaint.created_at)}
                   </p>
                 </div>
               </div>

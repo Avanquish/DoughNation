@@ -103,8 +103,12 @@ export default function BakeryProfile() {
         const decoded = JSON.parse(atob(employeeToken.split(".")[1]));
         setIsEmployeeMode(true);
         setBakeryId(decoded.bakery_id);
-        setName(decoded.name || "Bakery Name");
-        setCurrentUser(decoded);
+        setName(decoded.bakery_name || decoded.name || "Bakery Name");
+        setCurrentUser({
+          employee_name: decoded.employee_name,
+          role: decoded.employee_role,
+          bakery_id: decoded.bakery_id
+        });
       } catch (err) {
         console.error("Error decoding employee token:", err);
       }
@@ -192,7 +196,18 @@ export default function BakeryProfile() {
         const user = res.data;
         setProfilePic(user.profile_picture);
         setName(user.name);
-        setCurrentUser(user); // full user object
+        
+        // If employee mode, preserve employee info from token
+        if (employeeToken) {
+          const decoded = JSON.parse(atob(employeeToken.split(".")[1]));
+          setCurrentUser({
+            ...user, // bakery details
+            employee_name: decoded.employee_name,
+            role: decoded.employee_role
+          });
+        } else {
+          setCurrentUser(user); // full user object for owner
+        }
       } catch (err) {
         console.error("Failed to fetch user:", err);
       }
@@ -845,13 +860,26 @@ export default function BakeryProfile() {
                 <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[var(--ink)]">
                   {name}
                 </h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  <span className="font-semibold text-[var(--ink)]">
+                    {isEmployeeMode
+                      ? currentUser?.employee_name || "Employee"
+                      : currentUser?.contact_person || "Owner"}
+                  </span>
+                  <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                    {isEmployeeMode ? currentUser?.role || "Employee" : "Owner"}
+                  </span>
+                </p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Button
-                    className="btn-pill"
-                    onClick={() => setIsEditOpen(true)}
-                  >
-                    Edit Profile
-                  </Button>
+                  {/* Only owner can edit profile */}
+                  {!isEmployeeMode && (
+                    <Button
+                      className="btn-pill"
+                      onClick={() => setIsEditOpen(true)}
+                    >
+                      Edit Profile
+                    </Button>
+                  )}
                   <Button
                     className="btn-change"
                     onClick={() => setIsChangePassOpen(true)}

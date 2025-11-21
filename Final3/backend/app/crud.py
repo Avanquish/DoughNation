@@ -261,7 +261,7 @@ def seed_admin_user(db: Session):
         contact_number="0000-000-0000",
         address="Head Office",
         hashed_password=pwd_context.hash("admin1234"), 
-        profile_picture="uploads/profile_pictures/default_admin.png",
+        profile_picture="uploads/profile_pictures/admin_profile.png",
         proof_of_validity="uploads/proofs/default_proof.pdf",
         verified=True
     )
@@ -961,3 +961,4 @@ def update_user_badges(db: Session, user_id: int):
             db.add(models.UserBadge(user_id=user_id, badge_id=22))
 
     db.commit()
+

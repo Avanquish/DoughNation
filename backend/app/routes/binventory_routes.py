@@ -29,7 +29,7 @@ def initialize_bakery_csv(bakery_id: int):
     if not os.path.exists(csv_path):
         print(f"[CSV] Creating new CSV for bakery {bakery_id}")
         with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
-            writer = csv.DictWriter(f, fieldnames=['Product Name', 'Threshold', 'Expiration', 'Description'])
+            writer = csv.DictWriter(f, fieldnames=['Product Name', 'Threshold', 'Expiration', 'Description', 'Image'])
             writer.writeheader()
         print(f"[CSV] ✅ Created: {csv_path}")
     
@@ -70,7 +70,8 @@ def load_bakery_templates(bakery_id: int):
                         'shelf_life_days': expiration,
                         'threshold': threshold,
                         'description': row.get('Description', '').strip(),
-                        'original_name': product_name
+                        'original_name': product_name,
+                        'image': row.get('Image', '')
                     }
             
             print(f"[CSV] ✅ Loaded {len(templates)} templates for bakery {bakery_id}")
@@ -85,7 +86,7 @@ def load_bakery_templates(bakery_id: int):
     return templates
 
 
-def save_product_to_csv(bakery_id: int, product_name: str, threshold: int, shelf_life_days: int, description: str = ""):
+def save_product_to_csv(bakery_id: int, product_name: str, threshold: int, shelf_life_days: int, description: str = "", image: str = ""):
     """Save or update a product template in bakery's CSV"""
     csv_path = initialize_bakery_csv(bakery_id)
     
@@ -101,12 +102,13 @@ def save_product_to_csv(bakery_id: int, product_name: str, threshold: int, shelf
     # Add new product to CSV
     try:
         with open(csv_path, 'a', newline='', encoding='utf-8-sig') as f:
-            writer = csv.DictWriter(f, fieldnames=['Product Name', 'Threshold', 'Expiration', 'Description'])
+            writer = csv.DictWriter(f, fieldnames=['Product Name', 'Threshold', 'Expiration', 'Description', 'Image'])
             writer.writerow({
                 'Product Name': product_name.strip(),
                 'Threshold': threshold,
                 'Expiration': shelf_life_days,
-                'Description': description.strip()
+                'Description': description.strip(),
+                'Image': image
             })
         
         print(f"[CSV] ✅ Added '{product_name}' to bakery {bakery_id} CSV")
@@ -138,23 +140,29 @@ def get_template_from_csv(bakery_id: int, product_name: str):
 @router.post("/inventory", response_model=schemas.BakeryInventoryOut)
 def add_inventory(
     name: str = Form(...),
-    image: UploadFile = File(...),
+    image: UploadFile = File(None),
     quantity: int = Form(...),
     creation_date: str = Form(...),
     expiration_date: str = Form(...),
     threshold: int = Form(...),
     uploaded: str = Form(...),
     description: str = Form(None),
+    template_image: str = Form(None),
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(auth.ensure_verified_user)
 ):
     if current_user.role.lower() != "bakery":
         raise HTTPException(status_code=403, detail="Only bakeries can add inventory")
 
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-    file_path = os.path.join(UPLOAD_DIR, image.filename)
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(image.file, buffer)
+    # Handle image: either upload new file or use template image
+    file_path = None
+    if image and image.filename:
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+        file_path = os.path.join(UPLOAD_DIR, image.filename)
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(image.file, buffer)
+    elif template_image:
+        file_path = template_image
 
     # Create inventory item
     new_item = crud.create_inventory(
@@ -194,7 +202,8 @@ def add_inventory(
             product_name=name,
             threshold=threshold,
             shelf_life_days=shelf_life_days,
-            description=description or ""
+            description=description or "",
+            image=file_path or ""
         )
         
         if success:
@@ -253,18 +262,22 @@ def update_inventory(
     threshold: int = Form(...),
     uploaded: str = Form(...),
     description: str = Form(None),
+    template_image: str = Form(None),
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(auth.ensure_verified_user)
 ):
     if current_user.role.lower() != "bakery":
         raise HTTPException(status_code=403, detail="Only bakeries can update inventory")
 
+    # Handle image: either upload new file or use template image
     image_path = None
-    if image:
+    if image and image.filename:
         os.makedirs(UPLOAD_DIR, exist_ok=True)
         image_path = os.path.join(UPLOAD_DIR, image.filename)
         with open(image_path, "wb") as buffer:
             shutil.copyfileobj(image.file, buffer)
+    elif template_image:
+        image_path = template_image
 
     updated_item = crud.update_inventory(
         db=db,
@@ -339,7 +352,8 @@ def get_product_template(
             "shelf_life_days": csv_template['shelf_life_days'],
             "threshold": csv_template['threshold'],
             "description": csv_template['description'],
-            "product_name": csv_template['original_name']
+            "product_name": csv_template['original_name'],
+            "image": csv_template.get('image', '')
         }
     
     # Not found
@@ -503,7 +517,8 @@ def get_product_template(
             "shelf_life_days": csv_template['shelf_life_days'],
             "threshold": csv_template['threshold'],
             "description": csv_template['description'],
-            "product_name": csv_template['original_name']
+            "product_name": csv_template['original_name'],
+            "image": csv_template.get('image', '')
         }
     
     # Not found in this bakery's CSV

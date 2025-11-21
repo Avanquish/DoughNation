@@ -178,3 +178,36 @@ def reply_to_complaint(
         "user_email": user.email,
         "admin_reply": reply.message
     }
+
+# Delete complaint (user can delete their own complaints)
+@router.delete("/{complaint_id}")
+def delete_complaint(
+    complaint_id: int,
+    db: Session = Depends(database.get_db),
+    current_auth = Depends(auth.get_current_user_or_employee)
+):
+    # Extract user ID from either employee or user token
+    if isinstance(current_auth, dict):
+        # Employee token - use bakery_id
+        user_id = current_auth.get("bakery_id")
+    else:
+        # Regular user token
+        user_id = current_auth.id
+    
+    # Get the complaint
+    complaint = db.query(models.Complaint).filter(
+        models.Complaint.id == complaint_id
+    ).first()
+    
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+    
+    # Check if the complaint belongs to the user
+    if complaint.user_id != user_id:
+        raise HTTPException(status_code=403, detail="You can only delete your own complaints")
+    
+    # Delete the complaint
+    db.delete(complaint)
+    db.commit()
+    
+    return {"message": "Complaint deleted successfully", "complaint_id": complaint_id}

@@ -15,6 +15,11 @@ const AdminUser = () => {
   const [ackChecked, setAckChecked] = useState(false);
   const [reviewedProof, setReviewedProof] = useState(() => new Set()); // ids whose proof is reviewed
 
+  // ========= Rejection modal =========
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectUserId, setRejectUserId] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+
   // ✅ Fetch pending users (with token)
   useEffect(() => {
     (async () => {
@@ -77,17 +82,32 @@ const AdminUser = () => {
     }
   };
 
-  // ✅ Reject user (unchanged backend)
-  const handleReject = async (id) => {
+  // ✅ Reject user - opens modal to get rejection reason
+  const handleReject = (id) => {
+    setRejectUserId(id);
+    setRejectionReason("");
+    setRejectModalOpen(true);
+  };
+
+  // ✅ Confirm rejection with reason
+  const confirmReject = async () => {
+    if (!rejectionReason.trim()) {
+      Swal.fire("Error", "Please provide a reason for rejection.", "error");
+      return;
+    }
+
     try {
       const token = localStorage.getItem("token");
       await axios.post(
-        `${API}/admin/reject-user/${id}`,
-        {},
+        `${API}/admin/reject-user/${rejectUserId}`,
+        { reason: rejectionReason },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      Swal.fire("Rejected!", "User has been rejected.", "info");
-      setPendingUsers((prev) => prev.filter((u) => u.id !== id));
+      Swal.fire("Rejected!", "User has been rejected and notified via email.", "info");
+      setPendingUsers((prev) => prev.filter((u) => u.id !== rejectUserId));
+      setRejectModalOpen(false);
+      setRejectUserId(null);
+      setRejectionReason("");
     } catch (e) {
       console.error("Error rejecting user:", e);
       Swal.fire("Error", "Failed to reject user.", "error");
@@ -462,6 +482,71 @@ const AdminUser = () => {
         </div>
       )}
       {/* ===== /Modal ===== */}
+
+      {/* ===== Rejection Reason Modal ===== */}
+      {rejectModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-[#eadfce] overflow-hidden">
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-[#f2e3cf] bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
+              <h3 className="text-base sm:text-lg font-semibold text-[#4A2F17]">
+                Reject Account Registration
+              </h3>
+              <p className="text-xs text-[#7b5836] mt-1">
+                Please provide a reason for rejecting this account
+              </p>
+            </div>
+
+            {/* Content */}
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[#6b4b2b] mb-2">
+                  Rejection Reason
+                </label>
+                <textarea
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="Please explain why this account is being rejected..."
+                  rows={5}
+                  className="w-full rounded-xl border border-[#f2d4b5] bg-white/95 p-3 text-sm
+                           shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]
+                           outline-none resize-none"
+                />
+                <p className="text-xs text-[#8b6a44] mt-1">
+                  This reason will be sent to the user via email.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-4 border-t border-[#f2e3cf] bg-[#FFF9F2] flex gap-3 justify-end">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setRejectModalOpen(false);
+                  setRejectUserId(null);
+                  setRejectionReason("");
+                }}
+                className="rounded-full px-4 py-2 text-sm"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmReject}
+                disabled={!rejectionReason.trim()}
+                className={`rounded-full px-4 py-2 text-sm ${
+                  rejectionReason.trim()
+                    ? "bg-gradient-to-r from-[#ef4444] via-[#dc2626] to-[#b91c1c] text-white hover:brightness-105"
+                    : "bg-gray-300 text-white cursor-not-allowed"
+                }`}
+              >
+                Confirm Rejection
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ===== /Rejection Modal ===== */}
     </div>
   );
 };

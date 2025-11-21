@@ -15,7 +15,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Pencil, Trash2, Plus, Search } from "lucide-react";
+import { Pencil, Trash2, Plus, Search, KeyRound } from "lucide-react";
 import axios from "../api/axios";
 import Swal from "sweetalert2";
 
@@ -42,6 +42,26 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
   // Get the appropriate token (employee token takes priority if it exists)
   const token =
     localStorage.getItem("employeeToken") || localStorage.getItem("token");
+
+  // Check if current user is an owner (not an employee)
+  const isOwner = !localStorage.getItem("employeeToken");
+  
+  // Check if current user is a manager
+  const [isManager, setIsManager] = useState(false);
+  
+  useEffect(() => {
+    const employeeToken = localStorage.getItem("employeeToken");
+    if (employeeToken) {
+      try {
+        const decoded = JSON.parse(atob(employeeToken.split(".")[1]));
+        setIsManager(decoded.employee_role?.toLowerCase() === "manager");
+      } catch (e) {
+        setIsManager(false);
+      }
+    }
+  }, []);
+  
+  const canEditEmail = isOwner || isManager;
 
   const [formData, setFormData] = useState({
     name: "",
@@ -304,6 +324,68 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
       Swal.fire({
         title: "Error",
         text: "Could not delete employee.",
+        icon: "error",
+        confirmButtonColor: "#C97C2C",
+      });
+    }
+  };
+
+  const handleResetPassword = async (emp) => {
+    const ok = await Swal.fire({
+      title: "Reset Password?",
+      html: `
+        <div class="space-y-3">
+          <p>Reset password for <strong>${emp.name}</strong>?</p>
+          <p class="text-sm text-gray-600">A new temporary password will be sent to <strong>${emp.email}</strong></p>
+          <div class="bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded text-left">
+            <p class="text-xs text-yellow-800">
+              <strong>Note:</strong> The employee will need to change this password on their next login.
+            </p>
+          </div>
+        </div>
+      `,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Yes, Reset Password",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#C97C2C",
+      width: "450px",
+    });
+    if (!ok.isConfirmed) return;
+
+    try {
+      const response = await axios.post(
+        `/employees/${emp.id}/reset-password`,
+        {},
+        { headers }
+      );
+      
+      Swal.fire({
+        title: "Password Reset!",
+        html: `
+          <div class="space-y-3">
+            <p>Password has been reset successfully for <strong>${emp.name}</strong></p>
+            <p class="text-sm text-gray-600">Login credentials have been sent to <strong>${emp.email}</strong></p>
+            <div class="bg-gradient-to-r from-[#FFF6E9] to-[#FFE7C5] p-4 rounded-lg border border-[#E49A52]">
+              <p class="text-sm font-semibold text-[#6b4b2b] mb-2">New Login Credentials:</p>
+              <div class="space-y-1">
+                <p class="text-xs text-[#7b5836]"><strong>Employee ID:</strong> <span class="font-mono text-[#E49A52]">${response.data.employee_id}</span></p>
+                <p class="text-xs text-[#7b5836]"><strong>New Password:</strong> <span class="font-mono">Employee123!</span></p>
+              </div>
+              <p class="text-xs text-[#8a5a25] mt-2 italic">Employee must change password on next login</p>
+            </div>
+          </div>
+        `,
+        icon: "success",
+        confirmButtonColor: "#C97C2C",
+        width: "500px",
+      });
+    } catch (e) {
+      console.error("reset password", e);
+      const errorMsg = e.response?.data?.detail || "Could not reset password.";
+      Swal.fire({
+        title: "Error",
+        text: errorMsg,
         icon: "error",
         confirmButtonColor: "#C97C2C",
       });
@@ -574,14 +656,48 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
                 value={formData.email}
                 onChange={(e) => handleChange("email", e.target.value)}
                 className={inputTone}
-                disabled={editingEmployee}
+                disabled={editingEmployee && !canEditEmail}
               />
-              {!editingEmployee && (
+              {!editingEmployee ? (
                 <p className="text-xs text-[#8a5a25] mt-1.5 italic">
                   Login credentials will be sent to this email address
                 </p>
-              )}
+              ) : !canEditEmail ? (
+                <p className="text-xs text-red-600 mt-1.5 italic">
+                  Only owners and managers can change email addresses
+                </p>
+              ) : null}
             </div>
+
+            {/* Reset Password Button (Owner only, Edit mode only) */}
+            {editingEmployee && isOwner && (
+              <div className="sm:col-span-2">
+                <div className="bg-[#FFF6EC] border border-[#f2e3cf] rounded-xl p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-[#FFE7C5] grid place-items-center">
+                      <KeyRound className="h-5 w-5 text-[#E49A52]" strokeWidth={2.4} />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-semibold text-[#4A2F17] mb-1">Reset Password</h4>
+                      <p className="text-xs text-[#7b5836] mb-3">
+                        Reset this employee's password to the default temporary password. They will be required to change it on their next login.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsDialogOpen(false);
+                          setTimeout(() => handleResetPassword(editingEmployee), 100);
+                        }}
+                        className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-4 py-2 text-sm font-semibold shadow-md hover:brightness-105 transition"
+                      >
+                        <KeyRound className="h-4 w-4" />
+                        Reset Password
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Role */}
             <div className="sm:col-span-2">

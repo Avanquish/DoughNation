@@ -161,6 +161,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
     image_file: null,
     threshold: 0,
     uploaded: "", // Will be set from token
+    template_image: "",
   });
 
   const [showDirectDonation, setShowDirectDonation] = useState(false);
@@ -369,6 +370,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
             threshold: res.data.threshold,
             expiration_date: expirationStr,
             description: res.data.description || prev.description,
+            template_image: res.data.image || "",
           }));
         } else {
           // Update form for Add mode
@@ -378,6 +380,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
             threshold: res.data.threshold,
             expiration_date: expirationStr,
             description: res.data.description || prev.description,
+            template_image: res.data.image || "",
           }));
         }
 
@@ -678,7 +681,6 @@ export default function BakeryInventory({ isViewOnly = false }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Ensure creation_date is set (should already be from useEffect, but double-check)
     if (!form.creation_date) {
       Swal.fire({
         title: "Error",
@@ -689,15 +691,33 @@ export default function BakeryInventory({ isViewOnly = false }) {
       return;
     }
 
+    // Calculate threshold days dynamically
+    let thresholdDays = 2;
+    if (form.expiration_date && form.creation_date) {
+      const expDate = new Date(form.expiration_date);
+      const creationDate = new Date(form.creation_date);
+      const thresholdDate = new Date(expDate);
+      thresholdDate.setDate(thresholdDate.getDate() - 2);
+      
+      // If threshold would be before creation date, set it to 0 (same as creation date)
+      if (thresholdDate < creationDate) {
+        thresholdDays = 1;
+      }
+    }
+    
     const fd = new FormData();
     fd.append("name", form.item_name);
     fd.append("quantity", form.quantity);
     fd.append("creation_date", form.creation_date);
     fd.append("expiration_date", form.expiration_date);
-    fd.append("threshold", form.threshold);
+    fd.append("threshold", Math.max(0, thresholdDays)); // Store as integer days
     fd.append("uploaded", form.uploaded);
     fd.append("description", form.description);
-    if (form.image_file) fd.append("image", form.image_file);
+    if (form.image_file) {
+      fd.append("image", form.image_file);
+    } else if (form.template_image) {
+      fd.append("template_image", form.template_image);
+    }
 
     try {
       await axios.post(`${API}/inventory`, fd, {
@@ -714,12 +734,13 @@ export default function BakeryInventory({ isViewOnly = false }) {
       setForm({
         item_name: "",
         quantity: 1,
-        creation_date: currentServerDate, // Reset to current server date
+        creation_date: currentServerDate,
         expiration_date: "",
         description: "",
         image_file: null,
         threshold: 0,
         uploaded: uploaderName,
+        template_image: "",
       });
       setShowForm(false);
       await fetchInventory();
@@ -772,15 +793,32 @@ export default function BakeryInventory({ isViewOnly = false }) {
     });
     if (!ok.isConfirmed) return;
 
+    // Calculate threshold days dynamically
+    let thresholdDays = 2;
+    if (selectedItem.expiration_date && selectedItem.creation_date) {
+      const expDate = new Date(selectedItem.expiration_date);
+      const creationDate = new Date(selectedItem.creation_date);
+      const thresholdDate = new Date(expDate);
+      thresholdDate.setDate(thresholdDate.getDate() - 2);
+      
+      if (thresholdDate < creationDate) {
+        thresholdDays = 1;
+      }
+    }
+
     const fd = new FormData();
     fd.append("name", selectedItem.name);
     fd.append("quantity", selectedItem.quantity);
     fd.append("creation_date", selectedItem.creation_date);
     fd.append("expiration_date", selectedItem.expiration_date);
-    fd.append("threshold", selectedItem.threshold);
+    fd.append("threshold", Math.max(0, thresholdDays)); // Store as integer days
     fd.append("uploaded", selectedItem.uploaded || "");
     fd.append("description", selectedItem.description || "");
-    if (selectedItem.image_file) fd.append("image", selectedItem.image_file);
+    if (selectedItem.image_file) {
+      fd.append("image", selectedItem.image_file);
+    } else if (selectedItem.template_image) {
+      fd.append("template_image", selectedItem.template_image);
+    }
 
     await axios.put(`${API}/inventory/${selectedItem.id}`, fd, {
       headers: { ...headers, "Content-Type": "multipart/form-data" },
@@ -1180,7 +1218,17 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     <td className="p-3">{item.quantity}</td>
                     <td className="p-3">{formatDate(item.creation_date)}</td>
                     <td className="p-3">{formatDate(item.expiration_date)}</td>
-                    <td className="p-3">{item.threshold}</td>
+                    <td className="p-3">
+                      {(() => {
+                        if (!item.expiration_date || !item.threshold) return "N/A";
+                        
+                        const expDate = new Date(item.expiration_date);
+                        const thresholdDate = new Date(expDate);
+                        thresholdDate.setDate(thresholdDate.getDate() - item.threshold);
+                        
+                        return formatDate(thresholdDate.toISOString());
+                      })()}
+                    </td>
                     <td className="p-3">{item.uploaded || "System"}</td>
                     <td className="p-3">{item.description}</td>
 
@@ -1311,6 +1359,18 @@ export default function BakeryInventory({ isViewOnly = false }) {
                         setForm({ ...form, image_file: e.target.files[0] })
                       }
                     />
+                    {form.template_image && !form.image_file && (
+                      <div className="mt-2">
+                        <p className="text-xs text-green-600 mb-2">
+                          ✓ Image will be auto-filled from template
+                        </p>
+                        <img
+                          src={`${API}/${form.template_image}`}
+                          alt="Template preview"
+                          className="h-20 w-20 object-cover rounded border border-green-200"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid sm:grid-cols-2 gap-4">
@@ -1326,124 +1386,6 @@ export default function BakeryInventory({ isViewOnly = false }) {
                         readOnly
                         disabled
                       />
-                    </div>
-                    <div>
-                      <label htmlFor="prod_threshold" className={labelTone}>
-                        Threshold (days)
-                      </label>
-                      <input
-                        id="prod_threshold"
-                        type="number"
-                        min="1"
-                        className={`${inputTone} rounded-2xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                          templateInfo || !form.expiration_date
-                            ? "bg-gray-100 cursor-not-allowed"
-                            : ""
-                        }`}
-                        value={form.threshold}
-                        onChange={(e) => {
-                          const value =
-                            e.target.value === ""
-                              ? ""
-                              : parseInt(e.target.value, 10);
-
-                          // Validate that value is not 0
-                          if (value === 0) {
-                            Swal.fire({
-                              title: "Invalid Threshold",
-                              text: "Threshold must be at least 1 day.",
-                              icon: "warning",
-                              confirmButtonColor: "#A97142",
-                              timer: 2500,
-                            });
-                            return;
-                          }
-
-                          // Real-time validation if expiration date is set
-                          if (form.expiration_date && value !== "") {
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-
-                            const expDate = new Date(form.expiration_date);
-                            expDate.setHours(0, 0, 0, 0);
-
-                            const daysUntilExpiration = Math.ceil(
-                              (expDate - today) / (1000 * 60 * 60 * 24)
-                            );
-                            const maxThreshold = Math.max(
-                              0,
-                              daysUntilExpiration
-                            );
-
-                            // If value exceeds max threshold, cap it and show error
-                            if (value > maxThreshold) {
-                              Swal.fire({
-                                title: "Threshold Exceeded",
-                                text: `Maximum threshold is ${maxThreshold} day${
-                                  maxThreshold !== 1 ? "s" : ""
-                                }. Value has been adjusted automatically.`,
-                                icon: "warning",
-                                confirmButtonColor: "#A97142",
-                                timer: 3000,
-                              });
-
-                              setForm({
-                                ...form,
-                                threshold: maxThreshold,
-                              });
-                              e.target.setCustomValidity("");
-                            } else {
-                              setForm({
-                                ...form,
-                                threshold: value,
-                              });
-                              e.target.setCustomValidity("");
-                            }
-                          } else {
-                            setForm({
-                              ...form,
-                              threshold: value,
-                            });
-                          }
-                        }}
-                        onFocus={(e) => {
-                          // Prevent interaction if expiration date not set
-                          if (!form.expiration_date) {
-                            e.target.blur();
-                            Swal.fire({
-                              title: "Expiration Date Required",
-                              text: "Please select an expiration date first before setting the threshold.",
-                              icon: "info",
-                              confirmButtonColor: "#A97142",
-                              timer: 2500,
-                            });
-                          }
-                        }}
-                        readOnly={!!templateInfo || !form.expiration_date}
-                        disabled={!!templateInfo || !form.expiration_date}
-                        required
-                      />
-                      <p className="mt-1 text-xs text-gray-500">
-                        {!form.expiration_date ? (
-                          <span className="text-amber-600 font-medium">
-                            ⚠️ Please select expiration date first
-                          </span>
-                        ) : (
-                          (() => {
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            const expDate = new Date(form.expiration_date);
-                            expDate.setHours(0, 0, 0, 0);
-                            const days = Math.ceil(
-                              (expDate - today) / (1000 * 60 * 60 * 24)
-                            );
-                            const maxThreshold = Math.max(0, days);
-                            return `Max threshold: ${maxThreshold} day${
-                              maxThreshold !== 1 ? "s" : ""
-                            } (product expires in ${days} days)`;
-                          })()
-                        )}
-                      </p>
                     </div>
                     <div>
                       <label htmlFor="prod_exp" className={labelTone}>
@@ -1513,6 +1455,41 @@ export default function BakeryInventory({ isViewOnly = false }) {
                           : ""}
                         )
                       </p>
+                    </div>
+                    <div>
+                      <label htmlFor="prod_threshold" className={labelTone}>
+                        Available For Donation Date
+                      </label>
+                      <input
+                        id="prod_threshold"
+                        type="text"
+                        className={`${inputTone} rounded-2xl bg-gray-100 cursor-not-allowed`}
+                        value={(() => {
+                          if (!form.expiration_date || !form.creation_date) return "Set expiration date first";
+                          
+                          const expDate = new Date(form.expiration_date);
+                          const creationDate = new Date(form.creation_date);
+                          const thresholdDate = new Date(expDate);
+                          thresholdDate.setDate(thresholdDate.getDate() - 2);
+                          
+                          // If threshold is before creation date, use creation date instead
+                          if (thresholdDate < creationDate) {
+                            return creationDate.toLocaleDateString("en-US", {
+                              month: "2-digit",
+                              day: "2-digit",
+                              year: "numeric"
+                            });
+                          }
+                          
+                          return thresholdDate.toLocaleDateString("en-US", {
+                            month: "2-digit",
+                            day: "2-digit",
+                            year: "numeric"
+                          });
+                        })()}
+                        readOnly
+                        disabled
+                      />
                     </div>
                     <div>
                       <label htmlFor="prod_qty" className={labelTone}>
@@ -1651,6 +1628,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                       image_file: null,
                       threshold: 0,
                       uploaded: uploaderName,
+                      template_image: "",
                     });
                     setTimeout(() => {
                       setIsFormClosing(false);
@@ -1700,8 +1678,20 @@ export default function BakeryInventory({ isViewOnly = false }) {
                 {selectedItem.quantity}
               </p>
               <p>
-                <strong className="text-[#6b4b2b]">Threshold:</strong>{" "}
-                {selectedItem.threshold} day(s)
+                <strong className="text-[#6b4b2b]">Available For Donation Date:</strong>{" "}
+                {(() => {
+                  if (!selectedItem.expiration_date) return "N/A";
+                  
+                  const expDate = new Date(selectedItem.expiration_date);
+                  const thresholdDate = new Date(expDate);
+                  thresholdDate.setDate(thresholdDate.getDate() - 2);
+                  
+                  return thresholdDate.toLocaleDateString("en-US", {
+                    month: "2-digit",
+                    day: "2-digit",
+                    year: "numeric"
+                  });
+                })()}
               </p>
               <p>
                 <strong className="text-[#6b4b2b]">Creation Date:</strong>{" "}
@@ -1890,6 +1880,18 @@ export default function BakeryInventory({ isViewOnly = false }) {
                 <p className="mt-1 text-xs text-gray-500">
                   Leave empty to keep the current image.
                 </p>
+                {selectedItem.template_image && !selectedItem.image_file && (
+                  <div className="mt-2">
+                    <p className="text-xs text-green-600 mb-2">
+                      ✓ Template image available
+                    </p>
+                    <img
+                      src={`${API}/${selectedItem.template_image}`}
+                      alt="Template preview"
+                      className="h-20 w-20 object-cover rounded border border-green-200"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4">
@@ -1976,130 +1978,40 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
                 <div>
                   <label className={labelTone} htmlFor="edit_threshold">
-                    Threshold (days)
+                    Available For Donation Date
                   </label>
                   <input
                     id="edit_threshold"
-                    type="number"
-                    min="1"
-                    className={`${inputTone} rounded-2xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                      templateInfo ||
-                      !selectedItem.expiration_date ||
-                      !selectedItem.expiration_date
-                        ? "bg-gray-100 cursor-not-allowed"
-                        : ""
-                    }`}
-                    value={selectedItem.threshold}
-                    onChange={(e) => {
-                      const value =
-                        e.target.value === ""
-                          ? ""
-                          : parseInt(e.target.value, 10);
-
-                      // Validate that value is not 0
-                      if (value === 0) {
-                        Swal.fire({
-                          title: "Invalid Threshold",
-                          text: "Threshold must be at least 1 day.",
-                          icon: "warning",
-                          confirmButtonColor: "#A97142",
-                          timer: 2500,
-                        });
-                        return;
-                      }
-
-                      // Real-time validation if expiration date is set
-                      if (selectedItem.expiration_date && value !== "") {
-                        // Use creation date for calculation
-                        const creationDate = new Date(
-                          selectedItem.creation_date
-                        );
-                        creationDate.setHours(0, 0, 0, 0);
-
-                        const expDate = new Date(selectedItem.expiration_date);
-                        expDate.setHours(0, 0, 0, 0);
-
-                        const daysUntilExpiration = Math.ceil(
-                          (expDate - creationDate) / (1000 * 60 * 60 * 24)
-                        );
-                        const maxThreshold = Math.max(0, daysUntilExpiration);
-
-                        // If value exceeds max threshold, cap it and show error
-                        if (value > maxThreshold) {
-                          Swal.fire({
-                            title: "Threshold Exceeded",
-                            text: `Maximum threshold is ${maxThreshold} day${
-                              maxThreshold !== 1 ? "s" : ""
-                            }. Value has been adjusted automatically.`,
-                            icon: "warning",
-                            confirmButtonColor: "#A97142",
-                            timer: 3000,
-                          });
-
-                          setSelectedItem({
-                            ...selectedItem,
-                            threshold: maxThreshold,
-                          });
-                        } else {
-                          setSelectedItem({
-                            ...selectedItem,
-                            threshold: value,
-                          });
-                        }
-                      } else {
-                        setSelectedItem({
-                          ...selectedItem,
-                          threshold: value,
+                    type="text"
+                    className={`${inputTone} rounded-2xl bg-gray-100 cursor-not-allowed`}
+                    value={(() => {
+                      if (!selectedItem.expiration_date || !selectedItem.creation_date) return "Set expiration date first";
+                      
+                      const expDate = new Date(selectedItem.expiration_date);
+                      const creationDate = new Date(selectedItem.creation_date);
+                      const thresholdDate = new Date(expDate);
+                      thresholdDate.setDate(thresholdDate.getDate() - 2);
+                      
+                      // If threshold is before creation date, use creation date instead
+                      if (thresholdDate < creationDate) {
+                        return creationDate.toLocaleDateString("en-US", {
+                          month: "2-digit",
+                          day: "2-digit",
+                          year: "numeric"
                         });
                       }
-                    }}
-                    onFocus={(e) => {
-                      // Prevent interaction if expiration date not set
-                      if (!selectedItem.expiration_date) {
-                        e.target.blur();
-                        Swal.fire({
-                          title: "Expiration Date Required",
-                          text: "Please select an expiration date first before setting the threshold.",
-                          icon: "info",
-                          confirmButtonColor: "#A97142",
-                          timer: 2500,
-                        });
-                      }
-                    }}
-                    readOnly={
-                      !isNameModified ||
-                      !!templateInfo ||
-                      !selectedItem.expiration_date
-                    }
-                    disabled={
-                      !isNameModified ||
-                      !!templateInfo ||
-                      !selectedItem.expiration_date
-                    }
-                    required
+                      
+                      return thresholdDate.toLocaleDateString("en-US", {
+                        month: "2-digit",
+                        day: "2-digit",
+                        year: "numeric"
+                      });
+                    })()}
+                    readOnly
+                    disabled
                   />
                   <p className="mt-1 text-xs text-gray-500">
-                    {!selectedItem.expiration_date ? (
-                      <span className="text-amber-600 font-medium">
-                        ⚠️ Please select expiration date first
-                      </span>
-                    ) : (
-                      (() => {
-                        const creationDate = new Date(
-                          selectedItem.creation_date
-                        );
-                        creationDate.setHours(0, 0, 0, 0);
-                        const expDate = new Date(selectedItem.expiration_date);
-                        expDate.setHours(0, 0, 0, 0);
-                        const days = Math.ceil(
-                          (expDate - creationDate) / (1000 * 60 * 60 * 24)
-                        );
-                        const maxThreshold = Math.max(0, days);
-                        return `Max threshold: ${maxThreshold} day${
-                          maxThreshold !== 1 ? "s" : ""
-                        } (product expires in ${days} days)`;
-                      })()
-                    )}
+                    Automatically set to 2 days before expiration
                   </p>
                 </div>
 

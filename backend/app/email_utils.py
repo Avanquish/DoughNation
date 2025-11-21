@@ -314,7 +314,8 @@ def send_employee_credentials_email(
     employee_name: str, 
     employee_id: str, 
     default_password: str,
-    bakery_name: str
+    bakery_name: str,
+    is_reset: bool = False
 ) -> bool:
     """
     Send employee login credentials email
@@ -325,11 +326,22 @@ def send_employee_credentials_email(
         employee_id: Employee's unique ID (e.g., EMP-5-001)
         default_password: One-time default password
         bakery_name: Name of the bakery
+        is_reset: Whether this is a password reset (True) or new account (False)
         
     Returns:
         bool: True if sent successfully
     """
     login_url = f"{FRONTEND_URL}/login"
+    
+    # Different titles and messages for reset vs new account
+    if is_reset:
+        email_title = f"Password Reset - {bakery_name}"
+        greeting = f"<h2>Password Reset for {bakery_name}</h2>"
+        intro = f"<p>Hi {employee_name},</p><p>Your password has been reset by the bakery owner. Here are your new login credentials:</p>"
+    else:
+        email_title = f"Your {bakery_name} Employee Account Credentials"
+        greeting = f"<h2>Welcome to {bakery_name}!</h2>"
+        intro = f"<p>Hi {employee_name},</p><p>You have been added as an employee at <strong>{bakery_name}</strong> on DoughNation. Here are your login credentials:</p>"
     
     html_content = f"""
     <!DOCTYPE html>
@@ -363,9 +375,8 @@ def send_employee_credentials_email(
                 <h1>🍞 DoughNation</h1>
             </div>
             <div class="content">
-                <h2>Welcome to {bakery_name}!</h2>
-                <p>Hi {employee_name},</p>
-                <p>You have been added as an employee at <strong>{bakery_name}</strong> on DoughNation. Here are your login credentials:</p>
+                {greeting}
+                {intro}
                 
                 <div class="credentials-box">
                     <div class="credential-item">
@@ -384,7 +395,7 @@ def send_employee_credentials_email(
                 <div class="warning">
                     <strong>⚠️ Important Security Notice:</strong>
                     <ul style="margin: 10px 0 0 0; padding-left: 20px;">
-                        <li><strong>Change your password immediately</strong> after your first login</li>
+                        <li><strong>Change your password immediately</strong> after your {'next' if is_reset else 'first'} login</li>
                         <li>This is a temporary password - do not share it with anyone</li>
                         <li>Use your Employee ID ({employee_id}) to login, not your email</li>
                         <li>Keep your credentials secure and confidential</li>
@@ -402,7 +413,7 @@ def send_employee_credentials_email(
     </html>
     """
     
-    return send_email(to_email, f"Your {bakery_name} Employee Account Credentials", html_content)
+    return send_email(to_email, email_title, html_content)
 
 
 def send_otp_email(to_email: str, otp_code: str, recipient_name: str = "User") -> bool:

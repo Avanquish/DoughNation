@@ -219,6 +219,64 @@ const Bakery = () => {
         }
     };
 
+    const handleForceDelete = async (id, bakeryName) => {
+        try {
+            const result = await Swal.fire({
+                title: "⚠️ Force Delete User?",
+                html: `
+                    <div style="text-align: left; padding: 10px;">
+                        <p style="margin-bottom: 15px; font-weight: 600; color: #d33;">
+                            You are about to <strong>FORCE DELETE</strong> "${bakeryName}".
+                        </p>
+                        <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin-bottom: 15px;">
+                            <p style="margin: 5px 0; font-weight: bold; color: #856404;">This will permanently delete:</p>
+                            <ul style="margin: 10px 0; padding-left: 20px; color: #856404;">
+                                <li>The bakery account</li>
+                                <li>All employees under this bakery</li>
+                                <li>All inventory items</li>
+                                <li>All donation records</li>
+                                <li>All related data</li>
+                            </ul>
+                        </div>
+                        <p style="color: #d33; font-weight: 600;">
+                            ⚠️ This action cannot be undone!
+                        </p>
+                    </div>
+                `,
+                icon: "warning",
+                showCancelButton: true,
+                confirmButtonColor: "#d33",
+                cancelButtonColor: "#6c757d",
+                confirmButtonText: "Yes, Force Delete!",
+                cancelButtonText: "Cancel",
+                width: "600px"
+            });
+
+            if (result.isConfirmed) {
+                const token = localStorage.getItem("token");
+                const response = await axios.delete(`${API}/admin/force-delete-user/${id}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+
+                await Swal.fire({
+                    icon: "success",
+                    title: "Force Deleted!",
+                    text: response.data.message,
+                    timer: 3000
+                });
+
+                fetchBakeries(); // Refresh the list
+            }
+        } catch (error) {
+            console.error("Error force deleting bakery:", error);
+            Swal.fire({
+                icon: "error",
+                title: "Error",
+                text: error.response?.data?.detail || "Failed to force delete bakery"
+            });
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="p-2 pt-4 sm:p-4 md:p-6">
@@ -238,6 +296,7 @@ const Bakery = () => {
                             onCreate={handleCreate}
                             onUpdate={handleUpdate}
                             onDelete={handleDelete}
+                            onForceDelete={handleForceDelete}
                             entityType="Bakery"
                         />
                     )}

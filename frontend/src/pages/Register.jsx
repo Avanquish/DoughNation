@@ -62,6 +62,16 @@ export default function Register() {
     confirm_password: "",
   });
 
+  const passStrength = (() => {
+    const p = formData.password;
+    let s = 0;
+    if (p.length >= 8) s++;
+    if (/[A-Z]/.test(p)) s++;
+    if (/[0-9]/.test(p)) s++;
+    if (/[^A-Za-z0-9]/.test(p)) s++;
+    return s;
+  })();
+
   /** Show/hide + confirm “progress” (visual only) */
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -77,6 +87,40 @@ export default function Register() {
       : matchRatio < 0.5
       ? "#f87171"
       : "#f59e0b";
+
+  // Password strength (UI only – visual guide)
+  const password = formData.password;
+
+  const passwordStrengthScore = (() => {
+    if (!password) return 0;
+    let score = 0;
+    if (/[a-z]/.test(password)) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+    return score;
+  })();
+
+  let passwordStrengthLabel =
+    "Use 8 characters with a mix of letters, numbers, and symbols.";
+  let passwordStrengthWidth = "0%";
+  let passwordStrengthColor = "#FECACA"; // light red
+
+  if (password.length > 0) {
+    passwordStrengthWidth = `${(passwordStrengthScore / 4) * 100}%`;
+
+    if (passwordStrengthScore <= 1) {
+      passwordStrengthLabel =
+        "Weak – add uppercase letters, numbers, and symbols.";
+      passwordStrengthColor = "#f87171"; // red
+    } else if (passwordStrengthScore <= 3) {
+      passwordStrengthLabel = "Medium – make it a bit more complex.";
+      passwordStrengthColor = "#fbbf24"; // amber
+    } else {
+      passwordStrengthLabel = "Strong password!";
+      passwordStrengthColor = "#22c55e"; // green
+    }
+  }
 
   /** Files */
   const [profilePicture, setProfilePicture] = useState(null);
@@ -507,8 +551,10 @@ export default function Register() {
 
               {/* Passwords */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Password */}
                 <div className="space-y-1.5">
                   <Label className="text-[#8f642a]">Password</Label>
+
                   <div className="relative">
                     <Input
                       type={showPwd ? "text" : "password"}
@@ -534,10 +580,49 @@ export default function Register() {
                       )}
                     </button>
                   </div>
+
+                  {/* strength meter UI */}
+                  {formData.password && (
+                    <div className="mt-2">
+                      <div className="h-2 w-full bg-[#FFE1BE]/70 rounded-full overflow-hidden">
+                        <div
+                          className="h-full transition-all"
+                          style={{
+                            width: `${(passStrength / 4) * 100}%`,
+                            background: (() => {
+                              if (passStrength === 0) return "#e5e7eb"; // gray
+                              if (passStrength === 1) return "#f87171"; // red
+                              if (passStrength === 2) return "#f59e0b"; // amber
+                              if (passStrength === 3) return "#60a5fa"; // blue
+                              return "#22c55e"; // green
+                            })(),
+                          }}
+                        />
+                      </div>
+                      <p className="mt-1 text-xs text-[#a47134]/80">
+                        Strength:{" "}
+                        <span className="font-semibold">
+                          {(() => {
+                            if (passStrength <= 1) return "Weak";
+                            if (passStrength === 2) return "Fair";
+                            if (passStrength === 3) return "Good";
+                            return "Strong";
+                          })()}
+                        </span>
+                      </p>
+                    </div>
+                  )}
+
+                  <p className="text-xs text-[#a47134]/80">
+                    Use at least 8 characters with a mix of letters, numbers,
+                    and symbols.
+                  </p>
                 </div>
 
+                {/* Confirm Password */}
                 <div className="space-y-1.5">
                   <Label className="text-[#8f642a]">Confirm Password</Label>
+
                   <div className="relative">
                     <Input
                       type={showConfirm ? "text" : "password"}
@@ -546,7 +631,7 @@ export default function Register() {
                         handleInputChange("confirm_password", e.target.value)
                       }
                       required
-                      placeholder="Re-enter password"
+                      placeholder="Re-enter your password"
                       className="appearance-none pr-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E]"
                       style={{ height: "clamp(44px, 5.5svh, 52px)" }}
                     />
@@ -566,19 +651,35 @@ export default function Register() {
                     </button>
                   </div>
 
-                  <p className="text-xs text-[#a47134]/80">
-                    {formData.password.length === 0
-                      ? "Enter a password first."
-                      : formData.confirm_password === formData.password
-                      ? "Passwords match"
-                      : "Re-enter the same password"}
-                  </p>
+                  {/* passwords match banner */}
+                  {formData.password && formData.confirm_password && (
+                    <div
+                      className={`mt-2 text-sm p-2 rounded-xl border ${
+                        formData.password === formData.confirm_password
+                          ? "bg-emerald-50/80 text-emerald-700 border-emerald-200"
+                          : "bg-rose-50/80 text-rose-700 border-rose-200"
+                      }`}
+                    >
+                      {formData.password === formData.confirm_password
+                        ? "✓ Passwords match"
+                        : "✗ Passwords don't match"}
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Required files */}
               <div className="space-y-1.5">
-                <Label className="text-[#8f642a]">Profile Picture</Label>
+                <Label className="text-[#8f642a]">
+                  {formData.role === "bakery"
+                    ? "Profile Picture"
+                    : "Profile Picture"}
+                </Label>
+                <p className="text-xs text-[#a47134]/80">
+                  {formData.role === "bakery"
+                    ? "Upload your bakery profile picture (e.g., logo, storefront, or best-selling product)."
+                    : "Upload your charity profile picture (e.g., logo, team photo, or outreach activity)."}
+                </p>
                 <Input
                   type="file"
                   accept="image/*"
@@ -593,6 +694,10 @@ export default function Register() {
 
               <div className="space-y-1.5">
                 <Label className="text-[#8f642a]">Proof of Validity</Label>
+                <p className="text-xs text-[#a47134]/80">
+                  Upload your business document for legitimacy (e.g., permits,
+                  certifications, or registration papers).
+                </p>
                 <Input
                   type="file"
                   onChange={(e) =>

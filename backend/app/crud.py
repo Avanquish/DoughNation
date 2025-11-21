@@ -6,7 +6,6 @@ import shutil
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
-from datetime import datetime, timedelta
 
 from app import schemas
 from . import models, auth
@@ -16,19 +15,6 @@ from app.routes.geofence import geocode_address, get_coordinates_osm
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
-def is_valid_gmail(email: str) -> bool:
-    """
-    Validate if email is a Gmail address
-    Can be modified to accept other email providers
-    """
-    email = email.lower().strip()
-    # Accept gmail.com or other common providers
-    valid_domains = ['gmail.com', 'googlemail.com']
-    domain = email.split('@')[-1] if '@' in email else ''
-    return domain in valid_domains
-
 
 def create_user(
     db: Session,
@@ -43,38 +29,22 @@ def create_user(
     profile_picture: UploadFile = File(...),
     proof_of_validity: UploadFile = File(...)
 ):
-    """
-    Create a new user account with Gmail-based authentication
-    
-    Flow:
-    1. User registers with Gmail address
-    2. Account created but not verified (verified=False)
-    3. Admin reviews and approves account
-    4. Email notification sent when admin approves
-    5. User can then login
-    
-    Changes from original:
-    - Removed domain-based email validation (@bakery.com, @charity.com, @admin.com)
-    - Added Gmail validation (only @gmail.com allowed)
-    - No email verification step - admin approval only
-    - Email sent when admin approves account
-    """
     
     # Clean role input
     role = role.strip().lower()
-    
-    # Validate role
-    if role not in ['bakery', 'charity', 'admin']:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid role. Must be 'bakery', 'charity', or 'admin'"
-        )
 
-    # ✅ NEW: Gmail validation instead of domain-based validation
-    if not is_valid_gmail(email):
+    # Email domain validation based on role
+    valid_domains = {
+        "bakery": "bakery.com",
+        "charity": "charity.com",
+        "admin": "admin.com",
+    }
+
+    email_domain = email.split("@")[-1]
+    if role not in valid_domains or email_domain != valid_domains[role]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Please use a Gmail address (@gmail.com) to register"
+            detail=f"Email must end with @{valid_domains.get(role, 'yourdomain.com')} for role '{role}'"
         )
     
     # Check if user already exists
@@ -85,7 +55,7 @@ def create_user(
             detail="Email already registered"
         )
 
-    # Contact Number validation - must be 11 digits
+    #Contact Number limitation set to 11 numbers only
     if contact_number and len(contact_number) != 11:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -120,14 +90,13 @@ def create_user(
             detail="Could not fetch latitude/longitude for the provided address"
         )
 
-    # Hash password
+    # Hash password and create user
     hashed_password = pwd_context.hash(password)
 
-    # Create user - email verification not required, only admin approval
     db_user = models.User(
         role=role.strip().capitalize(),
         name=name,
-        email=email.lower().strip(),  # Store email in lowercase
+        email=email,
         contact_person=contact_person,
         contact_number=contact_number,
         address=address,
@@ -136,7 +105,7 @@ def create_user(
         hashed_password=hashed_password,
         profile_picture=profile_pic_path,
         proof_of_validity=proof_path,
-        verified=False  # Admin verification - starts as False, email sent when admin approves
+        verified=False
     )
     db.add(db_user)
     db.commit()
@@ -146,9 +115,48 @@ def create_user(
     print(f"   ID: {db_user.id}")
     print(f"   Name: {db_user.name}")
     print(f"   Email: {db_user.email}")
-    print(f"   Role: {db_user.role}")
-    print(f"   Admin Verified: {db_user.verified}")
-    print(f"   ⏳ Waiting for admin approval...")
+    print(f"   Role (db): {db_user.role}")
+    print(f"   Role (variable): {role}")
+    print(f"   Contact Person: {contact_person}")
+    print(f"   Role check: role.lower() == 'bakery' => {role.lower()} == 'bakery' => {role.lower() == 'bakery'}")
+    
+    # 🆕 If bakery, automatically create contact person as first employee
+    if role.lower() == "bakery":
+        try:
+            print(f"\n✅ ROLE CHECK PASSED - Creating first employee for bakery {db_user.id}: {contact_person}")
+            # Default password for first employee
+            default_password = "Employee123!"
+            hashed_emp_password = pwd_context.hash(default_password)
+            
+            # Verify the employee doesn't already exist
+            existing_emp = db.query(models.Employee).filter(
+                models.Employee.bakery_id == db_user.id,
+                models.Employee.name == contact_person
+            ).first()
+            
+            if existing_emp:
+                print(f"⚠️  Employee already exists: {existing_emp.name}")
+                return db_user
+            
+            first_employee = models.Employee(
+                bakery_id=db_user.id,
+                name=contact_person,
+                role="Owner",
+                start_date=date.today(),  # ✅ Set start date to today
+                hashed_password=hashed_emp_password
+            )
+            db.add(first_employee)
+            db.commit()
+            db.refresh(first_employee)
+            print(f"✅ EMPLOYEE CREATED: {first_employee.name} (ID: {first_employee.id}, bakery_id: {first_employee.bakery_id}, password_set: {bool(first_employee.hashed_password)})")
+        except Exception as e:
+            print(f"❌ ERROR creating first employee: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Failed to create first employee: {str(e)}")
+    else:
+        print(f"❌ ROLE CHECK FAILED - role.lower()={role.lower()}, not 'bakery', skipping employee creation")
     
     return db_user
 
@@ -222,14 +230,6 @@ def change_user_password(db: Session, user_id: int, current_password: str, new_p
     if new_password != confirm_password:
         raise HTTPException(status_code=400, detail="New passwords do not match")
 
-    # 🚫 PREVENT OWNERS FROM USING EMPLOYEE DEFAULT PASSWORD
-    EMPLOYEE_DEFAULT_PASSWORD = "Employee123!"
-    if new_password == EMPLOYEE_DEFAULT_PASSWORD:
-        raise HTTPException(
-            status_code=400, 
-            detail="Cannot use the employee default password. Please choose a different password for security reasons."
-        )
-
     user.hashed_password = pwd_context.hash(new_password)
     db.commit()
     return {"message": "Password updated successfully"}
@@ -246,7 +246,7 @@ def authenticate_user(db: Session, email: str, password: str):
 def seed_admin_user(db: Session):
     from .models import User
 
-    admin_email = "admin@gmail.com"
+    admin_email = "admin@admin.com"
     existing_admin = db.query(User).filter(User.email == admin_email).first()
 
     if existing_admin:
@@ -261,7 +261,7 @@ def seed_admin_user(db: Session):
         contact_number="0000-000-0000",
         address="Head Office",
         hashed_password=pwd_context.hash("admin1234"), 
-        profile_picture="uploads/profile_pictures/default_admin.png",
+        profile_picture="uploads/profile_pictures/admin_profile.png",
         proof_of_validity="uploads/proofs/default_proof.pdf",
         verified=True
     )

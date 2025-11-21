@@ -245,3 +245,67 @@ def delete_employee(
     db.delete(employee)
     db.commit()
     return {"message": "Employee deleted successfully"}
+
+
+# 📌 RESET employee password (Owner only)
+@router.post("/{employee_id}/reset-password")
+def reset_employee_password(
+    employee_id: int,
+    db: Session = Depends(database.get_db),
+    current_auth = Depends(auth.get_current_user_or_employee)
+):
+    # Only allow bakery OWNERS (not employees) to reset passwords
+    if isinstance(current_auth, dict):
+        # This is an employee token - deny access
+        raise HTTPException(status_code=403, detail="Only bakery owners can reset employee passwords")
+    
+    # Bakery owner token
+    if current_auth.role.lower() != "bakery":
+        raise HTTPException(status_code=403, detail="Only bakery owners can reset employee passwords")
+    
+    bakery_id = current_auth.id
+
+    # Find the employee
+    employee = db.query(models.Employee).filter(
+        models.Employee.id == employee_id,
+        models.Employee.bakery_id == bakery_id
+    ).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    # Generate new temporary password
+    new_password = "Employee123!"
+    hashed_password = pwd_context.hash(new_password)
+    
+    # Update employee password
+    employee.hashed_password = hashed_password
+    employee.password_changed = False  # Mark that they need to change it on next login
+    employee.initial_password_hash = hashed_password  # Update initial password hash
+    
+    db.commit()
+
+    # Get bakery name for email
+    bakery = db.query(models.User).filter(models.User.id == bakery_id).first()
+    bakery_name = bakery.name if bakery else "Your Bakery"
+    
+    # Send email with new credentials
+    try:
+        send_employee_credentials_email(
+            to_email=employee.email,
+            employee_name=employee.name,
+            employee_id=employee.employee_id,
+            default_password=new_password,
+            bakery_name=bakery_name,
+            is_reset=True  # Indicate this is a password reset
+        )
+        print(f"✅ Password reset email sent to {employee.email}")
+    except Exception as e:
+        print(f"⚠️ Failed to send password reset email: {str(e)}")
+        # Don't fail the password reset if email fails
+
+    return {
+        "message": "Password reset successfully",
+        "employee_id": employee.employee_id,
+        "email": employee.email,
+        "new_password": new_password
+    }

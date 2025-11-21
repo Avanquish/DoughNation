@@ -174,7 +174,9 @@ const ForgotPassword = () => {
       Swal.fire({
         icon: "error",
         title: "Invalid OTP",
-        text: err.response?.data?.detail || "The OTP code is incorrect or has expired.",
+        text:
+          err.response?.data?.detail ||
+          "The OTP code is incorrect or has expired.",
         confirmButtonColor: "#dc2626",
       });
     }
@@ -233,7 +235,7 @@ const ForgotPassword = () => {
   // Resend OTP
   const handleResendOTP = async () => {
     if (resendTimer > 0) return;
-    
+
     try {
       const endpoint =
         accountType === "employee"
@@ -546,8 +548,8 @@ const ForgotPassword = () => {
                       type={accountType === "employee" ? "text" : "email"}
                       placeholder={
                         accountType === "employee"
-                          ? "EMP-5-001"
-                          : "you@bakery.com"
+                          ? "EMP-X-XXX"
+                          : "your.email@gmail.com"
                       }
                       value={identifier}
                       onChange={(e) => setIdentifier(e.target.value)}
@@ -558,7 +560,7 @@ const ForgotPassword = () => {
                   </div>
                   {accountType === "employee" && (
                     <p className="text-xs text-[#a47134]/80 mt-1">
-                      Enter your unique Employee ID (e.g., EMP-5-001)
+                      Enter your unique Employee ID (e.g., EMP-X-XXX)
                     </p>
                   )}
                 </div>
@@ -594,7 +596,11 @@ const ForgotPassword = () => {
                       type="text"
                       placeholder="Enter 6-digit code"
                       value={otpCode}
-                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      onChange={(e) =>
+                        setOtpCode(
+                          e.target.value.replace(/\D/g, "").slice(0, 6)
+                        )
+                      }
                       required
                       maxLength={6}
                       className="pl-11 h-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E] rounded-xl text-center text-2xl tracking-widest font-mono"
@@ -605,7 +611,7 @@ const ForgotPassword = () => {
                     Check your email for the 6-digit verification code
                   </p>
                 </div>
-                
+
                 <Button
                   type="submit"
                   className="h-11 w-full text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E]
@@ -616,7 +622,7 @@ const ForgotPassword = () => {
                 >
                   Verify Code
                 </Button>
-                
+
                 {/* Resend OTP Button */}
                 <div className="text-center">
                   <button

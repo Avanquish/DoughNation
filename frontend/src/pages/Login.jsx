@@ -35,7 +35,7 @@ const Login = () => {
   const [role, setRole] = useState("Bakery");
   const [showPass, setShowPass] = useState(false);
 
- // Parallax background
+  // Parallax background
   const bgRef = useRef(null);
   const rafRef = useRef(0);
   const targetRef = useRef({ x: 0, y: 0 });
@@ -118,7 +118,7 @@ const Login = () => {
   // Handle unified login
   const handleLogin = async (e) => {
     e.preventDefault();
-    
+
     try {
       // 🔑 UNIFIED LOGIN: Send identifier (email or name) and password
       const res = await axios.post("http://localhost:8000/login", {
@@ -126,15 +126,15 @@ const Login = () => {
         password,
         role, // Optional: can help with validation
       });
-      
+
       const token = res.data.access_token;
-      
+
       // 🔍 DECODE TOKEN to determine account type
       const decoded = JSON.parse(atob(token.split(".")[1]));
       console.log("🔐 Decoded token:", decoded);
-      
+
       const accountType = decoded.type; // "bakery", "charity", "admin", or "employee"
-      
+
       // ✅ VALIDATE: Employees can ONLY log in when slider is set to "Bakery"
       if (accountType === "employee" && role !== "Bakery") {
         Swal.fire({
@@ -145,11 +145,11 @@ const Login = () => {
         });
         return; // Exit early - prevent login
       }
-      
+
       // Store appropriate token
       if (accountType === "employee") {
         // Employee login - use EmployeeAuthContext
-        
+
         // 🚫 CHECK IF BAKERY IS VERIFIED
         if (!decoded.bakery_verified) {
           Swal.fire({
@@ -160,10 +160,10 @@ const Login = () => {
           });
           return; // Exit early - prevent login
         }
-        
+
         employeeLogin(token); // ✅ This updates the context AND localStorage
         localStorage.setItem("bakery_id_for_employee_login", decoded.bakery_id);
-        
+
         // 🔐 CHECK IF EMPLOYEE NEEDS TO CHANGE DEFAULT PASSWORD
         if (decoded.requires_password_change) {
           Swal.fire({
@@ -171,34 +171,33 @@ const Login = () => {
             title: "Password Change Required",
             text: "For security, please change your default password",
             timer: 2000,
-            showConfirmButton: false
+            showConfirmButton: false,
           });
-          
+
           // Redirect to password change page
           setTimeout(() => {
             navigate("/employee-change-password");
           }, 2000);
           return;
         }
-        
+
         // Clear any stored tab preference and navigate to bakery dashboard
         localStorage.setItem("bakery_active_tab", "dashboard");
         navigate(`/bakery-dashboard/${decoded.bakery_id}`);
-        
+
         Swal.fire({
           icon: "success",
           title: "Welcome!",
           text: `Logged in as ${decoded.employee_name} (${decoded.employee_role})`,
           timer: 2000,
-          showConfirmButton: false
+          showConfirmButton: false,
         });
-        
       } else {
         // Regular user login (Bakery/Charity/Admin)
         login(token); // Use existing auth context
-        
+
         const userId = decoded.sub;
-        
+
         // Role-based redirection
         if (accountType === "bakery") {
           // 🚫 CHECK IF BAKERY IS VERIFIED
@@ -213,7 +212,7 @@ const Login = () => {
             localStorage.removeItem("token");
             return; // Exit early - prevent navigation
           }
-          
+
           // Clear any stored tab preference
           localStorage.setItem("bakery_active_tab", "dashboard");
           navigate(`/bakery-dashboard/${userId}`);
@@ -230,7 +229,7 @@ const Login = () => {
             localStorage.removeItem("token");
             return; // Exit early - prevent navigation
           }
-          
+
           // Set default tab to "donation" (Available Donation)
           localStorage.setItem("charity_active_tab", "donation");
           navigate(`/charity-dashboard/${userId}`);
@@ -239,38 +238,39 @@ const Login = () => {
           localStorage.setItem("admin_active_tab", "dashboard");
           navigate(`/admin-dashboard/${userId}`);
         }
-        
+
         // Success message based on account type
         let roleDisplay = "Owner"; // Default for Bakery/Charity owners
         if (accountType === "admin") {
           roleDisplay = "Admin";
         }
-        
+
         Swal.fire({
           icon: "success",
           title: "Welcome Back!",
           text: `Logged in as ${decoded.contact_person} (${roleDisplay})`,
           timer: 2000,
-          showConfirmButton: false
+          showConfirmButton: false,
         });
       }
-      
     } catch (error) {
       console.error("Login error:", error);
-      
+
       let errorMessage = "Login failed. Please check your credentials.";
-      
+
       if (error.response?.status === 403) {
         // Part-time employee blocked
-        errorMessage = error.response.data.detail || "Access denied. Part-time employees cannot log in to the system.";
+        errorMessage =
+          error.response.data.detail ||
+          "Access denied. Part-time employees cannot log in to the system.";
       } else if (error.response?.data?.detail) {
         errorMessage = error.response.data.detail;
       }
-      
-      Swal.fire({ 
-        icon: "error", 
-        title: "Login Failed", 
-        text: errorMessage 
+
+      Swal.fire({
+        icon: "error",
+        title: "Login Failed",
+        text: errorMessage,
       });
     }
   };
@@ -456,13 +456,16 @@ const Login = () => {
 
                 {/* Identifier (Email or Employee ID) */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="identifier" className="text-[#8f642a] font-medium">
-                    Email or Employee ID
+                  <Label
+                    htmlFor="identifier"
+                    className="text-[#8f642a] font-medium"
+                  >
+                    Username
                   </Label>
                   <Input
                     id="identifier"
                     type="text"
-                    placeholder="Enter your email"
+                    placeholder="Enter your username"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     required
@@ -568,7 +571,8 @@ const Login = () => {
                 className="mt-5 text-[#8f642a] max-w-[52ch]"
                 style={{ fontSize: "var(--text)" }}
               >
-                Sign in with your email (Bakery/Charity/Admin) or employee name to manage inventory and donations.
+                Sign in with your email (Bakery/Charity/Admin) or employee name
+                to manage inventory and donations.
               </p>
 
               <ul
@@ -578,19 +582,22 @@ const Login = () => {
                 <li className="flex items-start gap-3">
                   <Store className="h-5 w-5 mt-0.5 text-[#ce893b]" />
                   <span>
-                    Bakery & Employees — Track inventory, schedule donations, manage team.
+                    Bakery & Employees — Track inventory, schedule donations,
+                    manage team.
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
                   <Heart className="h-5 w-5 mt-0.5 text-[#ce893b]" />
                   <span>
-                    Charity — View nearby bread offers, claim donations, coordinate pickup.
+                    Charity — View nearby bread offers, claim donations,
+                    coordinate pickup.
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
                   <Building2 className="h-5 w-5 mt-0.5 text-[#ce893b]" />
                   <span>
-                    Admin — Manage all users, partners, analytics, and donation logs.
+                    Admin — Manage all users, partners, analytics, and donation
+                    logs.
                   </span>
                 </li>
               </ul>

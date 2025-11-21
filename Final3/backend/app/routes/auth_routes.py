@@ -1,7 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, UploadFile, Form, File, HTTPException
 from sqlalchemy.orm import Session
-from datetime import date
+from datetime import date, datetime
 from app import crud, auth, database, schemas, models
 from app.auth import create_access_token, get_current_user, verify_password
 from app.event_logger import log_system_event
@@ -45,7 +45,7 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     - role: user's specific role
     - appropriate ID fields
     
-    🚫 RESTRICTION: Part-time employees CANNOT log in
+    🔐 EMPLOYEE LOGIN FLOW
     """
     print(f"\n{'='*80}")
     print(f"🔐 UNIFIED LOGIN ATTEMPT")
@@ -96,6 +96,77 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
             
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
+        # Check account status
+        if db_user.status == "Suspended":
+            # Check if suspension has expired
+            if db_user.suspended_until and db_user.suspended_until > datetime.utcnow():
+                remaining_days = (db_user.suspended_until - datetime.utcnow()).days
+                print(f"❌ Account suspended until {db_user.suspended_until}")
+                log_system_event(
+                    db=db,
+                    event_type="failed_login",
+                    description=f"Login attempt on suspended account: {db_user.email}",
+                    severity="warning",
+                    user_id=db_user.id,
+                    metadata={"email": db_user.email, "reason": "account_suspended", "suspended_until": str(db_user.suspended_until)}
+                )
+                raise HTTPException(
+                    status_code=403, 
+                    detail=f"Account is suspended until {db_user.suspended_until.strftime('%Y-%m-%d %H:%M:%S')}. Remaining: {remaining_days} days. Reason: {db_user.status_reason or 'Not specified'}"
+                )
+            else:
+                # Suspension expired, automatically set to Active
+                db_user.status = "Active"
+                db_user.suspended_until = None
+                db.commit()
+        
+        if db_user.status == "Banned":
+            print(f"❌ Account is banned")
+            log_system_event(
+                db=db,
+                event_type="failed_login",
+                description=f"Login attempt on banned account: {db_user.email}",
+                severity="warning",
+                user_id=db_user.id,
+                metadata={"email": db_user.email, "reason": "account_banned"}
+            )
+            raise HTTPException(
+                status_code=403, 
+                detail=f"Account is permanently banned. Reason: {db_user.status_reason or 'Not specified'}"
+            )
+        
+        if db_user.status == "Deactivated":
+            # Allow bakery and charity owners to reactivate by logging in
+            if db_user.role in ["Bakery", "Charity"]:
+                print(f"🔄 Auto-reactivating deactivated {db_user.role} account: {db_user.email}")
+                db_user.status = "Active"
+                db_user.deactivated_at = None
+                db.commit()
+                
+                log_system_event(
+                    db=db,
+                    event_type="USER_REACTIVATED",
+                    description=f"{db_user.role} account auto-reactivated upon login: {db_user.email}",
+                    severity="info",
+                    user_id=db_user.id,
+                    metadata={"email": db_user.email, "role": db_user.role, "reactivation_method": "owner_login"}
+                )
+            else:
+                # Admin accounts cannot auto-reactivate
+                print(f"❌ Account is deactivated")
+                log_system_event(
+                    db=db,
+                    event_type="failed_login",
+                    description=f"Login attempt on deactivated account: {db_user.email}",
+                    severity="warning",
+                    user_id=db_user.id,
+                    metadata={"email": db_user.email, "reason": "account_deactivated"}
+                )
+                raise HTTPException(
+                    status_code=403, 
+                    detail="Account has been deactivated. Please contact support."
+                )
+        
         print(f"✅ User authenticated: {db_user.name} (Role: {db_user.role})")
         print(f"   Role validation: PASSED")
         print(f"{'='*80}\n")
@@ -106,10 +177,26 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
             "type": db_user.role.lower(),  # "bakery", "charity", or "admin"
             "role": db_user.role,
             "name": db_user.name,
+            "contact_person": db_user.contact_person,  # Owner's name
             "is_verified": db_user.verified
         }
         
         token = create_access_token(token_data)
+        
+        # ✅ LOG SUCCESSFUL USER LOGIN
+        log_system_event(
+            db=db,
+            event_type="login_success",
+            description=f"User {db_user.name} ({db_user.email}) logged in successfully as {db_user.role}",
+            severity="info",
+            user_id=db_user.id,
+            metadata={
+                "email": db_user.email,
+                "role": db_user.role,
+                "name": db_user.name
+            }
+        )
+        
         return {"access_token": token, "token_type": "bearer"}
     
     # STEP 2: Try to find Employee account by EMPLOYEE_ID
@@ -154,37 +241,82 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     # Store authenticated employee
     authenticated_employee = employee
     
-    # 🚫 BLOCK PART-TIME EMPLOYEES
-    employee_role_normalized = authenticated_employee.role.lower().replace("-", "").replace(" ", "")
-    if "parttime" in employee_role_normalized or employee_role_normalized == "part":
-        print(f"🚫 Part-time employee login blocked: {authenticated_employee.employee_id}")
-        print(f"{'='*80}\n")
-        
-        # Log failed employee login attempt (part-time restriction)
-        log_system_event(
-            db=db,
-            event_type="failed_login",
-            description=f"Failed employee login attempt - Part-time restriction: {authenticated_employee.employee_id} (Bakery ID: {authenticated_employee.bakery_id})",
-            severity="warning",
-            user_id=None,
-            metadata={"employee_id": authenticated_employee.employee_id, "bakery_id": authenticated_employee.bakery_id, "reason": "part_time_restriction"}
-        )
-        
-        raise HTTPException(
-            status_code=403, 
-            detail="Part-time employees cannot access the system. Please contact your manager if you believe this is an error."
-        )
-    
     print(f"✅ Employee authenticated: {authenticated_employee.name} (Role: {authenticated_employee.role})")
     print(f"   Bakery ID: {authenticated_employee.bakery_id}")
     print(f"{'='*80}\n")
 
+    # Check bakery owner's account status
     bakery = db.query(models.User).filter(models.User.id == authenticated_employee.bakery_id).first()
+    
+    if not bakery:
+        log_system_event(
+            db=db,
+            event_type="failed_login",
+            description=f"Employee login failed - Bakery account not found: {authenticated_employee.employee_id}",
+            severity="error",
+            user_id=None,
+            metadata={"employee_id": authenticated_employee.employee_id, "bakery_id": authenticated_employee.bakery_id}
+        )
+        raise HTTPException(status_code=403, detail="Associated bakery account not found")
+    
+    # Block employee login if bakery owner's account is deactivated
+    if bakery.status == "Deactivated":
+        print(f"❌ Bakery owner account is deactivated")
+        log_system_event(
+            db=db,
+            event_type="failed_login",
+            description=f"Employee login blocked - Bakery owner account deactivated: {authenticated_employee.employee_id}",
+            severity="warning",
+            user_id=bakery.id,
+            metadata={"employee_id": authenticated_employee.employee_id, "bakery_status": "Deactivated"}
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot log in. The bakery owner's account has been deactivated. Please contact the owner to reactivate the account."
+        )
+    
+    # Block employee login if bakery owner is suspended
+    if bakery.status == "Suspended":
+        if bakery.suspended_until and bakery.suspended_until > datetime.utcnow():
+            remaining_days = (bakery.suspended_until - datetime.utcnow()).days
+            print(f"❌ Bakery owner account is suspended")
+            log_system_event(
+                db=db,
+                event_type="failed_login",
+                description=f"Employee login blocked - Bakery owner suspended: {authenticated_employee.employee_id}",
+                severity="warning",
+                user_id=bakery.id,
+                metadata={"employee_id": authenticated_employee.employee_id, "bakery_status": "Suspended", "suspended_until": str(bakery.suspended_until)}
+            )
+            raise HTTPException(
+                status_code=403,
+                detail=f"Cannot log in. The bakery owner's account is suspended until {bakery.suspended_until.strftime('%Y-%m-%d %H:%M:%S')}. Remaining: {remaining_days} days."
+            )
+    
+    # Block employee login if bakery owner is banned
+    if bakery.status == "Banned":
+        print(f"❌ Bakery owner account is banned")
+        log_system_event(
+            db=db,
+            event_type="failed_login",
+            description=f"Employee login blocked - Bakery owner banned: {authenticated_employee.employee_id}",
+            severity="warning",
+            user_id=bakery.id,
+            metadata={"employee_id": authenticated_employee.employee_id, "bakery_status": "Banned"}
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot log in. The bakery owner's account has been banned. Please contact support."
+        )
+    
     bakery_name = bakery.name if bakery else "Bakery"
     bakery_verified = bakery.verified if bakery else False
 
-    # 🔐 CHECK IF EMPLOYEE IS USING DEFAULT PASSWORD
-    is_default_password = verify_password("Employee123!", authenticated_employee.hashed_password)
+    # 🔐 CHECK IF EMPLOYEE STILL HAS DEFAULT PASSWORD
+    # Use password_changed flag - more reliable than comparing hashes
+    requires_password_change = not authenticated_employee.password_changed
+    
+    print(f"🔑 Password status - Changed: {authenticated_employee.password_changed}, Requires change: {requires_password_change}")
     
     # Generate employee token
     token_data = {
@@ -197,10 +329,27 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
         "bakery_name": bakery_name,
         "bakery_verified": bakery_verified,  # Include bakery verification status
         "sub": str(authenticated_employee.bakery_id),  # For compatibility
-        "requires_password_change": is_default_password  # Flag for first-time login
+        "requires_password_change": requires_password_change  # Flag for first-time login
     }
     
     token = create_access_token(token_data)
+    
+    # ✅ LOG SUCCESSFUL EMPLOYEE LOGIN
+    log_system_event(
+        db=db,
+        event_type="login_success",
+        description=f"Employee {authenticated_employee.name} ({authenticated_employee.employee_id}) logged in successfully to bakery: {bakery_name}",
+        severity="info",
+        user_id=authenticated_employee.bakery_id,
+        metadata={
+            "employee_id": authenticated_employee.employee_id,
+            "employee_name": authenticated_employee.name,
+            "employee_role": authenticated_employee.role,
+            "bakery_id": authenticated_employee.bakery_id,
+            "bakery_name": bakery_name
+        }
+    )
+    
     return {"access_token": token, "token_type": "bearer", "bakery_name": bakery_name}
 
 # Get current user info
@@ -247,19 +396,149 @@ def change_password(
         payload.confirm_password
     )
 
-# Forgot password with registration date verification
-# Step 1: Check if email exists
+# ==================== USER FORGOT PASSWORD ====================
+# Note: The new email-based password reset system is in email_verification_routes.py
+# These legacy registration-date verification endpoints are kept for backward compatibility
+# New implementations should use:
+#   - POST /auth/forgot-password?email={email} - Send reset email
+#   - POST /auth/reset-password - Reset with token
+
+# Legacy Step 1: Check if email exists
+# ==================== USER FORGOT PASSWORD (OTP-based) ====================
+
+@router.post("/forgot-password/send-otp")
+def send_password_reset_otp(data: dict, db: Session = Depends(database.get_db)):
+    """Send OTP to user's email for password reset"""
+    import random
+    from datetime import datetime, timedelta
+    from app.email_utils import send_otp_email
+    
+    email = data.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+    
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Email not registered")
+    
+    # Generate 6-digit OTP
+    otp_code = str(random.randint(100000, 999999))
+    
+    # Set OTP expiration (10 minutes from now)
+    otp_expires = datetime.utcnow() + timedelta(minutes=10)
+    
+    # Store OTP in database
+    user.forgot_password_otp = otp_code
+    user.forgot_password_otp_expires = otp_expires
+    db.commit()
+    
+    # Send OTP via email
+    email_sent = send_otp_email(email, otp_code, user.name)
+    
+    if not email_sent:
+        raise HTTPException(status_code=500, detail="Failed to send OTP email")
+    
+    return {"message": "OTP sent successfully to your email", "valid": True}
+
+
+@router.post("/forgot-password/verify-otp")
+def verify_password_reset_otp(data: dict, db: Session = Depends(database.get_db)):
+    """Verify OTP code for password reset"""
+    from datetime import datetime
+    
+    email = data.get("email")
+    otp_code = data.get("otp_code")
+    
+    if not email or not otp_code:
+        raise HTTPException(status_code=400, detail="Email and OTP code are required")
+    
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Email not registered")
+    
+    # Check if OTP exists
+    if not user.forgot_password_otp:
+        raise HTTPException(status_code=400, detail="No OTP found. Please request a new one.")
+    
+    # Check if OTP has expired
+    if user.forgot_password_otp_expires < datetime.utcnow():
+        user.forgot_password_otp = None
+        user.forgot_password_otp_expires = None
+        db.commit()
+        raise HTTPException(status_code=400, detail="OTP has expired. Please request a new one.")
+    
+    # Verify OTP
+    if user.forgot_password_otp != otp_code:
+        raise HTTPException(status_code=400, detail="Invalid OTP code")
+    
+    return {"message": "OTP verified successfully", "valid": True}
+
+
+@router.post("/forgot-password/reset-with-otp")
+def reset_password_with_otp(data: dict, db: Session = Depends(database.get_db)):
+    """Reset password after OTP verification"""
+    from datetime import datetime
+    
+    email = data.get("email")
+    otp_code = data.get("otp_code")
+    new_password = data.get("new_password")
+    confirm_password = data.get("confirm_password")
+    
+    if not all([email, otp_code, new_password, confirm_password]):
+        raise HTTPException(status_code=400, detail="All fields are required")
+    
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Email not registered")
+    
+    # Verify OTP one more time
+    if not user.forgot_password_otp or user.forgot_password_otp != otp_code:
+        raise HTTPException(status_code=400, detail="Invalid OTP code")
+    
+    if user.forgot_password_otp_expires < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="OTP has expired")
+    
+    # Check if passwords match
+    if new_password != confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+    
+    # 🚫 PREVENT OWNERS FROM USING EMPLOYEE DEFAULT PASSWORD
+    EMPLOYEE_DEFAULT_PASSWORD = "Employee123!"
+    if new_password == EMPLOYEE_DEFAULT_PASSWORD:
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot use the employee default password. Please choose a different password for security reasons."
+        )
+    
+    # Update password
+    hashed_pw = pwd_context.hash(new_password)
+    user.hashed_password = hashed_pw
+    
+    # Clear OTP
+    user.forgot_password_otp = None
+    user.forgot_password_otp_expires = None
+    
+    db.commit()
+    db.refresh(user)
+    
+    return {"message": "Password reset successful"}
+
+
+# ==================== LEGACY USER FORGOT PASSWORD (Date-based) ====================
+
 @router.post("/forgot-password/check-email")
 def check_email(data: dict, db: Session = Depends(database.get_db)):
+    """Legacy endpoint - prefer using /auth/forgot-password for email-based reset"""
     email = data.get("email")
     user = db.query(models.User).filter(models.User.email == email).first()
     if not user:
         raise HTTPException(status_code=404, detail="Email not registered")
     return {"valid": True}
 
-# Step 2: Verify registration date
+# Legacy Step 2: Verify registration date
 @router.post("/forgot-password/check-date")
 def check_date(data: dict, db: Session = Depends(database.get_db)):
+    """Legacy endpoint - prefer using /auth/forgot-password for email-based reset"""
     from datetime import datetime, date
     
     email = data.get("email")
@@ -283,9 +562,10 @@ def check_date(data: dict, db: Session = Depends(database.get_db)):
 
     return {"valid": True}
 
-# Step 3: Reset password
+# Legacy Step 3: Reset password
 @router.post("/forgot-password/reset")
 def reset_password(data: dict, db: Session = Depends(database.get_db)):
+    """Legacy endpoint - prefer using /auth/forgot-password for email-based reset"""
     email = data.get("email")
     new_password = data.get("new_password")
     confirm_password = data.get("confirm_password")
@@ -297,6 +577,14 @@ def reset_password(data: dict, db: Session = Depends(database.get_db)):
     if new_password != confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
 
+    # 🚫 PREVENT OWNERS FROM USING EMPLOYEE DEFAULT PASSWORD
+    EMPLOYEE_DEFAULT_PASSWORD = "Employee123!"
+    if new_password == EMPLOYEE_DEFAULT_PASSWORD:
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot use the employee default password. Please choose a different password for security reasons."
+        )
+
     hashed_pw = pwd_context.hash(new_password)
     user.hashed_password = hashed_pw
     db.commit()
@@ -305,7 +593,137 @@ def reset_password(data: dict, db: Session = Depends(database.get_db)):
     return {"message": "Password reset successful"}
 
 
-# ==================== EMPLOYEE FORGOT PASSWORD ====================
+# ==================== EMPLOYEE FORGOT PASSWORD (OTP-based) ====================
+
+@router.post("/employee/forgot-password/send-otp")
+def send_employee_password_reset_otp(data: dict, db: Session = Depends(database.get_db)):
+    """Send OTP to employee's email for password reset"""
+    import random
+    from datetime import datetime, timedelta
+    from app.email_utils import send_otp_email
+    
+    employee_id = data.get("employee_id")
+    if not employee_id:
+        raise HTTPException(status_code=400, detail="Employee ID is required")
+    
+    employee = db.query(models.Employee).filter(
+        models.Employee.employee_id == employee_id
+    ).first()
+    
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    # Get bakery info
+    bakery = db.query(models.User).filter(models.User.id == employee.bakery_id).first()
+    bakery_name = bakery.name if bakery else "Unknown Bakery"
+    
+    # Generate 6-digit OTP
+    otp_code = str(random.randint(100000, 999999))
+    
+    # Set OTP expiration (10 minutes from now)
+    otp_expires = datetime.utcnow() + timedelta(minutes=10)
+    
+    # Store OTP in database
+    employee.forgot_password_otp = otp_code
+    employee.forgot_password_otp_expires = otp_expires
+    db.commit()
+    
+    # Send OTP via email
+    email_sent = send_otp_email(employee.email, otp_code, employee.name)
+    
+    if not email_sent:
+        raise HTTPException(status_code=500, detail="Failed to send OTP email")
+    
+    return {
+        "message": "OTP sent successfully to your email",
+        "valid": True,
+        "bakery_name": bakery_name,
+        "email": employee.email  # Return masked email for confirmation
+    }
+
+
+@router.post("/employee/forgot-password/verify-otp")
+def verify_employee_password_reset_otp(data: dict, db: Session = Depends(database.get_db)):
+    """Verify OTP code for employee password reset"""
+    from datetime import datetime
+    
+    employee_id = data.get("employee_id")
+    otp_code = data.get("otp_code")
+    
+    if not employee_id or not otp_code:
+        raise HTTPException(status_code=400, detail="Employee ID and OTP code are required")
+    
+    employee = db.query(models.Employee).filter(
+        models.Employee.employee_id == employee_id
+    ).first()
+    
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    # Check if OTP exists
+    if not employee.forgot_password_otp:
+        raise HTTPException(status_code=400, detail="No OTP found. Please request a new one.")
+    
+    # Check if OTP has expired
+    if employee.forgot_password_otp_expires < datetime.utcnow():
+        employee.forgot_password_otp = None
+        employee.forgot_password_otp_expires = None
+        db.commit()
+        raise HTTPException(status_code=400, detail="OTP has expired. Please request a new one.")
+    
+    # Verify OTP
+    if employee.forgot_password_otp != otp_code:
+        raise HTTPException(status_code=400, detail="Invalid OTP code")
+    
+    return {"message": "OTP verified successfully", "valid": True}
+
+
+@router.post("/employee/forgot-password/reset-with-otp")
+def reset_employee_password_with_otp(data: dict, db: Session = Depends(database.get_db)):
+    """Reset employee password after OTP verification"""
+    from datetime import datetime
+    
+    employee_id = data.get("employee_id")
+    otp_code = data.get("otp_code")
+    new_password = data.get("new_password")
+    confirm_password = data.get("confirm_password")
+    
+    if not all([employee_id, otp_code, new_password, confirm_password]):
+        raise HTTPException(status_code=400, detail="All fields are required")
+    
+    employee = db.query(models.Employee).filter(
+        models.Employee.employee_id == employee_id
+    ).first()
+    
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    # Verify OTP one more time
+    if not employee.forgot_password_otp or employee.forgot_password_otp != otp_code:
+        raise HTTPException(status_code=400, detail="Invalid OTP code")
+    
+    if employee.forgot_password_otp_expires < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="OTP has expired")
+    
+    # Check if passwords match
+    if new_password != confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+    
+    # Update password
+    hashed_pw = pwd_context.hash(new_password)
+    employee.hashed_password = hashed_pw
+    
+    # Clear OTP
+    employee.forgot_password_otp = None
+    employee.forgot_password_otp_expires = None
+    
+    db.commit()
+    db.refresh(employee)
+    
+    return {"message": "Password reset successful"}
+
+
+# ==================== LEGACY EMPLOYEE FORGOT PASSWORD (Date-based) ====================
 
 # Step 1: Check if employee_id exists
 @router.post("/employee/forgot-password/check-employee-id")
@@ -571,8 +989,7 @@ def employee_login(
     """
     Employee login using name and password.
     
-    - Part-time employees cannot log in (returns 403)
-    - Other roles (Owner, Manager, Full-time) can log in
+    - Manager and Employee roles can log in
     """
     try:
         print(f"\n{'='*80}")
@@ -632,26 +1049,6 @@ def employee_login(
         
         print(f"✅ MATCH FOUND: {employee.name} (ID: {employee.id}, Role: {employee.role})")
         
-        # Part-time employees cannot log in
-        if employee.role == "Part-time":
-            print(f"❌ Part-time employees cannot log in")
-            print(f"{'='*80}\n")
-            
-            # Log failed employee login attempt (part-time restriction)
-            log_system_event(
-                db=db,
-                event_type="failed_login",
-                description=f"Failed employee login attempt - Part-time employee tried to login: {employee.name} (Bakery ID: {credentials.bakery_id})",
-                severity="warning",
-                user_id=None,
-                metadata={"employee_name": employee.name, "bakery_id": credentials.bakery_id, "reason": "part_time_restriction"}
-            )
-            
-            raise HTTPException(
-                status_code=403,
-                detail="Part-time employees cannot log in"
-            )
-
         # Verify password
         if not employee.hashed_password:
             print(f"❌ Employee has no hashed password set!")
@@ -802,9 +1199,23 @@ def employee_change_password(
         print(f"{'='*80}\n")
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
+    # 🚫 PREVENT REUSE OF INITIAL DEFAULT PASSWORD
+    if employee.initial_password_hash:
+        is_initial_password = verify_password(data.new_password, employee.initial_password_hash)
+        print(f"🔍 Checking if new password matches initial password: {is_initial_password}")
+        
+        if is_initial_password:
+            print(f"❌ Employee attempted to reuse initial default password")
+            print(f"{'='*80}\n")
+            raise HTTPException(
+                status_code=400, 
+                detail="Cannot reuse the initial default password. Please choose a different password for security."
+            )
+
     # Hash and update password
     hashed_password = pwd_context.hash(data.new_password)
     employee.hashed_password = hashed_password
+    employee.password_changed = True  # ✅ Mark password as changed
     db.commit()
 
     print(f"✅ Password changed successfully for {employee.name}")
@@ -991,6 +1402,9 @@ def admin_update_user(
     address: Optional[str] = Form(None),
     latitude: Optional[float] = Form(None),
     longitude: Optional[float] = Form(None),
+    status: Optional[str] = Form(None),
+    suspension_days: Optional[int] = Form(None),
+    status_reason: Optional[str] = Form(None),
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(database.get_db)
 ):
@@ -1006,6 +1420,10 @@ def admin_update_user(
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    
+    # Track status change for audit log
+    old_status = user.status
+    status_changed = False
     
     # Update fields if provided
     if name:
@@ -1029,11 +1447,44 @@ def admin_update_user(
         user.latitude = latitude
     if longitude is not None:
         user.longitude = longitude
+    if status and status != old_status:
+        # Validate status
+        valid_statuses = ["Active", "Pending", "Suspended", "Banned", "Deactivated"]
+        if status not in valid_statuses:
+            raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
+        user.status = status
+        user.status_changed_at = datetime.utcnow()
+        user.status_changed_by = current_user.id
+        status_changed = True
+        
+        # Handle suspension
+        if status == "Suspended":
+            if suspension_days and suspension_days > 0:
+                from datetime import timedelta
+                user.suspended_until = datetime.utcnow() + timedelta(days=suspension_days)
+            else:
+                raise HTTPException(status_code=400, detail="Suspension days must be provided for Suspended status")
+        else:
+            # Clear suspension if status is not Suspended
+            user.suspended_until = None
+        
+        # Store reason if provided
+        if status_reason:
+            user.status_reason = status_reason
     
     db.commit()
     db.refresh(user)
     
     # Log the event
+    if status_changed:
+        log_system_event(
+            db=db,
+            event_type="USER_STATUS_CHANGED",
+            description=f"Admin {current_user.name} changed user {user.name} (ID: {user_id}) status from {old_status} to {status}",
+            severity="warning" if status in ["Suspended", "Banned", "Deactivated"] else "info",
+            user_id=current_user.id
+        )
+    
     log_system_event(
         db=db,
         event_type="ADMIN_UPDATE_USER",
@@ -1051,7 +1502,8 @@ def admin_update_user(
             "role": user.role,
             "contact_person": user.contact_person,
             "contact_number": user.contact_number,
-            "address": user.address
+            "address": user.address,
+            "status": user.status
         }
     }
 
@@ -1099,4 +1551,69 @@ def admin_delete_user(
     
     return {
         "message": f"User {user_name} deleted successfully"
+    }
+
+
+@router.post("/deactivate-account")
+def deactivate_account(
+    password: str = Form(...),
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(database.get_db)
+):
+    """
+    Allow users to deactivate their own account
+    For bakeries: Only the owner (contact_person matches employee with role='Owner') can deactivate
+    For charities: Any user can deactivate their account
+    Requires password confirmation
+    """
+    # Verify password
+    if not verify_password(password, current_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect password")
+    
+    # Check if user is bakery and verify ownership
+    if current_user.role == "Bakery":
+        # Get the employee token to check if they are the owner
+        # For bakery users, we need to verify they are the owner
+        owner_employee = db.query(models.Employee).filter(
+            models.Employee.bakery_id == current_user.id,
+            models.Employee.role == "Owner"
+        ).first()
+        
+        if not owner_employee:
+            raise HTTPException(
+                status_code=403, 
+                detail="Only the bakery owner can deactivate the account"
+            )
+        
+        # If logged in as user (not employee), verify contact_person matches owner
+        if current_user.contact_person != owner_employee.name:
+            raise HTTPException(
+                status_code=403,
+                detail="Only the bakery owner can deactivate the account"
+            )
+    
+    # Admin accounts cannot be deactivated this way
+    if current_user.role == "Admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Admin accounts cannot be self-deactivated"
+        )
+    
+    # Deactivate the account
+    current_user.status = "Deactivated"
+    current_user.deactivated_at = datetime.utcnow()
+    db.commit()
+    
+    # Log the event
+    log_system_event(
+        db=db,
+        event_type="USER_SELF_DEACTIVATE",
+        description=f"User {current_user.name} ({current_user.role}) deactivated their own account",
+        severity="info",
+        user_id=current_user.id
+    )
+    
+    return {
+        "message": "Account deactivated successfully",
+        "deactivated_at": current_user.deactivated_at
     }

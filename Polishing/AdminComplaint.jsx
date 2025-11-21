@@ -604,8 +604,7 @@ export default function AdminComplaints() {
                 Send Reply to User Concern
               </h3>
               <p className="text-sm text-[#6b4b2b] mt-1">
-                Concern ID: {selectedComplaint.id} | Subject:{" "}
-                {selectedComplaint.subject}
+                Concern ID: {selectedComplaint.id}
               </p>
             </div>
 
@@ -613,7 +612,7 @@ export default function AdminComplaints() {
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
               <div>
                 <p className="text-sm font-semibold text-[#4A2F17] mb-2">
-                  User Concern Details:
+                  Details:
                 </p>
                 <div className="rounded-xl bg-[#FFF9F1] border border-[#f2e3cf] p-4">
                   <p className="text-sm text-[#6b4b2b]">

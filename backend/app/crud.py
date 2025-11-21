@@ -10,6 +10,7 @@ from sqlalchemy import func
 from app import schemas
 from . import models, auth
 from datetime import date, datetime, timedelta, timezone
+from app.timezone_utils import now_ph
 
 from app.routes.geofence import geocode_address, get_coordinates_osm
 
@@ -273,7 +274,7 @@ def seed_admin_user(db: Session):
 def generate_product_id(name: str):
     base = (name or "P").upper().replace(" ", "")
     prefix = "".join(name.split())[:3].upper()
-    unique = str(int(datetime.now().timestamp()))[-6:] + str(random.randint(100, 999))
+    unique = str(int(now_ph().timestamp()))[-6:] + str(random.randint(100, 999))
     return f"{prefix}-{unique}"
 
 
@@ -289,12 +290,11 @@ def create_inventory(
     uploaded: str,
     description: str = None
 ):
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime
     import random
 
     # Use Philippine timezone (UTC+8) to match the rest of the system
-    philippine_tz = timezone(timedelta(hours=8))
-    server_creation_date = datetime.now(philippine_tz).date()
+    server_creation_date = today_ph()
 
     image_path = None
     if image:
@@ -410,7 +410,7 @@ def create_employee(
 
     # Handle upload if picture is provided
     if profile_picture:
-        filename = f"{bakery_id}_{int(datetime.utcnow().timestamp())}_{profile_picture.filename}"
+        filename = f"{bakery_id}_{int(now_ph().timestamp())}_{profile_picture.filename}"
         file_path = os.path.join(EMPLOYEE_UPLOAD_DIR, filename)
 
         with open(file_path, "wb") as buffer:
@@ -454,7 +454,7 @@ def update_employee(
         employee.start_date = start_date
 
     if profile_picture:
-        filename = f"{employee.bakery_id}_{int(datetime.utcnow().timestamp())}_{profile_picture.filename}"
+        filename = f"{employee.bakery_id}_{int(now_ph().timestamp())}_{profile_picture.filename}"
         file_path = os.path.join(EMPLOYEE_UPLOAD_DIR, filename)
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(profile_picture.file, buffer)
@@ -523,7 +523,7 @@ def update_complaint_status(db: Session, complaint_id: int, status: str):
     if not complaint:
         return None
     complaint.status = status
-    complaint.updated_at = datetime.utcnow()
+    complaint.updated_at = now_ph()
     db.commit()
     db.refresh(complaint)
     return complaint
@@ -724,12 +724,11 @@ def get_completed_donation_count(db: Session, user_id: int) -> int:
 # ---------------- Helper ----------------
 def get_philippine_time():
     """Get current time in Philippine timezone (UTC+8)."""
-    philippine_tz = timezone(timedelta(hours=8))
-    return datetime.now(philippine_tz)
+    return now_ph()
 
 def to_datetime(value):
     """Convert date or datetime to datetime with Philippine timezone awareness."""
-    philippine_tz = timezone(timedelta(hours=8))
+    from app.timezone_utils import PHILIPPINES_TZ
     
     if value is None:
         return get_philippine_time()
@@ -737,14 +736,14 @@ def to_datetime(value):
     if isinstance(value, datetime):
         # If already timezone-aware, convert to Philippine time
         if value.tzinfo is not None:
-            return value.astimezone(philippine_tz)
+            return value.astimezone(PHILIPPINES_TZ)
         # If naive datetime, assume it's already in Philippine time
-        return value.replace(tzinfo=philippine_tz)
+        return value.replace(tzinfo=PHILIPPINES_TZ)
     
     if isinstance(value, date):
         # Convert date to datetime at midnight Philippine time
         dt = datetime.combine(value, datetime.min.time())
-        return dt.replace(tzinfo=philippine_tz)
+        return dt.replace(tzinfo=PHILIPPINES_TZ)
     
     return value  # fallback
 

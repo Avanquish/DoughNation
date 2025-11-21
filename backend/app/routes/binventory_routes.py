@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import func
 
 from app import models, database, schemas, auth, crud
+from app.timezone_utils import today_ph
 from app.routes.cnotification import process_geofence_notifications
 
 router = APIRouter()
@@ -450,17 +451,12 @@ def get_product_template(
 
 @router.get("/server-time")
 def get_server_time():
-    from datetime import datetime, timezone, timedelta
-    philippine_tz = timezone(timedelta(hours=8))
-    return {"date": datetime.now(philippine_tz).date().isoformat()}
+    return {"date": today_ph().isoformat()}
 
 
 # === HELPER FUNCTIONS (Unchanged) ===
 def check_threshold_and_create_donation(db: Session):
-    from datetime import datetime, timezone, timedelta
-    
-    philippine_tz = timezone(timedelta(hours=8))
-    today = datetime.now(philippine_tz).date()
+    today = today_ph()
     
     bakery_ids_triggered = set()
     products = db.query(models.BakeryInventory).all()
@@ -542,10 +538,7 @@ def check_threshold_and_create_donation(db: Session):
 
 
 def check_inventory_status(db: Session):
-    from datetime import datetime, timezone, timedelta
-    
-    philippine_tz = timezone(timedelta(hours=8))
-    today = datetime.now(philippine_tz).date()
+    today = today_ph()
 
     products = db.query(models.BakeryInventory).all()
 
@@ -574,9 +567,7 @@ def check_inventory_status(db: Session):
 
 @router.get("/server-time")
 def get_server_time():
-    from datetime import datetime, timezone, timedelta
-    philippine_tz = timezone(timedelta(hours=8))
-    return {"date": datetime.now(philippine_tz).date().isoformat()}
+    return {"date": today_ph().isoformat()}
 
 
 @router.get("/inventory/template/{product_name}")

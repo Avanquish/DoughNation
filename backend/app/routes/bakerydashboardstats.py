@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, database, auth
-from datetime import datetime, timedelta, timezone
+from app.timezone_utils import today_ph
 
 router = APIRouter()
 
@@ -29,9 +29,8 @@ def get_dashboard_stats(db: Session = Depends(database.get_db), current_user=Dep
         models.Employee.role.ilike("Owner") == False
     ).count()
 
-    # Philippine Time is UTC+8
-    philippine_tz = timezone(timedelta(hours=8))
-    today_philippine = datetime.now(philippine_tz).date()
+    # Get today's date in Philippine timezone
+    today_philippine = today_ph()
 
     # Expired products (expiration_date < today, meaning yesterday or earlier)
     expired_products = db.query(models.BakeryInventory).filter(

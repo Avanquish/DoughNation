@@ -4,6 +4,7 @@ from app import crud, schemas, database, auth, models
 from app.email_utils import send_email
 from pydantic import BaseModel
 from datetime import datetime
+from app.timezone_utils import now_ph
 
 router = APIRouter(
     prefix="/complaints",
@@ -104,7 +105,7 @@ def reply_to_complaint(
     # Update complaint with reply and status
     complaint.status = reply.status
     complaint.admin_reply = reply.message
-    complaint.replied_at = datetime.utcnow()
+    complaint.replied_at = now_ph()
     complaint.replied_by = current_user.id
     
     # Create a system notification for the user
@@ -117,7 +118,7 @@ def reply_to_complaint(
         send_in_app=True,
         send_email=False,  # Email is sent separately below
         sent_by_admin_id=current_user.id,
-        sent_at=datetime.utcnow(),
+        sent_at=now_ph(),
         priority="high"
     )
     db.add(notification)
@@ -128,7 +129,7 @@ def reply_to_complaint(
         notification_id=notification.id,
         user_id=user.id,
         is_read=False,
-        received_at=datetime.utcnow()
+        received_at=now_ph()
     )
     db.add(receipt)
     

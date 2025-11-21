@@ -4,6 +4,7 @@ from app.database import Base
 from datetime import datetime, date
 import enum
 from enum import Enum as PyEnum
+from app.timezone_utils import now_ph
 
 class User(Base):
     __tablename__ = "users"
@@ -114,8 +115,8 @@ class Employee(Base):
     hashed_password = Column(String, nullable=True)  # Password for employee login (optional, can be None for new employees)
     initial_password_hash = Column(String, nullable=True)  # Store initial password hash to prevent reuse
     password_changed = Column(Boolean, default=False)  # Track if employee has changed their password
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=now_ph)
+    updated_at = Column(DateTime, default=now_ph, onupdate=now_ph)
     
     # OTP fields for forgot password
     forgot_password_otp = Column(String, nullable=True)  # 6-digit OTP code
@@ -156,7 +157,7 @@ class DonationRequest(Base):
     bakery_inventory_id = Column(Integer, ForeignKey("bakery_inventory.id"))
     charity_id = Column(Integer, ForeignKey("users.id"))
     bakery_id = Column(Integer, ForeignKey("users.id"))
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=now_ph)
     status = Column(String, default="pending") 
     tracking_status = Column(String, default="preparing")
     tracking_completed_at = Column(Date, nullable=True) 
@@ -203,7 +204,7 @@ class DirectDonation(Base):
     feedback_submitted = Column(Boolean, default=False)
     donated_by = Column(String, nullable=True) 
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=now_ph)
 
     # Relationships
     bakery_inventory = relationship("BakeryInventory")
@@ -234,7 +235,7 @@ class NotificationRead(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     notif_id = Column(String, index=True)
-    read_at = Column(DateTime, default=datetime.utcnow)
+    read_at = Column(DateTime, default=now_ph)
     
     user = relationship("User", backref="read_notifications")
 
@@ -249,7 +250,7 @@ class Feedback(Base):
     bakery_id = Column(Integer, ForeignKey("users.id"))
     message = Column(String, nullable=False)
     rating = Column(Integer, nullable=True) 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=now_ph)
     product_name = Column(String, nullable=True)
     product_quantity = Column(Integer, nullable=True)
     product_image = Column(String, nullable=True)
@@ -274,8 +275,8 @@ class Complaint(Base):
     subject = Column(String(255), nullable=False)
     description = Column(Text, nullable=False)
     status = Column(Enum(ComplaintStatus), default=ComplaintStatus.pending)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=now_ph)
+    updated_at = Column(DateTime, default=now_ph, onupdate=now_ph)
     
     # Admin reply fields
     admin_reply = Column(Text, nullable=True)
@@ -334,7 +335,7 @@ class SystemEvent(Base):
     event_type = Column(String, index=True, nullable=False)  # "failed_login", "unauthorized_access", "sos_alert", "geofence_breach", "uptime", "downtime"
     description = Column(String, nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Nullable for system-wide events
-    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    timestamp = Column(DateTime, default=now_ph, index=True)
     severity = Column(String, default="info")  # "info", "warning", "critical"
     event_metadata = Column(String, nullable=True)  # JSON string for additional data (IP address, location, etc.)
     

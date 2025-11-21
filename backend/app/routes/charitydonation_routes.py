@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from datetime import date, datetime
 from typing import List, Optional
 from app.database import get_db
+from app.timezone_utils import now_ph
 from sqlalchemy import or_
 from app import models, schemas, database, auth
 from app.auth import ensure_verified_user
@@ -146,7 +147,7 @@ def request_donation(
                 )
             
             existing_request.status = "pending"
-            existing_request.timestamp = datetime.utcnow()
+            existing_request.timestamp = now_ph()
             db.commit()
             db.refresh(existing_request)
             update_inventory_status(db, donation.bakery_inventory_id)
@@ -158,7 +159,7 @@ def request_donation(
         charity_id=current_user.id,
         bakery_id=payload.bakery_id,
         bakery_inventory_id=donation.bakery_inventory_id,
-        timestamp=datetime.utcnow(),
+        timestamp=now_ph(),
         status="pending",
         bakery_name=bakery.name,
         bakery_profile_picture=bakery.profile_picture,
@@ -425,7 +426,7 @@ async def submit_feedback(
     saved_files = []
     if files:
         for file in files:
-            filename = f"{feedback.id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{file.filename}"
+            filename = f"{feedback.id}_{now_ph().strftime('%Y%m%d%H%M%S')}_{file.filename}"
             file_path = os.path.join(UPLOAD_DIR, filename)
 
             with open(file_path, "wb") as f:
@@ -553,7 +554,7 @@ async def submit_direct_feedback(
     saved_files = []
     if files:
         for file in files:
-            filename = f"{feedback.id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{file.filename}"
+            filename = f"{feedback.id}_{now_ph().strftime('%Y%m%d%H%M%S')}_{file.filename}"
             file_path = os.path.join(UPLOAD_DIR, filename)
 
             with open(file_path, "wb") as f:

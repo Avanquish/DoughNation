@@ -6,6 +6,7 @@ from app import crud, auth, database, schemas, models
 from app.auth import create_access_token, get_current_user, verify_password
 from app.event_logger import log_system_event
 from passlib.context import CryptContext
+from app.timezone_utils import now_ph
 
 router = APIRouter()
 
@@ -99,8 +100,8 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
         # Check account status
         if db_user.status == "Suspended":
             # Check if suspension has expired
-            if db_user.suspended_until and db_user.suspended_until > datetime.utcnow():
-                remaining_days = (db_user.suspended_until - datetime.utcnow()).days
+            if db_user.suspended_until and db_user.suspended_until > now_ph():
+                remaining_days = (db_user.suspended_until - now_ph()).days
                 print(f"❌ Account suspended until {db_user.suspended_until}")
                 log_system_event(
                     db=db,
@@ -182,6 +183,21 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
         }
         
         token = create_access_token(token_data)
+        
+        # ✅ LOG SUCCESSFUL USER LOGIN
+        log_system_event(
+            db=db,
+            event_type="login_success",
+            description=f"User {db_user.name} ({db_user.email}) logged in successfully as {db_user.role}",
+            severity="info",
+            user_id=db_user.id,
+            metadata={
+                "email": db_user.email,
+                "role": db_user.role,
+                "name": db_user.name
+            }
+        )
+        
         return {"access_token": token, "token_type": "bearer"}
     
     # STEP 2: Try to find Employee account by EMPLOYEE_ID
@@ -262,8 +278,8 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     
     # Block employee login if bakery owner is suspended
     if bakery.status == "Suspended":
-        if bakery.suspended_until and bakery.suspended_until > datetime.utcnow():
-            remaining_days = (bakery.suspended_until - datetime.utcnow()).days
+        if bakery.suspended_until and bakery.suspended_until > now_ph():
+            remaining_days = (bakery.suspended_until - now_ph()).days
             print(f"❌ Bakery owner account is suspended")
             log_system_event(
                 db=db,
@@ -318,6 +334,23 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     }
     
     token = create_access_token(token_data)
+    
+    # ✅ LOG SUCCESSFUL EMPLOYEE LOGIN
+    log_system_event(
+        db=db,
+        event_type="login_success",
+        description=f"Employee {authenticated_employee.name} ({authenticated_employee.employee_id}) logged in successfully to bakery: {bakery_name}",
+        severity="info",
+        user_id=authenticated_employee.bakery_id,
+        metadata={
+            "employee_id": authenticated_employee.employee_id,
+            "employee_name": authenticated_employee.name,
+            "employee_role": authenticated_employee.role,
+            "bakery_id": authenticated_employee.bakery_id,
+            "bakery_name": bakery_name
+        }
+    )
+    
     return {"access_token": token, "token_type": "bearer", "bakery_name": bakery_name}
 
 # Get current user info
@@ -393,7 +426,7 @@ def send_password_reset_otp(data: dict, db: Session = Depends(database.get_db)):
     otp_code = str(random.randint(100000, 999999))
     
     # Set OTP expiration (10 minutes from now)
-    otp_expires = datetime.utcnow() + timedelta(minutes=10)
+    otp_expires = now_ph() + timedelta(minutes=10)
     
     # Store OTP in database
     user.forgot_password_otp = otp_code
@@ -429,7 +462,7 @@ def verify_password_reset_otp(data: dict, db: Session = Depends(database.get_db)
         raise HTTPException(status_code=400, detail="No OTP found. Please request a new one.")
     
     # Check if OTP has expired
-    if user.forgot_password_otp_expires < datetime.utcnow():
+    if user.forgot_password_otp_expires < now_ph():
         user.forgot_password_otp = None
         user.forgot_password_otp_expires = None
         db.commit()
@@ -463,7 +496,7 @@ def reset_password_with_otp(data: dict, db: Session = Depends(database.get_db)):
     if not user.forgot_password_otp or user.forgot_password_otp != otp_code:
         raise HTTPException(status_code=400, detail="Invalid OTP code")
     
-    if user.forgot_password_otp_expires < datetime.utcnow():
+    if user.forgot_password_otp_expires < now_ph():
         raise HTTPException(status_code=400, detail="OTP has expired")
     
     # Check if passwords match
@@ -589,7 +622,7 @@ def send_employee_password_reset_otp(data: dict, db: Session = Depends(database.
     otp_code = str(random.randint(100000, 999999))
     
     # Set OTP expiration (10 minutes from now)
-    otp_expires = datetime.utcnow() + timedelta(minutes=10)
+    otp_expires = now_ph() + timedelta(minutes=10)
     
     # Store OTP in database
     employee.forgot_password_otp = otp_code
@@ -633,7 +666,7 @@ def verify_employee_password_reset_otp(data: dict, db: Session = Depends(databas
         raise HTTPException(status_code=400, detail="No OTP found. Please request a new one.")
     
     # Check if OTP has expired
-    if employee.forgot_password_otp_expires < datetime.utcnow():
+    if employee.forgot_password_otp_expires < now_ph():
         employee.forgot_password_otp = None
         employee.forgot_password_otp_expires = None
         db.commit()
@@ -670,7 +703,7 @@ def reset_employee_password_with_otp(data: dict, db: Session = Depends(database.
     if not employee.forgot_password_otp or employee.forgot_password_otp != otp_code:
         raise HTTPException(status_code=400, detail="Invalid OTP code")
     
-    if employee.forgot_password_otp_expires < datetime.utcnow():
+    if employee.forgot_password_otp_expires < now_ph():
         raise HTTPException(status_code=400, detail="OTP has expired")
     
     # Check if passwords match
@@ -1421,7 +1454,7 @@ def admin_update_user(
         if status not in valid_statuses:
             raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
         user.status = status
-        user.status_changed_at = datetime.utcnow()
+        user.status_changed_at = now_ph()
         user.status_changed_by = current_user.id
         status_changed = True
         
@@ -1429,7 +1462,7 @@ def admin_update_user(
         if status == "Suspended":
             if suspension_days and suspension_days > 0:
                 from datetime import timedelta
-                user.suspended_until = datetime.utcnow() + timedelta(days=suspension_days)
+                user.suspended_until = now_ph() + timedelta(days=suspension_days)
             else:
                 raise HTTPException(status_code=400, detail="Suspension days must be provided for Suspended status")
         else:
@@ -1569,7 +1602,7 @@ def deactivate_account(
     
     # Deactivate the account
     current_user.status = "Deactivated"
-    current_user.deactivated_at = datetime.utcnow()
+    current_user.deactivated_at = now_ph()
     db.commit()
     
     # Log the event

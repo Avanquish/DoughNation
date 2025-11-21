@@ -1155,7 +1155,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
               <th className="p-3">Qty</th>
               <th className="p-3">Created</th>
               <th className="p-3">Expires</th>
-              <th className="p-3">Threshold</th>
+              <th className="p-3">Date of Donation</th>
               <th className="p-3">Uploaded By</th>
               <th className="p-3">Description</th>
               <th className="p-3">Donation Status</th>
@@ -1458,7 +1458,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     </div>
                     <div>
                       <label htmlFor="prod_threshold" className={labelTone}>
-                        Available For Donation Date
+                        Date for Donation
                       </label>
                       <input
                         id="prod_threshold"
@@ -1678,7 +1678,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                 {selectedItem.quantity}
               </p>
               <p>
-                <strong className="text-[#6b4b2b]">Available For Donation Date:</strong>{" "}
+                <strong className="text-[#6b4b2b]">Date for Donation:</strong>{" "}
                 {(() => {
                   if (!selectedItem.expiration_date) return "N/A";
                   
@@ -1978,7 +1978,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
                 <div>
                   <label className={labelTone} htmlFor="edit_threshold">
-                    Available For Donation Date
+                    Date for Donation
                   </label>
                   <input
                     id="edit_threshold"

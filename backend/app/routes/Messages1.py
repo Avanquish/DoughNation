@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, func, not_
 from app import models, database
 from datetime import datetime
+from app.timezone_utils import now_ph
 from typing import Optional, List
 import base64, os, json
 from uuid import uuid4
@@ -119,7 +120,7 @@ async def send_message(request: Request, db: Session = Depends(get_db), current_
         content=content,
         image=file_url if file_url and image_field else None,
         video=file_url if file_url and video_field else None,
-        timestamp=datetime.utcnow(),
+        timestamp=now_ph(),
         is_card=is_card,
         is_read=False
     )

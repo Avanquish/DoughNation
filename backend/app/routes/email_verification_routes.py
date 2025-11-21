@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from app import database, models, schemas
+from app.timezone_utils import now_ph
 from app.crud import pwd_context
 from app.email_utils import (
     send_verification_email,
@@ -50,7 +51,7 @@ def verify_email(token: str, db: Session = Depends(database.get_db)):
         )
     
     # Check if token has expired
-    if user.verification_token_expires < datetime.utcnow():
+    if user.verification_token_expires < now_ph():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Verification token has expired. Please request a new one."
@@ -109,7 +110,7 @@ def resend_verification_email(email: str, db: Session = Depends(database.get_db)
     
     # Generate new verification token
     verification_token = generate_token()
-    verification_expires = datetime.utcnow() + timedelta(hours=24)
+    verification_expires = now_ph() + timedelta(hours=24)
     
     user.verification_token = verification_token
     user.verification_token_expires = verification_expires
@@ -156,7 +157,7 @@ def request_password_reset(email: str, db: Session = Depends(database.get_db)):
     
     # Generate reset token
     reset_token = generate_token()
-    reset_expires = datetime.utcnow() + timedelta(hours=1)  # Token expires in 1 hour
+    reset_expires = now_ph() + timedelta(hours=1)  # Token expires in 1 hour
     
     user.reset_token = reset_token
     user.reset_token_expires = reset_expires
@@ -222,7 +223,7 @@ def reset_password(
         )
     
     # Check if token has expired
-    if user.reset_token_expires < datetime.utcnow():
+    if user.reset_token_expires < now_ph():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Reset token has expired. Please request a new password reset."

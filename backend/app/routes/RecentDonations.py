@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from app.database import get_db
+from app.timezone_utils import now_ph
 from app.models import DonationRequest, DirectDonation, User
 from app.auth import get_current_user_or_employee, get_bakery_id_from_auth
 
@@ -21,7 +22,7 @@ def recent_donations(
         # Bakery owner
         target_user_id = user_id or current_auth.id
         
-    today = datetime.utcnow()
+    today = now_ph()
     seven_days_ago = today - timedelta(days=7)
     results = []
 

@@ -604,8 +604,7 @@ export default function AdminComplaints() {
                 Send Reply to User Concern
               </h3>
               <p className="text-sm text-[#6b4b2b] mt-1">
-                Concern ID: {selectedComplaint.id} | Subject:{" "}
-                {selectedComplaint.subject}
+                Concern ID: {selectedComplaint.id}
               </p>
             </div>
 

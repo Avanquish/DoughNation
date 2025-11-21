@@ -5,6 +5,7 @@ import os, shutil
 from datetime import datetime
 
 from app import database, models, schemas, auth
+from app.timezone_utils import now_ph
 from app.auth import pwd_context  # For hashing default employee password
 from app.email_utils import send_employee_credentials_email  # For sending login credentials
 
@@ -67,7 +68,7 @@ def create_employee(
 
     file_name = None
     if profile_picture:
-        safe_name = f"{bakery_id}_{int(datetime.now().timestamp())}_{profile_picture.filename}"
+        safe_name = f"{bakery_id}_{int(now_ph().timestamp())}_{profile_picture.filename}"
         save_path = os.path.join(UPLOAD_DIR, safe_name)
         with open(save_path, "wb") as buffer:
             shutil.copyfileobj(profile_picture.file, buffer)
@@ -193,7 +194,7 @@ def update_employee(
             raise HTTPException(status_code=400, detail="Invalid date format")
 
     if profile_picture:
-        safe_name = f"{employee_id}_{int(datetime.now().timestamp())}_{profile_picture.filename}"
+        safe_name = f"{employee_id}_{int(now_ph().timestamp())}_{profile_picture.filename}"
         save_path = os.path.join(UPLOAD_DIR, safe_name)
         with open(save_path, "wb") as buffer:
             shutil.copyfileobj(profile_picture.file, buffer)

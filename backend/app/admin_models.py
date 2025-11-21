@@ -14,6 +14,7 @@ from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime
 import enum
+from app.timezone_utils import now_ph
 
 
 # ==================== ENUMS ====================
@@ -119,7 +120,7 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
     
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    timestamp = Column(DateTime, default=now_ph, nullable=False, index=True)
     
     # Event Information
     event_type = Column(String, nullable=False, index=True)  # From AuditEventType enum
@@ -159,7 +160,7 @@ class SystemNotification(Base):
     __tablename__ = "system_notifications"
     
     id = Column(Integer, primary_key=True, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=now_ph, nullable=False)
     
     # Notification Content
     title = Column(String, nullable=False)
@@ -205,7 +206,7 @@ class NotificationReceipt(Base):
     notification_id = Column(Integer, ForeignKey("system_notifications.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     
-    delivered_at = Column(DateTime, default=datetime.utcnow)
+    delivered_at = Column(DateTime, default=now_ph)
     read_at = Column(DateTime, nullable=True)
     is_read = Column(Boolean, default=False)
     
@@ -222,7 +223,7 @@ class EmergencyOverride(Base):
     __tablename__ = "emergency_overrides"
     
     id = Column(Integer, primary_key=True, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=now_ph, nullable=False)
     
     # Action Details
     action_type = Column(String, nullable=False)  # From EmergencyActionType enum
@@ -272,7 +273,7 @@ class OwnershipTransfer(Base):
     __tablename__ = "ownership_transfers"
     
     id = Column(Integer, primary_key=True, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=now_ph, nullable=False)
     
     # Transfer Details
     bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # The bakery account
@@ -316,7 +317,7 @@ class UserStatusHistory(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     
     # Status Change
-    changed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    changed_at = Column(DateTime, default=now_ph, nullable=False)
     old_status = Column(String, nullable=True)
     new_status = Column(String, nullable=False)
     
@@ -383,7 +384,7 @@ class SystemAnalytics(Base):
     # Additional Metrics
     analytics_data = Column(JSON, nullable=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=now_ph)
 
 
 class NotificationTemplate(Base):
@@ -405,8 +406,8 @@ class NotificationTemplate(Base):
     
     # Metadata
     created_by_admin_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=now_ph)
+    updated_at = Column(DateTime, default=now_ph, onupdate=now_ph)
     
     is_active = Column(Boolean, default=True)
     

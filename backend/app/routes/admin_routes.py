@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from pydantic import BaseModel
 from app import models, database
+from app.timezone_utils import now_ph
 from app.auth import get_current_admin  # Only allow admins
 from app.email_utils import send_account_verified_email, send_email  # ✅ NEW: Import email function
 
@@ -260,7 +261,7 @@ def mark_notification_as_read(
     notif_read = models.NotificationRead(
         user_id=admin.id,
         notif_id=notif_id,
-        read_at=datetime.utcnow()
+        read_at=now_ph()
     )
     db.add(notif_read)
     db.commit()

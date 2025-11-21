@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from datetime import datetime, timedelta, time
 from app import models, database, auth, admin_models
+from app.timezone_utils import now_ph, today_ph
 
 # For geofence
 from math import radians, cos, sin, asin, sqrt # For geofence calculation helper
@@ -34,7 +35,7 @@ def mark_notification_as_read(
         
         if receipt:
             receipt.is_read = True
-            receipt.read_at = datetime.utcnow()
+            receipt.read_at = now_ph()
             db.commit()
             return {"status": "ok", "id": notif_id, "read_at": receipt.read_at}
         else:
@@ -49,7 +50,7 @@ def mark_notification_as_read(
         user_id=user_id, notif_id=notif_id
     ).first()
 
-    now = datetime.utcnow()
+    now = now_ph()
     if read_entry:
         # Update timestamp to now
         read_entry.read_at = now
@@ -211,7 +212,7 @@ def get_message_notifications(
             "donation_id": rd.id,
             "name": rd.name,
             "quantity": rd.quantity,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": now_ph().isoformat(),
             "read": rd.id in read_ids,
             "bakery_name": bakery.name if bakery else "Unknown bakery",
             "bakery_profile_picture": bakery.profile_picture if bakery else None,
@@ -309,7 +310,7 @@ def get_message_notifications(
         notif = receipt.notification
         
         # Skip expired notifications
-        if notif.expires_at and notif.expires_at < datetime.utcnow():
+        if notif.expires_at and notif.expires_at < now_ph():
             continue
             
         system_notifications.append({
@@ -350,7 +351,7 @@ def haversine(lat1, lon1, lat2, lon2):
 
 @router.post("/notifications/geofence/run")
 def run_geofence_notifications(db: Session = Depends(get_db)):
-    today = datetime.utcnow().date()
+    today = today_ph()
     target_date = today + timedelta(days=2)
 
     # Donations expiring in exactly 2 days
@@ -412,7 +413,7 @@ def run_geofence_notifications(db: Session = Depends(get_db)):
     return {"status": "geofence notifications scheduled"}
     
 def process_geofence_notifications(db: Session, bakery_id: int):
-    now = datetime.utcnow()
+    now = now_ph()
     today = now.date()
     one_day_from_now = today + timedelta(days=1)
     two_days_from_now = today + timedelta(days=2)

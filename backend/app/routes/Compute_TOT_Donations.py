@@ -4,6 +4,7 @@ from sqlalchemy import func
 from app.database import get_db
 from app import models, auth, database
 from datetime import datetime
+from app.timezone_utils import today_ph
 
 router = APIRouter()
 
@@ -112,9 +113,7 @@ def get_bakery_analytics(
     bakery_id = auth.get_bakery_id_from_auth(current_auth)
     
     # USE PHILIPPINE TIME (UTC+8)
-    from datetime import timezone, timedelta
-    philippine_tz = timezone(timedelta(hours=8))
-    today = datetime.now(philippine_tz).date()
+    today = today_ph()
 
     # INVENTORY COUNTS
     total_inventory = db.query(models.BakeryInventory).filter(

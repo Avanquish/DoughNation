@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, func
 from app import models, database
 from datetime import datetime
+from app.timezone_utils import now_ph
 from app.chat_manager import manager
 
 import base64, os, json
@@ -90,7 +91,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
                         content=content,
                         image=file_url if media and "image" in media_type else None,
                         video=file_url if media and "video" in media_type else None,
-                        timestamp=datetime.utcnow(),
+                        timestamp=now_ph(),
                         is_card=is_card,
                         is_read=False
                     )

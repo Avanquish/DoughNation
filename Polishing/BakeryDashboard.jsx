@@ -1285,23 +1285,25 @@ const BakeryDashboard = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="gwrap hover-lift reveal">
-                <Card className="glass-card shadow-none">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+              <div className="gwrap hover-lift reveal h-full">
+                <Card className="glass-card shadow-none h-full flex flex-col">
                   <CardHeader className="pb-2">
                     <CardTitle style={{ color: "#6B4B2B" }}>
                       Recent Donations
                     </CardTitle>
                     <CardDescription style={{ color: "#7b5836" }}>
-                      <RecentDonations />
+                      Latest donation completed
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="min-h-[10px]" />
+                  <CardContent className="pt-0 pb-4 flex-1 flex flex-col">
+                    <RecentDonations />
+                  </CardContent>
                 </Card>
               </div>
 
-              <div className="gwrap hover-lift reveal">
-                <Card className="glass-card shadow-none">
+              <div className="gwrap hover-lift reveal h-full">
+                <Card className="glass-card shadow-none h-full flex flex-col">
                   <CardHeader className="pb-2">
                     <CardTitle style={{ color: "#6B4B2B" }}>
                       Achievements &amp; Badges
@@ -1311,27 +1313,32 @@ const BakeryDashboard = () => {
                     </CardDescription>
                   </CardHeader>
 
-                  <CardContent className="pt-0 pb-4">
+                  <CardContent className="pt-0 pb-4 flex-1 flex flex-col">
                     <div
                       className="
-          mt-2
-          rounded-3xl
-          border border-[#eadfce]
-          bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
-          shadow-[0_2px_8px_rgba(93,64,28,0.06)]
-          h-auto max-h-[420px]
-          md:h-[400px] md:max-h-none
-        "
+    mt-2
+    rounded-3xl
+    border border-[#eadfce]
+    bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
+    shadow-[0_2px_8px_rgba(93,64,28,0.06)]
+    h-auto max-h-[420px]
+    md:h-[400px] md:max-h-none
+    transition-all duration-300 ease-[cubic-bezier(.2,.9,.4,1)]
+    hover:scale-[1.015]
+    hover:shadow-[0_14px_32px_rgba(191,115,39,0.18)]
+    hover:ring-1 hover:ring-[#E49A52]/35
+  "
                     >
                       <div
                         className="
-            bg-white/70
-            border border-[#f2e3cf]
-            rounded-2xl
-            px-4 py-4
-            sm:px-5 sm:py-5
-            h-full
-          "
+    bg-gradient-to-b from-[#FFFDF8] via-[#FFF5E8] to-[#FFE9D3]
+    border border-[#f2e3cf]
+    rounded-2xl
+    px-4 py-4
+    sm:px-5 sm:py-5
+    h-full
+    shadow-[0_2px_10px_rgba(93,64,28,0.05)]
+  "
                       >
                         {badges && badges.length > 0 ? (
                           <div className="max-h-[260px] lg:max-h-none overflow-y-auto">
@@ -1409,9 +1416,15 @@ const BakeryDashboard = () => {
               <Card className="glass-card shadow-none">
                 <CardHeader className="pb-2">
                   <CardTitle style={{ color: "#6B4B2B" }}>Analytics</CardTitle>
-                  <BakeryAnalytics currentUser={currentUser} />{" "}
+
+                  <CardDescription style={{ color: "#7b5836" }}>
+                    Visual overview of inventory and donation activities
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="min-h-[120px]" />
+
+                <CardContent className="pt-0 pb-4">
+                  <BakeryAnalytics currentUser={currentUser} />
+                </CardContent>
               </Card>
             </div>
           </TabsContent>

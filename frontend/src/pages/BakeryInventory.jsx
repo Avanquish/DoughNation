@@ -2065,11 +2065,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                           })()
                         : ""
                     }
-                    className={`${inputTone} rounded-2xl ${
-                      !isNameModified || templateInfo
-                        ? "bg-gray-100 cursor-not-allowed"
-                        : ""
-                    }`}
+                    className={`${inputTone} rounded-2xl`}
                     value={selectedItem.expiration_date}
                     onChange={(e) => {
                       // Clear templateInfo to enable threshold field
@@ -2082,14 +2078,10 @@ export default function BakeryInventory({ isViewOnly = false }) {
                         expiration_date: e.target.value,
                       });
                     }}
-                    readOnly={!isNameModified || !!templateInfo}
-                    disabled={!isNameModified || !!templateInfo}
                     required
                   />
                   <p className="mt-1 text-xs text-gray-500">
-                    {templateInfo
-                      ? "Auto-filled from template"
-                      : "Must be at least tomorrow"}
+                    Must be at least tomorrow
                   </p>
                 </div>
               </div>

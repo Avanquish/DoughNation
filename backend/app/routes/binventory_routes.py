@@ -119,6 +119,68 @@ def save_product_to_csv(bakery_id: int, product_name: str, threshold: int, shelf
         return False
 
 
+def update_product_in_csv(bakery_id: int, old_product_name: str, new_product_name: str, threshold: int, shelf_life_days: int, description: str = "", image: str = ""):
+    """Update an existing product template in bakery's CSV"""
+    csv_path = get_bakery_csv_path(bakery_id)
+    
+    if not os.path.exists(csv_path):
+        print(f"[CSV] No CSV found for bakery {bakery_id}")
+        return False
+    
+    try:
+        # Read all rows
+        rows = []
+        fieldnames = ['Product Name', 'Threshold', 'Expiration', 'Description', 'Image']
+        
+        with open(csv_path, 'r', encoding='utf-8-sig') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                rows.append(row)
+        
+        # Find and update the matching product
+        normalized_old_name = old_product_name.strip().lower().replace(' ', '')
+        updated = False
+        
+        for row in rows:
+            existing_name = row.get('Product Name', '').strip()
+            normalized_existing = existing_name.lower().replace(' ', '')
+            
+            if normalized_existing == normalized_old_name:
+                # Update the row
+                row['Product Name'] = new_product_name.strip()
+                row['Threshold'] = str(threshold)
+                row['Expiration'] = str(shelf_life_days)
+                row['Description'] = description.strip()
+                row['Image'] = image
+                updated = True
+                print(f"[CSV] 🔄 Updating '{old_product_name}' to '{new_product_name}' in bakery {bakery_id} CSV")
+                break
+        
+        if not updated:
+            print(f"[CSV] ⚠️ Product '{old_product_name}' not found in CSV, adding as new")
+            # If not found, add as new entry
+            rows.append({
+                'Product Name': new_product_name.strip(),
+                'Threshold': str(threshold),
+                'Expiration': str(shelf_life_days),
+                'Description': description.strip(),
+                'Image': image
+            })
+        
+        # Write all rows back to CSV
+        with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+        
+        print(f"[CSV] ✅ Successfully updated CSV for bakery {bakery_id}")
+        return True
+        
+    except Exception as e:
+        print(f"[CSV] ❌ Error updating CSV: {e}")
+        return False
+
+
 def get_template_from_csv(bakery_id: int, product_name: str):
     """Get template for a specific product from bakery's CSV"""
     templates = load_bakery_templates(bakery_id)
@@ -269,15 +331,32 @@ def update_inventory(
     if current_user.role.lower() != "bakery":
         raise HTTPException(status_code=403, detail="Only bakeries can update inventory")
 
-    # Handle image: either upload new file or use template image
+    # Get the old product name before updating
+    old_item = db.query(models.BakeryInventory).filter(
+        models.BakeryInventory.id == inventory_id,
+        models.BakeryInventory.bakery_id == current_user.id
+    ).first()
+    
+    if not old_item:
+        raise HTTPException(status_code=404, detail="Inventory item not found")
+    
+    old_product_name = old_item.name
+    old_image = old_item.image  # Keep the existing image path
+
+    # Handle image: either upload new file, use template image, or retain old image
     image_path = None
     if image and image.filename:
+        # New image uploaded
         os.makedirs(UPLOAD_DIR, exist_ok=True)
         image_path = os.path.join(UPLOAD_DIR, image.filename)
         with open(image_path, "wb") as buffer:
             shutil.copyfileobj(image.file, buffer)
     elif template_image:
+        # Template image provided
         image_path = template_image
+    else:
+        # No new image, retain the old one
+        image_path = old_image
 
     updated_item = crud.update_inventory(
         db=db,
@@ -293,22 +372,27 @@ def update_inventory(
         description=description
     )
 
-    # Save to bakery's OWN CSV if product name changed
+    # Update bakery's CSV with the new product information
     try:
         creation = datetime.strptime(creation_date, "%Y-%m-%d").date()
         expiration = datetime.strptime(expiration_date, "%Y-%m-%d").date()
         shelf_life_days = (expiration - creation).days
         
-        #Pass bakery_id to save to correct CSV
-        save_product_to_csv(
-            bakery_id=current_user.id,  #Each bakery updates their own CSV
-            product_name=name,
+        # Use update function to modify CSV entry
+        update_product_in_csv(
+            bakery_id=current_user.id,
+            old_product_name=old_product_name,
+            new_product_name=name,
             threshold=threshold,
             shelf_life_days=shelf_life_days,
-            description=description or ""
+            description=description or "",
+            image=image_path or ""
         )
+        print(f"[CSV] ✅ Updated '{old_product_name}' to '{name}' in CSV")
     except Exception as e:
-        print(f"[CSV] Warning: Could not save to CSV: {e}")
+        print(f"[CSV] Warning: Could not update CSV: {e}")
+        import traceback
+        traceback.print_exc()
 
     check_threshold_and_create_donation(db)
     check_inventory_status(db)

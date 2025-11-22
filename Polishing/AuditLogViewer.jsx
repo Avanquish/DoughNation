@@ -41,6 +41,8 @@ import {
 } from "lucide-react";
 import api from "../api/axios";
 import Swal from "sweetalert2";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 // ── UI theme tokens (visual only) ──
 const tones = {
@@ -53,6 +55,9 @@ const tones = {
   pillGhost:
     "inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-medium border border-[#f2d4b5] bg-white text-[#6b4b2b] shadow-sm hover:bg-[#FFF6EC] hover:-translate-y-0.5 active:scale-95 transition-all",
 };
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const normalizePath = (path) => path.replace(/\\/g, "/");
 
 // ── Shared classes for all SelectItem ──
 const selectItemClass =
@@ -69,11 +74,25 @@ const AuditLogViewer = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [page, setPage] = useState(0);
-  const [limit] = useState(50);
+  const [limit] = useState(10);
+  const [adminProfile, setAdminProfile] = useState(null);
 
   // Detail dialog
   const [selectedLog, setSelectedLog] = useState(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+
+  const fetchAdminProfile = async () => {
+    try {
+      const response = await api.get("/admin/admin_profile");
+      setAdminProfile(response.data);
+    } catch (error) {
+      console.error("Failed to fetch admin profile:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchAdminProfile();
+  }, []);
 
   useEffect(() => {
     fetchLogs();
@@ -88,14 +107,46 @@ const AuditLogViewer = () => {
         limit: limit.toString(),
       });
 
-      if (eventTypeFilter) params.append("event_type", eventTypeFilter);
-      if (severityFilter) params.append("severity", severityFilter);
-      if (startDate)
-        params.append("start_date", new Date(startDate).toISOString());
-      if (endDate) params.append("end_date", new Date(endDate).toISOString());
+      // Handle admin_crud as multiple event types (client-side filter)
+      if (eventTypeFilter === "admin_crud") {
+        // Don't add event_type filter - we'll filter client-side
+      } else if (eventTypeFilter && eventTypeFilter !== "all") {
+        params.append("event_type", eventTypeFilter);
+      }
+
+      if (severityFilter && severityFilter !== "all") {
+        params.append("severity", severityFilter);
+      }
+
+      // Fix: Proper date range handling
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        params.append("start_date", start.toISOString());
+      }
+
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        params.append("end_date", end.toISOString());
+      }
 
       const response = await api.get(`/admin/audit-logs?${params.toString()}`);
-      setLogs(response.data.logs || []);
+      let filteredLogs = response.data.logs || [];
+
+      // Client-side filter for admin CRUD operations
+      if (eventTypeFilter === "admin_crud") {
+        const adminCrudTypes = [
+          "ADMIN_UPDATE_USER",
+          "ADMIN_MANUAL_REGISTRATION",
+          "ADMIN_DELETE_USER",
+        ];
+        filteredLogs = filteredLogs.filter((log) =>
+          adminCrudTypes.includes(log.event_type)
+        );
+      }
+
+      setLogs(filteredLogs);
       setTotalCount(response.data.total_count || 0);
     } catch (error) {
       console.error("Failed to fetch audit logs:", error);
@@ -106,34 +157,286 @@ const AuditLogViewer = () => {
   };
 
   const handleExport = async () => {
+    // Fetch all logs matching the current filters (not limited by pagination)
     try {
       const params = new URLSearchParams();
-      if (startDate)
-        params.append("start_date", new Date(startDate).toISOString());
-      if (endDate) params.append("end_date", new Date(endDate).toISOString());
 
-      const response = await api.get(
-        `/admin/audit-logs/export?${params.toString()}`
+      // Handle admin_crud as multiple event types (client-side filter)
+      if (eventTypeFilter === "admin_crud") {
+        // Don't add event_type filter - we'll filter client-side
+      } else if (eventTypeFilter && eventTypeFilter !== "all") {
+        params.append("event_type", eventTypeFilter);
+      }
+
+      if (severityFilter && severityFilter !== "all") {
+        params.append("severity", severityFilter);
+      }
+
+      // Fix: Proper date range handling
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        params.append("start_date", start.toISOString());
+      }
+
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        params.append("end_date", end.toISOString());
+      }
+
+      // Fetch ALL logs without pagination limits
+      params.append("skip", "0");
+      params.append("limit", "10000"); // Large number to get all records
+
+      const response = await api.get(`/admin/audit-logs?${params.toString()}`);
+      let allLogs = response.data.logs || [];
+
+      // Client-side filter for admin CRUD operations
+      if (eventTypeFilter === "admin_crud") {
+        const adminCrudTypes = [
+          "ADMIN_UPDATE_USER",
+          "ADMIN_MANUAL_REGISTRATION",
+          "ADMIN_DELETE_USER",
+        ];
+        allLogs = allLogs.filter((log) =>
+          adminCrudTypes.includes(log.event_type)
+        );
+      }
+
+      if (allLogs.length === 0) {
+        Swal.fire(
+          "Warning",
+          "No logs found matching the current filters",
+          "warning"
+        );
+        return;
+      }
+
+      const doc = new jsPDF("landscape", "pt", "a4");
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 30; // Equal margins on both sides
+      const availableWidth = pageWidth - margin * 2;
+      let currentY = 40;
+
+      // Base64 conversion function for images
+      const toBase64 = (url) =>
+        new Promise((resolve) => {
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+            resolve(canvas.toDataURL("image/jpeg", 0.95));
+          };
+          img.onerror = () => resolve(null);
+          img.src = url + "?t=" + Date.now();
+        });
+
+      // Header - Admin Profile Picture
+      if (adminProfile && adminProfile.profile_picture) {
+        try {
+          const adminImgUrl = `${API_URL}/${normalizePath(
+            adminProfile.profile_picture
+          )}`;
+          const adminImgBase64 = await toBase64(adminImgUrl);
+
+          if (adminImgBase64) {
+            const logoSize = 120;
+            const imgX = (pageWidth - logoSize) / 2;
+            doc.addImage(
+              adminImgBase64,
+              "JPEG",
+              imgX,
+              currentY,
+              logoSize,
+              logoSize
+            );
+            currentY += logoSize + 15;
+          }
+        } catch (err) {
+          console.error("Failed to load admin profile picture:", err);
+        }
+      }
+
+      // Organization Name
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(34, 34, 34);
+      doc.text(
+        "Scholars of Sustenance (SOS) | A Global Food Rescue Foundation",
+        pageWidth / 2,
+        currentY,
+        { align: "center" }
       );
+      currentY += 18;
 
-      // Create and download JSON file
-      const blob = new Blob([JSON.stringify(response.data, null, 2)], {
-        type: "application/json",
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(85, 85, 85);
+      doc.text("SOS Philippines", pageWidth / 2, currentY, {
+        align: "center",
       });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `audit-logs-${
-        new Date().toISOString().split("T")[0]
-      }.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      currentY += 12;
 
-      Swal.fire("Success", "Audit logs exported successfully", "success");
+      // Address
+      doc.text(
+        "72 Maayusin Street, Up Village, Diliman, Quezon City Philippines 1101",
+        pageWidth / 2,
+        currentY,
+        { align: "center" }
+      );
+      currentY += 12;
+
+      // Contact Info
+      doc.text(
+        "Contact: +63 917 866 7728 | Email: sosph@scholarsofsustenance.org",
+        pageWidth / 2,
+        currentY,
+        { align: "center" }
+      );
+      currentY += 20;
+
+      // Report Title
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(0, 0, 0);
+      doc.text("AUDIT LOG REPORT", pageWidth / 2, currentY, {
+        align: "center",
+      });
+      currentY += 18;
+
+      // Generated Date
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(136, 136, 136);
+      doc.text(
+        `Generated: ${new Date().toLocaleString("en-PH", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        })}`,
+        pageWidth / 2,
+        currentY,
+        { align: "center" }
+      );
+      currentY += 15;
+
+      // Filter info
+      if (startDate || endDate || eventTypeFilter || severityFilter) {
+        doc.setFontSize(8);
+        doc.setTextColor(100, 100, 100);
+        let filterText = "Filters: ";
+        if (startDate) filterText += `From: ${startDate} `;
+        if (endDate) filterText += `To: ${endDate} `;
+        if (eventTypeFilter && eventTypeFilter !== "all")
+          filterText += `Event: ${eventTypeFilter} `;
+        if (severityFilter && severityFilter !== "all")
+          filterText += `Severity: ${severityFilter}`;
+        doc.text(filterText, pageWidth / 2, currentY, { align: "center" });
+        currentY += 10;
+      }
+
+      currentY += 15;
+
+      // Table
+      const headers = [
+        "Timestamp",
+        "Event Type",
+        "Actor",
+        "Severity",
+        "Status",
+        "Description",
+      ];
+
+      const rows = allLogs.map((log) => [
+        formatDate(log.timestamp),
+        log.event_type || "",
+        log.actor_name || "System",
+        (log.severity || "").toUpperCase(),
+        log.success ? "Success" : "Failed",
+        // eslint-disable-next-line no-control-regex
+        (log.description || "No description").replace(/[^\x00-\x7F]/g, ""), // Remove special characters
+      ]);
+
+      autoTable(doc, {
+        head: [headers],
+        body: rows,
+        startY: currentY,
+        styles: {
+          fontSize: 9,
+          cellPadding: 5,
+          valign: "middle",
+          halign: "center",
+          overflow: "linebreak",
+          cellWidth: "wrap",
+          font: "helvetica",
+          fontStyle: "normal",
+          lineColor: [212, 184, 150],
+          lineWidth: 0.5,
+        },
+        headStyles: {
+          fillColor: [185, 115, 39],
+          textColor: 255,
+          fontStyle: "bold",
+          halign: "center",
+          valign: "middle",
+          font: "helvetica",
+          fontSize: 10,
+        },
+        columnStyles: {
+          0: {
+            cellWidth: availableWidth * 0.115,
+            halign: "center",
+            font: "helvetica",
+          }, // Timestamp
+          1: {
+            cellWidth: availableWidth * 0.14,
+            halign: "center",
+            font: "helvetica",
+          }, // Event Type
+          2: {
+            cellWidth: availableWidth * 0.11,
+            halign: "center",
+            font: "helvetica",
+          }, // Actor
+          3: {
+            cellWidth: availableWidth * 0.085,
+            halign: "center",
+            font: "helvetica",
+          }, // Severity
+          4: {
+            cellWidth: availableWidth * 0.085,
+            halign: "center",
+            font: "helvetica",
+          }, // Status
+          5: {
+            cellWidth: availableWidth * 0.465,
+            halign: "center",
+            font: "helvetica",
+          }, // Description
+        },
+        margin: { left: margin, right: margin },
+        tableWidth: availableWidth,
+        theme: "grid",
+      });
+
+      doc.save(
+        `Audit_Log_Report_${new Date().toISOString().split("T")[0]}.pdf`
+      );
+      Swal.fire(
+        "Success",
+        "Audit logs exported as PDF successfully",
+        "success"
+      );
     } catch (error) {
-      console.error("Failed to export logs:", error);
+      console.error("Failed to export audit logs:", error);
       Swal.fire("Error", "Failed to export audit logs", "error");
     }
   };
@@ -190,7 +493,21 @@ const AuditLogViewer = () => {
 
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleString();
+
+    // Parse the datetime string - backend already sends in Philippine timezone
+    const date = new Date(dateString);
+
+    // Display in Philippine time (backend timestamps are already in PHT)
+    return date.toLocaleString("en-PH", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+      timeZone: "Asia/Manila",
+    });
   };
 
   const showLogDetails = (log) => {
@@ -215,6 +532,9 @@ const AuditLogViewer = () => {
       </div>
     );
   }
+
+  // Total Pages for Pagination UI (always >= 1, max 10 per page because limit=10)
+  const totalPages = Math.max(1, Math.ceil((totalCount || 0) / limit) || 1);
 
   return (
     <div className="w-full space-y-4">
@@ -301,7 +621,7 @@ const AuditLogViewer = () => {
                         Ownership Transfer
                       </SelectItem>
                       <SelectItem
-                        value="admin_edit_user"
+                        value="admin_crud"
                         className={selectItemClass}
                       >
                         Admin Edit User
@@ -534,31 +854,34 @@ const AuditLogViewer = () => {
             </div>
 
             {/* ── Pagination ── */}
-            {totalCount > limit && (
-              <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
-                <div className="text-[11px] sm:text-xs text-gray-500">
-                  Page {page + 1} of {Math.ceil(totalCount / limit)}
-                </div>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 justify-end">
-                  <Button
-                    variant="outline"
-                    onClick={() => setPage(Math.max(0, page - 1))}
-                    disabled={page === 0}
-                    className={`${tones.pillGhost} w-full sm:w-auto justify-center text-xs disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setPage(page + 1)}
-                    disabled={(page + 1) * limit >= totalCount}
-                    className={`${tones.pillPrimary} w-full sm:w-auto justify-center text-xs disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    Next
-                  </Button>
-                </div>
+            <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-[11px] sm:text-xs text-gray-500">
+                Page {page + 1} of {totalPages} • Showing {logs.length} of{" "}
+                {totalCount} events
               </div>
-            )}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setPage((prev) => Math.max(0, prev - 1))}
+                  disabled={page === 0}
+                  className={`${tones.pillGhost} w-full sm:w-auto justify-center text-xs disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    setPage((prev) =>
+                      prev + 1 >= totalPages ? prev : prev + 1
+                    )
+                  }
+                  disabled={page + 1 >= totalPages}
+                  className={`${tones.pillPrimary} w-full sm:w-auto justify-center text-xs disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </div>
       </Card>

@@ -57,8 +57,12 @@ const NotificationCenter = () => {
     "system_announcement"
   );
   const [targetAll, setTargetAll] = useState(true);
-  const [targetRole, setTargetRole] = useState("");
-  const [targetUserId, setTargetUserId] = useState("");
+  const [targetRole, setTargetRole] = useState(undefined);
+  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [userSearch, setUserSearch] = useState("");
+  const [allUsers, setAllUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [sendEmail, setSendEmail] = useState(true);
   const [priority, setPriority] = useState("normal");
   const [expiresAt, setExpiresAt] = useState("");
@@ -73,6 +77,24 @@ const NotificationCenter = () => {
       fetchNotificationHistory();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === "compose") {
+      fetchUsers();
+    }
+  }, [activeTab]);
+
+  const fetchUsers = async () => {
+    try {
+      setLoadingUsers(true);
+      const response = await api.get("/admin/users");
+      setAllUsers(response.data.users || []);
+    } catch (error) {
+      console.error("Failed to fetch users:", error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
 
   const fetchNotificationHistory = async () => {
     try {
@@ -114,8 +136,8 @@ const NotificationCenter = () => {
       if (!targetAll) {
         if (targetRole) {
           payload.target_role = targetRole;
-        } else if (targetUserId) {
-          payload.target_user_id = parseInt(targetUserId);
+        } else if (selectedUsers.length > 0) {
+          payload.target_user_ids = selectedUsers.map(u => u.id);
         } else {
           Swal.fire("Error", "Please select a target audience", "error");
           setSending(false);
@@ -141,8 +163,9 @@ const NotificationCenter = () => {
       setMessage("");
       setNotificationType("system_announcement");
       setTargetAll(true);
-      setTargetRole("");
-      setTargetUserId("");
+      setTargetRole(undefined);
+      setSelectedUsers([]);
+      setUserSearch("");
       setSendEmail(true);
       setPriority("normal");
       setExpiresAt("");
@@ -161,6 +184,17 @@ const NotificationCenter = () => {
     }
   };
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      const dropdown = document.getElementById('user-dropdown-container');
+      if (showUserDropdown && dropdown && !dropdown.contains(event.target)) {
+        setShowUserDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showUserDropdown]);
+
   // ── Priority badge styling ──
   const getPriorityBadge = (priority) => {
     const badges = {
@@ -177,6 +211,23 @@ const NotificationCenter = () => {
         }`}
       >
         {priority}
+      </span>
+    );
+  };
+
+  const getRoleBadge = (role) => {
+    const roleColors = {
+      Bakery: "bg-amber-100 text-amber-800",
+      Charity: "bg-blue-100 text-blue-800",
+    };
+
+    return (
+      <span
+        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-medium ${
+          roleColors[role] || "bg-gray-100 text-gray-700"
+        }`}
+      >
+        {role}
       </span>
     );
   };
@@ -363,47 +414,51 @@ const NotificationCenter = () => {
                               id="target-all"
                               checked={targetAll}
                               onCheckedChange={(checked) => {
-                                setTargetAll(!!checked);
-                                if (checked) {
-                                  setTargetRole("");
-                                  setTargetUserId("");
+                                const isChecked = checked === true;
+                                setTargetAll(isChecked);
+                                // Always clear when toggling
+                                if (!isChecked) {
+                                  setTargetRole(undefined);
+                                  setSelectedUsers([]);
                                 }
                               }}
                             />
                             <label
                               htmlFor="target-all"
-                              className="text-sm font-medium leading-none text-[#4A2F17]"
+                              className="text-sm font-medium leading-none text-[#4A2F17] cursor-pointer"
                             >
                               Send to all users
                             </label>
                           </div>
 
                           {!targetAll && (
-                            <div className="pl-6 space-y-3">
+                            <div className="pl-6 space-y-3" key="targeting-options">
                               <div className="space-y-1">
                                 <Label
                                   htmlFor="target-role"
                                   className="text-xs font-medium text-[#6b4b2b]"
                                 >
-                                  Or select role:
+                                  Select role:
                                 </Label>
                                 <Select
-                                  value={targetRole}
+                                  value={targetRole || "none"}
                                   onValueChange={(val) => {
-                                    setTargetRole(val);
-                                    setTargetUserId("");
+                                    setTargetRole(val === "none" ? undefined : val);
+                                    if (val && val !== "none") {
+                                      setSelectedUsers([]);
+                                    }
                                   }}
                                 >
-                                  <SelectTrigger className="h-9 rounded-full border-[#f2d4b5] bg-white px-3 text-xs sm:text-sm shadow-sm focus:ring-[#DE7F21] focus-visible:ring-[#DE7F21]">
-                                    <SelectValue placeholder="Select role" />
-                                  </SelectTrigger>
-                                  <SelectContent className="z-50 max-h-60 overflow-y-auto rounded-2xl border border-[#f2d4b5] bg-white shadow-lg text-sm py-1">
-                                    <SelectItem
-                                      value=""
-                                      className={selectItemClass}
-                                    >
-                                      None
-                                    </SelectItem>
+                                <SelectTrigger className="h-9 rounded-full border-[#f2d4b5] bg-white px-3 text-xs sm:text-sm shadow-sm focus:ring-[#DE7F21] focus-visible:ring-[#DE7F21]">
+                                  <SelectValue placeholder="Select role" />
+                                </SelectTrigger>
+                                <SelectContent className="z-50 max-h-60 overflow-y-auto rounded-2xl border border-[#f2d4b5] bg-white shadow-lg text-sm py-1">
+                                  <SelectItem
+                                    value="none"
+                                    className={selectItemClass}
+                                  >
+                                    None
+                                  </SelectItem>
                                     <SelectItem
                                       value="Bakery"
                                       className={selectItemClass}
@@ -420,25 +475,95 @@ const NotificationCenter = () => {
                                 </Select>
                               </div>
 
-                              <div className="space-y-1">
-                                <Label
-                                  htmlFor="target-user"
-                                  className="text-xs font-medium text-[#6b4b2b]"
-                                >
-                                  Or specific user ID:
-                                </Label>
-                                <Input
-                                  id="target-user"
-                                  type="number"
-                                  placeholder="Enter user ID"
-                                  value={targetUserId}
-                                  onChange={(e) => {
-                                    setTargetUserId(e.target.value);
-                                    setTargetRole("");
-                                  }}
-                                  className="h-9 rounded-xl border-[#f2d4b5] bg-white text-sm focus:ring-[#DE7F21] focus-visible:ring-[#DE7F21]"
-                                />
-                              </div>
+                              {!targetRole && (
+                                <div className="space-y-1" id="user-dropdown-container">
+                                  <Label
+                                    htmlFor="target-user"
+                                    className="text-xs font-medium text-[#6b4b2b]"
+                                  >
+                                    Select User/s:
+                                  </Label>
+                                  <div className="relative">
+                                    <Input
+                                      id="target-user"
+                                      type="text"
+                                      placeholder="Search users..."
+                                      value={userSearch}
+                                      onChange={(e) => setUserSearch(e.target.value)}
+                                      onFocus={() => setShowUserDropdown(true)}
+                                      className="h-9 rounded-xl border-[#f2d4b5] bg-white text-sm focus:ring-[#DE7F21] focus-visible:ring-[#DE7F21]"
+                                    />
+                                    
+                                    {showUserDropdown && (
+                                      <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-[#f2d4b5] bg-white shadow-lg">
+                                        {loadingUsers ? (
+                                          <div className="p-3 text-center text-xs text-gray-500">
+                                            Loading users...
+                                          </div>
+                                        ) : (
+                                          allUsers
+                                            .filter((user) =>
+                                              user.name?.toLowerCase().includes(userSearch.toLowerCase()) ||
+                                              user.email?.toLowerCase().includes(userSearch.toLowerCase())
+                                            )
+                                            .map((user) => (
+                                              <div
+                                                key={user.id}
+                                                onClick={() => {
+                                                  const isSelected = selectedUsers.some(u => u.id === user.id);
+                                                  if (isSelected) {
+                                                    setSelectedUsers(selectedUsers.filter(u => u.id !== user.id));
+                                                  } else {
+                                                    setSelectedUsers([...selectedUsers, user]);
+                                                  }
+                                                }}
+                                                className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-[#FFF6EC] ${
+                                                  selectedUsers.some(u => u.id === user.id) ? 'bg-[#FFEFD9]' : ''
+                                                }`}
+                                              >
+                                                <Checkbox
+                                                  checked={selectedUsers.some(u => u.id === user.id)}
+                                                  onCheckedChange={() => {}}
+                                                />
+                                                <div className="flex-1 min-w-0">
+                                                  <div className="flex items-center gap-1.5">
+                                                    <p className="text-xs font-medium text-[#4A2F17] truncate">
+                                                      {user.name}
+                                                    </p>
+                                                    {getRoleBadge(user.role)}
+                                                  </div>
+                                                  <p className="text-[10px] text-gray-500 truncate">
+                                                    {user.email}
+                                                  </p>
+                                                </div>
+                                              </div>
+                                            ))
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                  
+                                  {selectedUsers.length > 0 && (
+                                    <div className="mt-2 flex flex-wrap gap-1">
+                                      {selectedUsers.map((user) => (
+                                        <span
+                                          key={user.id}
+                                          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium bg-[#FFEFD9] text-[#7b5836]"
+                                        >
+                                          <span>{user.name}</span>
+                                          <span className="text-[8px] opacity-70">({user.role})</span>
+                                          <button
+                                            onClick={() => setSelectedUsers(selectedUsers.filter(u => u.id !== user.id))}
+                                            className="hover:text-red-600 ml-0.5"
+                                          >
+                                            ×
+                                          </button>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -509,8 +634,8 @@ const NotificationCenter = () => {
                               ? "All Users"
                               : targetRole
                               ? `All ${targetRole}s`
-                              : targetUserId
-                              ? `User #${targetUserId}`
+                              : selectedUsers.length > 0
+                              ? `${selectedUsers.length} user(s)`
                               : "Not selected"}
                           </span>
                           {sendEmail && (

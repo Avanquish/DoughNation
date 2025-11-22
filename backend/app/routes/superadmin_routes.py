@@ -52,7 +52,7 @@ class NotificationCreate(BaseModel):
     notification_type: str
     target_all: bool = False
     target_role: Optional[str] = None  # "Bakery" or "Charity"
-    target_user_id: Optional[int] = None
+    target_user_ids: Optional[List[int]] = None
     send_email: bool = False
     priority: str = "normal"
     expires_at: Optional[datetime] = None
@@ -738,7 +738,7 @@ def send_notification(
         notification_type=notification.notification_type,
         target_all=notification.target_all,
         target_role=notification.target_role,
-        target_user_id=notification.target_user_id,
+        target_user_id=notification.target_user_ids[0] if notification.target_user_ids else None,  # Store first ID for backward compatibility
         send_email=notification.send_email,
         send_in_app=True,
         sent_by_admin_id=current_admin.id,
@@ -754,13 +754,19 @@ def send_notification(
     recipients = []
     
     if notification.target_all:
-        recipients = db.query(models.User).filter(models.User.role != "Admin").all()
+        recipients = db.query(models.User).filter(
+            models.User.role != "Admin",
+            models.User.verified == True
+        ).all()
     elif notification.target_role:
-        recipients = db.query(models.User).filter(models.User.role == notification.target_role).all()
-    elif notification.target_user_id:
-        user = db.query(models.User).filter(models.User.id == notification.target_user_id).first()
-        if user:
-            recipients = [user]
+        recipients = db.query(models.User).filter(
+            models.User.role == notification.target_role,
+            models.User.verified == True
+        ).all()
+    elif notification.target_user_ids:  # FIXED: Check target_user_ids
+        recipients = db.query(models.User).filter(
+            models.User.id.in_(notification.target_user_ids)
+        ).all()
     
     # Create notification receipts for in-app delivery
     for recipient in recipients:
@@ -796,7 +802,8 @@ def send_notification(
             "notification_id": notif.id,
             "recipient_count": len(recipients),
             "target_all": notification.target_all,
-            "target_role": notification.target_role
+            "target_role": notification.target_role,
+            "target_user_ids": notification.target_user_ids
         }
     )
     
@@ -806,7 +813,6 @@ def send_notification(
         "recipients_count": len(recipients),
         "sent_at": notif.sent_at
     }
-
 
 @router.get("/notifications/history")
 def get_notification_history(
@@ -839,6 +845,38 @@ def get_notification_history(
         ]
     }
 
+@router.get("/users")
+def get_all_users(
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_user)
+):
+    """
+    Get all verified users (excluding Admins) for notification targeting.
+    Super Admin only.
+    """
+    require_super_admin(current_admin)
+    
+    # Fetch all verified users except Admins
+    users = db.query(models.User)\
+        .filter(
+            models.User.role != "Admin",
+            models.User.verified == True
+        )\
+        .order_by(models.User.name)\
+        .all()
+    
+    return {
+        "users": [
+            {
+                "id": user.id,
+                "name": user.name,
+                "email": user.email,
+                "role": user.role,
+                "status": user.status
+            }
+            for user in users
+        ]
+    }
 
 # ==================== 4. EMERGENCY OVERRIDE ACTIONS ====================
 

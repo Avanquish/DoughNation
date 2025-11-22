@@ -8,6 +8,11 @@ const ProtectedRoute = ({ allowedRoles }) => {
 
   const isRoleAllowed = allowedRoles.includes(user.role);
 
+  // 🔐 CHECK IF ADMIN NEEDS TO CHANGE DEFAULT PASSWORD
+  if (user.role === "Admin" && user.using_default_password) {
+    return <Navigate to="/admin-force-password-change" replace />;
+  }
+
   return isRoleAllowed ? <Outlet /> : <Navigate to="/" replace />;
 };
 

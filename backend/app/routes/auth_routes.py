@@ -85,6 +85,21 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
             print(f"❌ Invalid password for User account")
             print(f"{'='*80}\n")
             
+            # Check if admin tried to use default password after changing it
+            if db_user.role == "Admin" and user.password == "admin1234" and not db_user.using_default_password:
+                log_system_event(
+                    db=db,
+                    event_type="failed_login",
+                    description=f"Admin attempted to use old default password after changing it: {db_user.email}",
+                    severity="warning",
+                    user_id=db_user.id,
+                    metadata={"email": db_user.email, "role": db_user.role, "reason": "default_password_after_change"}
+                )
+                raise HTTPException(
+                    status_code=401, 
+                    detail="Default password is no longer valid. Please use your new password."
+                )
+            
             # Log failed user login attempt (invalid password)
             log_system_event(
                 db=db,
@@ -172,6 +187,12 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
         print(f"   Role validation: PASSED")
         print(f"{'='*80}\n")
         
+        # 🔐 CHECK IF ADMIN IS USING DEFAULT PASSWORD
+        using_default_password = False
+        if db_user.role == "Admin" and db_user.using_default_password:
+            using_default_password = True
+            print(f"⚠️  SECURITY WARNING: Admin is using default password and must change it")
+        
         # Generate token with type based on role
         token_data = {
             "sub": str(db_user.id),
@@ -179,7 +200,8 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
             "role": db_user.role,
             "name": db_user.name,
             "contact_person": db_user.contact_person,  # Owner's name
-            "is_verified": db_user.verified
+            "is_verified": db_user.verified,
+            "using_default_password": using_default_password  # Flag for frontend
         }
         
         token = create_access_token(token_data)
@@ -397,6 +419,90 @@ def change_password(
         payload.confirm_password
     )
 
+# 🔐 ADMIN FORCE PASSWORD CHANGE (Security Enhancement)
+@router.put("/admin/force-change-password", response_model=dict)
+def admin_force_change_password(
+    payload: schemas.ChangePassword,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Force password change for admin accounts using default credentials.
+    This endpoint allows admin to change password without requiring current password verification
+    when using_default_password flag is True.
+    """
+    # Verify user is actually an admin
+    if current_user.role != "Admin":
+        raise HTTPException(
+            status_code=403, 
+            detail="Only admin accounts can use this endpoint"
+        )
+    
+    # Validate new passwords match
+    if payload.new_password != payload.confirm_password:
+        raise HTTPException(
+            status_code=400,
+            detail="New passwords do not match"
+        )
+    
+    # Validate password strength
+    if len(payload.new_password) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 8 characters long"
+        )
+    
+    # Prevent using the same default password
+    if payload.new_password == "admin1234":
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot use the default password. Please choose a new, strong password."
+        )
+    
+    # Prevent using employee default password
+    if payload.new_password == "Employee123!":
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot use the employee default password. Please choose a different password."
+        )
+    
+    # 🔐 PREVENT REUSING LAST 5 PASSWORDS
+    if crud.check_password_history(db, current_user.id, payload.new_password, is_employee=False):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot reuse any of your last 5 passwords. Please choose a different password for security reasons."
+        )
+    
+    # Save old password to history before updating
+    crud.save_password_to_history(db, current_user.id, current_user.hashed_password, is_employee=False)
+    
+    # Hash and update password
+    hashed_password = pwd_context.hash(payload.new_password)
+    current_user.hashed_password = hashed_password
+    current_user.using_default_password = False  # Clear the flag
+    
+    db.commit()
+    db.refresh(current_user)
+    
+    # Log the password change
+    log_system_event(
+        db=db,
+        event_type="admin_password_changed",
+        description=f"Admin {current_user.name} successfully changed password from default",
+        severity="info",
+        user_id=current_user.id,
+        metadata={
+            "email": current_user.email,
+            "forced_change": True,
+            "reason": "default_password_security"
+        }
+    )
+    
+    return {
+        "message": "Password changed successfully. You can now access the system.",
+        "success": True
+    }
+
 # ==================== USER FORGOT PASSWORD ====================
 # Note: The new email-based password reset system is in email_verification_routes.py
 # These legacy registration-date verification endpoints are kept for backward compatibility
@@ -511,6 +617,16 @@ def reset_password_with_otp(data: dict, db: Session = Depends(database.get_db)):
             detail="Cannot use the employee default password. Please choose a different password for security reasons."
         )
     
+    # 🔐 PREVENT REUSING LAST 5 PASSWORDS
+    if crud.check_password_history(db, user.id, new_password, is_employee=False):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot reuse any of your last 5 passwords. Please choose a different password for security reasons."
+        )
+    
+    # Save old password to history before updating
+    crud.save_password_to_history(db, user.id, user.hashed_password, is_employee=False)
+    
     # Update password
     hashed_pw = pwd_context.hash(new_password)
     user.hashed_password = hashed_pw
@@ -585,6 +701,16 @@ def reset_password(data: dict, db: Session = Depends(database.get_db)):
             status_code=400, 
             detail="Cannot use the employee default password. Please choose a different password for security reasons."
         )
+    
+    # 🔐 PREVENT REUSING LAST 5 PASSWORDS
+    if crud.check_password_history(db, user.id, new_password, is_employee=False):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot reuse any of your last 5 passwords. Please choose a different password for security reasons."
+        )
+    
+    # Save old password to history before updating
+    crud.save_password_to_history(db, user.id, user.hashed_password, is_employee=False)
 
     hashed_pw = pwd_context.hash(new_password)
     user.hashed_password = hashed_pw
@@ -710,6 +836,17 @@ def reset_employee_password_with_otp(data: dict, db: Session = Depends(database.
     if new_password != confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
     
+    # 🔐 PREVENT REUSING LAST 5 PASSWORDS
+    if employee.hashed_password and crud.check_password_history(db, employee.id, new_password, is_employee=True):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot reuse any of your last 5 passwords. Please choose a different password for security reasons."
+        )
+    
+    # Save old password to history before updating (if exists)
+    if employee.hashed_password:
+        crud.save_password_to_history(db, employee.id, employee.hashed_password, is_employee=True)
+    
     # Update password
     hashed_pw = pwd_context.hash(new_password)
     employee.hashed_password = hashed_pw
@@ -794,6 +931,17 @@ def reset_employee_password(data: dict, db: Session = Depends(database.get_db)):
 
     if new_password != confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
+    
+    # 🔐 PREVENT REUSING LAST 5 PASSWORDS
+    if employee.hashed_password and crud.check_password_history(db, employee.id, new_password, is_employee=True):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot reuse any of your last 5 passwords. Please choose a different password for security reasons."
+        )
+    
+    # Save old password to history before updating (if exists)
+    if employee.hashed_password:
+        crud.save_password_to_history(db, employee.id, employee.hashed_password, is_employee=True)
 
     hashed_pw = pwd_context.hash(new_password)
     employee.hashed_password = hashed_pw
@@ -1200,6 +1348,15 @@ def employee_change_password(
         print(f"{'='*80}\n")
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
+    # 🔐 PREVENT REUSING LAST 5 PASSWORDS
+    if crud.check_password_history(db, employee.id, data.new_password, is_employee=True):
+        print(f"❌ Employee attempted to reuse one of last 5 passwords")
+        print(f"{'='*80}\n")
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot reuse any of your last 5 passwords. Please choose a different password for security reasons."
+        )
+
     # 🚫 PREVENT REUSE OF INITIAL DEFAULT PASSWORD
     if employee.initial_password_hash:
         is_initial_password = verify_password(data.new_password, employee.initial_password_hash)
@@ -1212,6 +1369,9 @@ def employee_change_password(
                 status_code=400, 
                 detail="Cannot reuse the initial default password. Please choose a different password for security."
             )
+    
+    # Save old password to history before updating
+    crud.save_password_to_history(db, employee.id, employee.hashed_password, is_employee=True)
 
     # Hash and update password
     hashed_password = pwd_context.hash(data.new_password)

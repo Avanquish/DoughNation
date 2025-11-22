@@ -234,6 +234,22 @@ const Login = () => {
           localStorage.setItem("charity_active_tab", "donation");
           navigate(`/charity-dashboard/${userId}`);
         } else if (accountType === "admin") {
+          // 🔐 CHECK IF ADMIN NEEDS TO CHANGE DEFAULT PASSWORD
+          if (decoded.using_default_password) {
+            Swal.fire({
+              icon: "warning",
+              title: "Password Change Required",
+              text: "For security, you must change your default password before accessing the system.",
+              confirmButtonColor: "#A97142",
+            });
+
+            // Redirect to admin force password change page
+            setTimeout(() => {
+              navigate("/admin-force-password-change");
+            }, 2000);
+            return;
+          }
+
           // Set default tab to "dashboard"
           localStorage.setItem("admin_active_tab", "dashboard");
           navigate(`/admin-dashboard/${userId}`);

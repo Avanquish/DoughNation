@@ -48,6 +48,9 @@ class User(Base):
     reset_token = Column(String, nullable=True)  # Token for password reset
     reset_token_expires = Column(DateTime, nullable=True)  # Reset token expiration
     
+    # Default password tracking (for admin security)
+    using_default_password = Column(Boolean, default=False)  # True if user is still using seeded/default password
+    
     # OTP fields for forgot password
     forgot_password_otp = Column(String, nullable=True)  # 6-digit OTP code
     forgot_password_otp_expires = Column(DateTime, nullable=True)  # OTP expiration time
@@ -327,6 +330,28 @@ class BadgeProgress(Base):
 
     user = relationship("User", back_populates="badge_progress")
     badge = relationship("Badge")
+
+class PasswordHistory(Base):
+    """Track password history for Users to prevent password reuse"""
+    __tablename__ = "password_history"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    hashed_password = Column(String, nullable=False)  # Historical password hash
+    changed_at = Column(DateTime, default=now_ph, nullable=False)
+    
+    user = relationship("User", backref="password_history")
+
+class EmployeePasswordHistory(Base):
+    """Track password history for Employees to prevent password reuse"""
+    __tablename__ = "employee_password_history"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
+    hashed_password = Column(String, nullable=False)  # Historical password hash
+    changed_at = Column(DateTime, default=now_ph, nullable=False)
+    
+    employee = relationship("Employee", backref="password_history")
 
 class SystemEvent(Base):
     __tablename__ = "system_events"

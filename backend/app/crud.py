@@ -10,12 +10,90 @@ from sqlalchemy import func
 from app import schemas
 from . import models, auth
 from datetime import date, datetime, timedelta, timezone
-from app.timezone_utils import now_ph
+from app.timezone_utils import now_ph, today_ph
 
 from app.routes.geofence import geocode_address, get_coordinates_osm
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# ==================== PASSWORD HISTORY HELPERS ====================
+
+def check_password_history(db: Session, user_id: int, new_password: str, is_employee: bool = False) -> bool:
+    """
+    Check if password was used in last 5 passwords.
+    Returns True if password is in history (should be blocked), False if password is unique.
+    """
+    if is_employee:
+        # Check employee password history
+        history = db.query(models.EmployeePasswordHistory).filter(
+            models.EmployeePasswordHistory.employee_id == user_id
+        ).order_by(models.EmployeePasswordHistory.changed_at.desc()).limit(5).all()
+    else:
+        # Check user password history
+        history = db.query(models.PasswordHistory).filter(
+            models.PasswordHistory.user_id == user_id
+        ).order_by(models.PasswordHistory.changed_at.desc()).limit(5).all()
+    
+    # Check if new password matches any of the last 5 passwords
+    for entry in history:
+        if pwd_context.verify(new_password, entry.hashed_password):
+            return True  # Password found in history, should be blocked
+    
+    return False  # Password is unique
+
+def save_password_to_history(db: Session, user_id: int, hashed_password: str, is_employee: bool = False):
+    """
+    Save password to history and maintain only last 5 passwords.
+    """
+    if is_employee:
+        # Save to employee password history
+        new_entry = models.EmployeePasswordHistory(
+            employee_id=user_id,
+            hashed_password=hashed_password,
+            changed_at=now_ph()
+        )
+        db.add(new_entry)
+        db.flush()
+        
+        # Keep only last 5 passwords
+        history_count = db.query(models.EmployeePasswordHistory).filter(
+            models.EmployeePasswordHistory.employee_id == user_id
+        ).count()
+        
+        if history_count > 5:
+            # Delete oldest entries
+            oldest_entries = db.query(models.EmployeePasswordHistory).filter(
+                models.EmployeePasswordHistory.employee_id == user_id
+            ).order_by(models.EmployeePasswordHistory.changed_at.asc()).limit(history_count - 5).all()
+            
+            for entry in oldest_entries:
+                db.delete(entry)
+    else:
+        # Save to user password history
+        new_entry = models.PasswordHistory(
+            user_id=user_id,
+            hashed_password=hashed_password,
+            changed_at=now_ph()
+        )
+        db.add(new_entry)
+        db.flush()
+        
+        # Keep only last 5 passwords
+        history_count = db.query(models.PasswordHistory).filter(
+            models.PasswordHistory.user_id == user_id
+        ).count()
+        
+        if history_count > 5:
+            # Delete oldest entries
+            oldest_entries = db.query(models.PasswordHistory).filter(
+                models.PasswordHistory.user_id == user_id
+            ).order_by(models.PasswordHistory.changed_at.asc()).limit(history_count - 5).all()
+            
+            for entry in oldest_entries:
+                db.delete(entry)
+
+# ==================== END PASSWORD HISTORY HELPERS ====================
 
 def create_user(
     db: Session,
@@ -34,18 +112,12 @@ def create_user(
     # Clean role input
     role = role.strip().lower()
 
-    # Email domain validation based on role
-    valid_domains = {
-        "bakery": "bakery.com",
-        "charity": "charity.com",
-        "admin": "admin.com",
-    }
-
+    # Email domain validation - must use Gmail
     email_domain = email.split("@")[-1]
-    if role not in valid_domains or email_domain != valid_domains[role]:
+    if email_domain != "gmail.com":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Email must end with @{valid_domains.get(role, 'yourdomain.com')} for role '{role}'"
+            detail="Email must be a valid Gmail address (@gmail.com)"
         )
     
     # Check if user already exists
@@ -139,9 +211,21 @@ def create_user(
                 print(f"⚠️  Employee already exists: {existing_emp.name}")
                 return db_user
             
+            # Generate unique employee_id in format: EMP-{BAKERY_ID}-{SEQUENCE}
+            existing_count = db.query(models.Employee).filter(models.Employee.bakery_id == db_user.id).count()
+            sequence = existing_count + 1
+            employee_id = f"EMP-{db_user.id}-{sequence:03d}"  # Format: EMP-2-001
+            
+            # Ensure uniqueness (in case of concurrent creation)
+            while db.query(models.Employee).filter(models.Employee.employee_id == employee_id).first():
+                sequence += 1
+                employee_id = f"EMP-{db_user.id}-{sequence:03d}"
+            
             first_employee = models.Employee(
+                employee_id=employee_id,  # Generated unique employee ID
                 bakery_id=db_user.id,
                 name=contact_person,
+                email=email,  # Use bakery owner's email for first employee
                 role="Owner",
                 start_date=date.today(),  # ✅ Set start date to today
                 hashed_password=hashed_emp_password
@@ -149,7 +233,7 @@ def create_user(
             db.add(first_employee)
             db.commit()
             db.refresh(first_employee)
-            print(f"✅ EMPLOYEE CREATED: {first_employee.name} (ID: {first_employee.id}, bakery_id: {first_employee.bakery_id}, password_set: {bool(first_employee.hashed_password)})")
+            print(f"✅ EMPLOYEE CREATED: {first_employee.name} (ID: {first_employee.id}, Employee ID: {first_employee.employee_id}, bakery_id: {first_employee.bakery_id}, password_set: {bool(first_employee.hashed_password)})")
         except Exception as e:
             print(f"❌ ERROR creating first employee: {str(e)}")
             import traceback
@@ -230,7 +314,17 @@ def change_user_password(db: Session, user_id: int, current_password: str, new_p
 
     if new_password != confirm_password:
         raise HTTPException(status_code=400, detail="New passwords do not match")
+    
+    # 🔐 PREVENT REUSING LAST 5 PASSWORDS
+    if check_password_history(db, user_id, new_password, is_employee=False):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot reuse any of your last 5 passwords. Please choose a different password for security reasons."
+        )
 
+    # Save old password to history before updating
+    save_password_to_history(db, user_id, user.hashed_password, is_employee=False)
+    
     user.hashed_password = pwd_context.hash(new_password)
     db.commit()
     return {"message": "Password updated successfully"}
@@ -247,7 +341,7 @@ def authenticate_user(db: Session, email: str, password: str):
 def seed_admin_user(db: Session):
     from .models import User
 
-    admin_email = "admin@admin.com"
+    admin_email = "doughnation04@gmail.com"
     existing_admin = db.query(User).filter(User.email == admin_email).first()
 
     if existing_admin:
@@ -264,7 +358,8 @@ def seed_admin_user(db: Session):
         hashed_password=pwd_context.hash("admin1234"), 
         profile_picture="uploads/profile_pictures/admin_profile.png",
         proof_of_validity="uploads/proofs/default_proof.pdf",
-        verified=True
+        verified=True,
+        using_default_password=True  # Flag admin as using default password
     )
 
     db.add(default_admin)

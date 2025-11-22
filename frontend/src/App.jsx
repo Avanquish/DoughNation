@@ -5,6 +5,7 @@ import BakeryDashboardRoute from "./routes/BakeryDashboardRoute";
 
 import Login from './pages/Login';
 import EmployeeChangePassword from './pages/EmployeeChangePassword';
+import AdminForcePasswordChange from './pages/AdminForcePasswordChange';
 import Home from './pages/Home';
 import Register from './pages/Register';
 import BakeryDashboard from "./pages/BakeryDashboard";
@@ -22,6 +23,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/employee-change-password" element={<EmployeeProtectedRoute><EmployeeChangePassword /></EmployeeProtectedRoute>} />
+          <Route path="/admin-force-password-change" element={<AdminForcePasswordChange />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/privacy-terms" element={<PrivacyTerms/>} />

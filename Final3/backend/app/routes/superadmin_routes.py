@@ -25,6 +25,7 @@ from app.auth import get_current_user, pwd_context
 from app.email_utils import send_email
 import json
 from app import database, auth
+from app.timezone_utils import now_ph, today_ph, get_day_start_ph, get_day_end_ph
 
 router = APIRouter(prefix="/admin", tags=["Super Admin"]) 
 
@@ -51,7 +52,7 @@ class NotificationCreate(BaseModel):
     notification_type: str
     target_all: bool = False
     target_role: Optional[str] = None  # "Bakery" or "Charity"
-    target_user_id: Optional[int] = None
+    target_user_ids: Optional[List[int]] = None
     send_email: bool = False
     priority: str = "normal"
     expires_at: Optional[datetime] = None
@@ -125,7 +126,7 @@ def log_audit_event(
         "event_type": event_type,
         "description": description,
         "user_id": actor_id,
-        "timestamp": datetime.utcnow(),
+        "timestamp": now_ph(),
         "severity": severity,
         "event_metadata": json.dumps(full_event_data) if full_event_data else None
     })
@@ -175,21 +176,21 @@ def update_user_status(
     # Update user status
     user.status = new_status
     user.status_reason = status_update.reason
-    user.status_changed_at = datetime.utcnow()
+    user.status_changed_at = now_ph()
     user.status_changed_by = current_admin.id
     
     # Handle specific status types
     if new_status == "Suspended":
         if status_update.duration_days:
-            user.suspended_until = datetime.utcnow() + timedelta(days=status_update.duration_days)
+            user.suspended_until = now_ph() + timedelta(days=status_update.duration_days)
         user.verified = False  # Disable access
         
     elif new_status == "Banned":
-        user.banned_at = datetime.utcnow()
+        user.banned_at = now_ph()
         user.verified = False
         
     elif new_status == "Deactivated":
-        user.deactivated_at = datetime.utcnow()
+        user.deactivated_at = now_ph()
         user.verified = False
         
     elif new_status == "Active":
@@ -527,7 +528,7 @@ def export_audit_logs(
         spaceAfter=12
     )
     
-    meta_info = f"<b>Generated:</b> {datetime.utcnow().strftime('%B %d, %Y at %H:%M:%S UTC')} | "
+    meta_info = f"<b>Generated:</b> {now_ph().strftime('%B %d, %Y at %H:%M:%S PHT')} | "
     meta_info += f"<b>By:</b> {current_admin.name} | "
     meta_info += f"<b>Total Records:</b> {len(logs)}"
     
@@ -676,7 +677,7 @@ def export_audit_logs(
     )
     footer = Paragraph(
         f"<i>This is an official audit log report from DoughNation System. "
-        f"Report generated on {datetime.utcnow().strftime('%B %d, %Y')}.  </i>",
+        f"Report generated on {now_ph().strftime('%B %d, %Y')}.  </i>",
         footer_style
     )
     elements.append(footer)
@@ -686,7 +687,7 @@ def export_audit_logs(
     buffer.seek(0)
     
     # Generate filename with timestamp
-    filename = f"DoughNation_Audit_Logs_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.pdf"
+    filename = f"DoughNation_Audit_Logs_{now_ph().strftime('%Y%m%d_%H%M%S')}.pdf"
     
     # Return as streaming response
     return StreamingResponse(
@@ -737,11 +738,11 @@ def send_notification(
         notification_type=notification.notification_type,
         target_all=notification.target_all,
         target_role=notification.target_role,
-        target_user_id=notification.target_user_id,
+        target_user_id=notification.target_user_ids[0] if notification.target_user_ids else None,  # Store first ID for backward compatibility
         send_email=notification.send_email,
         send_in_app=True,
         sent_by_admin_id=current_admin.id,
-        sent_at=datetime.utcnow(),
+        sent_at=now_ph(),
         priority=notification.priority,
         expires_at=notification.expires_at
     )
@@ -753,20 +754,26 @@ def send_notification(
     recipients = []
     
     if notification.target_all:
-        recipients = db.query(models.User).filter(models.User.role != "Admin").all()
+        recipients = db.query(models.User).filter(
+            models.User.role != "Admin",
+            models.User.verified == True
+        ).all()
     elif notification.target_role:
-        recipients = db.query(models.User).filter(models.User.role == notification.target_role).all()
-    elif notification.target_user_id:
-        user = db.query(models.User).filter(models.User.id == notification.target_user_id).first()
-        if user:
-            recipients = [user]
+        recipients = db.query(models.User).filter(
+            models.User.role == notification.target_role,
+            models.User.verified == True
+        ).all()
+    elif notification.target_user_ids:  # FIXED: Check target_user_ids
+        recipients = db.query(models.User).filter(
+            models.User.id.in_(notification.target_user_ids)
+        ).all()
     
     # Create notification receipts for in-app delivery
     for recipient in recipients:
         receipt = admin_models.NotificationReceipt(
             notification_id=notif.id,
             user_id=recipient.id,
-            delivered_at=datetime.utcnow()
+            delivered_at=now_ph()
         )
         db.add(receipt)
         
@@ -795,7 +802,8 @@ def send_notification(
             "notification_id": notif.id,
             "recipient_count": len(recipients),
             "target_all": notification.target_all,
-            "target_role": notification.target_role
+            "target_role": notification.target_role,
+            "target_user_ids": notification.target_user_ids
         }
     )
     
@@ -805,7 +813,6 @@ def send_notification(
         "recipients_count": len(recipients),
         "sent_at": notif.sent_at
     }
-
 
 @router.get("/notifications/history")
 def get_notification_history(
@@ -838,6 +845,38 @@ def get_notification_history(
         ]
     }
 
+@router.get("/users")
+def get_all_users(
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(get_current_user)
+):
+    """
+    Get all verified users (excluding Admins) for notification targeting.
+    Super Admin only.
+    """
+    require_super_admin(current_admin)
+    
+    # Fetch all verified users except Admins
+    users = db.query(models.User)\
+        .filter(
+            models.User.role != "Admin",
+            models.User.verified == True
+        )\
+        .order_by(models.User.name)\
+        .all()
+    
+    return {
+        "users": [
+            {
+                "id": user.id,
+                "name": user.name,
+                "email": user.email,
+                "role": user.role,
+                "status": user.status
+            }
+            for user in users
+        ]
+    }
 
 # ==================== 4. EMERGENCY OVERRIDE ACTIONS ====================
 
@@ -881,7 +920,7 @@ def emergency_password_reset(
         old_value="[password_hash]",
         new_value="[new_password_hash]",
         status="executed",
-        executed_at=datetime.utcnow()
+        executed_at=now_ph()
     )
     db.add(override)
     db.commit()
@@ -979,7 +1018,7 @@ def create_ownership_transfer(
     # Calculate expiration for temporary transfers
     expires_at = None
     if transfer.is_temporary and transfer.duration_days:
-        expires_at = datetime.utcnow() + timedelta(days=transfer.duration_days)
+        expires_at = now_ph() + timedelta(days=transfer.duration_days)
     
     # Create ownership transfer record
     ownership_transfer = admin_models.OwnershipTransfer(
@@ -1011,7 +1050,7 @@ def create_ownership_transfer(
         new_value=f"New Owner: {employee_name} ({employee_email})",
         transferred_to_employee_id=transfer.to_employee_id,
         status="executed",
-        executed_at=datetime.utcnow(),
+        executed_at=now_ph(),
         event_data={
             "transfer_type": transfer.transfer_type,
             "is_temporary": transfer.is_temporary,
@@ -1246,22 +1285,27 @@ def get_admin_dashboard_analytics(
     # Donation statistics
     total_donations = db.query(models.Donation).count()
     
-    # Recent activity (last 7 days)
-    week_ago = datetime.utcnow() - timedelta(days=7)
+    # Recent activity (last 7 days) - Philippines timezone
+    week_ago = now_ph() - timedelta(days=7)
     new_users_week = db.query(models.User).filter(
         models.User.created_at >= week_ago.date(),
         models.User.role != "Admin"
     ).count()
     
-    # Audit log statistics
-    total_events = db.query(admin_models.AuditLog).count()
-    critical_events = db.query(admin_models.AuditLog).filter(
-        admin_models.AuditLog.severity == "critical"
+    # Audit log statistics - Query from SystemEvent table
+    total_events = db.query(models.SystemEvent).count()
+    critical_events = db.query(models.SystemEvent).filter(
+        models.SystemEvent.severity == "critical"
     ).count()
     
-    failed_logins_today = db.query(admin_models.AuditLog).filter(
-        admin_models.AuditLog.event_type == "failed_login",
-        func.date(admin_models.AuditLog.timestamp) == date.today()
+    # Get today's date range (00:00:00 to 23:59:59) in Philippines timezone
+    today_start = get_day_start_ph()
+    today_end = get_day_end_ph()
+    
+    failed_logins_today = db.query(models.SystemEvent).filter(
+        models.SystemEvent.event_type == "failed_login",
+        models.SystemEvent.timestamp >= today_start,
+        models.SystemEvent.timestamp <= today_end
     ).count()
     
     return {
@@ -1301,7 +1345,7 @@ def get_system_trends(
     """
     require_super_admin(current_admin)
     
-    start_date = datetime.utcnow() - timedelta(days=days)
+    start_date = now_ph() - timedelta(days=days)
     
     # This would ideally query SystemAnalytics table if populated
     # For now, return basic trend data

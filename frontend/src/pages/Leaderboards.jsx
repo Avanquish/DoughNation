@@ -15,12 +15,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
+// UI-only pagination for leaderboards
+const ITEMS_PER_PAGE = 10;
+
 const Leaderboards = () => {
   const [bakeryLeaderboard, setBakeryLeaderboard] = useState([]);
   const [charityLeaderboard, setCharityLeaderboard] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("bakeries");
+
+  // page states
+  const [bakeryPage, setBakeryPage] = useState(0);
+  const [charityPage, setCharityPage] = useState(0);
 
   // Fetch all leaderboard data on mount
   useEffect(() => {
@@ -57,6 +64,25 @@ const Leaderboards = () => {
       </div>
     );
   }
+
+  // pagination values (always max 10 per page)
+  const bakeryTotalPages = Math.max(
+    1,
+    Math.ceil((bakeryLeaderboard.length || 0) / ITEMS_PER_PAGE) || 1
+  );
+  const charityTotalPages = Math.max(
+    1,
+    Math.ceil((charityLeaderboard.length || 0) / ITEMS_PER_PAGE) || 1
+  );
+
+  const bakeryPageData = bakeryLeaderboard.slice(
+    bakeryPage * ITEMS_PER_PAGE,
+    bakeryPage * ITEMS_PER_PAGE + ITEMS_PER_PAGE
+  );
+  const charityPageData = charityLeaderboard.slice(
+    charityPage * ITEMS_PER_PAGE,
+    charityPage * ITEMS_PER_PAGE + ITEMS_PER_PAGE
+  );
 
   const RankBadge = ({ rank }) => {
     if (rank === 1)
@@ -228,7 +254,13 @@ const Leaderboards = () => {
 
       {/* Leaderboard Tabs */}
       <div className="rounded-3xl bg-gradient-to-br overflow-hidden">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs
+          value={activeTab}
+          onValueChange={(val) => {
+            setActiveTab(val);
+          }}
+          className="w-full"
+        >
           {/* Header with Tabs */}
           <div className="px-2 pt-2 pb-4 border-b border-[#e8d8c2]/70">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -253,16 +285,85 @@ const Leaderboards = () => {
 
           {/* Tab Content */}
           <div className="p-6">
-            <TabsContent value="bakeries" className="mt-0">
-              <LeaderboardTable data={bakeryLeaderboard} type="bakery" />
-              <p className="mt-4 text-center text-[#6b4b2b]/70 text-xs">
+            {/* Bakeries tab with pagination */}
+            <TabsContent value="bakeries" className="mt-0 space-y-4">
+              <LeaderboardTable data={bakeryPageData} type="bakery" />
+
+              <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-[11px] sm:text-xs text-[#6b4b2b]/80">
+                  Page {bakeryPage + 1} of {bakeryTotalPages} • Showing{" "}
+                  {bakeryPageData.length} of {bakeryLeaderboard.length} bakeries
+                </div>
+
+                <div className="flex items-center gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setBakeryPage((prev) => Math.max(0, prev - 1))
+                    }
+                    disabled={bakeryPage === 0}
+                    className="inline-flex items-center justify-center rounded-full border border-[#f2d4b5] bg-white px-4 py-1.5 text-xs font-medium text-[#6b4b2b] shadow-sm hover:bg-[#FFF6EC] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setBakeryPage((prev) =>
+                        prev + 1 >= bakeryTotalPages ? prev : prev + 1
+                      )
+                    }
+                    disabled={bakeryPage + 1 >= bakeryTotalPages}
+                    className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] px-4 py-1.5 text-xs font-semibold text-white shadow-md shadow-[#BF7327]/25 ring-1 ring-white/60 hover:-translate-y-0.5 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+
+              <p className="text-center text-[#6b4b2b]/70 text-xs">
                 Rankings based on total donated items (completed donations only)
               </p>
             </TabsContent>
 
-            <TabsContent value="charities" className="mt-0">
-              <LeaderboardTable data={charityLeaderboard} type="charity" />
-              <p className="mt-4 text-center text-[#6b4b2b]/70 text-xs">
+            {/* Charities tab with pagination */}
+            <TabsContent value="charities" className="mt-0 space-y-4">
+              <LeaderboardTable data={charityPageData} type="charity" />
+
+              <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-[11px] sm:text-xs text-[#6b4b2b]/80">
+                  Page {charityPage + 1} of {charityTotalPages} • Showing{" "}
+                  {charityPageData.length} of {charityLeaderboard.length}{" "}
+                  charities
+                </div>
+
+                <div className="flex items-center gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCharityPage((prev) => Math.max(0, prev - 1))
+                    }
+                    disabled={charityPage === 0}
+                    className="inline-flex items-center justify-center rounded-full border border-[#f2d4b5] bg-white px-4 py-1.5 text-xs font-medium text-[#6b4b2b] shadow-sm hover:bg-[#FFF6EC] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCharityPage((prev) =>
+                        prev + 1 >= charityTotalPages ? prev : prev + 1
+                      )
+                    }
+                    disabled={charityPage + 1 >= charityTotalPages}
+                    className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] px-4 py-1.5 text-xs font-semibold text-white shadow-md shadow-[#BF7327]/25 ring-1 ring-white/60 hover:-translate-y-0.5 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+
+              <p className="text-center text-[#6b4b2b]/70 text-xs">
                 Rankings based on total received items (completed donations
                 only)
               </p>

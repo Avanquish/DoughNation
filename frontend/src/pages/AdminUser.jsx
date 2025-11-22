@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 
 const API = "http://localhost:8000"; // adjust if needed
 
+// 🔹 UI CONSTANT: how many rows per page in pending table
+const PENDING_PAGE_SIZE = 10;
+
 const AdminUser = () => {
   const [pendingUsers, setPendingUsers] = useState([]);
   const [users, setUsers] = useState([]);
@@ -19,6 +22,9 @@ const AdminUser = () => {
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectUserId, setRejectUserId] = useState(null);
   const [rejectionReason, setRejectionReason] = useState("");
+
+  // 🔹 UI: Pagination state for pending users table
+  const [pendingPage, setPendingPage] = useState(0);
 
   // ✅ Fetch pending users (with token)
   useEffect(() => {
@@ -50,6 +56,15 @@ const AdminUser = () => {
       }
     })();
   }, []);
+
+  // 🔹 UI helper: length of pendingUsers
+  useEffect(() => {
+    const maxPage = Math.max(
+      0,
+      Math.ceil(pendingUsers.length / PENDING_PAGE_SIZE) - 1
+    );
+    setPendingPage((prev) => Math.min(prev, maxPage));
+  }, [pendingUsers.length]);
 
   // ✅ Approve user (unchanged backend)
   const handleVerify = async (id) => {
@@ -103,7 +118,11 @@ const AdminUser = () => {
         { reason: rejectionReason },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      Swal.fire("Rejected!", "User has been rejected and notified via email.", "info");
+      Swal.fire(
+        "Rejected!",
+        "User has been rejected and notified via email.",
+        "info"
+      );
       setPendingUsers((prev) => prev.filter((u) => u.id !== rejectUserId));
       setRejectModalOpen(false);
       setRejectUserId(null);
@@ -141,7 +160,6 @@ const AdminUser = () => {
 
   // ======== helpers: proof url + type detection (UI only) ========
   const getProofUrl = (u) => {
-    // your original used u.proof_file — keep that, but accept a few aliases safely
     const raw =
       u?.proof_file ??
       u?.proof_url ??
@@ -155,6 +173,29 @@ const AdminUser = () => {
   };
   const isImage = (url) => /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(url);
   const isPDF = (url) => /\.pdf(\?.*)?$/i.test(url);
+
+  // 🔹 UI helper:"creation/registered" date field for user
+  const getCreatedAtRaw = (u) =>
+    u?.created_at ??
+    u?.createdAt ??
+    u?.creation_date ??
+    u?.created ??
+    u?.createdDate ??
+    u?.registered_at ??
+    u?.registeredAt ??
+    null;
+
+  // 🔹 UI helper: format registration date
+  const formatCreatedDate = (value) => {
+    if (!value) return null;
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "2-digit",
+      year: "numeric",
+    });
+  };
 
   // open viewer
   const openProof = (user) => {
@@ -175,6 +216,20 @@ const AdminUser = () => {
     () => (proofFor ? getProofUrl(proofFor) : null),
     [proofFor]
   );
+
+  // 🔹 UI: derived pagination values for pending users
+  const totalPendingPages = Math.max(
+    1,
+    Math.ceil(pendingUsers.length / PENDING_PAGE_SIZE)
+  );
+  const paginatedPendingUsers = useMemo(() => {
+    const start = pendingPage * PENDING_PAGE_SIZE;
+    return pendingUsers.slice(start, start + PENDING_PAGE_SIZE);
+  }, [pendingUsers, pendingPage]);
+
+  const canPrevPending = pendingPage > 0;
+  const canNextPending =
+    (pendingPage + 1) * PENDING_PAGE_SIZE < pendingUsers.length;
 
   return (
     <div className="space-y-6">
@@ -239,6 +294,10 @@ const AdminUser = () => {
                 <table className="w-full text-sm">
                   <thead className="bg-[#EADBC8] text-[#4A2F17]">
                     <tr className="text-left">
+                      {/* 🔹 NEW COLUMN: Registered date (before Name) */}
+                      <th className="p-3 font-semibold whitespace-nowrap">
+                        Registered
+                      </th>
                       <th className="p-3 font-semibold">Name</th>
                       <th className="p-3 font-semibold">Email</th>
                       <th className="p-3 font-semibold">Role</th>
@@ -247,14 +306,28 @@ const AdminUser = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#f2d4b5]">
-                    {pendingUsers.map((u) => {
+                    {paginatedPendingUsers.map((u) => {
                       const url = getProofUrl(u);
                       const reviewed = reviewedProof.has(u.id);
+                      const createdRaw = getCreatedAtRaw(u);
+                      const createdDateLabel = formatCreatedDate(createdRaw);
+
                       return (
                         <tr
                           key={u.id}
                           className="odd:bg-white even:bg-white/80 hover:bg-[#fff6ec] transition-colors"
                         >
+                          {/* 🔹 Cell for Registered date */}
+                          <td className="p-3 align-top">
+                            {createdDateLabel ? (
+                              <span className="text-xs font-semibold text-[#4A2F17] whitespace-nowrap">
+                                {createdDateLabel}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-[#8b6a44]">—</span>
+                            )}
+                          </td>
+
                           <td className="p-3 text-[#3b2a18]">{u.name}</td>
                           <td className="p-3 text-[#3b2a18]">{u.email}</td>
                           <td className="p-3 text-[#3b2a18]">{u.role}</td>
@@ -373,6 +446,37 @@ const AdminUser = () => {
               </p>
             </div>
           )}
+
+          {/* 🔹 UI: Pagination footer (Prev / Next) */}
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-xs text-[#8b6a44]">
+              Page{" "}
+              <span className="font-semibold">
+                {pendingUsers.length === 0 ? 1 : pendingPage + 1}
+              </span>{" "}
+              of <span className="font-semibold">{totalPendingPages}</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => canPrevPending && setPendingPage((p) => p - 1)}
+                disabled={!canPrevPending}
+                className="rounded-full px-4 py-1 text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-white border border-[#f2d4b5] text-[#6b4b2b]"
+              >
+                Previous
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => canNextPending && setPendingPage((p) => p + 1)}
+                disabled={!canNextPending}
+                className="rounded-full px-4 py-1 text-xs sm:text-sm bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -404,7 +508,7 @@ const AdminUser = () => {
               </p>
             </div>
 
-            {/* Content (scrollable) */}
+            {/* Content */}
             <div className="p-4 sm:p-5 flex-1 overflow-auto bg-white">
               {proofUrl ? (
                 isImage(proofUrl) ? (

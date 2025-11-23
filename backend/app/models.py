@@ -4,14 +4,15 @@ from app.database import Base
 from datetime import datetime, date
 import enum
 from enum import Enum as PyEnum
+from app.timezone_utils import now_ph
 
 class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    role = Column(String, nullable=False)  # Bakery or Charity
+    role = Column(String, nullable=False)  # Bakery, Charity, or Admin
     name = Column(String, nullable=False)
-    email = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)  # Now accepts any email (Gmail, etc.)
     contact_person = Column(String, nullable=False)
     contact_number = Column(String, nullable=False)
     address = Column(String, nullable=False)
@@ -26,7 +27,33 @@ class User(Base):
     longitude = Column(Float, nullable=True)
     notification_radius_km = Column(Float, default=10)  # optional max radius
     
+    # Admin verification (Bakery/Charity accounts need admin approval)
     verified = Column(Boolean, default=False)
+    
+    # Account Status Management (Super Admin feature)
+    status = Column(String, default="Pending", nullable=False)  # Active, Pending, Suspended, Banned, Deactivated, Rejected
+    status_reason = Column(Text, nullable=True)  # Reason for suspension/ban/rejection
+    status_changed_at = Column(DateTime, nullable=True)
+    status_changed_by = Column(Integer, nullable=True)  # Admin ID who changed status
+    suspended_until = Column(DateTime, nullable=True)  # For temporary suspensions
+    banned_at = Column(DateTime, nullable=True)
+    deactivated_at = Column(DateTime, nullable=True)
+    
+    # Email verification fields
+    email_verified = Column(Boolean, default=False)  # Tracks if user verified their email
+    verification_token = Column(String, nullable=True)  # Token for email verification
+    verification_token_expires = Column(DateTime, nullable=True)  # Token expiration
+    
+    # Password reset fields
+    reset_token = Column(String, nullable=True)  # Token for password reset
+    reset_token_expires = Column(DateTime, nullable=True)  # Reset token expiration
+    
+    # Default password tracking (for admin security)
+    using_default_password = Column(Boolean, default=False)  # True if user is still using seeded/default password
+    
+    # OTP fields for forgot password
+    forgot_password_otp = Column(String, nullable=True)  # 6-digit OTP code
+    forgot_password_otp_expires = Column(DateTime, nullable=True)  # OTP expiration time
 
      # Parent side of the relationship
     inventory_items = relationship("BakeryInventory", back_populates="bakery")
@@ -37,7 +64,7 @@ class User(Base):
     sent_messages = relationship("Message", back_populates="sender", foreign_keys="Message.sender_id")
     received_messages = relationship("Message", back_populates="receiver", foreign_keys="Message.receiver_id")
 
-    complaints = relationship("Complaint", back_populates="user")
+    complaints = relationship("Complaint", back_populates="user", foreign_keys="Complaint.user_id")
 
     badges = relationship("UserBadge", back_populates="user", cascade="all, delete-orphan")
     badge_progress = relationship("BadgeProgress", back_populates="user", cascade="all, delete-orphan")
@@ -52,7 +79,7 @@ class BakeryInventory(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_by_employee_id = Column(Integer, ForeignKey("employees.id"), nullable=True)  # Track which employee created it
+    created_by_employee_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True)  # Track which employee created it
     product_id = Column(String, unique=True, index=True)
     name = Column(String, nullable=False)
     image = Column(String, nullable=True)
@@ -73,10 +100,8 @@ class BakeryInventory(Base):
     
 class EmployeeRole(str, enum.Enum):
     """Employee roles with access control levels"""
-    OWNER = "Owner"
     MANAGER = "Manager"
-    FULL_TIME = "Full-time"
-    PART_TIME = "Part-time"
+    EMPLOYEE = "Employee"
 
 
 class Employee(Base):
@@ -86,12 +111,19 @@ class Employee(Base):
     employee_id = Column(String, unique=True, nullable=False, index=True)  # Unique Employee ID (e.g., EMP-5-001)
     bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
-    role = Column(String, nullable=False)  # Owner, Manager, Full-time, Part-time
+    email = Column(String, unique=True, nullable=False, index=True)  # Employee's Gmail address
+    role = Column(String, nullable=False)  # Manager, Employee
     start_date = Column(Date, nullable=False)
     profile_picture = Column(String, nullable=True)
     hashed_password = Column(String, nullable=True)  # Password for employee login (optional, can be None for new employees)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    initial_password_hash = Column(String, nullable=True)  # Store initial password hash to prevent reuse
+    password_changed = Column(Boolean, default=False)  # Track if employee has changed their password
+    created_at = Column(DateTime, default=now_ph)
+    updated_at = Column(DateTime, default=now_ph, onupdate=now_ph)
+    
+    # OTP fields for forgot password
+    forgot_password_otp = Column(String, nullable=True)  # 6-digit OTP code
+    forgot_password_otp_expires = Column(DateTime, nullable=True)  # OTP expiration time
     
     # Relationships
     bakery = relationship("User", backref="employees")
@@ -105,7 +137,7 @@ class Donation(Base):
     id = Column(Integer, primary_key=True, index=True)
     bakery_inventory_id = Column(Integer, ForeignKey("bakery_inventory.id", ondelete="CASCADE"), nullable=False)
     bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_by_employee_id = Column(Integer, ForeignKey("employees.id"), nullable=True)  # Track which employee created it
+    created_by_employee_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True)  # Track which employee created it
     name = Column(String, nullable=False)
     image = Column(String, nullable=True)
     quantity = Column(Integer, nullable=False)
@@ -128,7 +160,7 @@ class DonationRequest(Base):
     bakery_inventory_id = Column(Integer, ForeignKey("bakery_inventory.id"))
     charity_id = Column(Integer, ForeignKey("users.id"))
     bakery_id = Column(Integer, ForeignKey("users.id"))
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=now_ph)
     status = Column(String, default="pending") 
     tracking_status = Column(String, default="preparing")
     tracking_completed_at = Column(Date, nullable=True) 
@@ -175,7 +207,7 @@ class DirectDonation(Base):
     feedback_submitted = Column(Boolean, default=False)
     donated_by = Column(String, nullable=True) 
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=now_ph)
 
     # Relationships
     bakery_inventory = relationship("BakeryInventory")
@@ -206,7 +238,7 @@ class NotificationRead(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     notif_id = Column(String, index=True)
-    read_at = Column(DateTime, default=datetime.utcnow)
+    read_at = Column(DateTime, default=now_ph)
     
     user = relationship("User", backref="read_notifications")
 
@@ -221,7 +253,7 @@ class Feedback(Base):
     bakery_id = Column(Integer, ForeignKey("users.id"))
     message = Column(String, nullable=False)
     rating = Column(Integer, nullable=True) 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=now_ph)
     product_name = Column(String, nullable=True)
     product_quantity = Column(Integer, nullable=True)
     product_image = Column(String, nullable=True)
@@ -246,10 +278,15 @@ class Complaint(Base):
     subject = Column(String(255), nullable=False)
     description = Column(Text, nullable=False)
     status = Column(Enum(ComplaintStatus), default=ComplaintStatus.pending)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=now_ph)
+    updated_at = Column(DateTime, default=now_ph, onupdate=now_ph)
+    
+    # Admin reply fields
+    admin_reply = Column(Text, nullable=True)
+    replied_at = Column(DateTime, nullable=True)
+    replied_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 
-    user = relationship("User", back_populates="complaints")
+    user = relationship("User", back_populates="complaints", foreign_keys=[user_id])
 
 #--------Badges------------    
 class Badge(Base):
@@ -294,6 +331,28 @@ class BadgeProgress(Base):
     user = relationship("User", back_populates="badge_progress")
     badge = relationship("Badge")
 
+class PasswordHistory(Base):
+    """Track password history for Users to prevent password reuse"""
+    __tablename__ = "password_history"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    hashed_password = Column(String, nullable=False)  # Historical password hash
+    changed_at = Column(DateTime, default=now_ph, nullable=False)
+    
+    user = relationship("User", backref="password_history")
+
+class EmployeePasswordHistory(Base):
+    """Track password history for Employees to prevent password reuse"""
+    __tablename__ = "employee_password_history"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
+    hashed_password = Column(String, nullable=False)  # Historical password hash
+    changed_at = Column(DateTime, default=now_ph, nullable=False)
+    
+    employee = relationship("Employee", backref="password_history")
+
 class SystemEvent(Base):
     __tablename__ = "system_events"
     
@@ -301,7 +360,7 @@ class SystemEvent(Base):
     event_type = Column(String, index=True, nullable=False)  # "failed_login", "unauthorized_access", "sos_alert", "geofence_breach", "uptime", "downtime"
     description = Column(String, nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Nullable for system-wide events
-    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    timestamp = Column(DateTime, default=now_ph, index=True)
     severity = Column(String, default="info")  # "info", "warning", "critical"
     event_metadata = Column(String, nullable=True)  # JSON string for additional data (IP address, location, etc.)
     

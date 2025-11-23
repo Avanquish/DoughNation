@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import database, models
 from datetime import datetime, timedelta
+from app.timezone_utils import now_ph
 import math
 import httpx
 import os
@@ -38,7 +39,7 @@ async def geocode_address(address: str):
 # --- Trigger geofence manually for testing ---
 @router.get("/test/{bakery_id}")
 async def test_geofence(bakery_id: int, db: Session = Depends(database.get_db)):
-    print(f"[Geofence] Running for bakery {bakery_id}, cutoff = {datetime.utcnow() + timedelta(days=2)}")
+    print(f"[Geofence] Running for bakery {bakery_id}, cutoff = {now_ph() + timedelta(days=2)}")
 
     # Example: fetch charity users
     charities = db.query(models.User).filter(models.User.role == "Charity").all()

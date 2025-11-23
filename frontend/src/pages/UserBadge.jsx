@@ -58,6 +58,7 @@ const UserBadge = ({ currentUser }) => {
           border border-[#f2dec2]
           shadow-[0_6px_18px_rgba(82,46,14,.06)]
           text-sm text-[#7b5836]
+          flex items-center justify-center
         "
       >
         Loading badges...
@@ -74,6 +75,8 @@ const UserBadge = ({ currentUser }) => {
           border border-dashed border-[#e9d7bf]
           shadow-[0_6px_18px_rgba(82,46,14,.05)]
           flex items-center gap-3 text-[#7b5836]
+          justify-center sm:justify-start
+          text-center sm:text-left
         "
       >
         <div className="grid place-items-center w-10 h-10 rounded-xl bg-white/70 border border-[#f2e3cf]">
@@ -90,12 +93,25 @@ const UserBadge = ({ currentUser }) => {
   }
 
   return (
-    <div className="flex flex-wrap gap-3">
+    // === BADGE GRID LAYOUT (UI only) ===
+    <div
+      className="
+        w-full
+        grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5
+        gap-3 sm:gap-4
+        max-h-[260px] sm:max-h-none
+        overflow-y-auto pr-1
+      "
+    >
       {badges.map((userBadge) => (
+        // === SINGLE BADGE CARD (UI only) ===
         <div
           key={userBadge.id}
           className="
-            flex flex-col items-center p-2 rounded-xl w-20
+            flex flex-col items-center justify-center
+            px-3 py-2
+            rounded-xl
+            w-full min-h-[96px]
             bg-[linear-gradient(180deg,#FFFDF8_0%,#FFF6EA_100%)]
             border border-[#f2e3cf]
             shadow-[0_2px_10px_rgba(145,86,24,.06)]
@@ -111,9 +127,21 @@ const UserBadge = ({ currentUser }) => {
                 : "/placeholder-badge.png"
             }
             alt={userBadge.badge?.name || "Badge"}
-            className="w-10 h-10 object-contain mb-1"
+            className="
+              w-12 h-12 object-contain mb-1
+            "
           />
-          <span className="text-[11px] text-center">
+          <span
+            className="
+              mt-1
+              text-[11px] sm:text-xs
+              font-semibold
+              text-center leading-tight
+              max-h-[2.6em]
+              overflow-hidden
+              text-[#5f4529]
+            "
+          >
             {userBadge.badge?.name || "Unknown"}
           </span>
         </div>

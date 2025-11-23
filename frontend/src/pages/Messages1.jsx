@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -16,6 +15,7 @@ import axios from "axios";
 
 /* ==== Config & helpers ==== */
 const API_URL = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
+const CHAT_PAGE_SIZE = 5; // how many chats per page in chat list
 
 const fileUrl = (path) => {
   if (!path) return "";
@@ -26,35 +26,59 @@ const fileUrl = (path) => {
 const mediaDataURL = (type, base64) =>
   type && base64 ? `data:${type};base64,${base64}` : "";
 
+/** Asia/Manila time formatting */
+// --- Helpers to normalize timestamps and render in Asia/Manila ---
+const toManilaDate = (ts) => {
+  if (!ts) return null;
+
+  // number => epoch ms
+  if (typeof ts === "number") return new Date(ts);
+
+  // string => ensure may timezone; if none, treat as UTC
+  const s = String(ts).trim().replace(" ", "T"); // normalize 'YYYY-MM-DD HH:mm:ss'
+  const hasTZ = /Z|[+-]\d{2}:\d{2}$/.test(s);
+  return new Date(hasTZ ? s : `${s}Z`);
+};
+
 const formatTime = (ts) => {
   try {
-    return new Date(ts).toLocaleTimeString([], {
+    const d = toManilaDate(ts);
+    if (!d || isNaN(d.getTime())) return String(ts);
+    return new Intl.DateTimeFormat("en-PH", {
       hour: "2-digit",
       minute: "2-digit",
-    });
+      hour12: true,
+      timeZone: "Asia/Manila",
+    }).format(d);
   } catch {
-    return ts;
+    return String(ts);
   }
 };
 
-const formatBytes = (bytes) => {
-  try {
-    if (bytes == null) return "";
-    const k = 1024,
-      u = ["KB", "MB", "GB", "TB"];
-    let i = -1;
-    if (Math.abs(bytes) < k) return bytes + " B";
-    do {
-      bytes /= k;
-      i++;
-    } while (Math.abs(bytes) >= k && i < u.length - 1);
-    return bytes.toFixed(1) + " " + u[i];
-  } catch {
-    return "";
-  }
+/** Helpers for day separators (Asia/Manila) */
+const dateInTz = (ts, tz = "Asia/Manila") =>
+  // convert to the same local day regardless of client timezone
+  new Date(new Date(ts).toLocaleString("en-US", { timeZone: tz }));
+
+const sameDay = (a, b) => {
+  const da = dateInTz(a);
+  const db = dateInTz(b);
+  return (
+    da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate()
+  );
 };
 
-/* ==== Theme ==== */
+const formatDayLabel = (ts) =>
+  dateInTz(ts).toLocaleDateString("en-PH", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+/* ==== Theme / UI ==== */
 const Styles = () => (
   <style>{`
     :root{
@@ -87,97 +111,154 @@ const Styles = () => (
       box-shadow: 0 4px 12px rgba(0,0,0,.06);
     }
 
+    /* === UI: chat list wrapper / modal === */
+    .chatlist-layer{
+      position:absolute;
+      right:0;
+      top:100%;
+      margin-top:8px;
+      z-index:9998;
+    }
 
     .chatlist-dropdown{
       width:360px; max-width:92vw; max-height:calc(100vh - 96px);
-      background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 18px 40px rgba(0,0,0,.18);
+      background:#fff; border:1px solid var(--line); border-radius:16px; box-shadow:0 18px 40px rgba(0,0,0,.18);
       transform:translateY(-6px); opacity:0; animation:clpop .16s ease forwards;
       display:flex; flex-direction:column; overflow:hidden;
     }
     @keyframes clpop{to{transform:translateY(0); opacity:1}}
 
-    .cl-head{display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--line); background:var(--cream)}
+    .cl-head{display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--line); background:var(--cream)}
     .cl-title{font-weight:800; font-size:18px; flex:1; color:var(--ink)}
-    .cl-icon{display:inline-flex; width:28px; height:28px; align-items:center; justify-content:center; border:1px solid var(--line); border-radius:8px; background:#fff; color:#7a4f1c}
-    .cl-icon:hover{background:#fff4e6}
-    .cl-search{padding:10px 12px; border-bottom:1px solid var(--line)}
-    .cl-search input{width:100%; border:1px solid #f2d4b5; background:#fff; padding:10px 12px; border-radius:9999px; outline:none}
+    .cl-close-btn{
+      margin-left:auto;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:30px;
+      height:30px;
+      border-radius:9999px;
+      border:1px solid #f2d4b5;
+      background:#fff;
+      box-shadow:0 1px 0 rgba(0,0,0,.03);
+      color:var(--ink);
+      cursor:pointer;
+    }
+    .cl-close-btn:hover{background:#fff4e6;}
+    .cl-search{padding:10px 14px; border-bottom:1px solid var(--line)}
+    .cl-search input{width:100%; border:1px solid #f2d4b5; background:#fff; padding:10px 12px; border-radius:9999px; outline:none; font-size:14px;}
     .cl-search input:focus{box-shadow:0 0 0 2px #E49A5233}
 
-    .cl-list{flex:1; min-height:0; overflow:auto}
-    .cl-row{padding:10px 12px; display:flex; gap:10px; align-items:flex-start; cursor:pointer}
+    .cl-list{flex:1; min-height:0; overflow:auto; background:#fff;}
+    .cl-row{padding:10px 14px; display:flex; gap:10px; align-items:flex-start; cursor:pointer; border-bottom:1px solid rgba(0,0,0,.03);}
+    .cl-row:last-of-type{border-bottom:0;}
     .cl-row:hover{background:#fff8e6}
     .avatar{width:42px; height:42px; border-radius:9999px; overflow:hidden; flex:0 0 auto; display:flex; align-items:center; justify-content:center; font-weight:800}
     .avatar.fallback{background:linear-gradient(180deg,#FFE7C5,#F7C489); color:#7a4f1c; border:1px solid #fff3e0}
-    .name{font-weight:700; color:var(--ink)}
+    .name{font-weight:700; color:var(--ink); font-size:14px;}
     .snippet{font-size:13px; color:#6b4b2b; opacity:.8}
     .dot{width:8px; height:8px; border-radius:9999px; background:var(--brand2)}
     .time{font-size:12px; color:#8b6b48}
-    .cl-foot{padding:10px 12px; border-top:1px solid var(--line); display:flex; justify-content:center}
+    .cl-foot{
+      padding:10px 14px;
+      border-top:1px solid var(--line);
+      background:#fffdf7;
+    }    
 
+    .seeall{font-size:13px;font-weight:600;color:#7a4f1c;padding:6px 12px;border-radius:9999px;border:1px solid #f2d4b5;background:#fffaf3;}
+    .seeall:hover{background:#ffe8c8;}
+
+    .page-nav{display:flex;align-items:center;justify-content:space-between;width:100%;gap:8px;}
+    .page-btn{font-size:12px;font-weight:600;color:#7a4f1c;padding:4px 10px;border-radius:9999px;border:1px solid #f2d4b5;background:#fff;}
+    .page-btn:disabled{opacity:.4;cursor:default;}
+    .page-label{flex:1;text-align:center;font-size:12px;color:#8b6b48;}
+
+    /* === UI: dock / chat box polish === */
     .dock-root{position:fixed; right:16px; bottom:16px; z-index:2100; pointer-events:none}
     .dock{
       width:380px; max-width:92vw; height:520px; max-height:calc(100vh - 64px);
-      background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 18px 40px rgba(0,0,0,.18);
+      background:linear-gradient(160deg,#ffffff 0%, #fffaf4 35%, #ffe8c8 100%);
+      border:1px solid var(--line); border-radius:18px; box-shadow:0 18px 40px rgba(0,0,0,.18);
       display:flex; flex-direction:column; overflow:hidden; pointer-events:auto;
       transform:translateY(8px); opacity:0; animation:dock .18s ease forwards;
     }
     @keyframes dock{to{transform:translateY(0); opacity:1}}
-    .dock-head{display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--line);
+    .dock-head{display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--line);
       background:linear-gradient(110deg,#ffffff 0%, #fff8ec 28%, #ffeccd 55%, #ffd7a6 100%)}
-    .avatar-sm{width:28px; height:28px; border-radius:9999px; overflow:hidden; display:flex; align-items:center; justify-content:center; font-weight:800; background:linear-gradient(180deg,#FFE7C5,#F7C489); color:#7a4f1c; border:1px solid #fff3e0}
+    .avatar-sm{width:30px; height:30px; border-radius:9999px; overflow:hidden; display:flex; align-items:center; justify-content:center; font-weight:800; background:linear-gradient(180deg,#FFE7C5,#F7C489); color:#7a4f1c; border:1px solid #fff3e0}
     .dock-title{font-weight:800; line-height:1.1; flex:1; min-width:0; color:var(--ink)}
+    .dock-actions{display:flex;align-items:center;gap:6px;}
 
     .pending-bar{display:flex; align-items:center; gap:8px; padding:6px 10px; background:#fffef9; border-bottom:1px solid #f4e4cf}
-    .pending-toggle{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:9999px; border:1px solid #f1d9b8; background:#fff; font-weight:700; color:#7a4f1c}
+    .pending-toggle{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:9999px; border:1px solid #f1d9b8; background:#fff; font-weight:700; color:#7a4f1c; font-size:12px;}
     .pending-list{padding:8px 10px; background:#fffdf6; border-bottom:1px solid #f4e4cf}
     .pend-row{display:flex; align-items:center; gap:10px; padding:6px 0}
     .pend-meta{flex:1; min-width:0}
     .pend-title{font-weight:700; color:#6b4b2b}
     .pend-sub{font-size:12px; color:#7a4f1c; opacity:.9}
     .pend-actions{display:flex; gap:6px}
-    .btn-mini{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:10px; border:1px solid #f2d4b5; background:#fff}
+    .btn-mini{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:10px; border:1px solid #f2d4b5; background:#fff; font-size:12px;}
     .btn-mini.accept{background:linear-gradient(90deg,var(--brand1),var(--brand2)); color:#fff; border-color:transparent}
     .btn-mini:disabled{opacity:0.5; cursor:not-allowed}
 
-    .dock-scroll{flex:1; overflow:auto; padding:16px; background:#fff7ec}
+    .dock-scroll{flex:1; overflow:auto; padding:16px 16px 18px; background:radial-gradient(circle at top,#fffaf3 0,#fff7ec 40%,#ffe8cf 100%);}
 
-    .msg-row{display:flex; align-items:center; gap:2px; margin:6px 0}
+    .msg-row{display:flex; align-items:flex-end; gap:6px; margin:8px 0}
     .msg-row.right{justify-content:flex-end}
-    .left-controls{position:relative; align-self:center}
-    .icon-btn-tiny{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;border:1px solid var(--line);background:#fff;color:#7a4f1c}
+    .msg-row.left{justify-content:flex-start}
+
+    /* context menu opens to the LEFT of the 3 dots */
+    .left-controls{ position:relative; align-self:flex-end; }
+    .icon-btn-tiny{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:8px;border:1px solid var(--line);background:#fff;color:#7a4f1c}
     .icon-btn-tiny:hover{background:#fff4e6}
+    .left-controls .ctx-menu{
+      position:absolute;
+      top:50%;
+      transform: translateY(-50%);
+      right: calc(100% + 8px);
+      left:auto;
+      min-width:160px; background:#fff; border:1px solid rgba(0,0,0,.1); box-shadow:0 12px 28px rgba(0,0,0,.16); border-radius:8px; overflow:hidden; z-index:30
+    }
+    .ctx-item{display:block; width:100%; text-align:left; padding:10px 12px; font-size:13px; color:#4a2f17; background:#fff; cursor:pointer}
+    .ctx-item:hover, .ctx-item:focus-visible{background:#ffe7c5}
 
     .bubble{
-      max-width:75%; padding:12px; border-radius:14px; word-break:break-word; overflow-wrap:anywhere;
-      box-shadow:0 1px 0 rgba(0,0,0,.04); position:relative; border:0;
+      max-width:75%; padding:10px 12px 8px; border-radius:18px; word-break:break-word; overflow-wrap:anywhere;
+      box-shadow:0 4px 8px rgba(0,0,0,.06); position:relative; border:0; font-size:14px;
     }
-    .bubble.me{ background:#FFE7C5; color:#4a2f17; border:1px solid #f4d9bf; }
-    .bubble.them{ background:#fff; color:#4a2f17; margin-right:auto; border:1px solid #f2d4b5; }
+    .msg-row.right .bubble{border-bottom-right-radius:6px;}
+    .msg-row.left .bubble{border-bottom-left-radius:6px;}
 
-    .media-wrap{border-radius:12px; overflow:hidden}
+    .bubble.me{
+      background:linear-gradient(135deg,#FFE7C5,#F6C17C);
+      color:#4a2f17;
+      border:1px solid #f4d9bf;
+    }
+    .bubble.them{
+      background:#fff;
+      color:#4a2f17;
+      margin-right:auto;
+      border:1px solid #f2d4b5;
+    }
+
+    .media-wrap{border-radius:12px; overflow:hidden; margin-bottom:4px;}
     .media-wrap img, .media-wrap video{display:block;width:100%;height:auto;max-height:420px}
     .bubble.me .media-caption,
     .bubble.me .media-caption a,
     .bubble.me .media-caption strong,
     .bubble.me .media-caption em{ color:#4a2f17; }
-    .media-caption{ display:block; margin-top:10px; background:transparent; border:0; color:inherit; line-height:1.25; max-width:100%; }
+    .media-caption{ display:block; margin-top:6px; background:transparent; border:0; color:inherit; line-height:1.3; max-width:100%; }
 
-    .ctx-menu{position:absolute; min-width:160px; background:#fff; border:1px solid rgba(0,0,0,.1); box-shadow:0 12px 28px rgba(0,0,0,.16); border-radius:8px; overflow:hidden; z-index:30}
-    .left-controls .ctx-menu{ top: calc(100% + 6px); left: 50%; transform: translateX(-50%); }
-    .ctx-item{display:block; width:100%; text-align:left; padding:10px 12px; font-size:13px; color:#4a2f17; background:#fff; cursor:pointer}
-    .ctx-item:hover, .ctx-item:focus-visible{background:#ffe7c5}
-
-    .meta{display:flex; align-items:center; gap:6px; justify-content:flex-end; margin-top:6px}
+    .meta{display:flex; align-items:center; gap:6px; justify-content:flex-end; margin-top:4px}
     .btime{font-size:11px; opacity:.75; color:#3d2a16}
     .readmark{font-size:11px; opacity:.65; color:#3d2a16}
     .readmark.sent{opacity:.55}
     .readmark.read{opacity:1; color:#000}
 
-    .dock-compose{display:flex; gap:8px; padding:8px; border-top:1px solid var(--line); background:#fff; align-items:center;}
-    .compose-group{flex:1 1 auto; display:flex; align-items:flex-start; gap:8px; border:1px solid #f2d4b5; background:#fff; border-radius:20px; padding:10px 14px; overflow:hidden; min-width:0; flex-wrap:wrap; box-shadow:0 1px 0 rgba(0,0,0,.03)}
-    .attach-btn{display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:9999px; border:1px solid #f2d4b5; background:transparent; flex:0 0 auto; align-self:center;}
-    .attach-btn:hover{background:#fff7ec}
+    .dock-compose{display:flex; gap:8px; padding:8px 10px; border-top:1px solid var(--line); background:#fffaf2; align-items:center;}
+    .compose-group{flex:1 1 auto; display:flex; align-items:flex-start; gap:8px; border:1px solid #f2d4b5; background:#fff; border-radius:20px; padding:8px 12px; overflow:hidden; min-width:0; flex-wrap:wrap; box-shadow:0 1px 0 rgba(0,0,0,.03)}
+    .attach-btn{display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:9999px; border:1px solid #f2d4b5; background:#fff7ec; flex:0 0 auto; align-self:center;}
+    .attach-btn:hover{background:#ffe8cf}
     .attach-chip{flex:0 1 55%; min-width:0; display:inline-flex; align-items:center; gap:6px; height:30px; padding:2px 10px; border-radius:9999px; background:#fff7ec; border:1px solid #f4d9bf; font-size:12px; color:#6b4b2b; box-shadow:inset 0 0 0 1px #fff}
     .attach-chip .thumb{width:20px; height:20px; border-radius:6px; overflow:hidden; display:flex; align-items:center; justify-content:center; border:1px solid #f1d6b7; background:#fff}
     .attach-chip .thumb img{width:100%; height:100%; object-fit:cover; border-radius:6px}
@@ -185,18 +266,54 @@ const Styles = () => (
     .attach-chip .remove-attach{margin-left:2px; display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:9999px; background:transparent; border:0}
     .attach-chip .remove-attach:hover{background:#ffe7c5}
 
-    .compose-input{flex:1 1 auto; border:0; outline:none; background:transparent; color:#4a2f17; min-width:0; width:0; font-size:16px; line-height:1.4; padding:4px 0 6px; min-height:24px; max-height:140px; overflow-y:auto; resize:none;}
+    .compose-input{flex:1 1 auto; border:0; outline:none; background:transparent; color:#4a2f17; min-width:0; width:0; font-size:15px; line-height:1.4; padding:4px 0 4px; min-height:24px; max-height:140px; overflow-y:auto; resize:none;}
     .compose-input::placeholder,
     .compose-input::-webkit-input-placeholder,
     .compose-input::-moz-placeholder,
-    .compose-input:-ms-input-placeholder{ color:#4a2f17; opacity:1; }
+    .compose-input:-ms-input-placeholder{ color:#4a2f17; opacity:0.7; }
 
     .compose-group.has-attach .attach-chip{ margin-right:8px; }
     .compose-group.has-attach .compose-input{ flex:1 0 180px; }
 
-    .dock-send{flex:0 0 auto; border-radius:9999px; padding:10px 16px; color:#fff; background:linear-gradient(90deg, var(--brand1), var(--brand2), var(--brand3)); box-shadow:0 6px 16px rgba(201,124,44,.22)}
+    .dock-send{flex:0 0 auto; border-radius:9999px; padding:10px 16px; font-size:14px; font-weight:700; color:#fff; background:linear-gradient(90deg, var(--brand1), var(--brand2), var(--brand3)); box-shadow:0 6px 16px rgba(201,124,44,.22); border:0;}
+    .dock-send:hover{filter:brightness(1.03);}
 
-    .scroll-btn{position:absolute; right:12px; bottom:70px; background:#ffffff; border:1px solid rgba(0,0,0,.08); border-radius:9999px; padding:6px 10px; font-weight:800; color:#7a4f1c; box-shadow:0 8px 18px rgba(0,0,0,.12)}
+    .scroll-btn{position:absolute; right:12px; bottom:70px; background:#ffffff; border:1px solid rgba(0,0,0,.08); border-radius:9999px; padding:6px 10px; font-weight:800; color:#7a4f1c; box-shadow:0 8px 18px rgba(0,0,0,.12); font-size:13px;}
+
+    /* Typing tray (no background bar) */
+    .typing-tray{ display:flex; align-items:center; gap:8px; padding:0 16px 6px; background:transparent !important; border:0 !important; box-shadow:none !important; }
+    .typing-dot{ width:6px; height:6px; border-radius:9999px; background:var(--brand2); animation: blink 1s infinite ease-in-out; flex:0 0 auto; }
+    .typing-text{ font-size:12px; font-weight:700; color:#1f1f1f; }
+    @keyframes blink{ 50%{ opacity:.3 } }
+
+    /* Deleted/tombstone bubble */
+    .bubble.tombstone{
+      background:#f7f7f7;
+      color:#6b7280;
+      border:1px dashed #e5e7eb;
+      font-style:italic;
+    }
+
+    /* === Responsive tweaks (mobile) === */
+    @media (max-width: 768px){
+      .chatlist-layer{ position: fixed; top: 0; right: 0; bottom: 0; left: 0; margin-top: 0; background: transparent; z-index: 9999; display:flex; align-items:center; justify-content:center; pointer-events: none; }
+      .chatlist-dropdown{ position: absolute; top: 50%; left: 4%; transform: translate(-50%, -50%); box-sizing: border-box; width: calc(100% - 32px); max-width: 360px; max-height: 80vh; margin: 0; border-radius: 22px; box-shadow: 0 18px 40px rgba(191,115,39,.25); pointer-events: auto; }
+
+      .dock-root{ right:0; left:0; bottom:0; top:auto; display:flex; align-items:flex-end; justify-content:center; }
+      .dock{ width:100%; max-width:100%; height:70vh; max-height:70vh; border-radius:18px 18px 0 0; box-shadow:0 -8px 24px rgba(0,0,0,.2); }
+      .dock-head{ padding:12px 16px; }
+      .dock-scroll{ padding:12px 12px 16px; }
+      .dock-compose{ padding:10px 12px 12px; }
+      .scroll-btn{ bottom:82px; right:16px; }
+    }
+      /* Centered day/date separator */
+      .day-sep{display:flex;justify-content:center;margin:10px 0}
+      .day-sep span{
+        font-size:12px;font-weight:700;color:#8b6b48;
+        background:#fff7ea;border:1px solid #f2d4b5;
+        padding:6px 10px;border-radius:9999px;
+        box-shadow:0 1px 0 rgba(0,0,0,.03);
+      }
   `}</style>
 );
 
@@ -206,6 +323,8 @@ export default function Messages({ currentUser: currentUserProp }) {
   const [openDock, setOpenDock] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [newMessage, setNewMessage] = useState("");
+  const [chatPage, setChatPage] = useState(0); // for Prev/Next pages
+  const [remoteTyping, setRemoteTyping] = useState(false); // UI-only indicator for peer typing
 
   /* Data State - All in Memory */
   const [messages, setMessages] = useState([]);
@@ -253,7 +372,6 @@ export default function Messages({ currentUser: currentUserProp }) {
 
   /* ---- Helper Functions ---- */
   const makeAuthOpts = () => {
-    // Check for employee token first, then bakery owner token
     const employeeToken = localStorage.getItem("employeeToken");
     const bakeryToken = localStorage.getItem("token");
     const token = employeeToken || bakeryToken || currentUser?.token;
@@ -262,27 +380,25 @@ export default function Messages({ currentUser: currentUserProp }) {
   };
 
   const getCurrentUserName = () => {
-  const employeeToken = localStorage.getItem("employeeToken");
-  const bakeryToken = localStorage.getItem("token");
-  const token = employeeToken || bakeryToken;
+    const employeeToken = localStorage.getItem("employeeToken");
+    const bakeryToken = localStorage.getItem("token");
+    const token = employeeToken || bakeryToken;
 
-  if (!token) return "Unknown";
+    if (!token) return "Unknown";
 
-  try {
-    const decoded = JSON.parse(atob(token.split(".")[1]));
-    
-    if (decoded.type === "employee") {
-      // Employee token
-      return decoded.employee_name || decoded.name || "Employee";
-    } else {
-      // Bakery/Charity token
-      return decoded.name || "User";
+    try {
+      const decoded = JSON.parse(atob(token.split(".")[1]));
+
+      if (decoded.type === "employee") {
+        return decoded.employee_name || decoded.name || "Employee";
+      } else {
+        return decoded.name || "User";
+      }
+    } catch (err) {
+      console.error("Failed to decode token:", err);
+      return "Unknown";
     }
-  } catch (err) {
-    console.error("Failed to decode token:", err);
-    return "Unknown";
-  }
-};
+  };
 
   /* ---- Fetch Functions ---- */
   const fetchInventoryStatus = async (bakeryInventoryId) => {
@@ -342,7 +458,10 @@ export default function Messages({ currentUser: currentUserProp }) {
 
   const fetchActiveChats = async () => {
     try {
-      const res = await axios.get(`${API_URL}/messages/active_chats`, makeAuthOpts());
+      const res = await axios.get(
+        `${API_URL}/messages/active_chats`,
+        makeAuthOpts()
+      );
       const map = new Map();
       for (const c of res.data.chats || []) {
         if (c.peer)
@@ -357,7 +476,8 @@ export default function Messages({ currentUser: currentUserProp }) {
       for (const [peerId] of map.entries()) {
         if (fetchedHistoryRef.current.has(peerId)) continue;
         const hasLocal = messages.some(
-          (m) => Number(m.sender_id) === peerId || Number(m.receiver_id) === peerId
+          (m) =>
+            Number(m.sender_id) === peerId || Number(m.receiver_id) === peerId
         );
         if (!hasLocal) {
           fetchedHistoryRef.current.add(peerId);
@@ -421,7 +541,10 @@ export default function Messages({ currentUser: currentUserProp }) {
         form.append("file", mediaFile);
         await axios.post(`${API_URL}/messages/send`, form, {
           ...opts,
-          headers: { ...(opts.headers || {}), "Content-Type": "multipart/form-data" },
+          headers: {
+            ...(opts.headers || {}),
+            "Content-Type": "multipart/form-data",
+          },
         });
       } else {
         const payload = {
@@ -444,13 +567,12 @@ export default function Messages({ currentUser: currentUserProp }) {
   const sendDonationCard = async (donation, peer = selectedUser) => {
     if (!peer || !currentUser) return;
 
-    // Include ALL fields needed for the donation card
     const donationCard = {
       ...donation,
-      id: donation.id,                           // Original donation ID
-      request_id: donation.id,                   // Request ID
+      id: donation.id,
+      request_id: donation.id,
       donation_request_id: donation.id,
-      bakery_inventory_id: donation.bakery_inventory_id,  // CRITICAL: Include this
+      bakery_inventory_id: donation.bakery_inventory_id,
       product_name: donation.product_name || donation.name,
       name: donation.name,
       image: donation.image,
@@ -516,22 +638,28 @@ export default function Messages({ currentUser: currentUserProp }) {
       setAcceptedDonations((prev) => new Set([...prev, donation.id]));
 
       setMessages((prev) =>
-        prev.map((m) => (m.id === donationCardMessage.id ? { ...m, accepted: true } : m))
+        prev.map((m) =>
+          m.id === donationCardMessage.id ? { ...m, accepted: true } : m
+        )
       );
 
       const userName = getCurrentUserName();
 
       const res = await axios.post(
         `${API_URL}/donation/accept/${donation.id}`,
-        { 
+        {
           charity_id: originalCharityId,
-          donated_by: userName
+          donated_by: userName,
         },
         opts
       );
-      const { accepted_charity_id, canceled_charities, donation_name, bakery_inventory_id } = res.data;
+      const {
+        accepted_charity_id,
+        canceled_charities,
+        donation_name,
+        bakery_inventory_id,
+      } = res.data;
 
-      // ✅ Refresh inventory status
       if (bakery_inventory_id) {
         await fetchInventoryStatus(bakery_inventory_id);
       }
@@ -574,14 +702,17 @@ export default function Messages({ currentUser: currentUserProp }) {
       }
 
       try {
+        // optional toast hooks if present
+        // eslint-disable-next-line no-undef
         toast?.success?.(`You accepted the donation: ${donation_name}`);
-      } catch { }
+      } catch {}
       fetchActiveChats();
     } catch (err) {
       console.error("Failed to accept donation:", err);
       try {
+        // eslint-disable-next-line no-undef
         toast?.error?.("Failed to accept donation.");
-      } catch { }
+      } catch {}
     } finally {
       setDisabledDonations((prev) => {
         const copy = new Set(prev);
@@ -611,25 +742,24 @@ export default function Messages({ currentUser: currentUserProp }) {
       const opts = makeAuthOpts();
 
       setMessages((prev) =>
-        prev.map((m) => (m.id === donationCardMessage.id ? { ...m, cancelled: true } : m))
+        prev.map((m) =>
+          m.id === donationCardMessage.id ? { ...m, cancelled: true } : m
+        )
       );
 
       const userName = getCurrentUserName();
 
       await axios.post(
         `${API_URL}/donation/cancel/${donation.id}`,
-        { 
+        {
           charity_id: originalCharityId,
-          donated_by: userName
+          donated_by: userName,
         },
         opts
       );
 
-      setMessages((prev) => prev.filter((m) => m.id !== donationCardMessage.id));
-      fetchActiveChats?.();
-
       try {
-        await deleteMessage(donationCardMessage.id, { for_all: true });
+        await deleteThisMessage(donationCardMessage.id);
       } catch (err) {
         console.error(err);
       }
@@ -670,23 +800,39 @@ export default function Messages({ currentUser: currentUserProp }) {
     }
   };
 
-  const deleteMessage = async (id) => {
-    setMessages((prev) => prev.filter((m) => m.id !== id));
-    try {
-      await axios.post(`${API_URL}/messages/delete`, { id, for_all: true }, makeAuthOpts());
-      fetchActiveChats();
-    } catch (err) {
-      console.debug("deleteMessage failed:", err?.message || err);
-    }
-  };
+  /* Unified delete */
+  const deleteThisMessage = async (id) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === id
+          ? {
+              ...m,
+              deleted_for_all: true,
+              content: (() => {
+                try {
+                  const p =
+                    typeof m.content === "string"
+                      ? JSON.parse(m.content)
+                      : m.content;
+                  return JSON.stringify({ ...(p || {}), type: "deleted" });
+                } catch {
+                  return JSON.stringify({ type: "deleted" });
+                }
+              })(),
+            }
+          : m
+      )
+    );
 
-  const deleteForMe = async (id) => {
-    setMessages((prev) => prev.filter((m) => m.id !== id));
     try {
-      await axios.post(`${API_URL}/messages/delete`, { id, for_all: false }, makeAuthOpts());
+      await axios.post(
+        `${API_URL}/messages/delete`,
+        { id, for_all: true }, // reflect to both users
+        makeAuthOpts()
+      );
       fetchActiveChats();
     } catch (err) {
-      console.debug("deleteForMe failed:", err?.message || err);
+      console.debug("deleteThisMessage failed:", err?.message || err);
     }
   };
 
@@ -700,7 +846,9 @@ export default function Messages({ currentUser: currentUserProp }) {
       return;
     }
     setRemovedDonations((prev) => new Set(prev).add(donationId));
-    setPendingCards((prev) => prev.filter((m) => m.id !== donationCardMessage.id));
+    setPendingCards((prev) =>
+      prev.filter((m) => m.id !== donationCardMessage.id)
+    );
   };
 
   /* ---- Render Helpers ---- */
@@ -718,27 +866,28 @@ export default function Messages({ currentUser: currentUserProp }) {
         parsed = m.content;
       }
 
+      // Deleted/tombstone support
+      if (parsed?.type === "deleted" || m.deleted_for_all) {
+        return {
+          isMedia: false,
+          tombstone: true,
+          body: (
+            <div>
+              <em>This message was deleted</em>
+            </div>
+          ),
+        };
+      }
+
       if (parsed?.type === "donation_card") {
         const d = parsed.donation || {};
         const iAmReceiver = Number(m.receiver_id) === Number(currentUser?.id);
 
-        // Check inventory status using bakery_inventory_id
         const inventoryId = d.bakery_inventory_id;
         const inventoryStatus = inventoryStatuses.get(inventoryId);
 
-        // DEBUG
-        console.log(`[DONATION] Card ID: ${d.id}, Inventory ID: ${inventoryId}`, {
-          inventoryStatus,
-          allCachedInventoryIds: Array.from(inventoryStatuses.keys()),
-          hasAccepted: inventoryStatus?.has_accepted
-        });
-
-        // ✅ Hide buttons ONLY if ANY request for this inventory has been accepted
         const hasAccepted = inventoryStatus?.has_accepted || false;
-
-        // Show buttons if NOT accepted (and status data has loaded)
         const shouldShowButtons = !hasAccepted && inventoryStatus;
-        // Check if user is an employee (not bakery owner)
         const employeeToken = localStorage.getItem("employeeToken");
 
         return {
@@ -747,34 +896,27 @@ export default function Messages({ currentUser: currentUserProp }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <div style={{ fontWeight: 800 }}>Donation Request</div>
               <div style={{ fontSize: 13 }}>
-                {d.product_name || d.name || "Baked Goods"} • Qty: {d.quantity ?? "-"}
+                {d.product_name || d.name || "Baked Goods"} • Qty:{" "}
+                {d.quantity ?? "-"}
               </div>
 
               {shouldShowButtons && iAmReceiver && (
-                <>
-                  {employeeToken ? (
-                    <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                      <button
-                        className="btn-mini accept"
-                        onClick={() => acceptDonation(m)}
-                        disabled={disabledDonations.has(d.id)}
-                      >
-                        <Check className="w-4 h-4" /> Accept
-                      </button>
-                      <button
-                        className="btn-mini"
-                        onClick={() => cancelDonation(m)}
-                        disabled={disabledDonations.has(d.id)}
-                      >
-                        <XCircle className="w-4 h-4" /> Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: 12, color: "#7a4f1c", marginTop: 4, fontStyle: "italic" }}>
-                      Only employees can accept donation requests
-                    </div>
-                  )}
-                </>
+                <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                  <button
+                    className="btn-mini accept"
+                    onClick={() => acceptDonation(m)}
+                    disabled={disabledDonations.has(d.id)}
+                  >
+                    <Check className="w-4 h-4" /> Accept
+                  </button>
+                  <button
+                    className="btn-mini"
+                    onClick={() => cancelDonation(m)}
+                    disabled={disabledDonations.has(d.id)}
+                  >
+                    <XCircle className="w-4 h-4" /> Cancel
+                  </button>
+                </div>
               )}
             </div>
           ),
@@ -887,8 +1029,10 @@ export default function Messages({ currentUser: currentUserProp }) {
     }
 
     const text = (m.content || "").trim();
-    const hasImg = Boolean(m.image) || (m.media && m.media_type?.startsWith("image/"));
-    const hasVid = Boolean(m.video) || (m.media && m.media_type?.startsWith("video/"));
+    const hasImg =
+      Boolean(m.image) || (m.media && m.media_type?.startsWith("image/"));
+    const hasVid =
+      Boolean(m.video) || (m.media && m.media_type?.startsWith("video/"));
     const hasMedia = hasImg || hasVid;
 
     if (hasMedia) {
@@ -900,7 +1044,10 @@ export default function Messages({ currentUser: currentUserProp }) {
               {m.image && <img src={fileUrl(m.image)} alt="attachment" />}
               {m.video && <video controls src={fileUrl(m.video)} />}
               {m.media && m.media_type?.startsWith("image/") && (
-                <img src={mediaDataURL(m.media_type, m.media)} alt="attachment" />
+                <img
+                  src={mediaDataURL(m.media_type, m.media)}
+                  alt="attachment"
+                />
               )}
               {m.media && m.media_type?.startsWith("video/") && (
                 <video controls src={mediaDataURL(m.media_type, m.media)} />
@@ -952,10 +1099,40 @@ export default function Messages({ currentUser: currentUserProp }) {
     );
   }, [messages, selectedUser, currentUser]);
 
-  const allUsers = useMemo(
-    () => (search.trim() ? searchResults || [] : Array.from(activeChats.values())),
-    [search, searchResults, activeChats]
+  const allUsers = useMemo(() => {
+    const base = search.trim()
+      ? searchResults || []
+      : Array.from(activeChats.values() || []);
+
+    // sort by last message timestamp DESC so recent chats are first
+    const getTs = (u) => {
+      const sum = summaries.get(Number(u.id));
+      const last = sum?.last || u.last_message;
+      if (!last?.timestamp) return 0;
+      return new Date(last.timestamp).getTime() || 0;
+    };
+
+    return [...base].sort((a, b) => getTs(b) - getTs(a));
+  }, [search, searchResults, activeChats, summaries]);
+
+  const totalChatPages = Math.max(
+    1,
+    Math.ceil(allUsers.length / CHAT_PAGE_SIZE)
   );
+  const safePage = Math.min(chatPage, totalChatPages - 1);
+  const pagedUsers = allUsers.slice(
+    safePage * CHAT_PAGE_SIZE,
+    safePage * CHAT_PAGE_SIZE + CHAT_PAGE_SIZE
+  );
+
+  useEffect(() => {
+    const handleNotifOpen = () => {
+      setOpenList(false);
+    };
+    window.addEventListener("ui:notifications-open", handleNotifOpen);
+    return () =>
+      window.removeEventListener("ui:notifications-open", handleNotifOpen);
+  }, []);
 
   /* ---- Effects ---- */
   useEffect(() => {
@@ -980,26 +1157,51 @@ export default function Messages({ currentUser: currentUserProp }) {
     fetchAccepted();
   }, [currentUser]);
 
-  // ✅ Fetch inventory statuses when messages change
+  // UI-only: hide typing tray when dock closes or no active thread
+  useEffect(() => {
+    if (!openDock || !selectedUser) {
+      setRemoteTyping(false);
+    }
+  }, [openDock, selectedUser]);
+
+  // optional UI hook: trigger these custom events elsewhere to show/hide peer typing UI
+  useEffect(() => {
+    const onPeerTyping = () => setRemoteTyping(true);
+    const onPeerStop = () => setRemoteTyping(false);
+    window.addEventListener("messages:remote_typing", onPeerTyping);
+    window.addEventListener("messages:remote_stop_typing", onPeerStop);
+    return () => {
+      window.removeEventListener("messages:remote_typing", onPeerTyping);
+      window.removeEventListener("messages:remote_stop_typing", onPeerStop);
+    };
+  }, [selectedUser]);
+
+  // reset chat page when search / list changes
+  useEffect(() => {
+    setChatPage(0);
+  }, [search, allUsers.length]);
+
   useEffect(() => {
     const inventoryIds = new Set();
 
     messages.forEach((m) => {
       try {
-        const parsed = typeof m.content === "string" ? JSON.parse(m.content) : m.content;
-        if (parsed?.type === "donation_card" && parsed?.donation?.bakery_inventory_id) {
+        const parsed =
+          typeof m.content === "string" ? JSON.parse(m.content) : m.content;
+        if (
+          parsed?.type === "donation_card" &&
+          parsed?.donation?.bakery_inventory_id
+        ) {
           inventoryIds.add(parsed.donation.bakery_inventory_id);
         }
-      } catch { }
+      } catch {}
     });
 
     inventoryIds.forEach((id) => {
-      // Always fetch to ensure we have the latest status
       fetchInventoryStatus(id);
     });
   }, [messages]);
 
-  // Poll inventory statuses every 3 seconds for active donation cards
   useEffect(() => {
     if (!selectedUser || filteredMessages.length === 0) return;
 
@@ -1008,11 +1210,15 @@ export default function Messages({ currentUser: currentUserProp }) {
 
       filteredMessages.forEach((m) => {
         try {
-          const parsed = typeof m.content === "string" ? JSON.parse(m.content) : m.content;
-          if (parsed?.type === "donation_card" && parsed?.donation?.bakery_inventory_id) {
+          const parsed =
+            typeof m.content === "string" ? JSON.parse(m.content) : m.content;
+          if (
+            parsed?.type === "donation_card" &&
+            parsed?.donation?.bakery_inventory_id
+          ) {
             inventoryIds.add(parsed.donation.bakery_inventory_id);
           }
-        } catch { }
+        } catch {}
       });
 
       inventoryIds.forEach((id) => {
@@ -1028,8 +1234,9 @@ export default function Messages({ currentUser: currentUserProp }) {
       const wrap = launcherWrapRef.current;
       const drop = dropdownRef.current;
       if (!wrap) return;
-      const path = e.composedPath?.() || (e.path || []);
-      const clickedInside = path.includes(wrap) || (drop && path.includes(drop));
+      const path = e.composedPath?.() || e.path || [];
+      const clickedInside =
+        path.includes(wrap) || (drop && path.includes(drop));
       if (!clickedInside) setOpenList(false);
     };
     document.addEventListener("mousedown", handler);
@@ -1049,7 +1256,6 @@ export default function Messages({ currentUser: currentUserProp }) {
   useEffect(() => {
     if (currentUserProp) return;
 
-    // Check for employee token first, then bakery owner token
     const employeeToken = localStorage.getItem("employeeToken");
     const bakeryToken = localStorage.getItem("token");
     const token = employeeToken || bakeryToken;
@@ -1059,11 +1265,9 @@ export default function Messages({ currentUser: currentUserProp }) {
     try {
       const decoded = JSON.parse(atob(token.split(".")[1]));
 
-      // Handle employee token
       if (decoded.type === "employee") {
-        // IMPORTANT: Use bakery_id as the main ID so employees receive bakery messages
         setCurrentUser({
-          id: Number(decoded.bakery_id), // ✅ Use bakery_id, not employee_id
+          id: Number(decoded.bakery_id),
           role: "employee",
           email: "",
           name: decoded.employee_name || decoded.name || "",
@@ -1071,11 +1275,9 @@ export default function Messages({ currentUser: currentUserProp }) {
           employee_id: Number(decoded.employee_id),
           employee_role: decoded.employee_role,
           bakery_id: Number(decoded.bakery_id),
-          is_employee: true, // Flag to identify employee users
+          is_employee: true,
         });
-      }
-      // Handle bakery/charity/admin token
-      else {
+      } else {
         setCurrentUser({
           id: Number(decoded.sub),
           role: decoded.role?.toLowerCase?.() || decoded.type || "",
@@ -1100,13 +1302,16 @@ export default function Messages({ currentUser: currentUserProp }) {
       const cardsToDelete = messages.filter((m) => {
         try {
           const parsed = JSON.parse(m.content);
-          return parsed?.donation?.donation_id === donation_id && parsed.type === "donation_card";
+          return (
+            parsed?.donation?.donation_id === donation_id &&
+            parsed.type === "donation_card"
+          );
         } catch {
           return false;
         }
       });
 
-      cardsToDelete.forEach((m) => deleteMessage(m.id));
+      cardsToDelete.forEach((m) => deleteThisMessage(m.id));
     };
 
     window.addEventListener("donation_cancelled", handleCancel);
@@ -1127,7 +1332,8 @@ export default function Messages({ currentUser: currentUserProp }) {
     }, 2000);
 
     return () => {
-      if (pollRef.current.activeChats) clearInterval(pollRef.current.activeChats);
+      if (pollRef.current.activeChats)
+        clearInterval(pollRef.current.activeChats);
       if (pollRef.current.history) clearInterval(pollRef.current.history);
       pollRef.current = { activeChats: null, history: null, inventory: null };
     };
@@ -1184,7 +1390,8 @@ export default function Messages({ currentUser: currentUserProp }) {
     if (!selectedUser || !currentUser) return;
     setActiveChats((prev) => {
       const next = new Map(prev);
-      if (next.has(Number(selectedUser.id))) next.get(Number(selectedUser.id)).unread = 0;
+      if (next.has(Number(selectedUser.id)))
+        next.get(Number(selectedUser.id)).unread = 0;
       return next;
     });
 
@@ -1209,7 +1416,8 @@ export default function Messages({ currentUser: currentUserProp }) {
       const me = Number(currentUser.id);
       const peer = Number(selectedUser.id);
       const next = prev.map((m) => {
-        const inbound = Number(m.sender_id) === peer && Number(m.receiver_id) === me;
+        const inbound =
+          Number(m.sender_id) === peer && Number(m.receiver_id) === me;
         if (inbound && !m.is_read) {
           changed = true;
           return { ...m, is_read: true };
@@ -1231,20 +1439,18 @@ export default function Messages({ currentUser: currentUserProp }) {
 
     const cards = messages.filter((m) => {
       try {
-        // Only include messages in THIS conversation
         const isInConversation =
           (Number(m.sender_id) === me && Number(m.receiver_id) === peer) ||
           (Number(m.sender_id) === peer && Number(m.receiver_id) === me);
 
         if (!isInConversation) return false;
 
-        const p = typeof m.content === "string" ? JSON.parse(m.content) : m.content;
+        const p =
+          typeof m.content === "string" ? JSON.parse(m.content) : m.content;
         const donationId = p?.donation?.id;
         const donation = p?.donation;
         const inventoryId = donation?.bakery_inventory_id;
 
-        // Check if this donation request has been canceled or accepted in the database
-        // Try multiple ID fields to match
         const requestInDb = allDonationRequests.find(
           (req) =>
             req.id === donationId ||
@@ -1252,16 +1458,16 @@ export default function Messages({ currentUser: currentUserProp }) {
             req.bakery_inventory_id === inventoryId
         );
 
-        // If found in DB, check its status
-        if (requestInDb && (requestInDb.status === "canceled" || requestInDb.status === "accepted")) {
-          console.log(`[PENDING] Filtering out donation ${donationId}, status: ${requestInDb.status}`);
+        if (
+          requestInDb &&
+          (requestInDb.status === "canceled" ||
+            requestInDb.status === "accepted")
+        ) {
           return false;
         }
 
-        // Also check if the inventory item has been accepted by checking inventoryStatuses
         const inventoryStatus = inventoryStatuses.get(inventoryId);
         if (inventoryStatus?.has_accepted) {
-          console.log(`[PENDING] Filtering out donation ${donationId}, inventory ${inventoryId} has been accepted`);
           return false;
         }
 
@@ -1279,13 +1485,24 @@ export default function Messages({ currentUser: currentUserProp }) {
       }
     });
     setPendingCards(cards);
-  }, [messages, removedDonations, acceptedDonations, removedProducts, selectedUser, currentUser, allDonationRequests, inventoryStatuses]);
+  }, [
+    messages,
+    removedDonations,
+    acceptedDonations,
+    removedProducts,
+    selectedUser,
+    currentUser,
+    allDonationRequests,
+    inventoryStatuses,
+    cancelledDonationIds,
+  ]);
 
   useEffect(() => {
     const el = dockScrollRef.current;
     if (!el) return;
 
-    const messageCountChanged = filteredMessages.length !== prevMessageCountRef.current;
+    const messageCountChanged =
+      filteredMessages.length !== prevMessageCountRef.current;
     prevMessageCountRef.current = filteredMessages.length;
 
     if (messageCountChanged) {
@@ -1331,7 +1548,10 @@ export default function Messages({ currentUser: currentUserProp }) {
       return;
     }
     try {
-      const res = await axios.get(`${API_URL}/users/search?q=${encodeURIComponent(q)}`, makeAuthOpts());
+      const res = await axios.get(
+        `${API_URL}/users/search?q=${encodeURIComponent(q)}`,
+        makeAuthOpts()
+      );
       setSearchResults(res.data.results || []);
     } catch (err) {
       console.debug("search failed:", err?.message || err);
@@ -1357,16 +1577,21 @@ export default function Messages({ currentUser: currentUserProp }) {
           aria-label="Open messages"
           title="Messages"
           onClick={() => {
-            const willOpen = !openList;
-            setOpenList(willOpen);
-            if (willOpen) window.dispatchEvent(new Event("ui:messages-open"));
+            setOpenList((prev) => {
+              const willOpen = !prev;
+              if (willOpen) {
+                // 🔔 tell notifications to close
+                window.dispatchEvent(new Event("ui:messages-open"));
+              }
+              return willOpen;
+            });
           }}
         >
           <MessageSquareText className="h-[18px] w-[18px] text-black" />
           {totalUnread > 0 && (
             <span
               className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-[5px] rounded-full
-                         text-[10px] font-bold flex items-center justify-content text-white msg-badge"
+                         text-[10px] font-bold flex items-center justify-center text-white msg-badge"
             >
               {totalUnread > 99 ? "99+" : totalUnread}
             </span>
@@ -1374,47 +1599,80 @@ export default function Messages({ currentUser: currentUserProp }) {
         </button>
 
         {openList && (
-          <div className="absolute right-0 mt-2 z-[9998]" ref={dropdownRef}>
+          <div className="chatlist-layer" ref={dropdownRef}>
             <div className="chatlist-dropdown">
               <div className="cl-head">
                 <div className="cl-title">Chats</div>
-                <button className="cl-icon" onClick={() => setOpenList(false)} aria-label="Close">
+                <button
+                  type="button"
+                  className="cl-close-btn"
+                  aria-label="Close chats"
+                  onClick={() => setOpenList(false)}
+                >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               <div className="cl-search">
-                <input value={search} onChange={handleSearch} placeholder="Search..." />
+                <input
+                  value={search}
+                  onChange={handleSearch}
+                  placeholder="Search..."
+                />
               </div>
 
               <div className="cl-list">
                 {allUsers.length === 0 ? (
-                  <div className="p-4 text-sm text-[#6b4b2b] opacity-80">No conversations.</div>
+                  <div className="p-4 text-sm text-[#6b4b2b] opacity-80">
+                    No conversations.
+                  </div>
                 ) : (
-                  allUsers.map((u) => {
+                  pagedUsers.map((u) => {
                     const sum = summaries.get(Number(u.id));
                     const last = sum?.last || u.last_message;
                     const unread = Number(sum?.unread || u.unread || 0);
 
+                    // prefetch history if snippet would be donation-only and not involved
                     try {
                       const peerIdNum = Number(u.id);
-                      const parsedLast = typeof last?.content === "string" ? JSON.parse(last.content) : last?.content || null;
-                      const donationTypes = ["donation_card", "confirmed_donation", "donation_unavailable", "donation_cancelled"];
+                      const parsedLast =
+                        typeof last?.content === "string"
+                          ? JSON.parse(last.content)
+                          : last?.content || null;
+                      const donationTypes = [
+                        "donation_card",
+                        "confirmed_donation",
+                        "donation_unavailable",
+                        "donation_cancelled",
+                      ];
                       const meId = Number(currentUser?.id);
-                      const involved = meId && (Number(last?.sender_id) === meId || Number(last?.receiver_id) === meId);
+                      const involved =
+                        meId &&
+                        (Number(last?.sender_id) === meId ||
+                          Number(last?.receiver_id) === meId);
                       const hasLocal = messages.some(
-                        (m) => Number(m.sender_id) === peerIdNum || Number(m.receiver_id) === peerIdNum
+                        (m) =>
+                          Number(m.sender_id) === peerIdNum ||
+                          Number(m.receiver_id) === peerIdNum
                       );
-                      if (parsedLast && donationTypes.includes(parsedLast.type) && !involved && !hasLocal) {
+                      if (
+                        parsedLast &&
+                        donationTypes.includes(parsedLast.type) &&
+                        !involved &&
+                        !hasLocal
+                      ) {
                         if (!renderFetchRef.current.has(peerIdNum)) {
                           renderFetchRef.current.add(peerIdNum);
-                          fetchHistoryForPeer(peerIdNum).catch(() => renderFetchRef.current.delete(peerIdNum));
+                          fetchHistoryForPeer(peerIdNum).catch(() =>
+                            renderFetchRef.current.delete(peerIdNum)
+                          );
                         }
                       }
-                    } catch (e) {
+                    } catch {
                       /* ignore */
                     }
 
+                    // avatar
                     const avatar = u.profile_picture ? (
                       <img
                         src={`${API_URL}/${u.profile_picture}`}
@@ -1428,6 +1686,7 @@ export default function Messages({ currentUser: currentUserProp }) {
                       </div>
                     );
 
+                    // snippet logic (respects deleted)
                     let snippet = "Start a conversation";
                     if (last) {
                       try {
@@ -1443,31 +1702,49 @@ export default function Messages({ currentUser: currentUserProp }) {
                           "donation_cancelled",
                         ];
 
-                        if (parsed && donationTypes.includes(parsed.type)) {
+                        if (
+                          parsed?.type === "deleted" ||
+                          last.deleted_for_all
+                        ) {
+                          snippet = "Message deleted";
+                        } else if (
+                          parsed &&
+                          donationTypes.includes(parsed.type)
+                        ) {
                           const me = Number(currentUser?.id);
-                          const involved = me && (Number(last.sender_id) === me || Number(last.receiver_id) === me);
+                          const involved =
+                            me &&
+                            (Number(last.sender_id) === me ||
+                              Number(last.receiver_id) === me);
 
                           if (involved) {
                             snippet =
                               parsed.type === "donation_card"
                                 ? "Donation Request"
                                 : parsed.type === "confirmed_donation"
-                                  ? "Donation Request Confirmed"
-                                  : parsed.message || last.content || "Donation Update";
+                                ? "Donation Request Confirmed"
+                                : parsed.message ||
+                                  last.content ||
+                                  "Donation Update";
                           } else {
                             const meId = Number(currentUser?.id);
                             const peerId = Number(u.id);
                             const convo = messages.filter(
                               (m) =>
-                                (Number(m.sender_id) === meId && Number(m.receiver_id) === peerId) ||
-                                (Number(m.sender_id) === peerId && Number(m.receiver_id) === meId)
+                                (Number(m.sender_id) === meId &&
+                                  Number(m.receiver_id) === peerId) ||
+                                (Number(m.sender_id) === peerId &&
+                                  Number(m.receiver_id) === meId)
                             );
 
                             let found = false;
                             for (let i = convo.length - 1; i >= 0; i--) {
                               const pm = convo[i];
                               try {
-                                const p = typeof pm.content === "string" ? JSON.parse(pm.content) : pm.content || null;
+                                const p =
+                                  typeof pm.content === "string"
+                                    ? JSON.parse(pm.content)
+                                    : pm.content || null;
                                 if (!p || !donationTypes.includes(p.type)) {
                                   if (pm.content) {
                                     snippet = String(pm.content);
@@ -1493,25 +1770,35 @@ export default function Messages({ currentUser: currentUserProp }) {
                             }
 
                             if (!found) {
-                              const lastDonationMessage = convo.slice().reverse().find((pm) => {
-                                try {
-                                  const parsed = typeof pm.content === "string" ? JSON.parse(pm.content) : pm.content;
-                                  return parsed && donationTypes.includes(parsed.type);
-                                } catch {
-                                  return false;
-                                }
-                              });
+                              const lastDonationMessage = convo
+                                .slice()
+                                .reverse()
+                                .find((pm) => {
+                                  try {
+                                    const parsedPm =
+                                      typeof pm.content === "string"
+                                        ? JSON.parse(pm.content)
+                                        : pm.content;
+                                    return (
+                                      parsedPm &&
+                                      donationTypes.includes(parsedPm.type)
+                                    );
+                                  } catch {
+                                    return false;
+                                  }
+                                });
 
                               if (lastDonationMessage) {
                                 try {
-                                  const parsed = JSON.parse(lastDonationMessage.content);
+                                  const parsed2 = JSON.parse(
+                                    lastDonationMessage.content
+                                  );
                                   snippet =
-                                    parsed.type === "donation_card"
+                                    parsed2.type === "donation_card"
                                       ? "Donation Request"
-                                      : parsed.type === "confirmed_donation"
-                                        ? "Donation Request Confirmed"
-                                        : parsed.message || "Donation Update";
-                                  found = true;
+                                      : parsed2.type === "confirmed_donation"
+                                      ? "Donation Request Confirmed"
+                                      : parsed2.message || "Donation Update";
                                 } catch {
                                   snippet = "Start a conversation";
                                 }
@@ -1521,7 +1808,13 @@ export default function Messages({ currentUser: currentUserProp }) {
                             }
                           }
                         } else {
-                          snippet = last.content || (last.image ? "Photo" : last.video ? "Video" : "Start a conversation");
+                          snippet =
+                            last.content ||
+                            (last.image
+                              ? "Photo"
+                              : last.video
+                              ? "Video"
+                              : "Start a conversation");
                         }
                       } catch {
                         snippet = last?.content || "Start a conversation";
@@ -1541,15 +1834,24 @@ export default function Messages({ currentUser: currentUserProp }) {
                         {avatar}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-6">
-                            <div className="name truncate">{u.name || u.email || `Conversation #${u.id}`}</div>
-                            {last?.timestamp && <div className="time shrink-0">{formatTime(last.timestamp)}</div>}
+                            <div className="name truncate">
+                              {u.name || u.email || `Conversation #${u.id}`}
+                            </div>
+                            {last?.timestamp && (
+                              <div className="time shrink-0">
+                                {formatTime(last.timestamp)}
+                              </div>
+                            )}
                           </div>
                           <div className="flex items-center gap-6">
                             <div className="snippet truncate">{snippet}</div>
                             {unread > 0 && <span className="dot" />}
                           </div>
                         </div>
-                        <ChevronRight className="w-4 h-4" style={{ color: "#8b6b48" }} />
+                        <ChevronRight
+                          className="w-4 h-4"
+                          style={{ color: "#8b6b48" }}
+                        />
                       </div>
                     );
                   })
@@ -1557,9 +1859,29 @@ export default function Messages({ currentUser: currentUserProp }) {
               </div>
 
               <div className="cl-foot">
-                <button className="seeall" onClick={() => setOpenList(false)}>
-                  Close
-                </button>
+                <div className="text-center text-[11px] text-[#8a5a25] mb-1">
+                  Page {safePage + 1} of {totalChatPages}
+                </div>
+
+                <div className="page-nav">
+                  <button
+                    className="page-btn"
+                    disabled={safePage === 0}
+                    onClick={() => setChatPage((p) => (p > 0 ? p - 1 : 0))}
+                  >
+                    Prev
+                  </button>
+
+                  <button
+                    className="page-btn"
+                    disabled={safePage >= totalChatPages - 1}
+                    onClick={() =>
+                      setChatPage((p) => (p < totalChatPages - 1 ? p + 1 : p))
+                    }
+                  >
+                    Next {safePage < totalChatPages - 1 ? "(older)" : ""}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1573,13 +1895,29 @@ export default function Messages({ currentUser: currentUserProp }) {
             <div className="dock">
               <div className="dock-head">
                 {selectedUser.profile_picture ? (
-                  <img src={`${API_URL}/${selectedUser.profile_picture}`} className="avatar-sm" style={{ objectFit: "cover" }} />
+                  <img
+                    src={`${API_URL}/${selectedUser.profile_picture}`}
+                    className="avatar-sm"
+                    style={{ objectFit: "cover" }}
+                  />
                 ) : (
-                  <div className="avatar-sm">{(selectedUser.name || selectedUser.email || "#")[0]?.toUpperCase?.() || "?"}</div>
+                  <div className="avatar-sm">
+                    {(selectedUser.name ||
+                      selectedUser.email ||
+                      "#")[0]?.toUpperCase?.() || "?"}
+                  </div>
                 )}
-                <div className="dock-title truncate">{selectedUser.name || selectedUser.email || `#${selectedUser.id}`}</div>
+                <div className="dock-title truncate">
+                  {selectedUser.name ||
+                    selectedUser.email ||
+                    `#${selectedUser.id}`}
+                </div>
                 <div className="dock-actions">
-                  <button className="icon-btn" onClick={() => setOpenDock(false)} title="Close">
+                  <button
+                    className="icon-btn"
+                    onClick={() => setOpenDock(false)}
+                    title="Close"
+                  >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -1587,7 +1925,10 @@ export default function Messages({ currentUser: currentUserProp }) {
 
               {pendingCards.length > 0 && (
                 <div className="pending-bar">
-                  <button className="pending-toggle" onClick={() => setPendingOpen((v) => !v)}>
+                  <button
+                    className="pending-toggle"
+                    onClick={() => setPendingOpen((v) => !v)}
+                  >
                     Pending donations ({pendingCards.length})
                   </button>
                 </div>
@@ -1598,19 +1939,29 @@ export default function Messages({ currentUser: currentUserProp }) {
                     let d = {};
                     try {
                       d = JSON.parse(card.content).donation || {};
-                    } catch { }
-                    const iAmReceiver = Number(card.receiver_id) === Number(currentUser?.id);
-                    // Check if user is an employee (not bakery owner)
+                    } catch {}
+                    const iAmReceiver =
+                      Number(card.receiver_id) === Number(currentUser?.id);
                     const employeeToken = localStorage.getItem("employeeToken");
 
                     return (
                       <div key={`pend-${card.id}`} className="pend-row">
                         <div className="pend-meta">
-                          <div className="pend-title">{d.product_name || d.name || "Donation"}</div>
-                          <div className="pend-sub">Qty: {d.quantity ?? "-"}</div>
+                          <div className="pend-title">
+                            {d.product_name || d.name || "Donation"}
+                          </div>
+                          <div className="pend-sub">
+                            Qty: {d.quantity ?? "-"}
+                          </div>
                         </div>
                         <div className="pend-actions">
-                          <button className="btn-mini" onClick={() => { jumpTo(card.id); setPendingOpen(false); }}>
+                          <button
+                            className="btn-mini"
+                            onClick={() => {
+                              jumpTo(card.id);
+                              setPendingOpen(false);
+                            }}
+                          >
                             Open
                           </button>
                           {iAmReceiver && employeeToken && (
@@ -1636,7 +1987,10 @@ export default function Messages({ currentUser: currentUserProp }) {
                                 <XCircle className="w-4 h-4" /> Cancel
                               </button>
 
-                              <button className="btn-mini" onClick={() => removePendingDonation(card)}>
+                              <button
+                                className="btn-mini"
+                                onClick={() => removePendingDonation(card)}
+                              >
                                 X
                               </button>
                             </>
@@ -1649,67 +2003,93 @@ export default function Messages({ currentUser: currentUserProp }) {
               )}
 
               <div ref={dockScrollRef} className="dock-scroll">
-                {filteredMessages.map((m) => {
+                {filteredMessages.map((m, i) => {
                   const me = Number(m.sender_id) === Number(currentUser?.id);
                   const render = renderMessageBody(m);
+
+                  // === Day separator: show when the day changes (Asia/Manila) ===
+                  const prev = filteredMessages[i - 1];
+                  const shouldShowDaySep =
+                    !prev || !sameDay(prev?.timestamp, m.timestamp);
+
                   return (
-                    <div key={`${m.id}-${m.timestamp ?? ""}`} ref={setMsgRef(m.id)} className={`msg-row ${me ? "right" : "left"}`}>
-                      {me && (
-                        <div className="left-controls">
-                          <button
-                            className="icon-btn-tiny"
-                            title="More"
-                            aria-label="More"
-                            onClick={() => setMenuOpenId(menuOpenId === m.id ? null : m.id)}
-                          >
-                            <MoreVertical className="w-3 h-3" />
-                          </button>
-                          {menuOpenId === m.id && (
-                            <div className="ctx-menu">
-                              <button
-                                className="ctx-item"
-                                onClick={() => {
-                                  setMenuOpenId(null);
-                                  setMessages((p) => p.filter((x) => x.id !== m.id));
-                                  deleteForMe(m.id);
-                                }}
-                              >
-                                Delete for me
-                              </button>
-                              <button
-                                className="ctx-item"
-                                onClick={() => {
-                                  setMenuOpenId(null);
-                                  setMessages((p) => p.filter((x) => x.id !== m.id));
-                                  deleteMessage(m.id);
-                                }}
-                              >
-                                Delete for everyone
-                              </button>
-                            </div>
-                          )}
+                    <React.Fragment key={`${m.id}-${m.timestamp ?? ""}`}>
+                      {shouldShowDaySep && (
+                        <div className="day-sep">
+                          <span>{formatDayLabel(m.timestamp)}</span>
                         </div>
                       )}
 
-                      <div className={`bubble ${me ? "me" : "them"} ${render.isMedia ? "media-card" : ""}`}>
-                        {render.body}
-                        <div className="meta">
-                          <div className="btime">{formatTime(m.timestamp)}</div>
-                          {me && <div className={`readmark ${m.is_read ? "read" : "sent"}`}>{m.is_read ? "✓✓" : "✓"}</div>}
+                      <div
+                        ref={setMsgRef(m.id)}
+                        className={`msg-row ${me ? "right" : "left"}`}
+                      >
+                        {me && (
+                          <div className="left-controls">
+                            <button
+                              className="icon-btn-tiny"
+                              title="More"
+                              aria-label="More"
+                              onClick={() =>
+                                setMenuOpenId(menuOpenId === m.id ? null : m.id)
+                              }
+                            >
+                              <MoreVertical className="w-3 h-3" />
+                            </button>
+
+                            {menuOpenId === m.id && (
+                              <div className="ctx-menu">
+                                <button
+                                  className="ctx-item"
+                                  onClick={() => {
+                                    setMenuOpenId(null);
+                                    deleteThisMessage(m.id);
+                                  }}
+                                >
+                                  Delete this message
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div
+                          className={`bubble ${me ? "me" : "them"} ${
+                            render.isMedia ? "media-card" : ""
+                          } ${render.tombstone ? "tombstone" : ""}`}
+                        >
+                          {render.body}
+
+                          <div className="meta">
+                            <div className="btime">
+                              {formatTime(m.timestamp)}
+                            </div>
+                            {me && (
+                              <div
+                                className={`readmark ${
+                                  m.is_read ? "read" : "sent"
+                                }`}
+                              >
+                                {m.is_read ? "✓✓" : "✓"}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    </React.Fragment>
                   );
                 })}
-
-                {localTyping && <div className="text-xs text-[#6b4b2b]">{selectedUser?.name || "Peer"} is typing…</div>}
 
                 {showScrollButton && (
                   <button
                     className="scroll-btn"
                     onClick={() => {
                       const el = dockScrollRef.current;
-                      if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+                      if (el)
+                        el.scrollTo({
+                          top: el.scrollHeight,
+                          behavior: "smooth",
+                        });
                     }}
                   >
                     ↓
@@ -1717,8 +2097,26 @@ export default function Messages({ currentUser: currentUserProp }) {
                 )}
               </div>
 
+              {(localTyping || remoteTyping) &&
+                filteredMessages.length > 0 &&
+                openDock &&
+                selectedUser && (
+                  <div className="typing-tray">
+                    <span className="typing-dot" />
+                    <span className="typing-text truncate">
+                      {remoteTyping
+                        ? `${selectedUser.name || "They"} are typing…`
+                        : "You are typing…"}
+                    </span>
+                  </div>
+                )}
+
               <div className="dock-compose">
-                <label title="Attach image/video" className="attach-btn" style={{ borderRadius: 9999 }}>
+                <label
+                  title="Attach image/video"
+                  className="attach-btn"
+                  style={{ borderRadius: 9999 }}
+                >
                   <Paperclip className="w-4 h-4" />
                   <input
                     type="file"
@@ -1731,9 +2129,16 @@ export default function Messages({ currentUser: currentUserProp }) {
                   />
                 </label>
 
-                <div className={`compose-group${mediaFile ? " has-attach" : ""}`}>
+                <div
+                  className={`compose-group${mediaFile ? " has-attach" : ""}`}
+                >
                   {mediaFile && (
-                    <span className="attach-chip" title={`${mediaFile.type || "file"} • ${formatBytes(mediaFile.size)}`}>
+                    <span
+                      className="attach-chip"
+                      title={`${mediaFile.type || "file"} • ${formatBytes(
+                        mediaFile.size
+                      )}`}
+                    >
                       <span className="thumb">
                         {mediaPreview ? (
                           mediaFile.type?.startsWith("image/") ? (
@@ -1746,7 +2151,12 @@ export default function Messages({ currentUser: currentUserProp }) {
                         ) : null}
                       </span>
                       <span className="name">{mediaFile.name}</span>
-                      <button className="remove-attach" onClick={() => setMediaFile(null)} aria-label="Remove attachment" title="Remove attachment">
+                      <button
+                        className="remove-attach"
+                        onClick={() => setMediaFile(null)}
+                        aria-label="Remove attachment"
+                        title="Remove attachment"
+                      >
                         <X className="w-3 h-3" />
                       </button>
                     </span>
@@ -1769,8 +2179,8 @@ export default function Messages({ currentUser: currentUserProp }) {
                         ? mediaFile.type?.startsWith("image/")
                           ? "Add a caption for your image…"
                           : mediaFile.type?.startsWith("video/")
-                            ? "Add a caption for your video…"
-                            : "Add a caption for your file…"
+                          ? "Add a caption for your video…"
+                          : "Add a caption for your file…"
                         : "Type a message…"
                     }
                   />
@@ -1786,4 +2196,4 @@ export default function Messages({ currentUser: currentUserProp }) {
         )}
     </>
   );
-} 
+}

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { Bell, ExternalLink, X, ChevronRight } from "lucide-react";
 
-// Small unread/read circle indicator
 function UnreadCircle({ read }) {
   return (
     <span
@@ -20,21 +19,35 @@ function UnreadCircle({ read }) {
 const API = import.meta.env.VITE_API_URL || "https://api.doughnationhq.cloud";
 const STORAGE_KEY = "readNotifications";
 const CARD_WIDTH = 340;
+const PAGE_SIZE = 10;
 
 export default function BakeryNotification() {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState("products");
 
   const [products, setProducts] = useState([]);
-  const [messages, setMessages] = useState([]);
+  const [systemNotifications, setSystemNotifications] = useState([]);
 
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [anchor, setAnchor] = useState(null);
 
-  const dropdownRef = useRef(null);
-  const cardRef = useRef(null);
+  const dropdownRef = useRef(null); // notif panel
+  const cardRef = useRef(null); // quick-view card
 
-  // helpers
+  const [productPage, setProductPage] = useState(1);
+
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkIsMobile = () => {
+      if (typeof window === "undefined") return;
+      setIsMobile(window.innerWidth <= 768);
+    };
+    checkIsMobile();
+    window.addEventListener("resize", checkIsMobile);
+    return () => window.removeEventListener("resize", checkIsMobile);
+  }, []);
+
+  // ---------- helpers for read state ----------
   const getReadFromStorage = () => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -46,17 +59,17 @@ export default function BakeryNotification() {
   const saveReadToStorage = (ids) =>
     localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
 
-  // fetch notifs
+  // ---------- fetch notifications ----------
   const fetchNotifications = async () => {
     try {
-      // Get the appropriate token (employee token takes priority if it exists)
-      const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
+      const token =
+        localStorage.getItem("employeeToken") || localStorage.getItem("token");
       const opts = token
         ? { headers: { Authorization: `Bearer ${token}` } }
         : { withCredentials: true };
 
       const res = await axios.get(`${API}/notifications/all`, opts);
-      let { products = [], messages = [] } = res.data || {};
+      let { products = [], system_notifications = [] } = res.data || {};
 
       const read = getReadFromStorage();
 
@@ -70,22 +83,16 @@ export default function BakeryNotification() {
           if (a.read !== b.read) return a.read ? 1 : -1; // unread first
           const ad = new Date(a.expiration_date || a.created_at || 0);
           const bd = new Date(b.expiration_date || b.created_at || 0);
-          return bd - ad;
+          return bd - ad; // newest first
         });
 
-      const normMessages = (messages || []).map((m) => ({
-        ...m,
-        id: String(m.id),
-      }));
-
       setProducts(normProducts);
-      setMessages(normMessages);
+      setSystemNotifications(system_notifications || []);
     } catch (err) {
       console.error("Failed to fetch notifications", err);
     }
   };
 
-  // selection & read
   const markAsRead = (id) => {
     setProducts((prev) =>
       prev.map((p) => (p.id === id ? { ...p, read: true } : p))
@@ -94,12 +101,30 @@ export default function BakeryNotification() {
     if (!bag.includes(id)) saveReadToStorage([...bag, id]);
   };
 
+  const markSystemNotificationAsRead = async (notif) => {
+    try {
+      const token =
+        localStorage.getItem("employeeToken") || localStorage.getItem("token");
+      const opts = token
+        ? { headers: { Authorization: `Bearer ${token}` } }
+        : { withCredentials: true };
+
+      await axios.patch(`${API}/notifications/${notif.id}/read`, {}, opts);
+      
+      setSystemNotifications((prev) =>
+        prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
+      );
+    } catch (err) {
+      console.error("Failed to mark system notification as read", err);
+    }
+  };
+
   const openProductCard = async (notif, target) => {
     try {
       markAsRead(notif.id);
 
-      // Get the appropriate token (employee token takes priority if it exists)
-      const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
+      const token =
+        localStorage.getItem("employeeToken") || localStorage.getItem("token");
       const opts = token
         ? { headers: { Authorization: `Bearer ${token}` } }
         : { withCredentials: true };
@@ -109,7 +134,15 @@ export default function BakeryNotification() {
       const product = r.data?.product || null;
       setSelectedProduct(product);
 
-      // anchor next to clicked row
+      // scroll panel to top on mobile para laging kita yung quick view
+      if (isMobile && dropdownRef.current) {
+        const scroller =
+          dropdownRef.current.querySelector(".notif-scroll") ||
+          dropdownRef.current;
+        scroller.scrollTop = 0;
+      }
+
+      // anchor (desktop only – mobile ignores, desktop uses)
       const rect = target.getBoundingClientRect();
       const centerY = rect.top + rect.height / 2 + window.scrollY;
 
@@ -138,13 +171,17 @@ export default function BakeryNotification() {
     return () => clearInterval(iv);
   }, []);
 
-  // Close on outside click
+  useEffect(() => {
+    setProductPage(1);
+  }, [products.length]);
+
+  // ---------- outside click closes (panel + quick view) ----------
   useEffect(() => {
     const onDown = (e) => {
-      const withinDropdown =
+      const inDropdown =
         dropdownRef.current && dropdownRef.current.contains(e.target);
-      const withinCard = cardRef.current && cardRef.current.contains(e.target);
-      if (!withinDropdown && !withinCard) {
+      const inCard = cardRef.current && cardRef.current.contains(e.target);
+      if (!inDropdown && !inCard) {
         setOpen(false);
         setSelectedProduct(null);
         setAnchor(null);
@@ -154,81 +191,32 @@ export default function BakeryNotification() {
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
-  // Auto-clear a single message notification when chat opens directly
-  useEffect(() => {
-    const handleOpenChat = async () => {
-      try {
-        const peerRaw = localStorage.getItem("open_chat_with");
-        if (!peerRaw) return;
-        const peer = JSON.parse(peerRaw);
-        const match = messages.find((m) => m.sender_id === peer.id);
-        if (!match) return;
 
-        // Get the appropriate token (employee token takes priority if it exists)
-        const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
-        const opts = token
-          ? { headers: { Authorization: `Bearer ${token}` } }
-          : { withCredentials: true };
-        await axios.patch(`${API}/notifications/${match.id}/read`, {}, opts);
-        setMessages((prev) => prev.filter((x) => x.id !== match.id));
-      } catch (err) {
-        console.error("Failed to auto-clear notif on chat open", err);
-      }
-    };
-    window.addEventListener("open_chat", handleOpenChat);
-    return () => window.removeEventListener("open_chat", handleOpenChat);
-  }, [messages]);
 
   const unreadProducts = products.filter((p) => !p.read).length;
-  const unreadMessages = messages.length;
-  const totalUnread = unreadProducts + unreadMessages;
+  const unreadSystemNotifications = systemNotifications.filter((n) => !n.read).length;
+  const totalUnread = unreadProducts + unreadSystemNotifications;
 
   const getName = (p) => p?.product_name ?? p?.name ?? p?.title ?? "Product";
   const getImage = (p) => p?.image_path ?? p?.image ?? p?.imageUrl ?? null;
 
-  const openChatWith = async (m) => {
-    const peer = {
-      id: m.sender_id,
-      name: m.sender_name,
-      profile_picture: m.sender_profile_picture || null,
-    };
-    localStorage.setItem("open_chat_with", JSON.stringify(peer));
 
-    try {
-      // Get the appropriate token (employee token takes priority if it exists)
-      const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
-      const opts = token
-        ? { headers: { Authorization: `Bearer ${token}` } }
-        : { withCredentials: true };
-      await axios.patch(`${API}/notifications/${m.id}/read`, {}, opts);
-    } catch (err) {
-      console.error("Failed to mark message notif as read", err);
-    }
 
-    window.dispatchEvent(new Event("open_chat"));
-    setOpen(false);
-  };
-
-  // === ONLY CHANGE: make CTA open the right dashboard tab & bypass verify once
   const jumpToInventory = (product) => {
     const detail = {
       id: Number(product?.id ?? product?.product_id ?? product?.productId ?? 0),
       name: (product?.name || product?.product_name || "").trim(),
     };
 
-    // close any open UI
     setOpen(false);
     setSelectedProduct(null);
     setAnchor(null);
 
-    // Let inventory know what to spotlight (if it listens)
     window.dispatchEvent(new CustomEvent("inventory:focus", { detail }));
 
-    // One-time bypass so the Inventory screen won't ask to verify again
     sessionStorage.setItem("inventory:bypassVerifyOnce", "1");
     sessionStorage.setItem("inventory:focusDetail", JSON.stringify(detail));
 
-    // Build the correct target: /bakery-dashboard/:id?tab=inventory
     const current = new URL(window.location.href);
     const pathMatch = current.pathname.match(/\/bakery-dashboard\/([^/]+)/);
     const hashMatch = current.hash.match(/#\/bakery-dashboard\/([^/?#]+)/);
@@ -237,20 +225,18 @@ export default function BakeryNotification() {
     const targetPath = `/bakery-dashboard/${bakeryId}?tab=inventory`;
 
     if (pathMatch) {
-      // BrowserRouter style
       window.location.assign(`${current.origin}${targetPath}`);
     } else if (hashMatch || current.hash.startsWith("#")) {
-      // HashRouter style
       current.hash = `#${targetPath}`;
       window.location.assign(current.toString());
     } else {
-      // Fallback
       window.location.assign(`${current.origin}${targetPath}`);
     }
   };
 
+  // keep anchored card inside viewport (desktop)
   useEffect(() => {
-    if (!selectedProduct || !anchor) return;
+    if (!selectedProduct || !anchor || isMobile) return;
 
     const adjust = () => {
       const el = cardRef.current;
@@ -280,11 +266,292 @@ export default function BakeryNotification() {
       window.removeEventListener("resize", adjust);
       window.removeEventListener("scroll", adjust);
     };
-  }, [selectedProduct, anchor]);
+  }, [selectedProduct, anchor, isMobile]);
 
+  const productTotalPages = Math.max(
+    1,
+    Math.ceil(products.length / PAGE_SIZE) || 1
+  );
+
+  const pagedProducts = products.slice(
+    (productPage - 1) * PAGE_SIZE,
+    productPage * PAGE_SIZE
+  );
+
+  const handleClosePanel = () => {
+    setOpen(false);
+    setSelectedProduct(null);
+    setAnchor(null);
+  };
+
+  // ---------- shared panel body ----------
+  const renderNotificationPanelContent = () => (
+    <div className="gwrap rounded-2xl shadow-xl w-full">
+      <div className="glass-card rounded-[18px] overflow-hidden">
+        {/* header with title + X close */}
+        <div className="cl-head">
+          <div className="cl-title">Notifications</div>
+          <button
+            type="button"
+            className="cl-close-btn"
+            aria-label="Close notifications"
+            onClick={handleClosePanel}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* tabs */}
+        <div className="flex items-center">
+          {[
+            { key: "products", label: "Products", count: unreadProducts },
+            { key: "system", label: "Announcements", count: unreadSystemNotifications },
+          ].map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`flex-1 py-2.5 text-sm font-bold transition-colors ${
+                tab === t.key
+                  ? "text-white"
+                  : "text-[#6b4b2b] hover:text-[#4f371f]"
+              }`}
+              style={
+                tab === t.key
+                  ? {
+                      background:
+                        "linear-gradient(90deg, var(--brand1,#F6C17C), var(--brand2,#E49A52), var(--brand3,#BF7327))",
+                    }
+                  : { background: "transparent" }
+              }
+            >
+              {t.label}
+              {t.count > 0 && (
+                <span
+                  className="ml-1 text-[11px] font-extrabold"
+                  style={{ color: tab === t.key ? "#fff" : "#BF7327" }}
+                >
+                  ({t.count})
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* list body + MOBILE quick view inside panel */}
+        <div className="max-h-[55vh] sm:max-h-80 overflow-y-auto bg-white notif-scroll">
+          {isMobile && selectedProduct && (
+            <div className="px-3 pt-3 pb-3 border-b border-[rgba(0,0,0,0.06)] bg-[#fffaf4]">
+              <div
+                ref={cardRef}
+                className="relative rounded-[14px] p-3 bg-white shadow-sm"
+              >
+                <button
+                  className="absolute top-2 right-2 p-1 rounded-full hover:bg-black/5"
+                  onClick={() => {
+                    setSelectedProduct(null);
+                    setAnchor(null);
+                  }}
+                  aria-label="Close"
+                  title="Close"
+                >
+                  <X className="w-4 h-4 text-[#6b4b2b]" />
+                </button>
+
+                <h3 className="text-[15px] font-extrabold text-[#6b4b2b] mb-1">
+                  {getName(selectedProduct)}
+                </h3>
+
+                <div className="space-y-1 text-[12px] text-[#6b4b2b]">
+                  <p>
+                    <strong>Quantity:</strong> {selectedProduct.quantity ?? "-"}
+                  </p>
+                  <p>
+                    <strong>Creation Date:</strong>{" "}
+                    {selectedProduct.creation_date
+                      ? new Date(
+                          selectedProduct.creation_date
+                        ).toLocaleDateString()
+                      : "-"}
+                  </p>
+                  <p>
+                    <strong>Expiration Date:</strong>{" "}
+                    {selectedProduct.expiration_date
+                      ? new Date(
+                          selectedProduct.expiration_date
+                        ).toLocaleDateString()
+                      : "-"}
+                  </p>
+                  <p>
+                    <strong>Threshold:</strong>{" "}
+                    {selectedProduct.threshold ?? "-"} days
+                  </p>
+                </div>
+
+                {getImage(selectedProduct) && (
+                  <img
+                    src={`${API}/${getImage(selectedProduct)}`}
+                    alt={getName(selectedProduct)}
+                    className="mt-3 w-full h-36 object-cover rounded-md border"
+                  />
+                )}
+
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="status-chip">Quick view</span>
+                  <button
+                    onClick={() => jumpToInventory(selectedProduct)}
+                    className="inline-flex items-center gap-1 text-[12px] font-bold px-3 py-1.5 rounded-full text-white"
+                    style={{
+                      background:
+                        "linear-gradient(90deg, var(--brand1,#F6C17C), var(--brand2,#E49A52), var(--brand3,#BF7327))",
+                      boxShadow: "0 6px 16px rgba(201,124,44,25)",
+                      border: "1px solid rgba(255,255,255,6)",
+                    }}
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" /> View in Inventory
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* actual lists */}
+          <div className="divide-y">
+            {tab === "products" && (
+              <div>
+                {products.length === 0 ? (
+                  <div className="p-4 text-sm text-gray-500">
+                    No product alerts
+                  </div>
+                ) : (
+                  pagedProducts.map((n) => (
+                    <button
+                      key={n.id}
+                      onClick={(e) => openProductCard(n, e.currentTarget)}
+                      className={`w-full p-3 focus:outline-none transition-colors flex items-center ${
+                        n.read
+                          ? "bg-white hover:bg-[#fff6ec]"
+                          : "bg-[rgba(255,246,236,1)]"
+                      }`}
+                    >
+                      <UnreadCircle read={n.read} />
+                      <p
+                        className={`text-[13px] text-left flex-1 ${
+                          n.read
+                            ? "text-[#6b4b2b]"
+                            : "text-[#4f371f] font-semibold"
+                        }`}
+                      >
+                        {n.message}
+                      </p>
+                      <ChevronRight
+                        className="w-4 h-4 shrink-0"
+                        style={{ color: "#8b6b48" }}
+                      />
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+
+            {tab === "system" && (
+              <div>
+                {systemNotifications.length === 0 ? (
+                  <div className="p-4 text-sm text-gray-500">
+                    No announcements
+                  </div>
+                ) : (
+                  systemNotifications.map((notif) => (
+                    <button
+                      key={notif.id}
+                      onClick={() => markSystemNotificationAsRead(notif)}
+                      className={`w-full p-4 text-left transition-colors ${
+                        notif.read
+                          ? "bg-white hover:bg-[#fff6ec]"
+                          : "bg-[rgba(255,246,236,1)]"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <UnreadCircle read={notif.read} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className={`text-[14px] font-bold ${
+                              notif.read ? "text-[#6b4b2b]" : "text-[#4f371f]"
+                            }`}>
+                              {notif.title}
+                            </h4>
+                            {notif.priority === "urgent" && (
+                              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-100 text-red-800">
+                                URGENT
+                              </span>
+                            )}
+                            {notif.priority === "high" && (
+                              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-orange-100 text-orange-800">
+                                HIGH
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[13px] text-[#6b4b2b] whitespace-pre-wrap">
+                            {notif.message}
+                          </p>
+                          <div className="flex items-center gap-2 mt-2 text-[11px] text-gray-500">
+                            <span>{notif.notification_type}</span>
+                            {notif.sent_at && (
+                              <>
+                                <span>•</span>
+                                <span>
+                                  {new Date(notif.sent_at).toLocaleString()}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* pagination + close */}
+        {tab === "products" && (
+          <div className="px-3 pt-2 pb-2 bg-white border-t border-[rgba(0,0,0,0.04)] text-[#8a5a25]">
+            <div className="text-center text-[11px] mb-1">
+              Page {productPage} of {productTotalPages}
+            </div>
+            <div className="flex items-center justify-between gap-2 text-[12px]">
+              <button
+                onClick={() => setProductPage((p) => (p > 1 ? p - 1 : p))}
+                disabled={productPage === 1}
+                className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
+              >
+                Prev
+              </button>
+              <button
+                onClick={() =>
+                  setProductPage((p) => (p < productTotalPages ? p + 1 : p))
+                }
+                disabled={productPage >= productTotalPages}
+                className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="px-3 py-2 text-[11px] text-[#8a5a25] bg-white/70">
+          Tip: Click a product alert to view quick details or jump to Inventory.
+        </div>
+      </div>
+    </div>
+  );
+
+  // ---------- render ----------
   return (
     <div className="relative inline-block">
-      {/* Bell button */}
+      {/* bell */}
       <button
         className="icon-btn"
         aria-label="Notifications"
@@ -314,146 +581,17 @@ export default function BakeryNotification() {
         )}
       </button>
 
-      {/* Dropdown */}
+      {/* NOTIF PANEL */}
       {open && (
-        <div
-          className="absolute right-0 mt-2 z-[9998] w/[460px] w-[460px] max-w-[90vw]"
-          ref={dropdownRef}
-        >
-          <div className="gwrap rounded-2xl shadow-xl">
-            <div className="glass-card rounded-[14px] overflow-hidden">
-              {/* Tabs header */}
-              <div className="flex items-center">
-                {[
-                  { key: "products", label: "Products", count: unreadProducts },
-                  { key: "messages", label: "Messages", count: unreadMessages },
-                ].map((t) => (
-                  <button
-                    key={t.key}
-                    onClick={() => setTab(t.key)}
-                    className={`flex-1 py-2.5 text-sm font-bold transition-colors ${
-                      tab === t.key
-                        ? "text-white"
-                        : "text-[#6b4b2b] hover:text-[#4f371f]"
-                    }`}
-                    style={
-                      tab === t.key
-                        ? {
-                            background:
-                              "linear-gradient(90deg, var(--brand1,#F6C17C), var(--brand2,#E49A52), var(--brand3,#BF7327))",
-                          }
-                        : { background: "transparent" }
-                    }
-                  >
-                    {t.label}
-                    {t.count > 0 && (
-                      <span
-                        className="ml-1 text-[11px] font-extrabold"
-                        style={{ color: tab === t.key ? "#fff" : "#BF7327" }}
-                      >
-                        ({t.count})
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              {/* List */}
-              <div className="max-h-80 overflow-y-auto divide-y">
-                {tab === "products" && (
-                  <div>
-                    {products.length === 0 ? (
-                      <div className="p-4 text-sm text-gray-500">
-                        No product alerts
-                      </div>
-                    ) : (
-                      products.map((n) => (
-                        <button
-                          key={n.id}
-                          onClick={(e) => openProductCard(n, e.currentTarget)}
-                          className={`w-full p-3 focus:outline-none transition-colors flex items-center ${
-                            n.read
-                              ? "bg-white hover:bg-[#fff6ec]"
-                              : "bg-[rgba(255,246,236,1)]"
-                          }`}
-                        >
-                          <UnreadCircle read={n.read} />
-                          <p
-                            className={`text-[13px] text-left flex-1 ${
-                              n.read
-                                ? "text-[#6b4b2b]"
-                                : "text-[#4f371f] font-semibold"
-                            }`}
-                          >
-                            {n.message}
-                          </p>
-                          <ChevronRight
-                            className="w-4 h-4 shrink-0"
-                            style={{ color: "#8b6b48" }}
-                          />
-                        </button>
-                      ))
-                    )}
-                  </div>
-                )}
-
-                {tab === "messages" && (
-                  <div>
-                    {messages.length === 0 ? (
-                      <div className="p-4 text-sm text-gray-500">
-                        No messages
-                      </div>
-                    ) : (
-                      messages.map((m) => (
-                        <button
-                          key={m.id}
-                          onClick={() => openChatWith(m)}
-                          className="w-full p-3 flex items-center gap-2 text-left hover:bg-[#fff6ec]"
-                        >
-                          <UnreadCircle read={false} />
-                          <img
-                            src={
-                              m.sender_profile_picture
-                                ? `${API}/${m.sender_profile_picture}`
-                                : `${API}/uploads/placeholder.png`
-                            }
-                            alt={m.sender_name}
-                            className="w-8 h-8 rounded-full object-cover border"
-                          />
-
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[13px] leading-tight">
-                              <span className="font-bold text-[#6b4b2b]">
-                                {m.sender_name}:
-                              </span>{" "}
-                              <span className="text-[#6b4b2b]">
-                                {m.preview}
-                              </span>
-                            </p>
-                          </div>
-                          <ChevronRight
-                            className="w-4 h-4 shrink-0"
-                            style={{ color: "#8b6b48" }}
-                          />
-                        </button>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* footer */}
-              <div className="px-3 py-2 text-[11px] text-[#8a5a25] bg-white/70">
-                Tip: Click a product alert to view quick details or jump to
-                Inventory.
-              </div>
-            </div>
+        <div className="chatlist-layer" ref={dropdownRef}>
+          <div className="chatlist-dropdown">
+            {renderNotificationPanelContent()}
           </div>
         </div>
       )}
 
-      {/* Product quick card (anchored) */}
-      {selectedProduct && anchor && (
+      {/* QUICK VIEW CARD – DESKTOP ONLY */}
+      {selectedProduct && anchor && !isMobile && (
         <div
           ref={cardRef}
           className="fixed z-[9999]"
@@ -473,8 +611,8 @@ export default function BakeryNotification() {
                 className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rotate-45"
                 style={{
                   background: "white",
-                  borderLeft: "1px solid rgba(0,0,0,06)",
-                  borderTop: "1px solid rgba(0,0,0,06)",
+                  borderLeft: "1px solid rgba(0,0,0,.06)",
+                  borderTop: "1px solid rgba(0,0,0,.06)",
                   right: anchor.side === "left" ? "-6px" : "auto",
                   left: anchor.side === "right" ? "-6px" : "auto",
                 }}

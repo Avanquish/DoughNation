@@ -22,6 +22,10 @@ import {
   FileBarChart,
   Microwave,
   Store,
+  Shield,
+  BarChart3,
+  FileText,
+  AlertTriangle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import axios from "../api/axios";
@@ -30,7 +34,13 @@ import AdminReports from "./AdminReports";
 import AdminUser from "./AdminUser";
 import Leaderboards from "./Leaderboards";
 import Bakery from "./Bakery";
-import Charity from "./Charity"; 
+import Charity from "./Charity";
+
+import AuditLogViewer from "./AuditLogViewer";
+import NotificationCenter from "./NotificationCenter";
+import EmergencyControlPanel from "./EmergencyControlPanel";
+import AnalyticsDashboard from "./AnalyticsDashboard";
+
 import { Link } from "react-router-dom";
 
 // Tab persistence
@@ -38,10 +48,17 @@ const ADMIN_TAB_KEY = "admin_active_tab";
 const ADMIN_ALLOWED_TABS = [
   "dashboard",
   "users",
+  "bakeries",
+  "charities",
   "reports",
   "track",
-  "badges",
   "complaints",
+  "analytics",
+  "user-management",
+  "audit-logs",
+  "notifications",
+  "emergency",
+  "profile-editor",
 ];
 
 // Small unread/read circle indicator
@@ -76,6 +93,10 @@ const columns = [
   { accessorKey: "email", header: "Email", isHide: "false" },
   { accessorKey: "role", header: "Role", isHide: "false" },
 ];
+
+// === ADMIN NOTIF PAGINATION (UI ONLY) ===
+// Max number of notifications per page in the admin bell dropdown (same as bakery PAGE_SIZE=10)
+const ADMIN_NOTIF_PAGE_SIZE = 10;
 
 const AdminDashboard = () => {
   const [name, setName] = useState("Admin");
@@ -123,7 +144,7 @@ const AdminDashboard = () => {
   // Notifications
   const [notifOpen, setNotifOpen] = useState(false);
   const [readNotifs, setReadNotifs] = useState(new Set());
-  const [notifTab, setNotifTab] = useState("verifications"); // "verifications" | "complaints" | "reports"
+  const [notifTab, setNotifTab] = useState("verifications"); // "verifications" | "complaints" (user concerns) | "reports"
   const dropdownRef = useRef(null);
   const bellRef = useRef(null);
 
@@ -165,7 +186,7 @@ const AdminDashboard = () => {
     (async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await axios.get("/pending-users", {
+        const res = await axios.get("/admin/pending-users", {
           headers: { Authorization: `Bearer ${token}` },
         });
         setPendingUsers(res.data || []);
@@ -175,7 +196,6 @@ const AdminDashboard = () => {
     })();
   }, []);
 
-  // Complaints
   // Complaints
   useEffect(() => {
     (async () => {
@@ -197,19 +217,19 @@ const AdminDashboard = () => {
     const fetchNotifications = async () => {
       try {
         const token = localStorage.getItem("token");
-        
+
         // Fetch pending users
-        const pendingRes = await axios.get("/pending-users", {
+        const pendingRes = await axios.get("/admin/pending-users", {
           headers: { Authorization: `Bearer ${token}` },
         });
         setPendingUsers(pendingRes.data || []);
-        
+
         // Fetch complaints
         const complaintsRes = await axios.get("/complaints", {
           headers: { Authorization: `Bearer ${token}` },
         });
         setComplaints(complaintsRes.data || []);
-        
+
         // Update stats
         const statsRes = await axios.get("/admin-dashboard-stats", {
           headers: { Authorization: `Bearer ${token}` },
@@ -231,13 +251,13 @@ const AdminDashboard = () => {
     // Cleanup interval on unmount
     return () => clearInterval(intervalId);
   }, []);
-  
+
   // Actions
   const handleVerify = async (id) => {
     try {
       const token = localStorage.getItem("token");
       await axios.post(
-        `/verify-user/${id}`,
+        `/admin/verify-user/${id}`,
         {},
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -257,7 +277,7 @@ const AdminDashboard = () => {
     try {
       const token = localStorage.getItem("token");
       await axios.post(
-        `/reject-user/${id}`,
+        `/admin/reject-user/${id}`,
         {},
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -315,7 +335,7 @@ const AdminDashboard = () => {
       kind: "complaint",
       id: `comp-${c.id}`,
       at: c.created_at || null,
-      title: `Complaint from ${c.user_name || "User"}`,
+      title: `Concern from ${c.user_name || "User"}`,
       subtitle: (c.subject || c.description || "").toString().slice(0, 120),
     }));
     return [...reg, ...fbs, ...complaintsNotifs]
@@ -331,7 +351,7 @@ const AdminDashboard = () => {
     try {
       const token = localStorage.getItem("token");
       await axios.post(
-        `/notifications/mark-read/${notifId}`,
+        `/admin/notifications/mark-read/${notifId}`,
         {},
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -347,7 +367,7 @@ const AdminDashboard = () => {
     (async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await axios.get("/notifications/read", {
+        const res = await axios.get("/admin/notifications/read", {
           headers: { Authorization: `Bearer ${token}` },
         });
         setReadNotifs(new Set(res.data || []));
@@ -371,7 +391,7 @@ const AdminDashboard = () => {
       users: "User Verification",
       reports: "Reports",
       track: "Donations",
-      complaints: "Complaints",
+      complaints: "User Concerns",
     };
     return map[activeTab] ?? "Dashboard";
   }, [activeTab]);
@@ -385,6 +405,47 @@ const AdminDashboard = () => {
 
   const unreadVerifications = verificationList.filter((n) => !n.isRead).length;
   const unreadComplaints = complaintsList.filter((n) => !n.isRead).length;
+
+  // === ADMIN NOTIF PAGINATION STATE (UI ONLY) ===
+  // separate page state for Verifications & User Concerns
+  const [verificationPage, setVerificationPage] = useState(1);
+  const [complaintsPage, setComplaintsPage] = useState(1);
+
+  const verificationTotalPages = Math.max(
+    1,
+    Math.ceil(verificationList.length / ADMIN_NOTIF_PAGE_SIZE) || 1
+  );
+  const complaintsTotalPages = Math.max(
+    1,
+    Math.ceil(complaintsList.length / ADMIN_NOTIF_PAGE_SIZE) || 1
+  );
+
+  const pagedVerificationList = useMemo(
+    () =>
+      verificationList.slice(
+        (verificationPage - 1) * ADMIN_NOTIF_PAGE_SIZE,
+        verificationPage * ADMIN_NOTIF_PAGE_SIZE
+      ),
+    [verificationList, verificationPage]
+  );
+
+  const pagedComplaintsList = useMemo(
+    () =>
+      complaintsList.slice(
+        (complaintsPage - 1) * ADMIN_NOTIF_PAGE_SIZE,
+        complaintsPage * ADMIN_NOTIF_PAGE_SIZE
+      ),
+    [complaintsList, complaintsPage]
+  );
+
+  // reset to first page whenever list length changes
+  useEffect(() => {
+    setVerificationPage(1);
+  }, [verificationList.length]);
+
+  useEffect(() => {
+    setComplaintsPage(1);
+  }, [complaintsList.length]);
 
   const [showTop, setShowTop] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -401,6 +462,7 @@ const AdminDashboard = () => {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // === UPDATED Styles component (added .tabs-scroll only) ===
   const Styles = () => (
     <style>{`
       :root {
@@ -521,7 +583,6 @@ const AdminDashboard = () => {
   box-shadow:0 8px 18px rgba(201,124,44,.28);
 }
 
-
 .btn-logout{position:relative; overflow:hidden; border-radius:9999px; padding:.58rem .95rem; gap:.5rem; background:linear-gradient(90deg,#F6C17C,#E49A52,#BF7327); color:#fff; border:1px solid rgba(255,255,255,.6); box-shadow:0 8px 26px rgba(201,124,44,.25); transition:transform .18s ease, box-shadow .18s ease, filter .18s ease}
 .btn-logout:before{content:""; position:absolute; top:-40%; bottom:-40%; left:-70%; width:60%; transform:rotate(10deg); background:linear-gradient(90deg, rgba(255,255,255,.26), rgba(255,255,255,0) 55%); animation: shine 3.2s linear infinite}
 @keyframes shine{from{left:-70%}to{left:120%}}
@@ -563,6 +624,18 @@ const AdminDashboard = () => {
 }
 
 thead{ background:#EADBC8; color:#4A2F17; }
+
+/* === Scrollable tabs strip (for mobile) === */
+.tabs-scroll{
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  flex-wrap: nowrap;
+}
+.tabs-scroll::-webkit-scrollbar{
+  display: none;
+}
+
 `}</style>
   );
 
@@ -699,7 +772,7 @@ thead{ background:#EADBC8; color:#4A2F17; }
                             },
                             {
                               key: "complaints",
-                              label: "Complaints",
+                              label: "User Concerns",
                               count: unreadComplaints,
                             },
                           ].map((t) => (
@@ -738,7 +811,7 @@ thead{ background:#EADBC8; color:#4A2F17; }
 
                         {/* Lists */}
                         <div className="max-h-80 overflow-y-auto divide-y">
-                          {/* VERIFICATIONS */}
+                          {/* === VERIFICATIONS LIST (with pagination) === */}
                           {notifTab === "verifications" && (
                             <div>
                               {verificationList.length === 0 ? (
@@ -746,7 +819,7 @@ thead{ background:#EADBC8; color:#4A2F17; }
                                   No verification alerts
                                 </div>
                               ) : (
-                                verificationList.map((n) => (
+                                pagedVerificationList.map((n) => (
                                   <button
                                     key={n.id}
                                     onClick={() => {
@@ -788,15 +861,15 @@ thead{ background:#EADBC8; color:#4A2F17; }
                             </div>
                           )}
 
-                          {/* COMPLAINTS */}
+                          {/* === COMPLAINTS LIST (with pagination) === */}
                           {notifTab === "complaints" && (
                             <div>
                               {complaintsList.length === 0 ? (
                                 <div className="p-4 text-sm text-gray-500">
-                                  No complaints
+                                  No user concerns
                                 </div>
                               ) : (
-                                complaintsList.map((n) => (
+                                pagedComplaintsList.map((n) => (
                                   <button
                                     key={n.id}
                                     onClick={() => {
@@ -839,7 +912,79 @@ thead{ background:#EADBC8; color:#4A2F17; }
                           )}
                         </div>
 
-                        {/* Footer */}
+                        {/* === PAGINATION FOOTER FOR ADMIN NOTIFS (UI ONLY) === */}
+                        {notifTab === "verifications" &&
+                          verificationList.length > 0 && (
+                            <div className="px-3 pt-2 pb-2 bg-white border-t border-[rgba(0,0,0,0.04)] text-[#8a5a25]">
+                              <div className="text-center text-[11px] mb-1">
+                                Page {verificationPage} of{" "}
+                                {verificationTotalPages}
+                              </div>
+                              <div className="flex items-center justify-between gap-2 text-[12px]">
+                                <button
+                                  onClick={() =>
+                                    setVerificationPage((p) =>
+                                      p > 1 ? p - 1 : p
+                                    )
+                                  }
+                                  disabled={verificationPage === 1}
+                                  className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
+                                >
+                                  Prev
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    setVerificationPage((p) =>
+                                      p < verificationTotalPages ? p + 1 : p
+                                    )
+                                  }
+                                  disabled={
+                                    verificationPage >= verificationTotalPages
+                                  }
+                                  className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
+                                >
+                                  Next
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                        {notifTab === "complaints" &&
+                          complaintsList.length > 0 && (
+                            <div className="px-3 pt-2 pb-2 bg-white border-t border-[rgba(0,0,0,0.04)] text-[#8a5a25]">
+                              <div className="text-center text-[11px] mb-1">
+                                Page {complaintsPage} of {complaintsTotalPages}
+                              </div>
+                              <div className="flex items-center justify-between gap-2 text-[12px]">
+                                <button
+                                  onClick={() =>
+                                    setComplaintsPage((p) =>
+                                      p > 1 ? p - 1 : p
+                                    )
+                                  }
+                                  disabled={complaintsPage === 1}
+                                  className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
+                                >
+                                  Prev
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    setComplaintsPage((p) =>
+                                      p < complaintsTotalPages ? p + 1 : p
+                                    )
+                                  }
+                                  disabled={
+                                    complaintsPage >= complaintsTotalPages
+                                  }
+                                  className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
+                                >
+                                  Next
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                        {/* Footer tip (unchanged text, same idea as bakery tip) */}
                         <div className="px-3 py-2 text-[11px] text-[#8a5a25] bg-white/70">
                           Tip: Click a notification to jump to its section.
                         </div>
@@ -879,7 +1024,8 @@ thead{ background:#EADBC8; color:#4A2F17; }
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <div className="seg-wrap">
           <div className="seg justify-center">
-            <TabsList className="flex items-center gap-1 bg-transparent p-0 border-0 overflow-x-auto no-scrollbar">
+            {/* UPDATED: TabsList now uses tabs-scroll for horizontal scrolling */}
+            <TabsList className="tabs-scroll flex items-center gap-1 bg-transparent p-0 border-0">
               <TabsTrigger
                 value="dashboard"
                 title="Dashboard"
@@ -936,11 +1082,38 @@ thead{ background:#EADBC8; color:#4A2F17; }
 
               <TabsTrigger
                 value="complaints"
-                title="Complaints"
+                title="User Concerns"
                 className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
               >
                 <MessageSquareWarning className="w-4 h-4" />
-                <span className="hidden sm:inline">Complaints</span>
+                <span className="hidden sm:inline">User Concerns</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="audit-logs"
+                title="Audit Logs"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm text-purple-600 hover:bg-purple-50"
+              >
+                <FileText className="w-4 h-4" />
+                <span className="hidden sm:inline">Audit Logs</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="notifications"
+                title="Notifications"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm text-purple-600 hover:bg-purple-50"
+              >
+                <Bell className="w-4 h-4" />
+                <span className="hidden sm:inline">System Notifs</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="emergency"
+                title="Emergency"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm text-red-600 hover:bg-red-50"
+              >
+                <AlertTriangle className="w-4 h-4" />
+                <span className="hidden sm:inline">Emergency</span>
               </TabsTrigger>
             </TabsList>
           </div>
@@ -948,75 +1121,23 @@ thead{ background:#EADBC8; color:#4A2F17; }
 
         {/* Content */}
         <div className="max-w-7xl mx-auto lg:px-3 lg:py-3">
-          {/* Dashboard */}
+          {/* Dashboard & Analytics */}
           <TabsContent value="dashboard" className="reveal px-2">
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  <div className="space-y-6">
-                    <div className="p-6">
-                      <div>
-                        <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
-                          Dashboard
-                        </h2>
-                        <p className="mt-1 text-sm text-[#7b5836]">Metrics</p>
-                      </div>
-                    </div>
+                  {/* Page heading */}
+                  <div className="mb-4 sm:mb-5">
+                    <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
+                      Dashboard &amp; Analytics
+                    </h2>
+                    <p className="mt-1 text-sm text-[#7b5836]">
+                      Overview and Metrics
+                    </p>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {/* Stat: Total Bakeries */}
-                    <div className="stat reveal r1">
-                      <div className="stat-inner">
-                        <div>
-                          <p className="stat-title">Total Bakeries</p>
-                          <p className="stat-value">{stats.totalBakeries}</p>
-                        </div>
-                        <div className="stat-ico">
-                          <Building2 />
-                        </div>
-                      </div>
-                    </div>
 
-                    {/* Stat: Total Charities */}
-                    <div className="stat reveal r2">
-                      <div className="stat-inner">
-                        <div>
-                          <p className="stat-title">Total Charities</p>
-                          <p className="stat-value">{stats.totalCharities}</p>
-                        </div>
-                        <div className="stat-ico">
-                          <HelpingHand />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Stat: Total Users */}
-                    <div className="stat reveal r3">
-                      <div className="stat-inner">
-                        <div>
-                          <p className="stat-title">Total Users</p>
-                          <p className="stat-value">{stats.totalUsers}</p>
-                        </div>
-                        <div className="stat-ico">
-                          <UserCog />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Stat: Pending Users */}
-                    <div className="stat reveal r4">
-                      <div className="stat-inner">
-                        <div>
-                          <p className="stat-title">Pending Users</p>
-                          <p className="stat-value">
-                            {stats.pendingUsersCount}
-                          </p>
-                        </div>
-                        <div className="stat-ico">
-                          <ShieldCheck />
-                        </div>
-                      </div>
-                    </div>
+                  <div className="border-t border-[#e3b57e]/40 pt-4 sm:pt-5">
+                    <AnalyticsDashboard />
                   </div>
                 </CardContent>
               </Card>
@@ -1049,8 +1170,21 @@ thead{ background:#EADBC8; color:#4A2F17; }
           <TabsContent value="users" className="reveal px-2">
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
-                <CardContent>
-                  <AdminUser />
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  {/* Section heading - User Verification */}
+                  <div className="mb-4 sm:mb-5">
+                    <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
+                      User Verification
+                    </h2>
+                    <p className="mt-1 text-sm text-[#7b5836]">
+                      Review and approve new user registrations and manage
+                      verification status.
+                    </p>
+                  </div>
+
+                  <div className="border-t border-[#e3b57e]/40 pt-4 sm:pt-5">
+                    <AdminUser />
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -1096,14 +1230,85 @@ thead{ background:#EADBC8; color:#4A2F17; }
               <Card className="glass-card shadow-none">
                 <CardHeader>
                   <CardTitle className="text-3xl font-extrabold text-[#6b4b2b]">
-                    Manage Complaints
+                    Manage User Concerns
                   </CardTitle>
                   <CardDescription>
-                    Review and respond to user complaints
+                    Review and respond to user concerns
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <AdminComplaint />
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Audit Logs */}
+          <TabsContent value="audit-logs" className="reveal px-2">
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  {/* Section heading - Audit Logs */}
+                  <div className="mb-4 sm:mb-5">
+                    <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
+                      Audit Logs
+                    </h2>
+                    <p className="mt-1 text-sm text-[#7b5836]">
+                      View a complete timeline of system events, changes, and
+                      administrative activity.
+                    </p>
+                  </div>
+
+                  <div className="border-t border-[#e3b57e]/40 pt-4 sm:pt-5">
+                    <AuditLogViewer />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Notifications */}
+          <TabsContent value="notifications" className="reveal px-2">
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  {/* Section heading - Notification Center */}
+                  <div className="mb-4 sm:mb-5">
+                    <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
+                      Notification Center
+                    </h2>
+                    <p className="mt-1 text-sm text-[#7b5836]">
+                      Send system-wide announcements and targeted notifications
+                      to users.
+                    </p>
+                  </div>
+
+                  <div className="border-t border-[#e3b57e]/40 pt-4 sm:pt-5">
+                    <NotificationCenter />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Emergency */}
+          <TabsContent value="emergency" className="reveal px-2">
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  {/* Section heading - Emergency Control Panel */}
+                  <div className="mb-4 sm:mb-5">
+                    <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
+                      Emergency Control Panel
+                    </h2>
+                    <p className="mt-1 text-sm text-[#7b5836]">
+                      Critical administrative actions - Use with extreme caution
+                    </p>
+                  </div>
+
+                  <div className="border-t border-[#e3b57e]/40 pt-4 sm:pt-5">
+                    <EmergencyControlPanel />
+                  </div>
                 </CardContent>
               </Card>
             </div>

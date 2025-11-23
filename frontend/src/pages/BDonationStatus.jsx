@@ -285,43 +285,49 @@ const BDonationStatus = () => {
   const toStr = (v = "") => String(v).toLowerCase();
   const normStatus = (d) => toStr(d.tracking_status || d.status || "pending");
 
- const namesFromRequestedBy = (rb) => {
-  if (!rb) return "";
-  if (Array.isArray(rb)) return rb.map(x => x?.name || x?.requested_by_name || "").join(" ");
-  if (typeof rb === "object") return rb?.name || rb?.requested_by_name || "";
-  return String(rb);
-};
+  const namesFromRequestedBy = (rb) => {
+    if (!rb) return "";
+    if (Array.isArray(rb))
+      return rb.map((x) => x?.name || x?.requested_by_name || "").join(" ");
+    if (typeof rb === "object") return rb?.name || rb?.requested_by_name || "";
+    return String(rb);
+  };
 
-const charityNames = (d) => {
-  const parts = [];
-  if (typeof d?.charity_name === "string") parts.push(d.charity_name);
-  if (typeof d?.charity === "string") parts.push(d.charity);
-  if (typeof d?.charity?.name === "string") parts.push(d.charity.name);
-  return parts.join(" ");
-};
+  const charityNames = (d) => {
+    const parts = [];
+    if (typeof d?.charity_name === "string") parts.push(d.charity_name);
+    if (typeof d?.charity === "string") parts.push(d.charity);
+    if (typeof d?.charity?.name === "string") parts.push(d.charity.name);
+    return parts.join(" ");
+  };
 
-const haystack = (d) => {
-  const ids = [d.id, d.donation_id].filter(v => v != null).map(String).join(" ");
-  const requester = [
-    d?.requester_name,
-    d?.requested_by_name,
-    namesFromRequestedBy(d?.requested_by),
-  ].filter(Boolean).join(" ");
+  const haystack = (d) => {
+    const ids = [d.id, d.donation_id]
+      .filter((v) => v != null)
+      .map(String)
+      .join(" ");
+    const requester = [
+      d?.requester_name,
+      d?.requested_by_name,
+      namesFromRequestedBy(d?.requested_by),
+    ]
+      .filter(Boolean)
+      .join(" ");
 
-  const parts = [
-    d?.name,
-    d?.description,
-    requester,
-    charityNames(d),
-    normStatus(d),
-    ids,
-  ];
+    const parts = [
+      d?.name,
+      d?.description,
+      requester,
+      charityNames(d),
+      normStatus(d),
+      ids,
+    ];
 
-  return parts
-    .filter(Boolean)
-    .map((v) => String(v).toLowerCase())
-    .join(" ");
-};
+    return parts
+      .filter(Boolean)
+      .map((v) => String(v).toLowerCase())
+      .join(" ");
+  };
   useEffect(() => {
     const url = new URL(window.location.href);
     if (url.searchParams.get("tab") !== "bakerystatus") {
@@ -637,24 +643,14 @@ const haystack = (d) => {
     const stat = (d.tracking_status || d.status || "pending").toLowerCase();
     const theme = statusTheme(stat);
 
-    // Only allow clicks for employees
-    const handleClick = currentUser?.isEmployee ? onClick : undefined;
-    const cursorClass = currentUser?.isEmployee
-      ? "cursor-pointer"
-      : "cursor-not-allowed opacity-60";
-
     return (
       <div
         id={`received-${d.donation_id || d.id}`}
-        onClick={handleClick}
+        onClick={onClick}
         className={`group rounded-2xl border border-[#f2e3cf] bg-white/70
             shadow-[0_2px_10px_rgba(93,64,28,.05)]
-            overflow-hidden transition-all duration-300 ${cursorClass}
-            ${
-              currentUser?.isEmployee
-                ? `hover:scale-[1.015] hover:shadow-[0_14px_32px_rgba(191,115,39,.18)] hover:ring-1 ${theme.hoverRing}`
-                : ""
-            }
+            overflow-hidden transition-all duration-300 cursor-pointer
+            hover:scale-[1.015] hover:shadow-[0_14px_32px_rgba(191,115,39,.18)] hover:ring-1 ${theme.hoverRing}
             ${
               highlightedId === (d.donation_id || d.id)
                 ? `ring-2 ${theme.ring}`
@@ -789,20 +785,63 @@ const haystack = (d) => {
     );
   };
 
-  const ScrollColumn = ({ title, items, emptyText, renderItem }) => (
-    <div className="min-w-0 w-full flex flex-col rounded-xl border border-[#f2e3cf] bg-white/60">
-      <div className="sticky top-0 z-10 px-4 py-2 border-b border-[#f2e3cf] bg-white/90 rounded-t-xl">
-        <p className="text-sm font-semibold text-[#4A2F17]">{title}</p>
-      </div>
-      <div className="max-h-[520px] overflow-y-auto overscroll-contain p-4 space-y-4">
-        {items.length ? (
-          items.map(renderItem)
-        ) : (
-          <p className="text-sm text-[#7b5836]">{emptyText}</p>
+  // ScrollColumn with pagination (Prev / Page X of Y / Next, max 10)
+  const ScrollColumn = ({ title, items, emptyText, renderItem }) => {
+    const PAGE_SIZE = 10;
+    const [page, setPage] = React.useState(1);
+
+    React.useEffect(() => {
+      setPage(1);
+    }, [items]);
+
+    const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+    const start = (page - 1) * PAGE_SIZE;
+    const pageItems = items.slice(start, start + PAGE_SIZE);
+
+    const canPrev = page > 1;
+    const canNext = page < totalPages;
+
+    const pagerBtn =
+      "min-w-[80px] rounded-full border border-[#f2d4b5] bg-white/95 px-4 py-1.5 text-xs sm:text-sm font-semibold text-[#6b4b2b] shadow-sm hover:bg-white transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/95";
+
+    return (
+      <div className="min-w-0 w-full flex flex-col rounded-xl border border-[#f2e3cf] bg-white/60">
+        <div className="sticky top-0 z-10 px-4 py-2 border-b border-[#f2e3cf] bg-white/90 rounded-t-xl">
+          <p className="text-sm font-semibold text-[#4A2F17]">{title}</p>
+        </div>
+        <div className="max-h-[520px] overflow-y-auto overscroll-contain p-4 space-y-4 flex-1">
+          {items.length ? (
+            pageItems.map(renderItem)
+          ) : (
+            <p className="text-sm text-[#7b5836]">{emptyText}</p>
+          )}
+        </div>
+        {items.length > 0 && (
+          <div className="px-4 pb-3 pt-1 border-t border-[#f2e3cf] bg-white/80 rounded-b-xl flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => canPrev && setPage((p) => p - 1)}
+              disabled={!canPrev}
+              className={pagerBtn}
+            >
+              Prev
+            </button>
+            <span className="text-xs sm:text-sm font-semibold text-[#6b4b2b]">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => canNext && setPage((p) => p + 1)}
+              disabled={!canNext}
+              className={pagerBtn}
+            >
+              Next
+            </button>
+          </div>
         )}
       </div>
-    </div>
-  );
+    );
+  };
 
   /* ---------------- Progress stepper: icon + exact palette ---------------- */
   const Stepper = ({ status }) => {
@@ -810,78 +849,134 @@ const haystack = (d) => {
     const normalized = raw === "pending" ? "preparing" : raw;
     const idx = Math.max(0, statusOrder.indexOf(normalized));
     const pct = idx / (statusOrder.length - 1);
-
     const activeTheme = statusTheme(normalized);
 
     return (
-      <div className="rounded-2xl border border-[#f2e3cf] bg-[#FFFBF5] p-5">
-        <div className="relative">
-          <div className="relative mx-8">
-            <div className="h-1 w-full rounded-full bg-[#EFD7BE]" />
-            <div
-              className={`h-1 rounded-full absolute left-0 top-0 ${activeTheme.bar} transition-all`}
-              style={{ width: `${pct * 100}%` }}
-            />
-            <div className="absolute inset-x-0 -top-6 flex justify-between items-end">
-              {statusOrder.map((s, i) => {
-                const theme = statusTheme(s);
-                const active = i === idx;
-                const passed = i < idx || normalized === "complete";
-                return (
-                  <div
-                    key={s}
-                    className="flex flex-col items-center min-w-[78px]"
+      <div className="rounded-2xl border border-[#f2e3cf] bg-[#FFFBF5] p-4 sm:p-5">
+        {/* Mobile: vertical / cleaner layout with full-line highlight */}
+        <div className="space-y-3 sm:hidden">
+          {statusOrder.map((s, i) => {
+            const theme = statusTheme(s);
+            const active = i === idx;
+            const passed = i < idx || normalized === "complete";
+
+            const rowClasses = active
+              ? "bg-[#FFF3E0] border-[#F3C48C] shadow-[0_8px_18px_rgba(191,115,39,.18)]"
+              : passed
+              ? "bg-white border-[#f2e3cf]"
+              : "bg-[#FDF5EB] border-transparent";
+
+            return (
+              <div
+                key={s}
+                className={`flex items-center gap-3 px-3 py-2 rounded-xl border transition-all duration-300 ${rowClasses}`}
+              >
+                <div
+                  className={`flex-shrink-0 w-9 h-9 rounded-full grid place-items-center shadow transition-all duration-300
+                    ${theme.text}
+                    ${
+                      active
+                        ? `ring-2 ${theme.ring} bg-white`
+                        : passed
+                        ? "bg-white"
+                        : "bg-[#EADFCC]"
+                    }`}
+                >
+                  <StatusIcon
+                    status={
+                      passed && i === statusOrder.length - 1 ? "complete" : s
+                    }
+                    className="w-5 h-5"
+                  />
+                </div>
+                <div className="flex-1 flex items-center justify-between gap-2">
+                  <span
+                    className={`text-sm ${
+                      active ? "font-semibold text-[#3b2a18]" : "text-[#6b4b2b]"
+                    }`}
                   >
+                    {nice(s)}
+                  </span>
+                  {active && (
+                    <span
+                      className={`text-[11px] font-semibold ${theme.text}`}
+                    >
+                      Current
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop / tablet: horizontal bar, slightly more compact */}
+        <div className="hidden sm:block">
+          <div className="relative">
+            <div className="relative mx-6">
+              <div className="h-1 w-full rounded-full bg-[#EFD7BE]" />
+              <div
+                className={`h-1 rounded-full absolute left-0 top-0 ${activeTheme.bar} transition-all`}
+                style={{ width: `${pct * 100}%` }}
+              />
+              <div className="absolute inset-x-0 -top-7 flex justify-between items-end">
+                {statusOrder.map((s, i) => {
+                  const theme = statusTheme(s);
+                  const active = i === idx;
+                  const passed = i < idx || normalized === "complete";
+                  return (
                     <div
-                      className={`w-12 h-12 rounded-full grid place-items-center shadow transition-all duration-300
+                      key={s}
+                      className="flex flex-col items-center min-w-[72px]"
+                    >
+                      <div
+                        className={`w-11 h-11 rounded-full grid place-items-center shadow transition-all duration-300
                         ${theme.text}
                         ${
                           active
-                            ? `translate-y-[-6px] ring-2 ${theme.ring} bg-white`
+                            ? `translate-y-[-4px] ring-2 ${theme.ring} bg-white`
                             : passed
                             ? "bg-white"
                             : "bg-[#EADFCC]"
                         }`}
-                    >
-                      <StatusIcon
-                        status={
-                          passed && i === statusOrder.length - 1
-                            ? "complete"
-                            : s
-                        }
-                        className="w-6 h-6"
-                      />
+                      >
+                        <StatusIcon
+                          status={
+                            passed && i === statusOrder.length - 1
+                              ? "complete"
+                              : s
+                          }
+                          className="w-6 h-6"
+                        />
+                      </div>
+                      <span
+                        className={`mt-2 text-[13px] text-center leading-tight ${
+                          active
+                            ? "font-semibold text-[#3b2a18]"
+                            : "text-[#6b4b2b]"
+                        }`}
+                      >
+                        {nice(s)}
+                      </span>
                     </div>
-                    <span
-                      className={`mt-2 text-[13px] ${
-                        active
-                          ? "font-semibold text-[#3b2a18]"
-                          : "text-[#6b4b2b]"
-                      }`}
-                    >
-                      {nice(s)}
-                    </span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
+            <div className="pt-11" />
           </div>
-          <div className="pt-12" />
         </div>
       </div>
     );
   };
 
   /* ---------------- Render ---------------- */
-  // Filter predicate (uses the applied term only)
   const makeMatcher = (term) => (d) =>
     !term || haystack(d).includes(toStr(term));
 
-  // Per-section matchers
   const matchesReq = makeMatcher(qReqApplied);
   const matchesDir = makeMatcher(qDirApplied);
 
-  // Memoized filtered lists per section
   const receivedFiltered = React.useMemo(
     () => receivedDonations.filter(matchesReq),
     [receivedDonations, qReqApplied]
@@ -892,7 +987,6 @@ const haystack = (d) => {
     [directDonations, qDirApplied]
   );
 
-  // show/hide rules (ADD THESE JUST ABOVE THE RETURN)
   const onlyReqActive = qReqApplied && !qDirApplied;
   const onlyDirActive = qDirApplied && !qReqApplied;
 
@@ -934,6 +1028,7 @@ const haystack = (d) => {
               );
               return (
                 <div className="grid gap-4 md:grid-cols-3">
+                  {/* Pending column with pagination */}
                   <ScrollColumn
                     title={`Pending (${pending.length})`}
                     items={prioritySort(pending)}
@@ -947,6 +1042,7 @@ const haystack = (d) => {
                       />
                     )}
                   />
+                  {/* Preparing column with pagination */}
                   <ScrollColumn
                     title={`Preparing (${preparing.length})`}
                     items={prioritySort(preparing)}
@@ -960,6 +1056,7 @@ const haystack = (d) => {
                       />
                     )}
                   />
+                  {/* Complete column with pagination */}
                   <ScrollColumn
                     title={`Complete (${complete.length})`}
                     items={prioritySort(complete)}
@@ -984,66 +1081,70 @@ const haystack = (d) => {
 
       {/* Direct */}
       {showDirect && (
-  <Section title="Direct Donations" count={directFiltered.length}>
-    <div className="mb-3 flex justify-end">
-      <SearchBar
-        value={qDirApplied}
-        onSearch={(term) => setQDirApplied(term)}
-        onClear={() => setQDirApplied("")}
-      />
-    </div>
+        <Section title="Direct Donations" count={directFiltered.length}>
+          <div className="mb-3 flex justify-end">
+            <SearchBar
+              value={qDirApplied}
+              onSearch={(term) => setQDirApplied(term)}
+              onClear={() => setQDirApplied("")}
+            />
+          </div>
 
-        {directFiltered.length > 0 ? (
-          (() => {
-            const { preparing, complete } = bucketize4(
-              sortByStatus(directFiltered)
-            );
+          {directFiltered.length > 0 ? (
+            (() => {
+              const { preparing, complete } = bucketize4(
+                sortByStatus(directFiltered)
+              );
 
-            return (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <ScrollColumn
-                  title={`Preparing (${preparing.length})`}
-                  items={prioritySort(preparing)}
-                  emptyText="No preparing items."
-                  renderItem={(d) => (
-                    <Card
-                      key={`dir-prep-${d.id}`}
-                      d={d}
-                      onClick={() => setSelectedDonation(d)}
-                    />
-                  )}
-                />
-                <ScrollColumn
-                  title={`Complete (${complete.length})`}
-                  items={prioritySort(complete)}
-                  emptyText="No completed items."
-                  renderItem={(d) => (
-                    <Card
-                      key={`dir-c-${d.id}`}
-                      d={d}
-                      onClick={() => setSelectedDonation(d)}
-                    />
-                  )}
-                />
-              </div>
-            );
-          })()
-        ) : (
-          <p className="text-[#7b5836]">No direct donations yet.</p>
-        )}
-      </Section>
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Direct - Preparing with pagination */}
+                  <ScrollColumn
+                    title={`Preparing (${preparing.length})`}
+                    items={prioritySort(preparing)}
+                    emptyText="No preparing items."
+                    renderItem={(d) => (
+                      <Card
+                        key={`dir-prep-${d.id}`}
+                        d={d}
+                        onClick={() => setSelectedDonation(d)}
+                      />
+                    )}
+                  />
+                  {/* Direct - Complete with pagination */}
+                  <ScrollColumn
+                    title={`Complete (${complete.length})`}
+                    items={prioritySort(complete)}
+                    emptyText="No completed items."
+                    renderItem={(d) => (
+                      <Card
+                        key={`dir-c-${d.id}`}
+                        d={d}
+                        onClick={() => setSelectedDonation(d)}
+                      />
+                    )}
+                  />
+                </div>
+              );
+            })()
+          ) : (
+            <p className="text-[#7b5836]">No direct donations yet.</p>
+          )}
+        </Section>
       )}
 
       {/* ===== Details Modal ===== */}
       {selectedDonation && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4
+          className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 sm:py-10
                      bg-[#FFF1E3]/70 backdrop-blur-sm"
           onClick={() => setSelectedDonation(null)}
         >
           <div
-            className="w-full max-w-4xl rounded-3xl overflow-hidden
-                       bg-white shadow-[0_24px_60px_rgba(191,115,39,.25)] ring-1 ring-black/10"
+            className="w-full max-w-3xl sm:max-w-4xl max-h-[90vh] sm:max-h-[88vh]
+                       rounded-3xl overflow-hidden bg-white
+                       shadow-[0_24px_60px_rgba(191,115,39,.25)] ring-1 ring-black/10
+                       flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -1067,17 +1168,17 @@ const haystack = (d) => {
             </div>
 
             {/* Body */}
-            <div className="p-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
               {/* Image + status */}
               {selectedDonation.image && (
                 <div className="relative">
                   <img
                     src={`${API}/${selectedDonation.image}`}
                     alt={selectedDonation.name}
-                    className="h-64 md:h-80 w-full object-cover rounded-2xl"
+                    className="w-full h-48 sm:h-56 md:h-64 object-cover rounded-2xl"
                   />
                   <span
-                    className={`absolute right-3 top-3 text-xs font-semibold px-2 py-1 rounded-full border ${statusColor(
+                    className={`absolute right-3 top-3 text-[11px] sm:text-xs font-semibold px-2 py-1 rounded-full border ${statusColor(
                       selectedDonation.tracking_status ||
                         selectedDonation.status
                     )}`}
@@ -1106,7 +1207,7 @@ const haystack = (d) => {
               {/* Title & summary */}
               <div className="mt-5 grid grid-cols-12 gap-4">
                 <div className="col-span-12 md:col-span-6">
-                  <h3 className="text-2xl font-semibold text-[#3b2a18]">
+                  <h3 className="text-xl sm:text-2xl font-semibold text-[#3b2a18]">
                     {selectedDonation.name}
                   </h3>
                   {selectedDonation.description && (
@@ -1115,7 +1216,7 @@ const haystack = (d) => {
                     </p>
                   )}
                 </div>
-                <div className="col-span-12 md:col-span-3">
+                <div className="col-span-6 md:col-span-3">
                   <div className="rounded-xl border border-[#f2e3cf] bg-white/70 p-3">
                     <div className="text-xs text-[#7b5836]">Quantity</div>
                     <div className="text-lg font-semibold text-[#3b2a18]">
@@ -1123,7 +1224,7 @@ const haystack = (d) => {
                     </div>
                   </div>
                 </div>
-                <div className="col-span-12 md:col-span-3">
+                <div className="col-span-6 md:col-span-3">
                   <div className="rounded-xl border border-[#f2e3cf] bg-white/70 p-3">
                     <div className="text-xs text-[#7b5836]">Expires</div>
                     <div className="text-lg font-semibold text-[#3b2a18]">
@@ -1143,27 +1244,26 @@ const haystack = (d) => {
               </div>
 
               {/* CTA*/}
-              {currentUser?.isEmployee &&
-                (selectedDonation.tracking_status === "preparing" ||
-                  selectedDonation.tracking_status === "ready_for_pickup") && (
-                  <button
-                    onClick={() =>
-                      handleUpdateTracking(
-                        selectedDonation.id,
-                        selectedDonation.tracking_status,
-                        selectedDonation.btracking_status !== undefined
-                      )
-                    }
-                    className="mt-6 w-full rounded-full px-5 py-3 font-semibold text-white
+              {(selectedDonation.tracking_status === "preparing" ||
+                selectedDonation.tracking_status === "ready_for_pickup") && (
+                <button
+                  onClick={() =>
+                    handleUpdateTracking(
+                      selectedDonation.id,
+                      selectedDonation.tracking_status,
+                      selectedDonation.btracking_status !== undefined
+                    )
+                  }
+                  className="mt-6 w-full rounded-full px-5 py-3 font-semibold text-white
                            bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327]
                            shadow-[0_10px_26px_rgba(201,124,44,.25)]
                            hover:brightness-[1.05] transition"
-                  >
-                    {selectedDonation.tracking_status === "preparing"
-                      ? "Mark as Ready for Pickup"
-                      : "Mark as In Transit"}
-                  </button>
-                )}
+                >
+                  {selectedDonation.tracking_status === "preparing"
+                    ? "Mark as Ready for Pickup"
+                    : "Mark as In Transit"}
+                </button>
+              )}
             </div>
           </div>
         </div>

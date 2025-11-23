@@ -46,6 +46,7 @@ const ALLOWED_TABS = [
   "reports",
 ];
 
+/* ================= UI STYLES ONLY ================= */
 const Styles = () => (
   <style>{`
     :root{
@@ -109,9 +110,9 @@ const Styles = () => (
     .btn-logout:before{content:""; position:absolute; top:-40%; bottom:-40%; left:-70%; width:60%; transform:rotate(10deg); background:linear-gradient(90deg, rgba(255,255,255,.26), rgba(255,255,255,0) 55%); animation: shine 3.2s linear infinite}
     @keyframes shine{from{left:-70%}to{left:120%}}
     .btn-logout:hover{
-    transform: translateY(-1px) scale(1.02);
-    box-shadow: 0 12px 34px rgba(201,124,44,.32);
-    filter: saturate(1.05);
+      transform: translateY(-1px) scale(1.02);
+      box-shadow: 0 12px 34px rgba(201,124,44,.32);
+      filter: saturate(1.05);
     }
 
     .gwrap{position:relative; border-radius:16px; padding:1px; background:linear-gradient(135deg, rgba(247,199,137,.9), rgba(201,124,44,.55)); background-size:200% 200%; animation:borderShift 8s ease-in-out infinite}
@@ -125,6 +126,80 @@ const Styles = () => (
     .reveal{opacity:0; transform:translateY(8px) scale(.985); animation:rise .6s ease forwards}
     .r1{animation-delay:.05s}.r2{animation-delay:.1s}.r3{animation-delay:.15s}.r4{animation-delay:.2s}.r5{animation-delay:.25s}.r6{animation-delay:.3s}
     @keyframes rise{to{opacity:1; transform:translateY(0) scale(1)}}
+
+    /* Small UI tweaks for mobile  */
+    @media (max-width: 480px){
+      .iconbar{
+        gap: .35rem;
+      }
+
+      .iconbar .icon-btn{
+        width: 32px;
+        height: 32px;
+      }
+
+      .iconbar .icon-btn svg{
+        width: 16px;
+        height: 16px;
+      }
+
+      .btn-logout{
+        padding: .35rem .55rem;
+      }
+
+      .btn-logout svg{
+        width: 16px;
+        height: 16px;
+      }
+
+      .brand-title{
+        margin-right: .25rem;
+      }
+    }
+
+    .hdr-left{ flex: 1 1 auto; min-width: 0; }
+    .hdr-right{ flex: 0 0 auto; margin-left: auto; }
+
+    /* Scrollable tabs strip (same behavior as Bakery, UI-only) */
+    .tabs-scroll{
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      flex-wrap: nowrap;
+    }
+    .tabs-scroll::-webkit-scrollbar{
+      display: none;
+    }
+
+    /* Compact dashboard stat card on mobile */
+    .dashboard-stat-card .stat-card-content{
+      transition: padding .2s ease;
+    }
+
+    @media (max-width: 640px){
+      .dashboard-stat-grid{
+        gap: 1rem;
+      }
+      .dashboard-stat-card .stat-card-content{
+        padding: 0.75rem 0.9rem;
+      }
+      .dashboard-stat-card .stat-label{
+        font-size: 0.78rem;
+      }
+      .dashboard-stat-card .stat-value{
+        font-size: 1.5rem;
+        line-height: 1.7rem;
+      }
+      .dashboard-stat-card .chip{
+        width: 42px;
+        height: 42px;
+      }
+      .dashboard-stat-card .chip svg{
+        width: 18px;
+        height: 18px;
+      }
+    }
+
   `}</style>
 );
 
@@ -243,7 +318,7 @@ const CharityDashboard = () => {
       case "feedback":
         return "Feedback";
       case "complaints":
-        return "Complaints";
+        return "Concerns";
       case "reports":
         return "Reports";
       default:
@@ -309,7 +384,7 @@ const CharityDashboard = () => {
         <span className="blob b" />
       </div>
 
-      {/* Header */}
+      {/* ================= HEADER ================= */}
       <header className="head fixed top-0 left-0 right-0 z-[80]">
         <div className="head-bg" />
         <div
@@ -318,8 +393,8 @@ const CharityDashboard = () => {
           }`}
         >
           <div className="max-w-7xl mx-auto px-4 py-3 hdr-pad flex items-center justify-between relative">
-            <div className="flex items-center gap-3">
-              {/* Brand on the left must be DoughNation */}
+            {/* LEFT: brand + (desktop) charity identity */}
+            <div className="flex items-center gap-3 hdr-left">
               {isVerified ? (
                 <div
                   className="flex items-center gap-3 cursor-not-allowed opacity-60"
@@ -336,7 +411,7 @@ const CharityDashboard = () => {
                     }}
                   />
                   <span
-                    className="font-extrabold brand-pop"
+                    className="brand-title font-extrabold brand-pop"
                     style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}
                   >
                     DoughNation
@@ -355,7 +430,7 @@ const CharityDashboard = () => {
                     }}
                   />
                   <span
-                    className="font-extrabold brand-pop"
+                    className="brand-title font-extrabold brand-pop"
                     style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}
                   >
                     DoughNation
@@ -363,7 +438,7 @@ const CharityDashboard = () => {
                 </Link>
               )}
 
-              {/* Identity block to the right of divider */}
+              {/* Identity block (desktop) */}
               <div
                 className="hidden lg:flex flex-col items-start justify-center ml-4 pl-4 border-l-2"
                 style={{ borderColor: "#E3B57E" }}
@@ -396,10 +471,14 @@ const CharityDashboard = () => {
               </div>
             </div>
 
-            {/* Desktop nav */}
-            <nav className="items-center gap-5" style={{ fontSize: 15 }}>
+            {/* RIGHT: header actions */}
+            <nav
+              className="items-center gap-5 hdr-right"
+              style={{ fontSize: 15 }}
+            >
               <div className="pt-1 flex items-center gap-3 relative">
                 <div className="iconbar">
+                  {/* desktop search only; mobile search below */}
                   <DashboardSearch size="sm" className="hidden md:flex" />
 
                   {/* Messages Button */}
@@ -442,7 +521,45 @@ const CharityDashboard = () => {
             </nav>
           </div>
 
-          {/* Mobile dropdown panel */}
+          {/* ===== Mobile info & search strip (UI-only) ===== */}
+          {name && (
+            <div className="md:hidden px-4 pb-3 space-y-2">
+              {/* row: user + current tab */}
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4" style={{ color: "#7a4f1c" }} />
+                <span
+                  className="text-sm font-semibold"
+                  style={{ color: "#7a4f1c" }}
+                >
+                  {name}
+                </span>
+                <span
+                  className="text-[11px] px-2 py-0.5 rounded-full"
+                  style={{
+                    background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
+                    color: "#7a4f1c",
+                    border: "1px solid #fff3e0",
+                  }}
+                >
+                  {statusText}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <Store className="h-3.5 w-3.5" style={{ color: "#a47134" }} />
+                <span className="text-xs" style={{ color: "#a47134" }}>
+                  Charity
+                </span>
+              </div>
+
+              {/* mobile search bar */}
+              <div className="w-full">
+                <DashboardSearch size="sm" className="md:hidden w-full" />
+              </div>
+            </div>
+          )}
+
+          {/* Mobile dropdown panel (placeholder) */}
           <div
             id="mobile-menu"
             className={`md:hidden transition-all duration-200 ease-out ${
@@ -451,12 +568,14 @@ const CharityDashboard = () => {
                 : "max-h-0 opacity-0 pointer-events-none"
             } overflow-hidden`}
           >
-            <div className="px-4 pb-3 pt-1 flex flex-col">{/* reserved */}</div>
+            <div className="px-4 pb-3 pt-1 flex flex-col">
+              {/* reserved for extra mobile content */}
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Tabs */}
+      {/* ================= TABS ================= */}
       <Tabs
         value={activeTab}
         onValueChange={(v) => {
@@ -465,7 +584,7 @@ const CharityDashboard = () => {
       >
         <div className="seg-wrap">
           <div className="seg justify-center">
-            <TabsList className="bg-transparent p-0 border-0 flex flex-wrap gap-2">
+            <TabsList className="tabs-scroll flex items-center gap-2 bg-transparent p-0 border-0">
               <TabsTrigger
                 value="donation"
                 className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
@@ -511,7 +630,7 @@ const CharityDashboard = () => {
                 className="flex items-center gap-1 px-3 py-1 rounded-full text-sm data-[state=active]:text-white data-[state=active]:shadow data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:via-[#E49A52] data-[state=active]:to-[#BF7327] text-[#6b4b2b] hover:bg-amber-50"
               >
                 <AlertTriangle className="w-4 h-4" />
-                <span className="hidden sm:inline">Complaints</span>
+                <span className="hidden sm:inline">Concerns</span>
               </TabsTrigger>
 
               <TabsTrigger
@@ -525,23 +644,24 @@ const CharityDashboard = () => {
           </div>
         </div>
 
-        {/* Content */}
+        {/* ================= CONTENT ================= */}
         <div className="max-w-7xl mx-auto px-1 py-4">
           {/* Dashboard */}
           <TabsContent value="dashboard" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6">
-              <div className="gwrap reveal r1 hover-lift">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-6 dashboard-stat-grid">
+              <div className="gwrap reveal r1 hover-lift dashboard-stat-card">
                 <Card className="glass-card shadow-none">
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-5 md:p-6 stat-card-content">
                     <div className="flex items-center justify-between">
                       <div>
                         <CardTitle
+                          className="stat-label"
                           style={{ color: "#6B4B2B", fontWeight: 700 }}
                         >
                           Total Donations Received
                         </CardTitle>
                         <div
-                          className="text-3xl font-extrabold"
+                          className="text-3xl font-extrabold stat-value"
                           style={{ color: "#2b1a0b" }}
                         >
                           {totals.grand_total}

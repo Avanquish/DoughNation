@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app import database, models, auth
 from datetime import datetime, timedelta
+from app.timezone_utils import now_ph, today_ph
 from sqlalchemy.orm import joinedload
 
 router = APIRouter(
@@ -207,7 +208,7 @@ def period_summary(
     For monthly: optionally provide month (YYYY-MM)
     For custom: provide both start_date and end_date (YYYY-MM-DD)
     """
-    today = datetime.utcnow().date()
+    today = today_ph()
     
     # Determine date range based on period
     if period == "weekly":
@@ -375,7 +376,7 @@ def weekly_summary(
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(check_charity)
 ):
-    today = datetime.utcnow().date()
+    today = today_ph()
     week_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else today - timedelta(days=7)
     week_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else today
 
@@ -517,7 +518,7 @@ def monthly_summary(
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(check_charity)
 ):
-    today = datetime.utcnow().date()
+    today = today_ph()
     if month:
         try:
             start_date = datetime.strptime(month + "-01", "%Y-%m-%d").date()

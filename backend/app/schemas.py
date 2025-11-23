@@ -21,7 +21,6 @@ class UserOut(BaseModel):
     name: str
     email: EmailStr
     contact_person: str
-    owner_employee_id: Optional[str] = None  # NEW: Owner's Employee ID (for bakeries)
     contact_number: str
     about: Optional[str] = None 
     address: str
@@ -94,7 +93,8 @@ class BakeryInventoryUpdate(BaseModel):
 # ------------------ BAKERY EMPLOYEE ------------------
 class EmployeeBase(BaseModel):
     name: str
-    role: str  # Owner, Manager, Full-time, Part-time
+    email: EmailStr  # Employee's Gmail address
+    role: str  # Manager, Employee
     start_date: date
 
 class EmployeeCreate(EmployeeBase):
@@ -123,6 +123,7 @@ class EmployeeOut(BaseModel):
     employee_id: Optional[str] = None  # Unique Employee ID (e.g., EMP-5-001)
     bakery_id: int
     name: str
+    email: str  # Employee's Gmail address
     role: str
     start_date: date
     profile_picture: Optional[str] = None
@@ -354,7 +355,10 @@ class ComplaintOut(ComplaintBase):
     updated_at: datetime 
     user_id: int
     user_name: Optional[str] = None  
-    user_email: Optional[str] = None  
+    user_email: Optional[str] = None
+    admin_reply: Optional[str] = None
+    replied_at: Optional[datetime] = None
+    replied_by: Optional[int] = None
 
     class Config:
         from_attributes = True

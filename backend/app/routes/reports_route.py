@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app import database, models, auth
 from datetime import datetime, timedelta
+from app.timezone_utils import now_ph
 
 router = APIRouter(
     prefix="/reports",
@@ -63,7 +64,7 @@ def expiry_loss_report(
         )
         .filter(
             models.BakeryInventory.bakery_id == bakery_id,
-            models.BakeryInventory.expiration_date < datetime.utcnow(),
+            models.BakeryInventory.expiration_date < now_ph(),
         )
         .all()
     )
@@ -119,7 +120,7 @@ def weekly_summary(
     auth_data = Depends(check_bakery_or_employee)
 ):
     current_auth, bakery_id = auth_data
-    start_date = datetime.utcnow() - timedelta(days=7)
+    start_date = now_ph() - timedelta(days=7)
     donations = (
         db.query(func.date(models.Donation.created_at).label("day"),
                  func.count(models.Donation.id).label("donations"))
@@ -136,7 +137,7 @@ def monthly_summary(
     auth_data = Depends(check_bakery_or_employee)
 ):
     current_auth, bakery_id = auth_data
-    start_date = datetime.utcnow() - timedelta(days=30)
+    start_date = now_ph() - timedelta(days=30)
     donations = (
         db.query(func.strftime("%Y-%m", models.Donation.created_at).label("month"),
                  func.count(models.Donation.id).label("donations"))

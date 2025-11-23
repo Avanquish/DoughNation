@@ -6,6 +6,7 @@ from app import models, schemas
 from app.auth import ensure_verified_user
 import os, shutil
 from datetime import datetime
+from app.timezone_utils import now_ph
 
 router = APIRouter()
 UPLOAD_DIR = "uploads/feedback"
@@ -74,7 +75,7 @@ async def edit_feedback(
 
     # Handle file upload if present
     if media_file:
-        filename = f"{feedback_id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{media_file.filename}"
+        filename = f"{feedback_id}_{now_ph().strftime('%Y%m%d%H%M%S')}_{media_file.filename}"
         file_path = os.path.join(UPLOAD_DIR, filename)
 
         with open(file_path, "wb") as buffer:

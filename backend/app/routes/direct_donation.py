@@ -3,6 +3,7 @@ import shutil
 from datetime import datetime, date
 
 from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
+from app.timezone_utils import now_ph
 from sqlalchemy.orm import Session
 from sqlalchemy import func, true
 
@@ -182,7 +183,7 @@ def update_direct_tracking(
             models.DonationRequest.donation_id == direct_donation_id
         ).update({
             "tracking_status": data.btracking_status,
-            "tracking_completed_at": datetime.utcnow()  # <-- FIX: also stamp request side
+            "tracking_completed_at": now_ph()  # <-- FIX: also stamp request side
         })
     else:
         db.query(models.DonationRequest).filter(

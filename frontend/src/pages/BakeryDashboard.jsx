@@ -28,7 +28,7 @@ import {
   Medal,
   Store,
 } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { useEmployeeAuth } from "../context/EmployeeAuthContext";
 import BakeryInventory from "./BakeryInventory";
 import BakeryEmployee from "./BakeryEmployee";
@@ -44,7 +44,6 @@ import RecentDonations from "./RecentDonations";
 import DashboardSearch from "./DashboardSearch";
 import UserBadge from "./UserBadge";
 import Messages1 from "./Messages1";
-import { Link } from "react-router-dom";
 
 const API = "https://api.doughnationhq.cloud";
 
@@ -85,11 +84,11 @@ const BakeryDashboard = () => {
   const [isVerified, setIsVerified] = useState(false);
   const [name, setName] = useState("Bakery");
   const [bakeryName, setBakeryName] = useState("");
+  const [ownerName, setOwnerName] = useState(""); // Owner's name (contact_person)
   const [employeeRole, setEmployeeRole] = useState(null);
   const [isEmployeeMode, setIsEmployeeMode] = useState(false);
-  const [isViewOnly, setIsViewOnly] = useState(false); // TRUE for bakery owner login, FALSE for employee login
   const [scrolled, setScrolled] = useState(false);
-  const [showTop, setShowTop] = useState(false); // You used this inside useEffect
+  const [showTop, setShowTop] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -103,20 +102,16 @@ const BakeryDashboard = () => {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // initialize from URL, localStorage, or default (always prefer "dashboard" on fresh load)
+  // initialize from URL, localStorage, or default
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const fromUrl = params.get("tab");
-
-      // If URL has tab param, use it
       if (fromUrl && ALLOWED_TABS.includes(fromUrl)) return fromUrl;
 
-      // Otherwise, check localStorage (but only if URL doesn't exist)
       const fromStorage = localStorage.getItem(TAB_KEY);
       if (fromStorage && ALLOWED_TABS.includes(fromStorage)) return fromStorage;
 
-      // Default to dashboard
       return "dashboard";
     } catch {
       return "dashboard";
@@ -147,48 +142,31 @@ const BakeryDashboard = () => {
       setIsEmployeeMode(true);
       setEmployeeRole(employee.employee_role);
       setName(employee.employee_name);
-      setIsViewOnly(false);
 
-      // 🏢 FETCH BAKERY NAME AND VERIFICATION STATUS FROM TOKEN
       const employeeToken = localStorage.getItem("employeeToken");
 
       if (employeeToken) {
         try {
           const decoded = JSON.parse(atob(employeeToken.split(".")[1]));
-          console.log("🔍 Decoded employee token:", decoded);
-
-          // Token includes bakery_name and bakery_verified from backend
           const bakeryNameFromToken = decoded.bakery_name;
           const bakeryVerifiedFromToken = decoded.bakery_verified;
 
           if (bakeryNameFromToken) {
-            console.log(
-              "✅ Using bakery name from token:",
-              bakeryNameFromToken
-            );
             setBakeryName(bakeryNameFromToken);
           } else {
-            // Fallback: fetch from backend if not in token
-            console.log("⚠️ No bakery_name in token, fetching from backend...");
             fetchBakeryNameFromBackend(employee.bakery_id);
           }
-          
-          // Set verification status from token
+
           if (bakeryVerifiedFromToken !== undefined) {
-            console.log("✅ Using bakery verification status from token:", bakeryVerifiedFromToken);
             setIsVerified(bakeryVerifiedFromToken);
           } else {
-            console.log("⚠️ No bakery_verified in token, defaulting to false");
             setIsVerified(false);
           }
-        } catch (err) {
-          console.error("❌ Failed to decode token:", err);
-          // Fallback to backend fetch
+        } catch {
           fetchBakeryNameFromBackend(employee.bakery_id);
           setIsVerified(false);
         }
       } else {
-        console.log("❌ No employee token found");
         fetchBakeryNameFromBackend(employee.bakery_id);
         setIsVerified(false);
       }
@@ -204,49 +182,29 @@ const BakeryDashboard = () => {
       });
 
       if (res.data && res.data.name) {
-        console.log("✅ Fetched bakery name from backend:", res.data.name);
         setBakeryName(res.data.name);
       } else {
-        console.log("❌ No bakery name in response");
         setBakeryName("Bakery");
       }
-    } catch (err) {
-      console.error("❌ Failed to fetch bakery name:", err);
+    } catch {
       setBakeryName("Bakery");
     }
   };
 
   // Determine which tabs are visible based on role
   const getVisibleTabs = () => {
-    if (!isEmployeeMode || !employeeRole) {
-      // All tabs visible for bakery owner
-      return ALLOWED_TABS;
-    }
+    if (!isEmployeeMode || !employeeRole) return ALLOWED_TABS;
 
-    // Normalize role for comparison (remove spaces, hyphens, lowercase)
     const role = employeeRole.toLowerCase().replace(/[-\s]/g, "");
 
-    // 👑 OWNER & MANAGER: Full access to ALL tabs
-    if (role === "owner" || role === "manager") {
-      return ALLOWED_TABS;
-    }
-
-    // 👷 FULL-TIME: Limited access
-    // Can access: dashboard, inventory, donations, donation status, complaints, feedback (view only), badges
-    // Cannot access: employee management, reports
-    else if (role.includes("fulltime") || role === "full") {
+    // Owner and Manager have full access
+    if (role === "owner" || role === "manager") return ALLOWED_TABS;
+    // Employee cannot access Employee tab and Reports
+    else if (role === "employee")
       return ALLOWED_TABS.filter(
         (tab) => tab !== "employee" && tab !== "reports"
       );
-    }
 
-    // 🚫 PART-TIME: Should not be able to log in (handled at backend)
-    // If they somehow access, show nothing
-    else if (role.includes("parttime") || role === "part") {
-      return [];
-    }
-
-    // Default: show all tabs (fallback for unknown roles)
     return ALLOWED_TABS;
   };
 
@@ -259,8 +217,6 @@ const BakeryDashboard = () => {
       localStorage.setItem(TAB_KEY, activeTab);
 
       const params = new URLSearchParams(window.location.search);
-
-      // For "dashboard"
       if (activeTab === "dashboard") {
         if (params.has("tab")) {
           params.delete("tab");
@@ -279,7 +235,7 @@ const BakeryDashboard = () => {
         }
       }
     } catch {
-      // ignore persistence errors
+      // ignore
     }
   }, [activeTab]);
 
@@ -287,26 +243,18 @@ const BakeryDashboard = () => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
-    let decoded;
     try {
-      decoded = JSON.parse(atob(token.split(".")[1]));
-      // Only set name and bakeryName for bakery owners (not employees)
+      const decoded = JSON.parse(atob(token.split(".")[1]));
       if (!isEmployeeMode) {
-        setName(decoded.name || "Madam Bakery");
+        setName(decoded.contact_person || "Owner");
+        setOwnerName(decoded.contact_person || "Owner");
         setBakeryName(decoded.name || "Bakery");
-
-        // ✅ If bakery owner (user with token, not employee), set view-only mode
-        setIsViewOnly(true); // Bakery owners can only view, employees can perform CRUD
       }
       setIsVerified(decoded.is_verified);
       const userId =
         decoded.sub || decoded.id || decoded.user_id || decoded._id;
-      if (!userId) {
-        console.error("User ID missing in token:", decoded);
-        return;
-      }
+      if (!userId) return;
 
-      // Fetch badges for the user
       axios
         .get(`${API}/badges/user/${userId}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -341,7 +289,6 @@ const BakeryDashboard = () => {
     const employeeToken = localStorage.getItem("employeeToken");
     if (!employeeToken) return;
 
-    // Fetch badges for the bakery (so employees can see the bakery's badges)
     axios
       .get(`${API}/badges/user/${employee.bakery_id}`, {
         headers: { Authorization: `Bearer ${employeeToken}` },
@@ -357,8 +304,7 @@ const BakeryDashboard = () => {
           employee_role: employee.employee_role,
         });
       })
-      .catch((err) => {
-        console.error("Failed to fetch badges for employee:", err);
+      .catch(() => {
         setBadges([]);
         setCurrentUser({
           id: employee.bakery_id,
@@ -373,7 +319,6 @@ const BakeryDashboard = () => {
 
   // Fetch inventory, employees, uploaded and donated products
   useEffect(() => {
-    // Get the appropriate token based on mode
     const token = isEmployeeMode
       ? localStorage.getItem("employeeToken")
       : localStorage.getItem("token");
@@ -388,7 +333,12 @@ const BakeryDashboard = () => {
     const loadEmployees = () =>
       axios
         .get(`${API}/employees`, { headers })
-        .then((r) => setEmployeeCount((r.data || []).length))
+        .then((r) => {
+          const activeEmployees = (r.data || []).filter(
+            (emp) => emp?.role?.toLowerCase() !== "owner"
+          );
+          setEmployeeCount(activeEmployees.length);
+        })
         .catch(() => setEmployeeCount(0));
 
     const loadUploadedProducts = () =>
@@ -479,19 +429,15 @@ const BakeryDashboard = () => {
 
     fetchStats();
 
-    // Refresh stats every 30 seconds
     const interval = setInterval(fetchStats, 30000);
-
     return () => clearInterval(interval);
   }, [isEmployeeMode]);
 
   // ui helpers
   const handleLogout = () => {
     if (isEmployeeMode) {
-      // Employee logout
       employeeLogout();
     } else {
-      // Bakery owner logout
       localStorage.removeItem("token");
     }
     navigate("/");
@@ -557,41 +503,7 @@ const BakeryDashboard = () => {
     fetchUploadedProducts();
   }, [isEmployeeMode]);
 
-  // If user is not verified, show "verification pending" screen
-  // This now applies to BOTH bakery owners and employees of unverified bakeries
-  if (!isVerified) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-surface to-primary/5 p-6">
-        <Card className="max-w-md shadow-elegant">
-          <CardHeader>
-            <CardTitle style={{ color: "#6B4B2B" }}>
-              Account Verification Required
-            </CardTitle>
-            <CardDescription style={{ color: "#7b5836" }}>
-              {isEmployeeMode ? (
-                <>
-                  Hello {name}, the bakery you work for (<strong>{bakeryName}</strong>) is pending admin verification. 
-                  Please wait until an admin verifies the bakery account before accessing the dashboard features.
-                </>
-              ) : (
-                <>
-                  Hello {name}, your account is pending verification. Please wait
-                  until an admin verifies your account before using the dashboard
-                  features.
-                </>
-              )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center gap-4">
-            <Button onClick={handleLogout} variant="destructive">
-              Back to Home Page
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
+  // ================= CSS (UI only) =================
   const Styles = () => (
     <style>{`
     :root{
@@ -648,15 +560,13 @@ const BakeryDashboard = () => {
     border: 1px solid rgba(0, 0, 0, .07);
     border-radius: 12px;
     padding: .3rem;
-    box-shadow: 0 8px 24px rgba(201, 124, 44, .10);}
+    box-shadow: 0 8px 24px rgba(201,124,44, .10);}
     .seg [role="tab"]{border-radius:10px; padding:.48rem .95rem; color:#6b4b2b; font-weight:700}
     .seg [role="tab"][data-state="active"]{color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); box-shadow:0 8px 18px rgba(201,124,44,.28)}
-    .seg [role="tab"]:hover{
-      background:#FFF2E0;
-    }
+    .seg [role="tab"]:hover{ background:#FFF2E0; }
     .seg [role="tab"][data-state="active"]{
-    color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3));
-    box-shadow:0 8px 18px rgba(201,124,44,.28)
+      color:#fff; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3));
+      box-shadow:0 8px 18px rgba(201,124,44,.28)
     }
 
     .iconbar{display:flex; align-items:center; gap:.5rem}
@@ -681,37 +591,15 @@ const BakeryDashboard = () => {
       box-shadow: 0 10px 24px rgba(201,124,44,.20), inset 0 1px 0 rgba(255,255,255,.8);
       border: 1px solid rgba(255,255,255,.8);
     }
-    .chip svg{
-      width:22px; height:22px;
-      color:#8a5a25;
-    }
+    .chip svg{ width:22px; height:22px; color:#8a5a25; }
     
-    .hover-lift{
-      transition:transform .35s cubic-bezier(.22,.98,.4,1), box-shadow .35s;
-    }
-    .hover-lift:hover{
-      transform:translateY(-4px); 
-      box-shadow:0 18px 38px rgba(201,124,44,.14);
-    }
+    .hover-lift{ transition:transform .35s cubic-bezier(.22,.98,.4,1), box-shadow .35s; }
+    .hover-lift:hover{ transform:translateY(-4px); box-shadow:0 18px 38px rgba(201,124,44,.14); }
     
-    .reveal{
-      opacity:0; 
-      transform:translateY(8px) scale(.985); 
-      animation:rise .6s ease forwards;
-    }
-    .r1{animation-delay:.05s}
-    .r2{animation-delay:.1s}
-    .r3{animation-delay:.15s}
-    .r4{animation-delay:.2s}
-    .r5{animation-delay:.25s}
-    .r6{animation-delay:.3s}
-    
-    @keyframes rise{
-      to{
-        opacity:1; 
-        transform:translateY(0) scale(1);
-      }
-    }
+    .reveal{ opacity:0; transform:translateY(8px) scale(.985); animation:rise .6s ease forwards; }
+    .r1{animation-delay:.05s} .r2{animation-delay:.1s} .r3{animation-delay:.15s}
+    .r4{animation-delay:.2s} .r5{animation-delay:.25s} .r6{animation-delay:.3s}
+    @keyframes rise{ to{ opacity:1; transform:translateY(0) scale(1);} }
 
     .overlay-root{position:fixed; inset:0; z-index:50;}
     .overlay-bg{position:absolute; inset:0; background:rgba(0,0,0,.32); backdrop-filter: blur(6px); opacity:0; animation: showBg .2s ease forwards}
@@ -720,8 +608,95 @@ const BakeryDashboard = () => {
     .overlay-enter{transform:translateY(10px) scale(.98); opacity:0; animation: pop .22s ease forwards}
     @keyframes pop{to{transform:translateY(0) scale(1); opacity:1}}
 
-    .msg-wrap{position:relative}
-    .msg-panel{position:absolute; right:0; top:48px; width:340px; background:rgba(255,255,255,.98); border:1px solid rgba(0,0,0,.06); border-radius:14px; box-shadow:0 18px 40px rgba(0,0,0,.14); overflow:hidden; animation: pop .18s ease forwards}
+    /* ==== Notifications & Messages POPUP (under header icons) ==== */
+    .msg-wrap{
+      position:relative;
+    }
+
+    .msg-panel{
+      position:absolute;
+      right:0;
+      top:52px;
+      width:360px;
+      border-radius:18px;
+      overflow:hidden;
+      background:
+        linear-gradient(
+          to bottom,
+          #FFF2DF 0px,
+          #FFE7CB 54px,
+          #FFFFFF 54px,
+          #FFFFFF 100%
+        );
+      border:1px solid rgba(243,194,126,.9);
+      box-shadow:
+        0 18px 40px rgba(0,0,0,.16),
+        0 0 0 1px rgba(255,255,255,.7);
+      animation: pop .18s ease forwards;
+      backdrop-filter: blur(6px);
+      z-index:60;
+    }
+
+    .msg-panel-header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:10px 16px;
+      font-size:.9rem;
+      font-weight:600;
+      color:#7a4f1c;
+    }
+    .msg-panel-header-title{
+      display:flex;
+      align-items:center;
+      gap:.5rem;
+    }
+    .msg-panel-header-title svg{
+      width:16px;
+      height:16px;
+    }
+    .msg-panel-header-close{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:26px;
+      height:26px;
+      border-radius:9999px;
+      border:1px solid rgba(244,204,150,.9);
+      background:#fff7ec;
+      box-shadow:0 4px 8px rgba(201,124,44,.25);
+      cursor:pointer;
+      transition:transform .15s ease, box-shadow .15s ease, background .15s ease;
+    }
+    .msg-panel-header-close:hover{
+      background:#ffe9cf;
+      transform:translateY(-1px);
+      box-shadow:0 6px 14px rgba(201,124,44,.32);
+    }
+
+    .msg-panel-body{
+      padding:8px 0 10px;
+      max-height:420px;
+      overflow-y:auto;
+      background:#ffffff;
+    }
+
+    .msg-panel-footer{
+      padding:8px 16px 12px;
+      border-top:1px solid rgba(240,210,168,.85);
+      background:#ffffff;
+      font-size:.88rem;
+      color:#7a4f1c;
+      text-align:center;
+    }
+
+    @media (max-width:480px){
+      .msg-panel{
+        right:8px;
+        width:min(100vw - 24px, 360px);
+      }
+    }
+
     .skeleton{position:relative; overflow:hidden; background:#f3f3f3}
     .skeleton::after{content:""; position:absolute; inset:0; transform:translateX(-100%); background:linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.6), rgba(255,255,255,0)); animation: shimmer 1.2s infinite}
     
@@ -735,16 +710,87 @@ const BakeryDashboard = () => {
       animation: brandShimmer 6s ease-in-out infinite;
       letter-spacing: .2px;
     }
-    
-    @keyframes brandShimmer{
-      0%{background-position:0% 50%}
-      50%{background-position:100% 50%}
-      100%{background-position:0% 50%}
+    @keyframes brandShimmer{ 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+    @keyframes shimmer{ from{transform:translateX(-100%)} to{transform:translateX(100%)} }
+
+    /* ===== UI PATCH: tighter but neat icons on small screens ===== */
+
+    /* === SCROLLABLE TABS STRIP (dashboard tabs) === */
+    .tabs-scroll{
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch; 
+      flex-wrap: nowrap;                  
     }
-    
-    @keyframes shimmer{
-      from{transform:translateX(-100%)}
-      to{transform:translateX(100%)}
+    .tabs-scroll::-webkit-scrollbar{
+      display: none;                      
+    }
+      
+    @media (max-width: 480px){
+      .iconbar{
+        gap: .35rem;
+}
+
+      .iconbar .icon-btn{
+        width: 32px;
+        height: 32px;
+      }
+
+      .iconbar .icon-btn svg{
+        width: 16px;
+        height: 16px;
+      }
+
+      .btn-logout{
+        padding: .35rem .55rem;
+      }
+
+      .btn-logout svg{
+        width: 16px;
+        height: 16px;
+      }
+
+      .brand-title{
+        margin-right: .25rem;  
+      }
+    }
+
+    /* === DASHBOARD STAT CARDS (MOBILE-ONLY SIZE TWEAK) === */
+    .dashboard-stat-card .stat-card-content{
+      transition: padding .2s ease;
+    }
+
+    @media (max-width: 640px){
+      .dashboard-stat-grid{
+        gap: 1rem; /* mas dikit ng konti yung pagitan ng cards sa mobile */
+      }
+
+      .dashboard-stat-card .stat-card-content{
+        padding: 0.75rem 0.9rem; /* mas maliit na padding sa mobile */
+      }
+
+      .dashboard-stat-card .stat-label{
+        font-size: 0.78rem;
+      }
+
+      .dashboard-stat-card .stat-value{
+        font-size: 1.5rem;
+        line-height: 1.7rem;
+      }
+
+      .dashboard-stat-card .chip{
+        width: 42px;
+        height: 42px;
+      }
+
+      .dashboard-stat-card .chip svg{
+        width: 18px;
+        height: 18px;
+      }
+    }
+
+    .hdr-left{ flex: 1 1 auto; min-width: 0; }
+    .hdr-right{ flex: 0 0 auto; margin-left: auto; }
     }
   `}</style>
   );
@@ -765,9 +811,10 @@ const BakeryDashboard = () => {
             scrolled ? "is-scrolled" : ""
           }`}
         >
+          {/* ===== Header Row (brand on left, icons on right) ===== */}
           <div className="max-w-7xl mx-auto px-4 py-3 hdr-pad flex items-center justify-between relative">
-            <div className="flex items-center gap-3">
-              {/* DoughNation Logo - Disabled when logged in */}
+            {/* LEFT: brand + (desktop) identity */}
+            <div className="flex items-center gap-3 hdr-left">
               {isVerified ? (
                 <div
                   className="flex items-center gap-3 cursor-not-allowed opacity-60"
@@ -784,7 +831,7 @@ const BakeryDashboard = () => {
                     }}
                   />
                   <span
-                    className="font-extrabold brand-pop"
+                    className="brand-title font-extrabold brand-pop"
                     style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}
                   >
                     DoughNation
@@ -803,7 +850,7 @@ const BakeryDashboard = () => {
                     }}
                   />
                   <span
-                    className="font-extrabold brand-pop"
+                    className="brand-title font-extrabold brand-pop"
                     style={{ fontSize: "clamp(1.15rem, 1rem + 1vw, 1.6rem)" }}
                   >
                     DoughNation
@@ -811,8 +858,8 @@ const BakeryDashboard = () => {
                 </Link>
               )}
 
-              {/* Employee & Bakery Name Display - Beside DoughNation */}
-              {isEmployeeMode && (
+              {/* Owner/Employee & Bakery Name (desktop only) */}
+              {(isEmployeeMode || ownerName) && (
                 <div
                   className="hidden lg:flex flex-col items-start justify-center ml-4 pl-4 border-l-2"
                   style={{ borderColor: "#E3B57E" }}
@@ -825,7 +872,7 @@ const BakeryDashboard = () => {
                     >
                       {name}
                     </span>
-                    {employeeRole && (
+                    {employeeRole ? (
                       <span
                         className="text-xs px-2 py-0.5 rounded-full"
                         style={{
@@ -835,6 +882,17 @@ const BakeryDashboard = () => {
                         }}
                       >
                         {employeeRole}
+                      </span>
+                    ) : (
+                      <span
+                        className="text-xs px-2 py-0.5 rounded-full"
+                        style={{
+                          background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
+                          color: "#7a4f1c",
+                          border: "1px solid #fff3e0",
+                        }}
+                      >
+                        Owner
                       </span>
                     )}
                   </div>
@@ -851,19 +909,23 @@ const BakeryDashboard = () => {
               )}
             </div>
 
-            {/* Desktop nav */}
-            <nav className="items-center gap-5" style={{ fontSize: 15 }}>
-              <div className="pt-1 flex items-center gap-3 relative">
-                <div className="iconbar">
+            {/* RIGHT: actions */}
+            <nav
+              className="items-center gap-5 hdr-right"
+              style={{ fontSize: 15 }}
+            >
+              <div className="pt-1 flex items-center gap-2 sm:gap-3 relative">
+                <div className="iconbar shrink-0">
+                  {/* desktop search only; mobile search below */}
                   <DashboardSearch size="sm" className="hidden md:flex" />
 
-                  {/* Messages Button */}
+                  {/* Messages */}
                   <Messages1 currentUser={currentUser} />
 
-                  {/* Notifications Bell */}
+                  {/* Notifications */}
                   <BakeryNotification />
 
-                  {/* Profile Icon */}
+                  {/* Profile */}
                   <button
                     className="icon-btn"
                     aria-label="Open profile"
@@ -893,7 +955,47 @@ const BakeryDashboard = () => {
               </div>
             </nav>
           </div>
-          {/* Mobile dropdown panel */}
+
+          {/* ===== Mobile info & search strip (UI-only) ===== */}
+          {(isEmployeeMode || ownerName) && (
+            <div className="md:hidden px-4 pb-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4" style={{ color: "#7a4f1c" }} />
+                  <span
+                    className="text-sm font-semibold"
+                    style={{ color: "#7a4f1c" }}
+                  >
+                    {name}
+                  </span>
+                  <span
+                    className="text-[11px] px-2 py-0.5 rounded-full"
+                    style={{
+                      background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
+                      color: "#7a4f1c",
+                      border: "1px solid #fff3e0",
+                    }}
+                  >
+                    {employeeRole ? employeeRole : "Owner"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <Store className="h-3.5 w-3.5" style={{ color: "#a47134" }} />
+                <span className="text-xs" style={{ color: "#a47134" }}>
+                  {bakeryName}
+                </span>
+              </div>
+
+              {/* Mobile search (same component) */}
+              <div className="w-full">
+                <DashboardSearch size="sm" className="md:hidden w-full" />
+              </div>
+            </div>
+          )}
+
+          {/* Mobile dropdown panel (left as-is) */}
           <div
             id="mobile-menu"
             className={`md:hidden transition-all duration-200 ease-out ${
@@ -903,8 +1005,7 @@ const BakeryDashboard = () => {
             } overflow-hidden`}
           >
             <div className="px-4 pb-3 pt-1 flex flex-col">
-              {/*
-        <NotificationAction /> */}
+              {/* extra mobile content */}
             </div>
           </div>
         </div>
@@ -926,7 +1027,7 @@ const BakeryDashboard = () => {
       >
         <div className="seg-wrap">
           <div className="seg justify-center">
-            <TabsList className="flex items-center gap-1 bg-transparent p-0 border-0 overflow-x-auto no-scrollbar">
+            <TabsList className="tabs-scroll flex items-center gap-1 bg-transparent p-0 border-0">
               {visibleTabs.includes("dashboard") && (
                 <TabsTrigger
                   value="dashboard"
@@ -980,13 +1081,14 @@ const BakeryDashboard = () => {
               {visibleTabs.includes("complaints") && (
                 <TabsTrigger
                   value="complaints"
-                  title="Complaints"
+                  title="Concerns"
                   className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full text-[#6b4b2b] hover:bg-amber-50"
                 >
                   <MessageSquareWarning className="w-4 h-4" />
-                  <span className="hidden sm:inline">Complaints</span>
+                  <span className="hidden sm:inline">Concerns</span>
                 </TabsTrigger>
               )}
+
               {visibleTabs.includes("reports") && (
                 <TabsTrigger
                   value="reports"
@@ -1023,66 +1125,22 @@ const BakeryDashboard = () => {
 
         {/* Content */}
         <div className="max-w-7xl mx-auto px-2 sm:px-2 lg:px-2 py-2">
-          {/* View-Only Mode Banner for Bakery Owners */}
-          {isViewOnly && (
-            <div
-              className="mb-6 p-4 rounded-lg border-2 flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-500"
-              style={{
-                background: "linear-gradient(135deg, #FFF8E1 0%, #FFECB3 100%)",
-                borderColor: "#FFB74D",
-                boxShadow: "0 4px 12px rgba(255, 152, 0, 0.15)",
-              }}
-            >
-              <AlertTriangle
-                className="h-5 w-5 mt-0.5 flex-shrink-0"
-                style={{ color: "#F57C00" }}
-              />
-              <div className="flex-1">
-                <h3
-                  className="font-bold text-base mb-1"
-                  style={{ color: "#E65100" }}
-                >
-                  View-Only Mode
-                </h3>
-                <p
-                  className="text-sm leading-relaxed"
-                  style={{ color: "#7a4f1c" }}
-                >
-                  You are logged in as a <strong>Bakery Account</strong>. All
-                  data modification operations are disabled for this account,
-                  including:
-                  <br />• Cannot add, edit, or delete{" "}
-                  <strong>inventory items</strong>
-                  <br />• Cannot send <strong>donations</strong>
-                  <br />• Cannot add, edit, or delete <strong>employees</strong>
-                  <br />• Cannot <strong>submit complaints</strong>
-                  <br />• Cannot <strong>generate or download reports</strong>
-                  <br />• Cannot <strong>reply to feedback</strong>
-                  <br />
-                  <br />
-                  Only <strong>employees</strong> can perform these operations.
-                  You can view all information but cannot make changes.
-                </p>
-              </div>
-            </div>
-          )}
-
           <TabsContent value="dashboard" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6 dashboard-stat-grid">
               {/* Stat cards */}
-              <div className="gwrap reveal r1 hover-lift">
+              <div className="gwrap reveal r1 hover-lift dashboard-stat-card">
                 <Card className="glass-card shadow-none">
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-5 md:p-6 stat-card-content">
                     <div className="flex items-center justify-between">
                       <div>
                         <p
-                          className="text-sm font-medium"
+                          className="text-sm font-medium stat-label"
                           style={{ color: "#6B4B2B" }}
                         >
                           Total Donations
                         </p>
                         <p
-                          className="text-3xl font-extrabold"
+                          className="text-3xl font-extrabold stat-value"
                           style={{ color: "#2b1a0b" }}
                         >
                           {totals.grand_total.toLocaleString()}
@@ -1096,19 +1154,19 @@ const BakeryDashboard = () => {
                 </Card>
               </div>
 
-              <div className="gwrap reveal r2 hover-lift">
+              <div className="gwrap reveal r2 hover-lift dashboard-stat-card">
                 <Card className="glass-card shadow-none">
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-5 md:p-6 stat-card-content">
                     <div className="flex items-center justify-between">
                       <div>
                         <p
-                          className="text-sm font-medium"
+                          className="text-sm font-medium stat-label"
                           style={{ color: "#6B4B2B" }}
                         >
                           Product in Inventory
                         </p>
                         <p
-                          className="text-3xl font-extrabold"
+                          className="text-3xl font-extrabold stat-value"
                           style={{ color: "#2b1a0b" }}
                         >
                           {stats.totalInventory}
@@ -1122,19 +1180,19 @@ const BakeryDashboard = () => {
                 </Card>
               </div>
 
-              <div className="gwrap reveal r3 hover-lift">
+              <div className="gwrap reveal r3 hover-lift dashboard-stat-card">
                 <Card className="glass-card shadow-none">
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-5 md:p-6 stat-card-content">
                     <div className="flex items-center justify-between">
                       <div>
                         <p
-                          className="text-sm font-medium"
+                          className="text-sm font-medium stat-label"
                           style={{ color: "#6B4B2B" }}
                         >
                           Uploaded Products
                         </p>
                         <p
-                          className="text-3xl font-extrabold"
+                          className="text-3xl font-extrabold stat-value"
                           style={{ color: "#2b1a0b" }}
                         >
                           {uploadedProducts}
@@ -1148,19 +1206,19 @@ const BakeryDashboard = () => {
                 </Card>
               </div>
 
-              <div className="gwrap reveal r4 hover-lift">
+              <div className="gwrap reveal r4 hover-lift dashboard-stat-card">
                 <Card className="glass-card shadow-none">
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-5 md:p-6 stat-card-content">
                     <div className="flex items-center justify-between">
                       <div>
                         <p
-                          className="text-sm font-medium"
+                          className="text-sm font-medium stat-label"
                           style={{ color: "#6B4B2B" }}
                         >
                           Employee
                         </p>
                         <p
-                          className="text-3xl font-extrabold"
+                          className="text-3xl font-extrabold stat-value"
                           style={{ color: "#2b1a0b" }}
                         >
                           {stats.employeeCount}
@@ -1174,19 +1232,19 @@ const BakeryDashboard = () => {
                 </Card>
               </div>
 
-              <div className="gwrap reveal r5 hover-lift">
+              <div className="gwrap reveal r5 hover-lift dashboard-stat-card">
                 <Card className="glass-card shadow-none">
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-5 md:p-6 stat-card-content">
                     <div className="flex items-center justify-between">
                       <div>
                         <p
-                          className="text-sm font-medium"
+                          className="text-sm font-medium stat-label"
                           style={{ color: "#6B4B2B" }}
                         >
                           Expired Product
                         </p>
                         <p
-                          className="text-3xl font-extrabold"
+                          className="text-3xl font-extrabold stat-value"
                           style={{ color: "#2b1a0b" }}
                         >
                           {stats.expiredProducts}
@@ -1200,19 +1258,19 @@ const BakeryDashboard = () => {
                 </Card>
               </div>
 
-              <div className="gwrap reveal r6 hover-lift">
+              <div className="gwrap reveal r6 hover-lift dashboard-stat-card">
                 <Card className="glass-card shadow-none">
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-5 md:p-6 stat-card-content">
                     <div className="flex items-center justify-between">
                       <div>
                         <p
-                          className="text-sm font-medium"
+                          className="text-sm font-medium stat-label"
                           style={{ color: "#6B4B2B" }}
                         >
                           Nearing Expiration
                         </p>
                         <p
-                          className="text-3xl font-extrabold"
+                          className="text-3xl font-extrabold stat-value"
                           style={{ color: "#2b1a0b" }}
                         >
                           {stats.nearingExpiration}
@@ -1227,23 +1285,25 @@ const BakeryDashboard = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="gwrap hover-lift reveal">
-                <Card className="glass-card shadow-none">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+              <div className="gwrap hover-lift reveal h-full">
+                <Card className="glass-card shadow-none h-full flex flex-col">
                   <CardHeader className="pb-2">
                     <CardTitle style={{ color: "#6B4B2B" }}>
                       Recent Donations
                     </CardTitle>
                     <CardDescription style={{ color: "#7b5836" }}>
-                      <RecentDonations />
+                      Latest donation completed
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="min-h-[10px]" />
+                  <CardContent className="pt-0 pb-4 flex-1 flex flex-col">
+                    <RecentDonations />
+                  </CardContent>
                 </Card>
               </div>
 
-              <div className="gwrap hover-lift reveal">
-                <Card className="glass-card shadow-none">
+              <div className="gwrap hover-lift reveal h-full">
+                <Card className="glass-card shadow-none h-full flex flex-col">
                   <CardHeader className="pb-2">
                     <CardTitle style={{ color: "#6B4B2B" }}>
                       Achievements &amp; Badges
@@ -1253,69 +1313,100 @@ const BakeryDashboard = () => {
                     </CardDescription>
                   </CardHeader>
 
-                  {/* >>> BADGES GRID — EXACTLY 5 PER ROW + SMALLER ICONS <<< */}
-                  <CardContent
-                    className="
-                      min-h-[404px]
-                      grid
-                      [grid-template-columns:repeat(5,minmax(0,1fr))]
-                      gap-x-[clamp(12px,2.6vw,32px)]
-                      gap-y-[clamp(10px,2vw,24px)]
-                      items-start
-                    "
-                  >
-                    {badges && badges.length > 0 ? (
-                      badges.map((userBadge) => (
-                        <div
-                          key={userBadge.id}
-                          className="flex flex-col items-center justify-start"
-                        >
-                          <img
-                            src={
-                              userBadge.badge?.icon_url
-                                ? `${API}/${userBadge.badge.icon_url}`
-                                : "/placeholder-badge.png"
-                            }
-                            alt={userBadge.badge?.name}
-                            title={userBadge.badge?.name}
-                            className="hover:scale-110 transition-transform"
-                            style={{
-                              /* smaller icons */
-                              width: "clamp(44px,5.5vw,64px)",
-                              height: "clamp(44px,5.5vw,64px)",
-                              objectFit: "contain",
-                            }}
-                          />
-                          {/* Keep label block-level; slightly narrower width to match smaller icon */}
-                          <span
+                  <CardContent className="pt-0 pb-4 flex-1 flex flex-col">
+                    <div
+                      className="
+    mt-2
+    rounded-3xl
+    border border-[#eadfce]
+    bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
+    shadow-[0_2px_8px_rgba(93,64,28,0.06)]
+    h-auto max-h-[420px]
+    md:h-[400px] md:max-h-none
+    transition-all duration-300 ease-[cubic-bezier(.2,.9,.4,1)]
+    hover:scale-[1.015]
+    hover:shadow-[0_14px_32px_rgba(191,115,39,0.18)]
+    hover:ring-1 hover:ring-[#E49A52]/35
+  "
+                    >
+                      <div
+                        className="
+    bg-gradient-to-b from-[#FFFDF8] via-[#FFF5E8] to-[#FFE9D3]
+    border border-[#f2e3cf]
+    rounded-2xl
+    px-4 py-4
+    sm:px-5 sm:py-5
+    h-full
+    shadow-[0_2px_10px_rgba(93,64,28,0.05)]
+  "
+                      >
+                        {badges && badges.length > 0 ? (
+                          <div className="max-h-[260px] lg:max-h-none overflow-y-auto">
+                            <div
+                              className="
+                  grid
+                  grid-cols-3 sm:grid-cols-4 lg:grid-cols-5
+                  gap-x-8 gap-y-6
+                "
+                            >
+                              {badges.map((userBadge) => {
+                                const displayName =
+                                  userBadge.badge_name &&
+                                  userBadge.badge_name.trim() !== ""
+                                    ? userBadge.badge_name
+                                    : userBadge.badge?.name;
+
+                                return (
+                                  <div
+                                    key={userBadge.id}
+                                    className="flex flex-col items-center gap-2"
+                                  >
+                                    <img
+                                      src={
+                                        userBadge.badge?.icon_url
+                                          ? `${API}/${userBadge.badge.icon_url}`
+                                          : "/placeholder-badge.png"
+                                      }
+                                      alt={displayName}
+                                      title={displayName}
+                                      className="hover:scale-110 transition-transform"
+                                      style={{
+                                        width: "clamp(48px,5.5vw,64px)",
+                                        height: "clamp(48px,5.5vw,64px)",
+                                        objectFit: "contain",
+                                      }}
+                                    />
+                                    <span
+                                      className="
+                          block
+                          text-[11px]
+                          leading-tight
+                          text-center
+                          text-[#7b5836]
+                          max-w-[110px]
+                          whitespace-normal
+                        "
+                                    >
+                                      {displayName}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : (
+                          <p
                             className="
-                              block
-                              text-[11px]
-                              mt-2
-                              leading-tight
-                              text-center
-                              truncate
-                              w-[96px]
-                            "
-                            title={
-                              userBadge.badge_name &&
-                              userBadge.badge_name.trim() !== ""
-                                ? userBadge.badge_name
-                                : userBadge.badge?.name
-                            }
+                text-sm
+                text-center
+                text-[#7b5836]
+              "
                           >
-                            {userBadge.badge_name &&
-                            userBadge.badge_name.trim() !== ""
-                              ? userBadge.badge_name
-                              : userBadge.badge?.name}
-                          </span>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm" style={{ color: "#7b5836" }}>
-                        No badges unlocked yet.
-                      </p>
-                    )}
+                            No badges unlocked yet.
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -1325,9 +1416,15 @@ const BakeryDashboard = () => {
               <Card className="glass-card shadow-none">
                 <CardHeader className="pb-2">
                   <CardTitle style={{ color: "#6B4B2B" }}>Analytics</CardTitle>
-                  <BakeryAnalytics currentUser={currentUser} />{" "}
+
+                  <CardDescription style={{ color: "#7b5836" }}>
+                    Visual overview of inventory and donation activities
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="min-h-[120px]" />
+
+                <CardContent className="pt-0 pb-4">
+                  <BakeryAnalytics currentUser={currentUser} />
+                </CardContent>
               </Card>
             </div>
           </TabsContent>
@@ -1336,7 +1433,7 @@ const BakeryDashboard = () => {
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  <BakeryInventory isViewOnly={isViewOnly} />
+                  <BakeryInventory />
                 </CardContent>
               </Card>
             </div>
@@ -1348,7 +1445,6 @@ const BakeryDashboard = () => {
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
                   <BakeryDonation
                     highlightedDonationId={highlightedDonationId}
-                    isViewOnly={isViewOnly}
                   />
                 </CardContent>
               </Card>
@@ -1359,21 +1455,21 @@ const BakeryDashboard = () => {
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  <BDonationStatus isViewOnly={isViewOnly} />
+                  <BDonationStatus />
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
           <TabsContent value="employee" className="reveal">
-            <BakeryEmployee isViewOnly={isViewOnly} />
+            <BakeryEmployee />
           </TabsContent>
 
           <TabsContent value="complaints" className="reveal">
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  <Complaint isViewOnly={isViewOnly} />
+                  <Complaint />
                 </CardContent>
               </Card>
             </div>
@@ -1383,7 +1479,7 @@ const BakeryDashboard = () => {
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  <BakeryReports isViewOnly={isViewOnly} />
+                  <BakeryReports />
                 </CardContent>
               </Card>
             </div>
@@ -1394,7 +1490,7 @@ const BakeryDashboard = () => {
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  <BFeedback isViewOnly={isViewOnly} />
+                  <BFeedback />
                 </CardContent>
               </Card>
             </div>

@@ -5,6 +5,7 @@ from app.database import get_db
 from app.models import SystemEvent, User
 from app.auth import get_current_user
 from datetime import datetime, timedelta
+from app.timezone_utils import now_ph
 from typing import Optional, List
 import json
 
@@ -286,7 +287,7 @@ def export_events(
     
     return {
         "total_records": len(export_data),
-        "export_timestamp": datetime.utcnow().isoformat(),
+        "export_timestamp": now_ph().isoformat(),
         "filters_applied": {
             "event_type": event_type,
             "severity": severity,

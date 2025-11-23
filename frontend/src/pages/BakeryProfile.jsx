@@ -103,8 +103,12 @@ export default function BakeryProfile() {
         const decoded = JSON.parse(atob(employeeToken.split(".")[1]));
         setIsEmployeeMode(true);
         setBakeryId(decoded.bakery_id);
-        setName(decoded.name || "Bakery Name");
-        setCurrentUser(decoded);
+        setName(decoded.bakery_name || decoded.name || "Bakery Name");
+        setCurrentUser({
+          employee_name: decoded.employee_name,
+          role: decoded.employee_role,
+          bakery_id: decoded.bakery_id
+        });
       } catch (err) {
         console.error("Error decoding employee token:", err);
       }
@@ -139,7 +143,12 @@ export default function BakeryProfile() {
     const loadEmployees = () =>
       axios
         .get(`${API}/employees`, { headers })
-        .then((r) => setEmployeeCount((r.data || []).length))
+        .then((r) => {
+          const activeEmployees = (r.data || []).filter(
+            (emp) => emp?.role?.toLowerCase() !== "owner"
+          );
+          setEmployeeCount(activeEmployees.length);
+        })
         .catch(() => setEmployeeCount(0));
 
     loadInventory();
@@ -187,7 +196,18 @@ export default function BakeryProfile() {
         const user = res.data;
         setProfilePic(user.profile_picture);
         setName(user.name);
-        setCurrentUser(user); // full user object
+        
+        // If employee mode, preserve employee info from token
+        if (employeeToken) {
+          const decoded = JSON.parse(atob(employeeToken.split(".")[1]));
+          setCurrentUser({
+            ...user, // bakery details
+            employee_name: decoded.employee_name,
+            role: decoded.employee_role
+          });
+        } else {
+          setCurrentUser(user); // full user object for owner
+        }
       } catch (err) {
         console.error("Failed to fetch user:", err);
       }
@@ -382,7 +402,16 @@ export default function BakeryProfile() {
     }
 
     try {
-      await axios.put(`${API}/changepass`, data, {
+      // ✅ Use different endpoint based on who is logged in
+      const endpoint = employeeToken
+        ? "/employee-change-password"
+        : "/changepass";
+      const method = employeeToken ? "post" : "put"; // Employee uses POST, Bakery uses PUT
+
+      await axios({
+        method: method,
+        url: `${API}${endpoint}`,
+        data: data,
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -390,20 +419,105 @@ export default function BakeryProfile() {
       });
 
       setIsChangePassOpen(false);
-      Swal.fire({
-        icon: "success",
-        title: "Password Updated",
-        text: "Your password has been changed successfully.",
-        timer: 2500,
-        showConfirmButton: false,
-      });
+
+      // ✅ If employee changed password successfully, update token and show message
+      if (employeeToken) {
+        Swal.fire({
+          icon: "success",
+          title: "Password Changed Successfully!",
+          text: "Your password has been updated.",
+          timer: 2500,
+          showConfirmButton: false,
+        });
+      } else {
+        Swal.fire({
+          icon: "success",
+          title: "Password Updated",
+          text: "Your password has been changed successfully.",
+          timer: 2500,
+          showConfirmButton: false,
+        });
+      }
     } catch (err) {
       console.error("Failed to change password:", err);
+
+      const errorMessage =
+        err.response?.data?.detail ||
+        "There was an error updating your password. Please try again.";
+
       Swal.fire({
         icon: "error",
         title: "Update Failed",
-        text: "There was an error updating your password. Please try again.",
+        text: errorMessage,
       });
+    }
+  };
+
+  const handleDeactivateAccount = async () => {
+    // Only allow owner to deactivate (check if employee mode or if contact_person matches)
+    const result = await Swal.fire({
+      title: "Deactivate Account?",
+      html: `
+        <p>Are you sure you want to deactivate your bakery account?</p>
+        <p class="text-sm text-gray-600 mt-2">This action will:</p>
+        <ul class="text-sm text-left text-gray-600 mt-2 ml-4">
+          <li>• Disable login access</li>
+          <li>• Hide your bakery from searches</li>
+          <li>• Prevent new donations</li>
+        </ul>
+        <p class="text-sm text-red-600 mt-3">Please enter your password to confirm:</p>
+      `,
+      input: "password",
+      inputPlaceholder: "Enter your password",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Yes, deactivate",
+      cancelButtonText: "Cancel",
+      inputValidator: (value) => {
+        if (!value) {
+          return "Password is required!";
+        }
+      },
+    });
+
+    if (result.isConfirmed && result.value) {
+      try {
+        const token = localStorage.getItem("token");
+        const formData = new FormData();
+        formData.append("password", result.value);
+
+        await axios.post(`${API}/deactivate-account`, formData, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "multipart/form-data",
+          },
+        });
+
+        // Immediately log out by clearing tokens
+        localStorage.removeItem("token");
+        localStorage.removeItem("employeeToken");
+
+        Swal.fire({
+          icon: "success",
+          title: "Account Deactivated",
+          text: "Your account has been deactivated successfully.",
+          timer: 2000,
+          showConfirmButton: false,
+        }).then(() => {
+          navigate("/");
+        });
+      } catch (err) {
+        console.error("Deactivation error:", err);
+        Swal.fire({
+          icon: "error",
+          title: "Deactivation Failed",
+          text:
+            err.response?.data?.detail ||
+            "Failed to deactivate account. Please try again.",
+        });
+      }
     }
   };
 
@@ -572,6 +686,112 @@ export default function BakeryProfile() {
       .modal-head{background:linear-gradient(180deg,#fff,#fff8ef); border-bottom:1px solid rgba(0,0,0,.06)}
       .modal-input{border-radius:10px; padding:.65rem .8rem; border:1px solid rgba(0,0,0,.18)}
       .modal-input:focus{outline:none; border-color:#E49A52; box-shadow:0 0 0 3px rgba(228,154,82,.2)}
+
+      /* Mobile header icons */
+      @media (max-width: 480px){
+        .hdr-container .iconbar{
+          gap: .35rem;
+        }
+
+        .hdr-container .iconbar .icon-btn{
+          width: 32px;
+          height: 32px;
+        }
+
+        .hdr-container .iconbar .icon-btn svg{
+          width: 16px;
+          height: 16px;
+        }
+
+        .btn-logout{
+          padding: .35rem .55rem;
+        }
+
+        .btn-logout svg{
+          width: 16px;
+          height: 16px;
+        }
+
+        .brand-pop{
+          margin-right: .25rem;
+        }
+      }
+
+      /* ===== Danger Zone (About tab) ===== */
+      .danger-zone{
+        position:relative;
+        border-radius:14px;
+        padding:1rem 1.1rem 1.1rem;
+        background:linear-gradient(135deg,#fef2f2,#fee2e2);
+        border:1px solid rgba(248,113,113,.6);
+        box-shadow:0 12px 30px rgba(248,113,113,.18);
+        overflow:hidden;
+      }
+      .danger-zone::before{
+        content:"";
+        position:absolute;
+        inset:0;
+        background:radial-gradient(circle at top left, rgba(248,250,252,.85) 0, transparent 55%);
+        opacity:.7;
+        pointer-events:none;
+      }
+
+      .danger-zone-eyebrow{
+        font-size:.68rem;
+        text-transform:uppercase;
+        letter-spacing:.12em;
+        font-weight:700;
+        color:rgba(127,29,29,.85);
+      }
+      .danger-zone-title{
+        font-weight:800;
+        font-size:1rem;
+        color:#7f1d1d;
+        margin-top:.25rem;
+      }
+      .danger-zone-text{
+        font-size:.78rem;
+        color:#b91c1c;
+        margin-top:.4rem;
+      }
+      .danger-zone-list{
+        margin-top:.5rem;
+        font-size:.75rem;
+        color:#7f1d1d;
+        padding-left:1.1rem;
+      }
+      .danger-zone-list li{
+        list-style:disc;
+        margin-bottom:.15rem;
+      }
+      .danger-zone-icon{
+        width:40px;
+        height:40px;
+        border-radius:9999px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        background:rgba(254,202,202,.9);
+        border:1px solid rgba(248,113,113,.7);
+        box-shadow:0 8px 18px rgba(248,113,113,.35);
+        color:#7f1d1d;
+        flex-shrink:0;
+      }
+      .danger-zone-btn{
+        border-radius:9999px;
+        padding:.55rem 1.1rem;
+        font-weight:700;
+        font-size:.8rem;
+        background:linear-gradient(135deg,#dc2626,#b91c1c);
+        border:1px solid rgba(254,242,242,.7);
+        box-shadow:0 10px 26px rgba(220,38,38,.4);
+      }
+      .danger-zone-btn:hover{
+        filter:brightness(1.02);
+        transform:translateY(-1px);
+        box-shadow:0 14px 32px rgba(185,28,28,.55);
+      }
+
     `}</style>
   );
 
@@ -640,13 +860,26 @@ export default function BakeryProfile() {
                 <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[var(--ink)]">
                   {name}
                 </h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  <span className="font-semibold text-[var(--ink)]">
+                    {isEmployeeMode
+                      ? currentUser?.employee_name || "Employee"
+                      : currentUser?.contact_person || "Owner"}
+                  </span>
+                  <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                    {isEmployeeMode ? currentUser?.role || "Employee" : "Owner"}
+                  </span>
+                </p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Button
-                    className="btn-pill"
-                    onClick={() => setIsEditOpen(true)}
-                  >
-                    Edit Profile
-                  </Button>
+                  {/* Only owner can edit profile */}
+                  {!isEmployeeMode && (
+                    <Button
+                      className="btn-pill"
+                      onClick={() => setIsEditOpen(true)}
+                    >
+                      Edit Profile
+                    </Button>
+                  )}
                   <Button
                     className="btn-change"
                     onClick={() => setIsChangePassOpen(true)}
@@ -942,6 +1175,60 @@ export default function BakeryProfile() {
                           </div>
                         </div>
                       </CardContent>
+
+                      {/* Deactivate Account - Only for Owner */}
+                      {!isEmployeeMode && (
+                        <CardContent className="pt-4 mt-4 border-t border-red-100">
+                          <div className="danger-zone">
+                            <div className="relative flex items-start gap-3">
+                              {/* Icon bubble */}
+                              <div className="danger-zone-icon">
+                                <AlertTriangle className="w-5 h-5" />
+                              </div>
+
+                              {/* Text + button */}
+                              <div className="flex-1">
+                                <p className="danger-zone-eyebrow">
+                                  Account Status
+                                </p>
+                                <h3 className="danger-zone-title">
+                                  Danger Zone
+                                </h3>
+
+                                <p className="danger-zone-text">
+                                  Deactivating your bakery will:
+                                </p>
+
+                                <ul className="danger-zone-list">
+                                  <li>Disable login access for this bakery</li>
+                                  <li>
+                                    Hide your bakery from the DoughNation
+                                    platform
+                                  </li>
+                                  <li>
+                                    Prevent new donations from being requested
+                                  </li>
+                                </ul>
+
+                                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                                  <p className="text-[0.7rem] text-red-500/80">
+                                    Only the bakery owner can perform this
+                                    action.
+                                  </p>
+                                  <Button
+                                    onClick={handleDeactivateAccount}
+                                    variant="destructive"
+                                    size="sm"
+                                    className="danger-zone-btn"
+                                  >
+                                    Deactivate Account
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      )}
                     </Card>
                   </div>
                 </TabsContent>

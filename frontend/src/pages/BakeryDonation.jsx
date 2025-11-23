@@ -10,7 +10,7 @@ const API = "https://api.doughnationhq.cloud";
 const isExpired = (dateStr, serverDate) => {
   if (!dateStr || !serverDate) return false;
   const d = new Date(dateStr);
-  const [year, month, day] = serverDate.split('-').map(Number);
+  const [year, month, day] = serverDate.split("-").map(Number);
   const t = new Date(year, month - 1, day);
   t.setHours(0, 0, 0, 0);
   d.setHours(0, 0, 0, 0);
@@ -20,7 +20,7 @@ const isExpired = (dateStr, serverDate) => {
 const daysUntil = (dateStr, serverDate) => {
   if (!dateStr || !serverDate) return null;
   const d = new Date(dateStr);
-  const [year, month, day] = serverDate.split('-').map(Number);
+  const [year, month, day] = serverDate.split("-").map(Number);
   const t = new Date(year, month - 1, day);
   t.setHours(0, 0, 0, 0);
   d.setHours(0, 0, 0, 0);
@@ -31,13 +31,13 @@ const statusOf = (donation, serverDate) => {
   const d = daysUntil(donation?.expiration_date, serverDate);
   if (d === null) return "fresh";
   if (d <= 0) return "expired";
-  
+
   const threshold = Number(donation?.threshold);
-  
+
   // Match inventory logic: threshold 0 means check if d <= 1
   if (threshold === 0 && d <= 1) return "soon";
   if (d <= threshold) return "soon";
-  
+
   return "fresh";
 };
 
@@ -71,29 +71,6 @@ function Overlay({ onClose, children }) {
   );
 }
 
-<button
-  type="button"
-  className="shrink-0 h-7 px-3 rounded-full border border-[#f2d4b5] bg-white hover:bg-[#FFF6E9] transition shadow-sm"
-  onClick={() =>
-    setForm((f) => {
-      const id = parseInt(f.bakery_inventory_id || 0, 10);
-      const chosen = inventory.find((x) => Number(x.id) === id);
-      if (!chosen) {
-        Swal.fire("Pick an item", "Select an inventory item first.", "warning");
-        return f;
-      }
-      const maxQ = Number(chosen.quantity) || 0;
-      return { ...f, quantity: maxQ };
-    })
-  }
-  aria-label="Set to max quantity"
-  title="Max"
->
-  <span className="text-[11px] font-semibold tracking-wide text-[#6b4b2b]">
-    MAX
-  </span>
-</button>;
-
 /* ---------- tiny UI helpers ---------- */
 const Pill = ({ tone = "neutral", children }) => {
   const tones = {
@@ -125,7 +102,7 @@ const getCurrentUserName = () => {
 
   try {
     const decoded = JSON.parse(atob(token.split(".")[1]));
-    
+
     if (decoded.type === "employee") {
       // Employee token
       return decoded.employee_name || decoded.name || "Employee";
@@ -142,6 +119,7 @@ const getCurrentUserName = () => {
 /* ---------- main component ---------- */
 const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
   const [donations, setDonations] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const highlightedRef = useRef(null);
 
@@ -171,30 +149,35 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
     image_file: null,
   });
 
+  // pagination state
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
+
   // Get the appropriate token (employee token takes priority if it exists)
-  const token = localStorage.getItem("employeeToken") || localStorage.getItem("token");
+  const token =
+    localStorage.getItem("employeeToken") || localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
 
   // Fetch server date on mount
-useEffect(() => {
-  const fetchServerDate = async () => {
-    try {
-      const res = await axios.get(`${API}/server-time`, { headers });
-      setCurrentServerDate(res.data.date);
-    } catch (err) {
-      console.error("Failed to fetch server date:", err);
-      const today = new Date();
-      const yyyy = today.getFullYear();
-      const mm = String(today.getMonth() + 1).padStart(2, '0');
-      const dd = String(today.getDate()).padStart(2, '0');
-      setCurrentServerDate(`${yyyy}-${mm}-${dd}`);
-    }
-  };
-  
-  fetchServerDate();
-  const interval = setInterval(fetchServerDate, 60 * 60 * 1000); // Refresh every hour
-  return () => clearInterval(interval);
-}, []);
+  useEffect(() => {
+    const fetchServerDate = async () => {
+      try {
+        const res = await axios.get(`${API}/server-time`, { headers });
+        setCurrentServerDate(res.data.date);
+      } catch (err) {
+        console.error("Failed to fetch server date:", err);
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, "0");
+        const dd = String(today.getDate()).padStart(2, "0");
+        setCurrentServerDate(`${yyyy}-${mm}-${dd}`);
+      }
+    };
+
+    fetchServerDate();
+    const interval = setInterval(fetchServerDate, 60 * 60 * 1000); // Refresh every hour
+    return () => clearInterval(interval);
+  }, []);
 
   /* ---------- data fetch ---------- */
   const fetchEmployees = async () => {
@@ -242,10 +225,10 @@ useEffect(() => {
         const isExpiredItem = isExpired(it.expiration_date, currentServerDate);
         const quantity = Number(it.quantity) || 0;
         return (
-          s !== "donated" && 
-          s !== "requested" && 
-          !isExpiredItem &&  // Filter out expired items
-          quantity > 0  // Filter out items with 0 quantity
+          s !== "donated" &&
+          s !== "requested" &&
+          !isExpiredItem && // Filter out expired items
+          quantity > 0 // Filter out items with 0 quantity
         );
       });
       setInventory(ok);
@@ -333,7 +316,10 @@ useEffect(() => {
         text:
           daysUntil(d.expiration_date, currentServerDate) === 1
             ? "Expires in 1 day"
-            : `Expires in ${daysUntil(d.expiration_date, currentServerDate)} days`,
+            : `Expires in ${daysUntil(
+                d.expiration_date,
+                currentServerDate
+              )} days`,
         cls: "bg-[#fff8e6] border-[#ffe7bf] text-[#8a5a25]",
         icon: <Clock className="w-3.5 h-3.5" />,
       };
@@ -356,20 +342,38 @@ useEffect(() => {
     return da - db;
   });
 
+  // pagination derived values (based on sortedDonations)
+  const totalPages = Math.max(1, Math.ceil(sortedDonations.length / PAGE_SIZE));
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [totalPages, page]);
+
+  const startIndex = (page - 1) * PAGE_SIZE;
+  const pageDonations = sortedDonations.slice(
+    startIndex,
+    startIndex + PAGE_SIZE
+  );
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
+
+  const pagerBtn =
+    "min-w-[80px] rounded-full border border-[#f2d4b5] bg-white/95 px-4 py-1.5 text-xs sm:text-sm font-semibold text-[#6b4b2b] shadow-sm hover:bg-white transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/95";
+
   /* ---------- UI ---------- */
   return (
     <div className="space-y-2">
-      {/* header row */}
-      <div className="flex items-center justify-between">
+      {/* header row (For Donations + Donate button – mobile stacked) */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-3 sm:px-0 pt-1">
         <h2
           className="text-3xl sm:text-3xl font-extrabold"
           style={{ color: "#6B4B2B" }}
-        >For Donations
+        >
+          For Donations
         </h2>
         {!isViewOnly && (
           <button
             onClick={() => setShowDonate(true)}
-            className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-6 py-2.5 font-semibold shadow-[0_10px_26px_rgba(201,124,44,.25)] ring-1 ring-white/60 hover:-translate-y-0.5 active:scale-95 transition"
+            className="w-full sm:w-auto inline-flex justify-center items-center shrink-0 rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-4 py-2 text-sm sm:px-6 sm:py-2.5 sm:text-base font-semibold shadow-[0_10px_26px_rgba(201,124,44,.25)] ring-1 ring-white/60 hover:-translate-y-0.5 active:scale-95 transition"
           >
             Donate Now!
           </button>
@@ -395,94 +399,121 @@ useEffect(() => {
             ))}
           </div>
         ) : donations.length > 0 ? (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {sortedDonations.map((d) => {
-              const chip = statusChip(d);
-              const isHighlighted = d.id === highlightedDonationId;
-              return (
-                <div
-                  key={d.id}
-                  ref={isHighlighted ? highlightedRef : null}
-                  className={`group rounded-2xl border border-[#f2e3cf] bg-white/70 shadow-[0_2px_10px_rgba(93,64,28,.05)] overflow-hidden transition-all duration-300 hover:scale-[1.015] hover:shadow-[0_14px_32px_rgba(191,115,39,.18)] hover:ring-1 hover:ring-[#E49A52]/35 ${
-                    isHighlighted ? "ring-2 ring-[#E49A52]" : ""
-                  }`}
-                >
-                  <div className="relative h-40 overflow-hidden">
-                    {d.image ? (
-                      <img
-                        src={`${API}/${d.image}`}
-                        alt={d.name}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="h-full w-full grid place-items-center bg-[#FFF6E9]">
-                        <Heart
-                          className="w-6 h-6"
-                          style={{ color: "#b88a5a" }}
+          <>
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {pageDonations.map((d) => {
+                const chip = statusChip(d);
+                const isHighlighted = d.id === highlightedDonationId;
+                return (
+                  <div
+                    key={d.id}
+                    ref={isHighlighted ? highlightedRef : null}
+                    className={`group rounded-2xl border border-[#f2e3cf] bg-white/70 shadow-[0_2px_10px_rgba(93,64,28,.05)] overflow-hidden transition-all duration-300 hover:scale-[1.015] hover:shadow-[0_14px_32px_rgba(191,115,39,.18)] hover:ring-1 hover:ring-[#E49A52]/35 ${
+                      isHighlighted ? "ring-2 ring-[#E49A52]" : ""
+                    }`}
+                  >
+                    <div className="relative h-40 overflow-hidden">
+                      {d.image ? (
+                        <img
+                          src={`${API}/${d.image}`}
+                          alt={d.name}
+                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                         />
-                      </div>
-                    )}
-                    <div
-                      className={`absolute top-3 right-3 text-[11px] font-bold inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${chip.cls}`}
-                    >
-                      {chip.icon}
-                      {chip.text}
-                    </div>
-                  </div>
-
-                  <div className="p-4">
-                    <h3
-                      className="text-lg font-semibold"
-                      style={{ color: "#3b2a18" }}
-                    >
-                      {d.name}
-                    </h3>
-
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#FFEFD9] border border-[#f3ddc0] text-[#6b4b2b]">
-                        Qty: {d.quantity ?? "—"}
-                      </span>
-                      {d.threshold != null && (
-                        <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#FFF6E9] border border-[#f4e6cf] text-[#6b4b2b]">
-                          Threshold: {d.threshold}
-                        </span>
+                      ) : (
+                        <div className="h-full w-full grid place-items-center bg-[#FFF6E9]">
+                          <Heart
+                            className="w-6 h-6"
+                            style={{ color: "#b88a5a" }}
+                          />
+                        </div>
                       )}
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <div className="rounded-lg border border-[#f2e3cf] bg-white/60 p-2">
-                        <div className="text-[11px] font-semibold text-[#7b5836]">
-                          Created
-                        </div>
-                        <div className="text-sm text-[#3b2a18]">
-                          {d.creation_date
-                            ? new Date(d.creation_date).toLocaleDateString()
-                            : "—"}
-                        </div>
-                      </div>
-                      <div className="rounded-lg border border-[#f2e3cf] bg-white/60 p-2">
-                        <div className="text-[11px] font-semibold text-[#7b5836]">
-                          Expires
-                        </div>
-                        <div className="text-sm text-[#3b2a18]">
-                          {d.expiration_date
-                            ? new Date(d.expiration_date).toLocaleDateString()
-                            : "—"}
-                        </div>
+                      <div
+                        className={`absolute top-3 right-3 text-[11px] font-bold inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${chip.cls}`}
+                      >
+                        {chip.icon}
+                        {chip.text}
                       </div>
                     </div>
 
-                    {d.description ? (
-                      <p className="mt-3 text-sm text-[#7b5836] leading-relaxed">
-                        {d.description}
-                      </p>
-                    ) : null}
-                    {/* === end restored block === */}
+                    <div className="p-4">
+                      <h3
+                        className="text-lg font-semibold"
+                        style={{ color: "#3b2a18" }}
+                      >
+                        {d.name}
+                      </h3>
+
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#FFEFD9] border border-[#f3ddc0] text-[#6b4b2b]">
+                          Qty: {d.quantity ?? "—"}
+                        </span>
+                        {d.threshold != null && (
+                          <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#FFF6E9] border border-[#f4e6cf] text-[#6b4b2b]">
+                            Threshold: {d.threshold}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <div className="rounded-lg border border-[#f2e3cf] bg-white/60 p-2">
+                          <div className="text-[11px] font-semibold text-[#7b5836]">
+                            Created
+                          </div>
+                          <div className="text-sm text-[#3b2a18]">
+                            {d.creation_date
+                              ? new Date(d.creation_date).toLocaleDateString()
+                              : "—"}
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-[#f2e3cf] bg-white/60 p-2">
+                          <div className="text-[11px] font-semibold text-[#7b5836]">
+                            Expires
+                          </div>
+                          <div className="text-sm text-[#3b2a18]">
+                            {d.expiration_date
+                              ? new Date(d.expiration_date).toLocaleDateString()
+                              : "—"}
+                          </div>
+                        </div>
+                      </div>
+
+                      {d.description ? (
+                        <p className="mt-3 text-sm text-[#7b5836] leading-relaxed">
+                          {d.description}
+                        </p>
+                      ) : null}
+                      {/* === end restored block === */}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+
+            {/* Pagination controls */}
+            {sortedDonations.length > 0 && (
+              <div className="mt-6 flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  className={pagerBtn}
+                  disabled={!canPrev}
+                  onClick={() => canPrev && setPage((p) => p - 1)}
+                >
+                  Prev
+                </button>
+                <span className="text-xs sm:text-sm font-semibold text-[#6b4b2b]">
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  className={pagerBtn}
+                  disabled={!canNext}
+                  onClick={() => canNext && setPage((p) => p + 1)}
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <div className="grid place-items-center h-48 rounded-2xl border border-[#eadfce] bg-white/60 shadow-[0_2px_8px_rgba(93,64,28,.06)]">
             <p className="text-sm" style={{ color: "#7b5836" }}>
@@ -532,7 +563,10 @@ useEffect(() => {
                 const chosen = inventory.find(
                   (x) => Number(x.id) === parseInt(form.bakery_inventory_id, 10)
                 );
-                if (chosen && isExpired(chosen.expiration_date, currentServerDate)) {
+                if (
+                  chosen &&
+                  isExpired(chosen.expiration_date, currentServerDate)
+                ) {
                   Swal.fire(
                     "Not allowed",
                     "Expired products cannot be donated.",
@@ -613,7 +647,10 @@ useEffect(() => {
                             (x) => Number(x.id) === +form.bakery_inventory_id
                           );
                           if (!chosen) return "Select item to donate";
-                          const left = daysUntil(chosen.expiration_date, currentServerDate);
+                          const left = daysUntil(
+                            chosen.expiration_date,
+                            currentServerDate
+                          );
                           const chip = leftBadge(left);
                           return (
                             <span className="inline-flex items-center gap-2">
@@ -660,11 +697,20 @@ useEffect(() => {
                                 .slice()
                                 .sort(
                                   (a, b) =>
-                                    (daysUntil(a.expiration_date, currentServerDate) ?? Infinity) -
-                                    (daysUntil(b.expiration_date, currentServerDate) ?? Infinity)
+                                    (daysUntil(
+                                      a.expiration_date,
+                                      currentServerDate
+                                    ) ?? Infinity) -
+                                    (daysUntil(
+                                      b.expiration_date,
+                                      currentServerDate
+                                    ) ?? Infinity)
                                 )
                                 .map((it) => {
-                                  const left = daysUntil(it.expiration_date, currentServerDate);
+                                  const left = daysUntil(
+                                    it.expiration_date,
+                                    currentServerDate
+                                  );
                                   const chip = leftBadge(left);
                                   return (
                                     <button
@@ -679,7 +725,11 @@ useEffect(() => {
                                       <div className="flex items-center gap-2 min-w-0">
                                         <div className="h-6 w-6 rounded-full overflow-hidden bg-[#EDE7DB] grid place-items-center">
                                           <img
-                                            src={it.image ? `${API}/${it.image}` : "/placeholder.png"}
+                                            src={
+                                              it.image
+                                                ? `${API}/${it.image}`
+                                                : "/placeholder.png"
+                                            }
                                             alt={it.name}
                                             className="h-full w-full object-cover"
                                           />
@@ -706,13 +756,22 @@ useEffect(() => {
                                 .slice()
                                 .sort((a, b) => {
                                   const da =
-                                    daysUntil(a.expiration_date, currentServerDate) ?? Infinity;
+                                    daysUntil(
+                                      a.expiration_date,
+                                      currentServerDate
+                                    ) ?? Infinity;
                                   const db =
-                                    daysUntil(b.expiration_date, currentServerDate) ?? Infinity;
+                                    daysUntil(
+                                      b.expiration_date,
+                                      currentServerDate
+                                    ) ?? Infinity;
                                   return da - db;
                                 })
                                 .map((it) => {
-                                  const left = daysUntil(it.expiration_date, currentServerDate);
+                                  const left = daysUntil(
+                                    it.expiration_date,
+                                    currentServerDate
+                                  );
                                   const chip = leftBadge(left);
                                   return (
                                     <button
@@ -727,7 +786,11 @@ useEffect(() => {
                                       <div className="flex items-center gap-2 min-w-0">
                                         <div className="h-6 w-6 rounded-full overflow-hidden bg-[#EDE7DB] grid place-items-center">
                                           <img
-                                            src={it.image ? `${API}/${it.image}` : "/placeholder.png"}
+                                            src={
+                                              it.image
+                                                ? `${API}/${it.image}`
+                                                : "/placeholder.png"
+                                            }
                                             alt={it.name}
                                             className="h-full w-full object-cover"
                                           />
@@ -824,19 +887,22 @@ useEffect(() => {
                         );
                       }}
                       onChange={(e) => {
-                        const value = e.target.value === "" ? "" : parseInt(e.target.value, 10);
-                        
+                        const value =
+                          e.target.value === ""
+                            ? ""
+                            : parseInt(e.target.value, 10);
+
                         if (value === 0) {
                           Swal.fire({
                             title: "Invalid Quantity",
                             text: "Quantity must be at least 1.",
                             icon: "warning",
                             confirmButtonColor: "#A97142",
-                            timer: 2500
+                            timer: 2500,
                           });
                           return;
                         }
-                        
+
                         setForm((f) => {
                           const chosen = inventory.find(
                             (x) => Number(x.id) === +f.bakery_inventory_id
@@ -996,7 +1062,13 @@ useEffect(() => {
                                 >
                                   <div className="flex items-center gap-2 min-w-0">
                                     <img
-                                      src={c.profile_picture ? `${import.meta.env.VITE_API_URL}/${c.profile_picture}` : "/default-avatar.png"}
+                                      src={
+                                        c.profile_picture
+                                          ? `${import.meta.env.VITE_API_URL}/${
+                                              c.profile_picture
+                                            }`
+                                          : "/default-avatar.png"
+                                      }
                                       alt={c.name}
                                       className="h-6 w-6 rounded-full object-cover border border-gray-200"
                                     />
@@ -1029,7 +1101,13 @@ useEffect(() => {
                                 >
                                   <div className="flex items-center gap-2 min-w-0">
                                     <img
-                                      src={c.profile_picture ? `${import.meta.env.VITE_API_URL}/${c.profile_picture}` : "/default-avatar.png"}
+                                      src={
+                                        c.profile_picture
+                                          ? `${import.meta.env.VITE_API_URL}/${
+                                              c.profile_picture
+                                            }`
+                                          : "/default-avatar.png"
+                                      }
                                       alt={c.name}
                                       className="h-6 w-6 rounded-full object-cover border border-gray-200"
                                     />
@@ -1075,7 +1153,10 @@ useEffect(() => {
                             Nothing selected yet.
                           </p>
                         );
-                      const leftDays = daysUntil(chosen.expiration_date, currentServerDate);
+                      const leftDays = daysUntil(
+                        chosen.expiration_date,
+                        currentServerDate
+                      );
                       const chip = leftBadge(leftDays);
                       return (
                         <>

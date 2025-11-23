@@ -1,9 +1,9 @@
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from datetime import datetime, timedelta
-from app import models, database, auth
+from app import models, database, auth, admin_models
+from app.timezone_utils import now_ph, today_ph
 
 router = APIRouter()
 
@@ -13,8 +13,6 @@ def get_notifications(
     db: Session = Depends(database.get_db),
     current_auth=Depends(auth.get_current_user_or_employee)
 ):
-    from datetime import datetime, timezone, timedelta
-    
     # Get bakery_id from either user or employee
     bakery_id = auth.get_bakery_id_from_auth(current_auth)
     
@@ -24,9 +22,8 @@ def get_notifications(
     else:
         user_id = current_auth.id
     
-    # Philippine Time is UTC+8
-    philippine_tz = timezone(timedelta(hours=8))
-    today = datetime.now(philippine_tz).date()
+    # Get today's date in Philippine timezone
+    today = today_ph()
     
     # Get all inventory items for this bakery
     all_products = db.query(models.BakeryInventory).filter(
@@ -109,6 +106,22 @@ def mark_notification_as_read(
     else:
         user_id = current_auth.id
 
+    # Handle system notifications
+    if notif_id.startswith("system-"):
+        system_notif_id = int(notif_id.replace("system-", ""))
+        receipt = db.query(admin_models.NotificationReceipt).filter(
+            admin_models.NotificationReceipt.notification_id == system_notif_id,
+            admin_models.NotificationReceipt.user_id == user_id
+        ).first()
+        
+        if receipt:
+            receipt.is_read = True
+            receipt.read_at = now_ph()
+            db.commit()
+            return {"status": "ok", "id": notif_id, "read_at": receipt.read_at}
+        else:
+            raise HTTPException(status_code=404, detail="Notification receipt not found")
+
     # Split product and message notifications
     if notif_id.startswith("msg-"):
         # Check if an entry already exists
@@ -116,7 +129,7 @@ def mark_notification_as_read(
             user_id=user_id, notif_id=notif_id
         ).first()
         
-        now = datetime.utcnow()
+        now = now_ph()
         if read_entry:
             # Update timestamp to now
             read_entry.read_at = now
@@ -136,7 +149,7 @@ def mark_notification_as_read(
         user_id=user_id, notif_id=notif_id
     ).first()
 
-    now = datetime.utcnow()
+    now = now_ph()
     if read_entry:
         read_entry.read_at = now
     else:
@@ -248,7 +261,35 @@ def get_all_notifications(
 
     latest_messages = sorted(latest_by_sender.values(), key=lambda x: x["timestamp"], reverse=True)
 
+    # System Notifications (Admin announcements)
+    system_notifications = []
+    
+    # Get all system notifications for this user
+    receipts = db.query(admin_models.NotificationReceipt).filter(
+        admin_models.NotificationReceipt.user_id == user_id,
+        admin_models.NotificationReceipt.is_read == False
+    ).all()
+    
+    for receipt in receipts:
+        notif = receipt.notification
+        
+        # Skip expired notifications
+        if notif.expires_at and notif.expires_at < now_ph():
+            continue
+            
+        system_notifications.append({
+            "id": f"system-{notif.id}",
+            "type": "system_notification",
+            "title": notif.title,
+            "message": notif.message,
+            "notification_type": notif.notification_type,
+            "priority": notif.priority,
+            "sent_at": notif.sent_at.isoformat() if notif.sent_at else None,
+            "read": receipt.is_read
+        })
+
     return {
         "products": products_resp["notifications"],
-        "messages": latest_messages
+        "messages": latest_messages,
+        "system_notifications": system_notifications
     }

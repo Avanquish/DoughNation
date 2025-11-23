@@ -9,6 +9,7 @@ from app.models import SystemEvent
 from datetime import datetime
 import json
 from typing import Optional, Dict, Any
+from app.timezone_utils import now_ph
 
 
 def log_system_event(
@@ -64,13 +65,13 @@ def log_system_event(
         # Allow custom event types but log a warning
         print(f"Warning: Using custom event type '{event_type}' not in predefined list")
     
-    # Create event
+    # Create event with Philippines timezone
     event = SystemEvent(
         event_type=event_type,
         description=description,
         severity=severity,
         user_id=user_id,
-        timestamp=datetime.utcnow(),
+        timestamp=now_ph(),
         event_metadata=json.dumps(metadata) if metadata else None
     )
     

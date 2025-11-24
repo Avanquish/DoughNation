@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useSubmitGuard } from "../hooks/useDebounce";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useEmployeeAuth } from "../context/EmployeeAuthContext";
@@ -34,6 +35,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("Bakery");
   const [showPass, setShowPass] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Parallax background
   const bgRef = useRef(null);
@@ -118,7 +120,9 @@ const Login = () => {
   // Handle unified login
   const handleLogin = async (e) => {
     e.preventDefault();
-
+    if (isLoggingIn) return;
+    
+    setIsLoggingIn(true);
     try {
       // 🔑 UNIFIED LOGIN: Send identifier (email or name) and password
       const res = await axios.post("https://api.doughnationhq.cloud/login", {
@@ -288,6 +292,8 @@ const Login = () => {
         title: "Login Failed",
         text: errorMessage,
       });
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -542,8 +548,9 @@ const Login = () => {
                   type="submit"
                   className="login-btn h-11 md:h-12 w-full text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E]
                              hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl"
+                  disabled={isLoggingIn}
                 >
-                  Sign In as {role}
+                  {isLoggingIn ? 'Signing In...' : `Sign In as ${role}`}
                 </Button>
 
                 {/* Bottom links */}

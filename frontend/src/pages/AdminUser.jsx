@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useSubmitGuard } from "../hooks/useDebounce";
 import Swal from "sweetalert2";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,8 @@ const PENDING_PAGE_SIZE = 10;
 const AdminUser = () => {
   const [pendingUsers, setPendingUsers] = useState([]);
   const [users, setUsers] = useState([]);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // ========= Proof viewer (UI only; no backend changes) =========
   const [proofOpen, setProofOpen] = useState(false);
@@ -68,6 +71,8 @@ const AdminUser = () => {
 
   // ✅ Approve user (unchanged backend)
   const handleVerify = async (id) => {
+    if (isVerifying) return;
+    setIsVerifying(true);
     try {
       const token = localStorage.getItem("token");
       await axios.post(
@@ -94,6 +99,8 @@ const AdminUser = () => {
     } catch (e) {
       console.error("Error verifying user:", e);
       Swal.fire("Error", "Failed to verify user.", "error");
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -135,6 +142,8 @@ const AdminUser = () => {
 
   // ✅ Delete verified user (unchanged backend)
   const handleDeleteUser = async (id) => {
+    if (isDeleting) return;
+    
     const confirmDelete = await Swal.fire({
       title: "Are you sure?",
       text: "This user will be permanently deleted.",
@@ -145,6 +154,7 @@ const AdminUser = () => {
 
     if (!confirmDelete.isConfirmed) return;
 
+    setIsDeleting(true);
     try {
       const token = localStorage.getItem("token");
       await axios.delete(`${API}/admin/users/${id}`, {
@@ -155,6 +165,8 @@ const AdminUser = () => {
     } catch (e) {
       console.error("Error deleting user:", e);
       Swal.fire("Error", "Failed to delete user.", "error");
+    } finally {
+      setIsDeleting(false);
     }
   };
 

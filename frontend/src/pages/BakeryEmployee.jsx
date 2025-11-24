@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { useSubmitGuard } from "../hooks/useDebounce";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -34,6 +35,8 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // --- pagination (max 10 per page) ---
   const PAGE_SIZE = 10;
@@ -198,6 +201,8 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
 
   // Save (add or edit)
   const handleSave = async () => {
+    if (isSaving) return;
+    
     if (editingEmployee) {
       setIsDialogOpen(false);
       const ok = await Swal.fire({
@@ -215,6 +220,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
       }
     }
 
+    setIsSaving(true);
     try {
       const fd = new FormData();
       fd.append("name", formData.name);
@@ -295,10 +301,14 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
         icon: "error",
         confirmButtonColor: "#C97C2C",
       });
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleDelete = async (id) => {
+    if (isDeleting) return;
+    
     setIsDialogOpen(false);
     const ok = await Swal.fire({
       title: "Delete Employee?",
@@ -311,6 +321,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
     });
     if (!ok.isConfirmed) return;
 
+    setIsDeleting(true);
     try {
       await axios.delete(`/employees/${id}`, { headers });
       await fetchEmployees();
@@ -327,6 +338,8 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
         icon: "error",
         confirmButtonColor: "#C97C2C",
       });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -771,8 +784,12 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
             >
               Cancel
             </button>
-            <button onClick={handleSave} className={primaryBtn}>
-              Save
+            <button 
+              onClick={handleSave} 
+              className={primaryBtn}
+              disabled={isSaving}
+            >
+              {isSaving ? 'Saving...' : 'Save'}
             </button>
           </DialogFooter>
         </DialogContent>

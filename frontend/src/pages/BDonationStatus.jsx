@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSubmitGuard } from "../hooks/useDebounce";
 import axios from "axios";
 import Swal from "sweetalert2";
 
@@ -381,11 +382,15 @@ const BDonationStatus = () => {
       );
     });
 
+  const [isUpdatingTracking, setIsUpdatingTracking] = useState(false);
+
   const handleUpdateTracking = async (
     donationId,
     currentStatus,
     isDirect = false
   ) => {
+    if (isUpdatingTracking) return;
+    
     const token =
       localStorage.getItem("employeeToken") || localStorage.getItem("token");
     if (!token) return;
@@ -403,6 +408,7 @@ const BDonationStatus = () => {
       ? `${API}/direct/tracking/${donationId}`
       : `${API}/donation/tracking/${donationId}`;
 
+    setIsUpdatingTracking(true);
     try {
       const body = isDirect
         ? { btracking_status: nextStatus }
@@ -439,6 +445,8 @@ const BDonationStatus = () => {
       }
     } catch (err) {
       console.error("Failed to update tracking status:", err);
+    } finally {
+      setIsUpdatingTracking(false);
     }
   };
 

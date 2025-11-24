@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useSubmitGuard } from "../hooks/useDebounce";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { useNavigate, Link } from "react-router-dom";
@@ -49,6 +50,7 @@ const LocationSelector = ({ setLocation, setFormData }) => {
 
 export default function Register() {
   const navigate = useNavigate();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   /** Form fields (unchanged logic) */
   const [formData, setFormData] = useState({
@@ -154,9 +156,11 @@ export default function Register() {
   /** Submit - Updated for Gmail-based authentication */
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    
     const { email, password, confirm_password } = formData;
 
-    // ✅ NEW: Gmail validation instead of domain-based
+    // Gmail validation
     const domain = email.split("@")[1]?.toLowerCase();
     if (domain !== "gmail.com" && domain !== "googlemail.com") {
       return Swal.fire({
@@ -191,6 +195,7 @@ export default function Register() {
       submitData.append("longitude", location.lng);
     }
 
+    setIsSubmitting(true);
     try {
       await axios.post("https://api.doughnationhq.cloud/register", submitData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -212,6 +217,8 @@ export default function Register() {
         title: "Registration Failed",
         text: error?.response?.data?.detail || "Something went wrong.",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -563,7 +570,7 @@ export default function Register() {
                         handleInputChange("password", e.target.value)
                       }
                       required
-                      placeholder="At least 8 characters"
+                      placeholder="Create password"
                       className="appearance-none pr-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E]"
                       style={{ height: "clamp(44px, 5.5svh, 52px)" }}
                     />
@@ -612,11 +619,6 @@ export default function Register() {
                       </p>
                     </div>
                   )}
-
-                  <p className="text-xs text-[#a47134]/80">
-                    Use at least 8 characters with a mix of letters, numbers,
-                    and symbols.
-                  </p>
                 </div>
 
                 {/* Confirm Password */}
@@ -631,7 +633,7 @@ export default function Register() {
                         handleInputChange("confirm_password", e.target.value)
                       }
                       required
-                      placeholder="Re-enter your password"
+                      placeholder="Re-enter password"
                       className="appearance-none pr-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E]"
                       style={{ height: "clamp(44px, 5.5svh, 52px)" }}
                     />
@@ -666,6 +668,65 @@ export default function Register() {
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Password Requirements */}
+              <div className="bg-[#FFF7EC] border border-[#FFE1BE] rounded-xl p-4">
+                <p className="text-xs font-semibold text-[#8f642a] mb-2">
+                  Password Requirements
+                </p>
+                <ul className="text-xs text-[#a47134] space-y-1.5">
+                  <li className="flex items-center gap-2">
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        formData.password.length >= 8
+                          ? "bg-emerald-500"
+                          : "bg-[#E3B57E]"
+                      }`}
+                    />
+                    At least 8 characters
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        /[A-Z]/.test(formData.password)
+                          ? "bg-emerald-500"
+                          : "bg-[#E3B57E]"
+                      }`}
+                    />
+                    One uppercase letter
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        /[a-z]/.test(formData.password)
+                          ? "bg-emerald-500"
+                          : "bg-[#E3B57E]"
+                      }`}
+                    />
+                    One lowercase letter
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        /[0-9]/.test(formData.password)
+                          ? "bg-emerald-500"
+                          : "bg-[#E3B57E]"
+                      }`}
+                    />
+                    One number
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        /[!@#$%^&*(),.?":{}|<>]/.test(formData.password)
+                          ? "bg-emerald-500"
+                          : "bg-[#E3B57E]"
+                      }`}
+                    />
+                    One special character
+                  </li>
+                </ul>
               </div>
 
               {/* Required files */}
@@ -714,9 +775,9 @@ export default function Register() {
                 type="submit"
                 className="w-full text-[15px] sm:text-[16px] text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E] hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl transition-transform duration-150 active:scale-[0.99]"
                 style={{ height: "clamp(44px, 5.5svh, 52px)" }}
-                disabled={!emailAvailable}
+                disabled={!emailAvailable || isSubmitting}
               >
-                Create Account
+                {isSubmitting ? 'Creating Account...' : 'Create Account'}
               </Button>
 
               {/* Links */}

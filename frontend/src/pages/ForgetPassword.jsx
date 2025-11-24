@@ -286,7 +286,7 @@ const ForgotPassword = () => {
     return s;
   })();
 
-  // ----- UI: Sliding indicator for the account-type tabs (like Login) -----
+  // ----- UI: Sliding indicator for the account-type tabs -----
   const tabsListRef = useRef(null);
   const triggerRefs = useRef([]);
   const [indicator, setIndicator] = useState({ left: 0, width: 0 });
@@ -357,7 +357,7 @@ const ForgotPassword = () => {
           100%{ opacity:1; transform: translateY(0) scale(1); }
         }
 
-        /* Hide native password reveal buttons so only our eye icon shows */
+        /* Hide native password reveal buttons */
         input[type="password"]::-ms-reveal,
         input[type="password"]::-ms-clear { display: none; }
         input[type="password"]::-webkit-credentials-auto-fill-button,
@@ -653,7 +653,7 @@ const ForgotPassword = () => {
                     className="text-[#8f642a] font-medium"
                     style={{ fontSize: "var(--title-sm)" }}
                   >
-                    New Password
+                    Password
                   </Label>
 
                   <div className="relative">
@@ -661,7 +661,7 @@ const ForgotPassword = () => {
                     <Input
                       id="newPassword"
                       type={showNew ? "text" : "password"}
-                      placeholder="At least 8 characters"
+                      placeholder="Create new password"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       required
@@ -682,7 +682,7 @@ const ForgotPassword = () => {
                     </button>
                   </div>
 
-                  {/* strength meter UI (self-contained, no external helper) */}
+                  {/* strength meter UI */}
                   {newPassword && (
                     <div className="mt-2">
                       <div className="h-2 w-full bg-[#FFE1BE]/70 rounded-full overflow-hidden">
@@ -713,10 +713,6 @@ const ForgotPassword = () => {
                       </p>
                     </div>
                   )}
-
-                  <p className="text-xs text-[#a47134]/80">
-                    Use a mix of letters, numbers &amp; symbols.
-                  </p>
                 </div>
 
                 {/* Confirm Password */}
@@ -734,7 +730,7 @@ const ForgotPassword = () => {
                     <Input
                       id="confirmPassword"
                       type={showConfirm ? "text" : "password"}
-                      placeholder="Re-enter your password"
+                      placeholder="Re-enter new password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       required
@@ -771,6 +767,65 @@ const ForgotPassword = () => {
                         : "✗ Passwords don't match"}
                     </div>
                   )}
+                </div>
+
+                {/* Password Requirements */}
+                <div className="bg-[#FFF7EC] border border-[#FFE1BE] rounded-xl p-4">
+                  <p className="text-xs font-semibold text-[#8f642a] mb-2">
+                    Password Requirements
+                  </p>
+                  <ul className="text-xs text-[#a47134] space-y-1.5">
+                    <li className="flex items-center gap-2">
+                      <div
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          newPassword.length >= 8
+                            ? "bg-emerald-500"
+                            : "bg-[#E3B57E]"
+                        }`}
+                      />
+                      At least 8 characters
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <div
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          /[A-Z]/.test(newPassword)
+                            ? "bg-emerald-500"
+                            : "bg-[#E3B57E]"
+                        }`}
+                      />
+                      One uppercase letter
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <div
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          /[a-z]/.test(newPassword)
+                            ? "bg-emerald-500"
+                            : "bg-[#E3B57E]"
+                        }`}
+                      />
+                      One lowercase letter
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <div
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          /[0-9]/.test(newPassword)
+                            ? "bg-emerald-500"
+                            : "bg-[#E3B57E]"
+                        }`}
+                      />
+                      One number
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <div
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          /[!@#$%^&*(),.?":{}|<>]/.test(newPassword)
+                            ? "bg-emerald-500"
+                            : "bg-[#E3B57E]"
+                        }`}
+                      />
+                      One special character
+                    </li>
+                  </ul>
                 </div>
 
                 <Button

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useSubmitGuard } from "../hooks/useDebounce";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -57,6 +58,8 @@ const columns = [
 
 const Bakery = () => {
     const [bakeries, setBakeries] = useState([]);
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [loading, setLoading] = useState(true);
 
     // Fetch bakeries from API
@@ -142,6 +145,8 @@ const Bakery = () => {
     };
 
     const handleUpdate = async (id, updatedData) => {
+        if (isUpdating) return;
+        setIsUpdating(true);
         try {
             const token = localStorage.getItem("token");
             const formData = new FormData();
@@ -178,10 +183,14 @@ const Bakery = () => {
                 text: error.response?.data?.detail || "Failed to update bakery"
             });
             throw error;
+        } finally {
+            setIsUpdating(false);
         }
     };
 
     const handleDelete = async (id) => {
+        if (isDeleting) return;
+        
         try {
             const result = await Swal.fire({
                 title: "Are you sure?",
@@ -194,6 +203,7 @@ const Bakery = () => {
             });
 
             if (result.isConfirmed) {
+                setIsDeleting(true);
                 const token = localStorage.getItem("token");
                 await axios.delete(`${API}/admin/delete-user/${id}`, {
                     headers: { Authorization: `Bearer ${token}` }
@@ -216,6 +226,8 @@ const Bakery = () => {
                 text: error.response?.data?.detail || "Failed to delete bakery"
             });
             throw error;
+        } finally {
+            setIsDeleting(false);
         }
     };
 

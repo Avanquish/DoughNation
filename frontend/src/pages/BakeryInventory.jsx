@@ -3,6 +3,7 @@ import ReactDOM from "react-dom";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { Plus, Trash } from "lucide-react";
+import { useSubmitGuard } from "../hooks/useDebounce";
 
 const API = "http://localhost:8000";
 
@@ -678,8 +679,15 @@ export default function BakeryInventory({ isViewOnly = false }) {
   }, [visibleInventory, selectedIds]);
 
   // CRUD
+  const { guardedSubmit } = useSubmitGuard();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (isSubmitting) {
+      return; // Prevent double submission
+    }
 
     if (!form.creation_date) {
       Swal.fire({
@@ -690,6 +698,8 @@ export default function BakeryInventory({ isViewOnly = false }) {
       });
       return;
     }
+
+    setIsSubmitting(true);
 
     // Calculate threshold days dynamically
     let thresholdDays = 2;
@@ -724,6 +734,8 @@ export default function BakeryInventory({ isViewOnly = false }) {
         headers: { ...headers, "Content-Type": "multipart/form-data" },
       });
 
+      setIsSubmitting(false);
+
       Swal.fire({
         title: "Success!",
         text: "Product added successfully",
@@ -753,10 +765,16 @@ export default function BakeryInventory({ isViewOnly = false }) {
         icon: "error",
         confirmButtonColor: "#A97142",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const handleDelete = async (id) => {
+    if (isDeleting) return; // Prevent double-click
+
     const ok = await Swal.fire({
       title: "Are you sure?",
       text: "This can't be undone.",
@@ -768,21 +786,35 @@ export default function BakeryInventory({ isViewOnly = false }) {
     });
     if (!ok.isConfirmed) return;
 
-    await axios.delete(`${API}/inventory/${id}`, { headers });
-    setSelectedItem(null);
-    await fetchInventory();
-    window.dispatchEvent(new CustomEvent("inventory:changed"));
-    Swal.fire({
-      title: "Deleted!",
-      icon: "success",
-      confirmButtonColor: "#A97142",
-    });
+    setIsDeleting(true);
+    try {
+      await axios.delete(`${API}/inventory/${id}`, { headers });
+      setSelectedItem(null);
+      await fetchInventory();
+      window.dispatchEvent(new CustomEvent("inventory:changed"));
+      Swal.fire({
+        title: "Deleted!",
+        icon: "success",
+        confirmButtonColor: "#A97142",
+      });
+    } catch (error) {
+      Swal.fire({
+        title: "Error",
+        text: "Failed to delete item",
+        icon: "error",
+        confirmButtonColor: "#A97142",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
+
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const handleUpdate = async (e) => {
     e.preventDefault();
 
-    if (!selectedItem) return;
+    if (!selectedItem || isUpdating) return; // Prevent double-click
 
     const ok = await Swal.fire({
       title: "Save changes?",
@@ -792,6 +824,8 @@ export default function BakeryInventory({ isViewOnly = false }) {
       confirmButtonColor: "#A97142",
     });
     if (!ok.isConfirmed) return;
+
+    setIsUpdating(true);
 
     // Calculate threshold days dynamically
     let thresholdDays = 2;
@@ -820,19 +854,30 @@ export default function BakeryInventory({ isViewOnly = false }) {
       fd.append("template_image", selectedItem.template_image);
     }
 
-    await axios.put(`${API}/inventory/${selectedItem.id}`, fd, {
-      headers: { ...headers, "Content-Type": "multipart/form-data" },
-    });
+    try {
+      await axios.put(`${API}/inventory/${selectedItem.id}`, fd, {
+        headers: { ...headers, "Content-Type": "multipart/form-data" },
+      });
 
-    Swal.fire({
-      title: "Updated!",
-      icon: "success",
-      confirmButtonColor: "#A97142",
-    });
-    setIsEditing(false);
-    setSelectedItem(null);
-    await fetchInventory();
-    window.dispatchEvent(new CustomEvent("inventory:changed"));
+      Swal.fire({
+        title: "Updated!",
+        icon: "success",
+        confirmButtonColor: "#A97142",
+      });
+      setIsEditing(false);
+      setSelectedItem(null);
+      await fetchInventory();
+      window.dispatchEvent(new CustomEvent("inventory:changed"));
+    } catch (error) {
+      Swal.fire({
+        title: "Error",
+        text: "Failed to update item",
+        icon: "error",
+        confirmButtonColor: "#A97142",
+      });
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   // Selection helpers
@@ -1153,8 +1198,8 @@ export default function BakeryInventory({ isViewOnly = false }) {
               <th className="p-3">Product</th>
               <th className="p-3">Image</th>
               <th className="p-3">Qty</th>
-              <th className="p-3">Created</th>
-              <th className="p-3">Expires</th>
+              <th className="p-3">Creation Date</th>
+              <th className="p-3">Consumed Before</th>
               <th className="p-3">Date of Donation</th>
               <th className="p-3">Uploaded By</th>
               <th className="p-3">Description</th>
@@ -1389,7 +1434,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     </div>
                     <div>
                       <label htmlFor="prod_exp" className={labelTone}>
-                        Expiration Date
+                        Consumed Before
                       </label>
                       <input
                         id="prod_exp"
@@ -1638,8 +1683,12 @@ export default function BakeryInventory({ isViewOnly = false }) {
                 >
                   Cancel
                 </button>
-                <button type="submit" className={pillSolid}>
-                  Add Product
+                <button 
+                  type="submit" 
+                  className={pillSolid}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Adding...' : 'Add Product'}
                 </button>
               </div>
             </form>
@@ -1698,7 +1747,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                 {formatDate(selectedItem.creation_date)}
               </p>
               <p>
-                <strong className="text-[#6b4b2b]">Expiration Date:</strong>{" "}
+                <strong className="text-[#6b4b2b]">Consumed Before:</strong>{" "}
                 {formatDate(selectedItem.expiration_date)}
               </p>
               <p>
@@ -2040,7 +2089,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
                 <div>
                   <label className={labelTone} htmlFor="edit_exp">
-                    Expiration Date
+                    Consumed Before
                   </label>
                   <input
                     id="edit_exp"
@@ -2152,8 +2201,12 @@ export default function BakeryInventory({ isViewOnly = false }) {
               >
                 Cancel
               </button>
-              <button type="submit" className={pillSolid}>
-                Save Changes
+              <button 
+                type="submit" 
+                className={pillSolid}
+                disabled={isUpdating}
+              >
+                {isUpdating ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </form>

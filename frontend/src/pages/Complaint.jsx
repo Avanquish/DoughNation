@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSubmitGuard } from "../hooks/useDebounce";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -20,6 +21,8 @@ export default function ComplaintModule({ isViewOnly = false }) {
   const [loading, setLoading] = useState(false);
   const [complaints, setComplaints] = useState([]);
   const [open, setOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // --- UI: search & pagination state ---
   const [searchTerm, setSearchTerm] = useState("");
@@ -80,6 +83,9 @@ export default function ComplaintModule({ isViewOnly = false }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    
+    setIsSubmitting(true);
     setLoading(true);
 
     try {
@@ -108,10 +114,13 @@ export default function ComplaintModule({ isViewOnly = false }) {
       });
     } finally {
       setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
   const handleDelete = async (complaintId) => {
+    if (isDeleting) return;
+    
     const result = await Swal.fire({
       title: "Delete Concern?",
       text: "This action cannot be undone.",
@@ -125,6 +134,7 @@ export default function ComplaintModule({ isViewOnly = false }) {
 
     if (!result.isConfirmed) return;
 
+    setIsDeleting(true);
     try {
       const token =
         localStorage.getItem("employeeToken") || localStorage.getItem("token");
@@ -149,6 +159,8 @@ export default function ComplaintModule({ isViewOnly = false }) {
           err.response?.data?.detail ||
           "Failed to delete concern. Please try again.",
       });
+    } finally {
+      setIsDeleting(false);
     }
   };
 

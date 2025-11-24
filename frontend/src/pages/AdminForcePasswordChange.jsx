@@ -266,7 +266,7 @@ const AdminForcePasswordChange = () => {
                   htmlFor="newPassword"
                   className="text-sm font-semibold text-[#8f642a]"
                 >
-                  New Password
+                  Password
                 </Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#d3a36b]" />
@@ -276,7 +276,7 @@ const AdminForcePasswordChange = () => {
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="pl-10 pr-10 h-11 rounded-xl bg-white/90 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E] focus:border-[#E3B57E] transition-[border,box-shadow]"
-                    placeholder="Enter new password"
+                    placeholder="Create new password"
                     required
                   />
                   <button
@@ -329,7 +329,7 @@ const AdminForcePasswordChange = () => {
                   htmlFor="confirmPassword"
                   className="text-sm font-semibold text-[#8f642a]"
                 >
-                  Confirm New Password
+                  Confirm Password
                 </Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#d3a36b]" />
@@ -339,7 +339,7 @@ const AdminForcePasswordChange = () => {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="pl-10 pr-10 h-11 rounded-xl bg-white/90 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E] focus:border-[#E3B57E] transition-[border,box-shadow]"
-                    placeholder="Confirm new password"
+                    placeholder="Re-enter new password"
                     required
                   />
                   <button

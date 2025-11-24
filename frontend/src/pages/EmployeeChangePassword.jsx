@@ -162,6 +162,7 @@ const EmployeeChangePassword = () => {
           icon: "error",
           title: "Authentication Error",
           text: "No authentication token found. Please login again.",
+          confirmButtonColor: "#A97142",
         });
         navigate("/");
         return;
@@ -400,14 +401,14 @@ const EmployeeChangePassword = () => {
                   className="text-[#8f642a]"
                   style={{ fontSize: "var(--title-sm)" }}
                 >
-                  New Password
+                  Password
                 </Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#E3B57E]" />
                   <Input
                     id="newPassword"
                     type={showNew ? "text" : "password"}
-                    placeholder="At least 8 characters"
+                    placeholder="Create new password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="appearance-none pl-11 pr-11 h-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E] rounded-xl"
@@ -429,7 +430,7 @@ const EmployeeChangePassword = () => {
                   </button>
                 </div>
 
-                {/* Password strength indicator (single bar to match reference) */}
+                {/* Password strength indicator */}
                 {newPassword && (
                   <div className="mt-2">
                     <div className="h-2 w-full bg-[#FFE1BE]/70 rounded-full overflow-hidden">
@@ -447,10 +448,6 @@ const EmployeeChangePassword = () => {
                     </p>
                   </div>
                 )}
-
-                <p className="text-xs text-[#a47134]/80">
-                  Use a mix of letters, numbers & symbols (min 8 characters).
-                </p>
               </div>
 
               {/* Confirm Password */}
@@ -467,7 +464,7 @@ const EmployeeChangePassword = () => {
                   <Input
                     id="confirmPassword"
                     type={showConfirm ? "text" : "password"}
-                    placeholder="Re-enter your password"
+                    placeholder="Re-enter new password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="appearance-none pl-11 pr-11 h-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E] rounded-xl"
@@ -504,6 +501,65 @@ const EmployeeChangePassword = () => {
                     : "✗ Passwords don't match"}
                 </div>
               )}
+
+              {/* Password Requirements */}
+              <div className="bg-[#FFF7EC] border border-[#FFE1BE] rounded-xl p-4">
+                <p className="text-xs font-semibold text-[#8f642a] mb-2">
+                  Password Requirements
+                </p>
+                <ul className="text-xs text-[#a47134] space-y-1.5">
+                  <li className="flex items-center gap-2">
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        newPassword.length >= 8
+                          ? "bg-emerald-500"
+                          : "bg-[#E3B57E]"
+                      }`}
+                    />
+                    At least 8 characters
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        /[A-Z]/.test(newPassword)
+                          ? "bg-emerald-500"
+                          : "bg-[#E3B57E]"
+                      }`}
+                    />
+                    One uppercase letter
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        /[a-z]/.test(newPassword)
+                          ? "bg-emerald-500"
+                          : "bg-[#E3B57E]"
+                      }`}
+                    />
+                    One lowercase letter
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        /[0-9]/.test(newPassword)
+                          ? "bg-emerald-500"
+                          : "bg-[#E3B57E]"
+                      }`}
+                    />
+                    One number
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        /[!@#$%^&*(),.?":{}|<>]/.test(newPassword)
+                          ? "bg-emerald-500"
+                          : "bg-[#E3B57E]"
+                      }`}
+                    />
+                    One special character
+                  </li>
+                </ul>
+              </div>
 
               {/* Submit Button */}
               <Button

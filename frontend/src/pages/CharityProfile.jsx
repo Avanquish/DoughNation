@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useSubmitGuard } from "../hooks/useDebounce";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,6 +49,7 @@ const getInitialSubTab = () => {
 export default function CharityProfile() {
   const { id } = useParams();
   const [name, setName] = useState("Charity");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState(getInitialSubTab);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isChangePassOpen, setIsChangePassOpen] = useState(false);
@@ -115,6 +117,8 @@ export default function CharityProfile() {
   /* Edit Profile */
   const handleEditSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    
     const token = localStorage.getItem("token");
 
     const formData = new FormData();
@@ -139,6 +143,7 @@ export default function CharityProfile() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       await axios.put(`${API}/edit`, formData, {
         headers: {
@@ -164,6 +169,8 @@ export default function CharityProfile() {
         title: "Update Failed",
         text: "There was an error saving your changes. Please try again.",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

@@ -563,7 +563,7 @@ export default function Register() {
                         handleInputChange("password", e.target.value)
                       }
                       required
-                      placeholder="Create new password"
+                      placeholder="Create password"
                       className="appearance-none pr-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E]"
                       style={{ height: "clamp(44px, 5.5svh, 52px)" }}
                     />

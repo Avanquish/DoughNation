@@ -156,7 +156,7 @@ export default function Register() {
     e.preventDefault();
     const { email, password, confirm_password } = formData;
 
-    // ✅ NEW: Gmail validation instead of domain-based
+    // Gmail validation
     const domain = email.split("@")[1]?.toLowerCase();
     if (domain !== "gmail.com" && domain !== "googlemail.com") {
       return Swal.fire({
@@ -563,7 +563,7 @@ export default function Register() {
                         handleInputChange("password", e.target.value)
                       }
                       required
-                      placeholder="At least 8 characters"
+                      placeholder="Create new password"
                       className="appearance-none pr-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E]"
                       style={{ height: "clamp(44px, 5.5svh, 52px)" }}
                     />
@@ -612,11 +612,6 @@ export default function Register() {
                       </p>
                     </div>
                   )}
-
-                  <p className="text-xs text-[#a47134]/80">
-                    Use at least 8 characters with a mix of letters, numbers,
-                    and symbols.
-                  </p>
                 </div>
 
                 {/* Confirm Password */}
@@ -631,7 +626,7 @@ export default function Register() {
                         handleInputChange("confirm_password", e.target.value)
                       }
                       required
-                      placeholder="Re-enter your password"
+                      placeholder="Re-enter new password"
                       className="appearance-none pr-11 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E]"
                       style={{ height: "clamp(44px, 5.5svh, 52px)" }}
                     />
@@ -666,6 +661,65 @@ export default function Register() {
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Password Requirements */}
+              <div className="bg-[#FFF7EC] border border-[#FFE1BE] rounded-xl p-4">
+                <p className="text-xs font-semibold text-[#8f642a] mb-2">
+                  Password Requirements
+                </p>
+                <ul className="text-xs text-[#a47134] space-y-1.5">
+                  <li className="flex items-center gap-2">
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        formData.password.length >= 8
+                          ? "bg-emerald-500"
+                          : "bg-[#E3B57E]"
+                      }`}
+                    />
+                    At least 8 characters
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        /[A-Z]/.test(formData.password)
+                          ? "bg-emerald-500"
+                          : "bg-[#E3B57E]"
+                      }`}
+                    />
+                    One uppercase letter
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        /[a-z]/.test(formData.password)
+                          ? "bg-emerald-500"
+                          : "bg-[#E3B57E]"
+                      }`}
+                    />
+                    One lowercase letter
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        /[0-9]/.test(formData.password)
+                          ? "bg-emerald-500"
+                          : "bg-[#E3B57E]"
+                      }`}
+                    />
+                    One number
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        /[!@#$%^&*(),.?":{}|<>]/.test(formData.password)
+                          ? "bg-emerald-500"
+                          : "bg-[#E3B57E]"
+                      }`}
+                    />
+                    One special character
+                  </li>
+                </ul>
               </div>
 
               {/* Required files */}

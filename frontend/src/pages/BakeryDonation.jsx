@@ -17,6 +17,16 @@ const isExpired = (dateStr, serverDate) => {
   return d <= t; // Changed from <= to < (expired means past days only)
 };
 
+const isCreatedToday = (dateStr, serverDate) => {
+  if (!dateStr || !serverDate) return false;
+  const d = new Date(dateStr);
+  const [year, month, day] = serverDate.split("-").map(Number);
+  const t = new Date(year, month - 1, day);
+  t.setHours(0, 0, 0, 0);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime() === t.getTime();
+};
+
 const daysUntil = (dateStr, serverDate) => {
   if (!dateStr || !serverDate) return null;
   const d = new Date(dateStr);
@@ -217,24 +227,39 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
     const recIds = new Set(rec.map((i) => i.id));
     return { recommended: rec, rest: items.filter((i) => !recIds.has(i.id)) };
   };
+  
   const fetchInventory = async () => {
-    try {
-      const res = await axios.get(`${API}/inventory`, { headers });
-      const ok = (res.data || []).filter((it) => {
-        const s = String(it.status || "").toLowerCase();
-        const isExpiredItem = isExpired(it.expiration_date, currentServerDate);
-        const quantity = Number(it.quantity) || 0;
-        return (
-          s !== "donated" &&
-          s !== "requested" &&
-          !isExpiredItem && // Filter out expired items
-          quantity > 0 // Filter out items with 0 quantity
-        );
-      });
+  try {
+    const res = await axios.get(`${API}/inventory`, { headers });
+    const ok = (res.data || []).filter((it) => {
+      const s = String(it.status || "").toLowerCase();
+      const isExpiredItem = isExpired(it.expiration_date, currentServerDate);
+      const quantity = Number(it.quantity) || 0;
+      
+      // Check if creation date is today or in the future
+      let isTodayOrFuture = false;
+      if (it.creation_date) {
+        const creationDate = new Date(it.creation_date);
+        const [year, month, day] = currentServerDate.split("-").map(Number);
+        const serverDate = new Date(year, month - 1, day);
+        creationDate.setHours(0, 0, 0, 0);
+        serverDate.setHours(0, 0, 0, 0);
+        isTodayOrFuture = creationDate >= serverDate;
+      }
+      
+      return (
+        s !== "donated" &&
+        s !== "requested" &&
+        !isExpiredItem &&
+        !isTodayOrFuture &&
+        quantity > 0
+      );
+    });
       setInventory(ok);
       setRecommendedInventory(getRecommendedInventory(ok));
     } catch {}
   };
+
   const fetchCharities = async () => {
     try {
       const res = await axios.get(`${API}/charities/recommended`, { headers });
@@ -573,6 +598,24 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                     "error"
                   );
                   return;
+                }
+
+                // Check if product creation date is today or in the future
+                if (chosen && chosen.creation_date) {
+                  const creationDate = new Date(chosen.creation_date);
+                  const [year, month, day] = currentServerDate.split("-").map(Number);
+                  const serverDate = new Date(year, month - 1, day);
+                  creationDate.setHours(0, 0, 0, 0);
+                  serverDate.setHours(0, 0, 0, 0);
+                  
+                  if (creationDate >= serverDate) {
+                    Swal.fire(
+                      "Not allowed",
+                      "Products can only be donated starting the day after their creation date.",
+                      "error"
+                    );
+                    return;
+                  }
                 }
                 try {
                   const fd = new FormData();

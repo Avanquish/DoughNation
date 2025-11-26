@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import func
 
 from app import models, database, schemas, auth, crud
+from app.timezone_utils import today_ph
 from app.routes.cnotification import process_geofence_notifications
 
 router = APIRouter()
@@ -29,7 +30,7 @@ def initialize_bakery_csv(bakery_id: int):
     if not os.path.exists(csv_path):
         print(f"[CSV] Creating new CSV for bakery {bakery_id}")
         with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
-            writer = csv.DictWriter(f, fieldnames=['Product Name', 'Threshold', 'Expiration', 'Description'])
+            writer = csv.DictWriter(f, fieldnames=['Product Name', 'Threshold', 'Expiration', 'Description', 'Image'])
             writer.writeheader()
         print(f"[CSV] ✅ Created: {csv_path}")
     
@@ -70,7 +71,8 @@ def load_bakery_templates(bakery_id: int):
                         'shelf_life_days': expiration,
                         'threshold': threshold,
                         'description': row.get('Description', '').strip(),
-                        'original_name': product_name
+                        'original_name': product_name,
+                        'image': row.get('Image', '')
                     }
             
             print(f"[CSV] ✅ Loaded {len(templates)} templates for bakery {bakery_id}")
@@ -85,7 +87,7 @@ def load_bakery_templates(bakery_id: int):
     return templates
 
 
-def save_product_to_csv(bakery_id: int, product_name: str, threshold: int, shelf_life_days: int, description: str = ""):
+def save_product_to_csv(bakery_id: int, product_name: str, threshold: int, shelf_life_days: int, description: str = "", image: str = ""):
     """Save or update a product template in bakery's CSV"""
     csv_path = initialize_bakery_csv(bakery_id)
     
@@ -101,12 +103,13 @@ def save_product_to_csv(bakery_id: int, product_name: str, threshold: int, shelf
     # Add new product to CSV
     try:
         with open(csv_path, 'a', newline='', encoding='utf-8-sig') as f:
-            writer = csv.DictWriter(f, fieldnames=['Product Name', 'Threshold', 'Expiration', 'Description'])
+            writer = csv.DictWriter(f, fieldnames=['Product Name', 'Threshold', 'Expiration', 'Description', 'Image'])
             writer.writerow({
                 'Product Name': product_name.strip(),
                 'Threshold': threshold,
                 'Expiration': shelf_life_days,
-                'Description': description.strip()
+                'Description': description.strip(),
+                'Image': image
             })
         
         print(f"[CSV] ✅ Added '{product_name}' to bakery {bakery_id} CSV")
@@ -114,6 +117,68 @@ def save_product_to_csv(bakery_id: int, product_name: str, threshold: int, shelf
         
     except Exception as e:
         print(f"[CSV] ❌ Error saving to CSV: {e}")
+        return False
+
+
+def update_product_in_csv(bakery_id: int, old_product_name: str, new_product_name: str, threshold: int, shelf_life_days: int, description: str = "", image: str = ""):
+    """Update an existing product template in bakery's CSV"""
+    csv_path = get_bakery_csv_path(bakery_id)
+    
+    if not os.path.exists(csv_path):
+        print(f"[CSV] No CSV found for bakery {bakery_id}")
+        return False
+    
+    try:
+        # Read all rows
+        rows = []
+        fieldnames = ['Product Name', 'Threshold', 'Expiration', 'Description', 'Image']
+        
+        with open(csv_path, 'r', encoding='utf-8-sig') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                rows.append(row)
+        
+        # Find and update the matching product
+        normalized_old_name = old_product_name.strip().lower().replace(' ', '')
+        updated = False
+        
+        for row in rows:
+            existing_name = row.get('Product Name', '').strip()
+            normalized_existing = existing_name.lower().replace(' ', '')
+            
+            if normalized_existing == normalized_old_name:
+                # Update the row
+                row['Product Name'] = new_product_name.strip()
+                row['Threshold'] = str(threshold)
+                row['Expiration'] = str(shelf_life_days)
+                row['Description'] = description.strip()
+                row['Image'] = image
+                updated = True
+                print(f"[CSV] 🔄 Updating '{old_product_name}' to '{new_product_name}' in bakery {bakery_id} CSV")
+                break
+        
+        if not updated:
+            print(f"[CSV] ⚠️ Product '{old_product_name}' not found in CSV, adding as new")
+            # If not found, add as new entry
+            rows.append({
+                'Product Name': new_product_name.strip(),
+                'Threshold': str(threshold),
+                'Expiration': str(shelf_life_days),
+                'Description': description.strip(),
+                'Image': image
+            })
+        
+        # Write all rows back to CSV
+        with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+        
+        print(f"[CSV] ✅ Successfully updated CSV for bakery {bakery_id}")
+        return True
+        
+    except Exception as e:
+        print(f"[CSV] ❌ Error updating CSV: {e}")
         return False
 
 
@@ -138,23 +203,29 @@ def get_template_from_csv(bakery_id: int, product_name: str):
 @router.post("/inventory", response_model=schemas.BakeryInventoryOut)
 def add_inventory(
     name: str = Form(...),
-    image: UploadFile = File(...),
+    image: UploadFile = File(None),
     quantity: int = Form(...),
     creation_date: str = Form(...),
     expiration_date: str = Form(...),
     threshold: int = Form(...),
     uploaded: str = Form(...),
     description: str = Form(None),
+    template_image: str = Form(None),
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(auth.ensure_verified_user)
 ):
     if current_user.role.lower() != "bakery":
         raise HTTPException(status_code=403, detail="Only bakeries can add inventory")
 
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-    file_path = os.path.join(UPLOAD_DIR, image.filename)
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(image.file, buffer)
+    # Handle image: either upload new file or use template image
+    file_path = None
+    if image and image.filename:
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+        file_path = os.path.join(UPLOAD_DIR, image.filename)
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(image.file, buffer)
+    elif template_image:
+        file_path = template_image
 
     # Create inventory item
     new_item = crud.create_inventory(
@@ -194,7 +265,8 @@ def add_inventory(
             product_name=name,
             threshold=threshold,
             shelf_life_days=shelf_life_days,
-            description=description or ""
+            description=description or "",
+            image=file_path or ""
         )
         
         if success:
@@ -253,18 +325,40 @@ def update_inventory(
     threshold: int = Form(...),
     uploaded: str = Form(...),
     description: str = Form(None),
+    template_image: str = Form(None),
+    save_to_template: str = Form(None),
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(auth.ensure_verified_user)
 ):
     if current_user.role.lower() != "bakery":
         raise HTTPException(status_code=403, detail="Only bakeries can update inventory")
 
+    # Get the old product name before updating
+    old_item = db.query(models.BakeryInventory).filter(
+        models.BakeryInventory.id == inventory_id,
+        models.BakeryInventory.bakery_id == current_user.id
+    ).first()
+    
+    if not old_item:
+        raise HTTPException(status_code=404, detail="Inventory item not found")
+    
+    old_product_name = old_item.name
+    old_image = old_item.image  # Keep the existing image path
+
+    # Handle image: either upload new file, use template image, or retain old image
     image_path = None
-    if image:
+    if image and image.filename:
+        # New image uploaded
         os.makedirs(UPLOAD_DIR, exist_ok=True)
         image_path = os.path.join(UPLOAD_DIR, image.filename)
         with open(image_path, "wb") as buffer:
             shutil.copyfileobj(image.file, buffer)
+    elif template_image:
+        # Template image provided
+        image_path = template_image
+    else:
+        # No new image, retain the old one
+        image_path = old_image
 
     updated_item = crud.update_inventory(
         db=db,
@@ -280,22 +374,43 @@ def update_inventory(
         description=description
     )
 
-    # Save to bakery's OWN CSV if product name changed
+    # Update bakery's CSV with the new product information
     try:
         creation = datetime.strptime(creation_date, "%Y-%m-%d").date()
         expiration = datetime.strptime(expiration_date, "%Y-%m-%d").date()
         shelf_life_days = (expiration - creation).days
         
-        #Pass bakery_id to save to correct CSV
-        save_product_to_csv(
-            bakery_id=current_user.id,  #Each bakery updates their own CSV
-            product_name=name,
-            threshold=threshold,
-            shelf_life_days=shelf_life_days,
-            description=description or ""
-        )
+        if save_to_template == "true":
+            # Name was modified - save as NEW product to CSV
+            print(f"[CSV] 📝 Saving NEW product '{name}' to CSV (name was modified)")
+            success = save_product_to_csv(
+                bakery_id=current_user.id,
+                product_name=name,
+                threshold=threshold,
+                shelf_life_days=shelf_life_days,
+                description=description or "",
+                image=image_path or ""
+            )
+            if success:
+                print(f"[CSV] ✅ Saved NEW product '{name}' to CSV")
+            else:
+                print(f"[CSV] ⚠️ Product '{name}' already exists in CSV")
+        else:
+            # Name not modified - update existing CSV entry
+            update_product_in_csv(
+                bakery_id=current_user.id,
+                old_product_name=old_product_name,
+                new_product_name=name,
+                threshold=threshold,
+                shelf_life_days=shelf_life_days,
+                description=description or "",
+                image=image_path or ""
+            )
+            print(f"[CSV] ✅ Updated '{old_product_name}' to '{name}' in CSV")
     except Exception as e:
-        print(f"[CSV] Warning: Could not save to CSV: {e}")
+        print(f"[CSV] Warning: Could not update CSV: {e}")
+        import traceback
+        traceback.print_exc()
 
     check_threshold_and_create_donation(db)
     check_inventory_status(db)
@@ -339,7 +454,8 @@ def get_product_template(
             "shelf_life_days": csv_template['shelf_life_days'],
             "threshold": csv_template['threshold'],
             "description": csv_template['description'],
-            "product_name": csv_template['original_name']
+            "product_name": csv_template['original_name'],
+            "image": csv_template.get('image', '')
         }
     
     # Not found
@@ -352,17 +468,12 @@ def get_product_template(
 
 @router.get("/server-time")
 def get_server_time():
-    from datetime import datetime, timezone, timedelta
-    philippine_tz = timezone(timedelta(hours=8))
-    return {"date": datetime.now(philippine_tz).date().isoformat()}
+    return {"date": today_ph().isoformat()}
 
 
 # === HELPER FUNCTIONS (Unchanged) ===
 def check_threshold_and_create_donation(db: Session):
-    from datetime import datetime, timezone, timedelta
-    
-    philippine_tz = timezone(timedelta(hours=8))
-    today = datetime.now(philippine_tz).date()
+    today = today_ph()
     
     bakery_ids_triggered = set()
     products = db.query(models.BakeryInventory).all()
@@ -444,10 +555,7 @@ def check_threshold_and_create_donation(db: Session):
 
 
 def check_inventory_status(db: Session):
-    from datetime import datetime, timezone, timedelta
-    
-    philippine_tz = timezone(timedelta(hours=8))
-    today = datetime.now(philippine_tz).date()
+    today = today_ph()
 
     products = db.query(models.BakeryInventory).all()
 
@@ -476,9 +584,7 @@ def check_inventory_status(db: Session):
 
 @router.get("/server-time")
 def get_server_time():
-    from datetime import datetime, timezone, timedelta
-    philippine_tz = timezone(timedelta(hours=8))
-    return {"date": datetime.now(philippine_tz).date().isoformat()}
+    return {"date": today_ph().isoformat()}
 
 
 @router.get("/inventory/template/{product_name}")
@@ -503,7 +609,8 @@ def get_product_template(
             "shelf_life_days": csv_template['shelf_life_days'],
             "threshold": csv_template['threshold'],
             "description": csv_template['description'],
-            "product_name": csv_template['original_name']
+            "product_name": csv_template['original_name'],
+            "image": csv_template.get('image', '')
         }
     
     # Not found in this bakery's CSV

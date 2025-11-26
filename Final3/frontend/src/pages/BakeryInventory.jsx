@@ -151,6 +151,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
   const [isNameModified, setIsNameModified] = useState(false);
   const [originalName, setOriginalName] = useState("");
   const [templateInfo, setTemplateInfo] = useState(null);
+  
 
   const [form, setForm] = useState({
     item_name: "",
@@ -161,6 +162,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
     image_file: null,
     threshold: 0,
     uploaded: "", // Will be set from token
+    template_image: "",
   });
 
   const [showDirectDonation, setShowDirectDonation] = useState(false);
@@ -369,6 +371,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
             threshold: res.data.threshold,
             expiration_date: expirationStr,
             description: res.data.description || prev.description,
+            template_image: res.data.image || "",
           }));
         } else {
           // Update form for Add mode
@@ -378,6 +381,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
             threshold: res.data.threshold,
             expiration_date: expirationStr,
             description: res.data.description || prev.description,
+            template_image: res.data.image || "",
           }));
         }
 
@@ -710,7 +714,11 @@ export default function BakeryInventory({ isViewOnly = false }) {
     fd.append("threshold", Math.max(0, thresholdDays)); // Store as integer days
     fd.append("uploaded", form.uploaded);
     fd.append("description", form.description);
-    if (form.image_file) fd.append("image", form.image_file);
+    if (form.image_file) {
+      fd.append("image", form.image_file);
+    } else if (form.template_image) {
+      fd.append("template_image", form.template_image);
+    }
 
     try {
       await axios.post(`${API}/inventory`, fd, {
@@ -733,6 +741,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
         image_file: null,
         threshold: 0,
         uploaded: uploaderName,
+        template_image: "",
       });
       setShowForm(false);
       await fetchInventory();
@@ -785,11 +794,15 @@ export default function BakeryInventory({ isViewOnly = false }) {
     });
     if (!ok.isConfirmed) return;
 
+    // Get original creation date from inventory (never use modified version)
+    const originalItem = inventory.find((item) => item.id === selectedItem.id);
+    const originalCreationDate = originalItem?.creation_date || selectedItem.creation_date;
+
     // Calculate threshold days dynamically
     let thresholdDays = 2;
-    if (selectedItem.expiration_date && selectedItem.creation_date) {
+    if (selectedItem.expiration_date && originalCreationDate) {
       const expDate = new Date(selectedItem.expiration_date);
-      const creationDate = new Date(selectedItem.creation_date);
+      const creationDate = new Date(originalCreationDate);
       const thresholdDate = new Date(expDate);
       thresholdDate.setDate(thresholdDate.getDate() - 2);
       
@@ -801,12 +814,22 @@ export default function BakeryInventory({ isViewOnly = false }) {
     const fd = new FormData();
     fd.append("name", selectedItem.name);
     fd.append("quantity", selectedItem.quantity);
-    fd.append("creation_date", selectedItem.creation_date);
+    fd.append("creation_date", originalCreationDate); // ALWAYS use original date
     fd.append("expiration_date", selectedItem.expiration_date);
     fd.append("threshold", Math.max(0, thresholdDays)); // Store as integer days
     fd.append("uploaded", selectedItem.uploaded || "");
     fd.append("description", selectedItem.description || "");
-    if (selectedItem.image_file) fd.append("image", selectedItem.image_file);
+    
+    // ADD THIS: If name was modified, save to CSV template
+    if (isNameModified) {
+      fd.append("save_to_template", "true");
+    }
+    
+    if (selectedItem.image_file) {
+      fd.append("image", selectedItem.image_file);
+    } else if (selectedItem.template_image) {
+      fd.append("template_image", selectedItem.template_image);
+    }
 
     await axios.put(`${API}/inventory/${selectedItem.id}`, fd, {
       headers: { ...headers, "Content-Type": "multipart/form-data" },
@@ -814,11 +837,14 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
     Swal.fire({
       title: "Updated!",
+      text: isNameModified ? "Product updated and saved to templates" : "Product updated successfully",
       icon: "success",
       confirmButtonColor: "#A97142",
     });
     setIsEditing(false);
     setSelectedItem(null);
+    setIsNameModified(false);
+    setOriginalName("");
     await fetchInventory();
     window.dispatchEvent(new CustomEvent("inventory:changed"));
   };
@@ -1143,7 +1169,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
               <th className="p-3">Qty</th>
               <th className="p-3">Created</th>
               <th className="p-3">Expires</th>
-              <th className="p-3">Threshold</th>
+              <th className="p-3">Date of Donation</th>
               <th className="p-3">Uploaded By</th>
               <th className="p-3">Description</th>
               <th className="p-3">Donation Status</th>
@@ -1347,6 +1373,18 @@ export default function BakeryInventory({ isViewOnly = false }) {
                         setForm({ ...form, image_file: e.target.files[0] })
                       }
                     />
+                    {form.template_image && !form.image_file && (
+                      <div className="mt-2">
+                        <p className="text-xs text-green-600 mb-2">
+                          ✓ Image will be auto-filled from template
+                        </p>
+                        <img
+                          src={`${API}/${form.template_image}`}
+                          alt="Template preview"
+                          className="h-20 w-20 object-cover rounded border border-green-200"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid sm:grid-cols-2 gap-4">
@@ -1434,7 +1472,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     </div>
                     <div>
                       <label htmlFor="prod_threshold" className={labelTone}>
-                        Available For Donation Date
+                        Date for Donation
                       </label>
                       <input
                         id="prod_threshold"
@@ -1466,9 +1504,6 @@ export default function BakeryInventory({ isViewOnly = false }) {
                         readOnly
                         disabled
                       />
-                      <p className="mt-1 text-xs text-gray-500">
-                        Automatically set to 2 days before expiration
-                      </p>
                     </div>
                     <div>
                       <label htmlFor="prod_qty" className={labelTone}>
@@ -1607,6 +1642,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                       image_file: null,
                       threshold: 0,
                       uploaded: uploaderName,
+                      template_image: "",
                     });
                     setTimeout(() => {
                       setIsFormClosing(false);
@@ -1656,7 +1692,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                 {selectedItem.quantity}
               </p>
               <p>
-                <strong className="text-[#6b4b2b]">Available For Donation Date:</strong>{" "}
+                <strong className="text-[#6b4b2b]">Date for Donation:</strong>{" "}
                 {(() => {
                   if (!selectedItem.expiration_date) return "N/A";
                   
@@ -1858,6 +1894,18 @@ export default function BakeryInventory({ isViewOnly = false }) {
                 <p className="mt-1 text-xs text-gray-500">
                   Leave empty to keep the current image.
                 </p>
+                {selectedItem.template_image && !selectedItem.image_file && (
+                  <div className="mt-2">
+                    <p className="text-xs text-green-600 mb-2">
+                      ✓ Template image available
+                    </p>
+                    <img
+                      src={`${API}/${selectedItem.template_image}`}
+                      alt="Template preview"
+                      className="h-20 w-20 object-cover rounded border border-green-200"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4">
@@ -1944,7 +1992,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
                 <div>
                   <label className={labelTone} htmlFor="edit_threshold">
-                    Available For Donation Date
+                    Date for Donation
                   </label>
                   <input
                     id="edit_threshold"
@@ -1990,8 +2038,11 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     type="text"
                     className={`${inputTone} rounded-2xl bg-gray-100 cursor-not-allowed`}
                     value={(() => {
-                      // ALWAYS show original creation date (never changes)
-                      const dateToUse = selectedItem.creation_date;
+                      // ALWAYS show original creation date from database (never changes)
+                      const originalItem = inventory.find(
+                        (item) => item.id === selectedItem.id
+                      );
+                      const dateToUse = originalItem?.creation_date || selectedItem.creation_date;
                       return dateToUse
                         ? new Date(dateToUse).toLocaleDateString("en-US")
                         : "";
@@ -2000,7 +2051,9 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     disabled
                   />
                   <p className="mt-1 text-xs text-gray-500">
-                    Creation date cannot be modified
+                    Creation date cannot be modified - Original: {formatDate(
+                      inventory.find((item) => item.id === selectedItem.id)?.creation_date
+                    )}
                   </p>
                 </div>
 
@@ -2031,11 +2084,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                           })()
                         : ""
                     }
-                    className={`${inputTone} rounded-2xl ${
-                      !isNameModified || templateInfo
-                        ? "bg-gray-100 cursor-not-allowed"
-                        : ""
-                    }`}
+                    className={`${inputTone} rounded-2xl`}
                     value={selectedItem.expiration_date}
                     onChange={(e) => {
                       // Clear templateInfo to enable threshold field
@@ -2048,14 +2097,10 @@ export default function BakeryInventory({ isViewOnly = false }) {
                         expiration_date: e.target.value,
                       });
                     }}
-                    readOnly={!isNameModified || !!templateInfo}
-                    disabled={!isNameModified || !!templateInfo}
                     required
                   />
                   <p className="mt-1 text-xs text-gray-500">
-                    {templateInfo
-                      ? "Auto-filled from template"
-                      : "Must be at least tomorrow"}
+                    Must be at least tomorrow
                   </p>
                 </div>
               </div>

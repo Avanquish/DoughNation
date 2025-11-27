@@ -138,6 +138,18 @@ export default function Register() {
   const handleInputChange = (field, value) =>
     setFormData({ ...formData, [field]: value });
 
+  // Check if all password requirements are met
+  const isPasswordValid = () => {
+    const { password } = formData;
+    return (
+      password.length >= 8 &&
+      /[A-Z]/.test(password) &&
+      /[a-z]/.test(password) &&
+      /[0-9]/.test(password) &&
+      /[!@#$%^&*(),.?":{}|<>]/.test(password)
+    );
+  };
+
   const checkEmailAvailability = async (email) => {
     if (!email || !email.includes("@")) return;
     setEmailChecking(true);
@@ -167,6 +179,33 @@ export default function Register() {
         icon: "error",
         title: "Invalid Email",
         text: "Please use a Gmail address (@gmail.com) to register.",
+      });
+    }
+
+    // Password requirements validation
+    const passwordErrors = [];
+    if (password.length < 8) {
+      passwordErrors.push("• At least 8 characters");
+    }
+    if (!/[A-Z]/.test(password)) {
+      passwordErrors.push("• One uppercase letter");
+    }
+    if (!/[a-z]/.test(password)) {
+      passwordErrors.push("• One lowercase letter");
+    }
+    if (!/[0-9]/.test(password)) {
+      passwordErrors.push("• One number");
+    }
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      passwordErrors.push("• One special character");
+    }
+
+    if (passwordErrors.length > 0) {
+      return Swal.fire({
+        icon: "error",
+        title: "Password Requirements Not Met",
+        html: `Your password must meet the following requirements:<br><br>${passwordErrors.join("<br>")}`,
+        confirmButtonColor: "#A97142",
       });
     }
 
@@ -773,12 +812,23 @@ export default function Register() {
               {/* Submit */}
               <Button
                 type="submit"
-                className="w-full text-[15px] sm:text-[16px] text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E] hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl transition-transform duration-150 active:scale-[0.99]"
+                className="w-full text-[15px] sm:text-[16px] text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E] hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl transition-transform duration-150 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ height: "clamp(44px, 5.5svh, 52px)" }}
-                disabled={!emailAvailable || isSubmitting}
+                disabled={!emailAvailable || isSubmitting || !isPasswordValid() || formData.password !== formData.confirm_password}
               >
                 {isSubmitting ? 'Creating Account...' : 'Create Account'}
               </Button>
+
+              {/* Validation message */}
+              {(!isPasswordValid() || formData.password !== formData.confirm_password) && formData.password && (
+                <p className="text-xs text-center text-amber-600">
+                  {!isPasswordValid() 
+                    ? "⚠️ Please meet all password requirements above" 
+                    : formData.password !== formData.confirm_password 
+                    ? "⚠️ Passwords must match" 
+                    : ""}
+                </p>
+              )}
 
               {/* Links */}
               <div

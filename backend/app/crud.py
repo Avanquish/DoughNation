@@ -136,6 +136,26 @@ def create_user(
             detail="Contact number must be 11 digits"
         )
 
+    # Password requirements validation
+    import re
+    password_errors = []
+    if len(password) < 8:
+        password_errors.append("At least 8 characters")
+    if not re.search(r'[A-Z]', password):
+        password_errors.append("One uppercase letter")
+    if not re.search(r'[a-z]', password):
+        password_errors.append("One lowercase letter")
+    if not re.search(r'[0-9]', password):
+        password_errors.append("One number")
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        password_errors.append("One special character")
+    
+    if password_errors:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Password requirements not met: {', '.join(password_errors)}"
+        )
+    
     # Check password confirmation
     if password != confirm_password:
         raise HTTPException(

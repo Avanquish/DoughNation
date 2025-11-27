@@ -6,7 +6,7 @@ from app import crud, auth, database, schemas, models
 from app.auth import create_access_token, get_current_user, verify_password
 from app.event_logger import log_system_event
 from passlib.context import CryptContext
-from app.timezone_utils import now_ph
+from app.timezone_utils import now_ph, to_ph_timezone
 
 router = APIRouter()
 
@@ -568,7 +568,8 @@ def verify_password_reset_otp(data: dict, db: Session = Depends(database.get_db)
         raise HTTPException(status_code=400, detail="No OTP found. Please request a new one.")
     
     # Check if OTP has expired
-    if user.forgot_password_otp_expires < now_ph():
+    otp_expires_aware = to_ph_timezone(user.forgot_password_otp_expires)
+    if otp_expires_aware < now_ph():
         user.forgot_password_otp = None
         user.forgot_password_otp_expires = None
         db.commit()
@@ -602,7 +603,8 @@ def reset_password_with_otp(data: dict, db: Session = Depends(database.get_db)):
     if not user.forgot_password_otp or user.forgot_password_otp != otp_code:
         raise HTTPException(status_code=400, detail="Invalid OTP code")
     
-    if user.forgot_password_otp_expires < now_ph():
+    otp_expires_aware = to_ph_timezone(user.forgot_password_otp_expires)
+    if otp_expires_aware < now_ph():
         raise HTTPException(status_code=400, detail="OTP has expired")
     
     # Check if passwords match
@@ -792,7 +794,8 @@ def verify_employee_password_reset_otp(data: dict, db: Session = Depends(databas
         raise HTTPException(status_code=400, detail="No OTP found. Please request a new one.")
     
     # Check if OTP has expired
-    if employee.forgot_password_otp_expires < now_ph():
+    otp_expires_aware = to_ph_timezone(employee.forgot_password_otp_expires)
+    if otp_expires_aware < now_ph():
         employee.forgot_password_otp = None
         employee.forgot_password_otp_expires = None
         db.commit()
@@ -829,7 +832,8 @@ def reset_employee_password_with_otp(data: dict, db: Session = Depends(database.
     if not employee.forgot_password_otp or employee.forgot_password_otp != otp_code:
         raise HTTPException(status_code=400, detail="Invalid OTP code")
     
-    if employee.forgot_password_otp_expires < now_ph():
+    otp_expires_aware = to_ph_timezone(employee.forgot_password_otp_expires)
+    if otp_expires_aware < now_ph():
         raise HTTPException(status_code=400, detail="OTP has expired")
     
     # Check if passwords match

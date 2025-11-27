@@ -236,22 +236,10 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
       const isExpiredItem = isExpired(it.expiration_date, currentServerDate);
       const quantity = Number(it.quantity) || 0;
       
-      // Check if creation date is today or in the future
-      let isTodayOrFuture = false;
-      if (it.creation_date) {
-        const creationDate = new Date(it.creation_date);
-        const [year, month, day] = currentServerDate.split("-").map(Number);
-        const serverDate = new Date(year, month - 1, day);
-        creationDate.setHours(0, 0, 0, 0);
-        serverDate.setHours(0, 0, 0, 0);
-        isTodayOrFuture = creationDate >= serverDate;
-      }
-      
       return (
         s !== "donated" &&
         s !== "requested" &&
         !isExpiredItem &&
-        !isTodayOrFuture &&
         quantity > 0
       );
     });
@@ -598,24 +586,6 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                     "error"
                   );
                   return;
-                }
-
-                // Check if product creation date is today or in the future
-                if (chosen && chosen.creation_date) {
-                  const creationDate = new Date(chosen.creation_date);
-                  const [year, month, day] = currentServerDate.split("-").map(Number);
-                  const serverDate = new Date(year, month - 1, day);
-                  creationDate.setHours(0, 0, 0, 0);
-                  serverDate.setHours(0, 0, 0, 0);
-                  
-                  if (creationDate >= serverDate) {
-                    Swal.fire(
-                      "Not allowed",
-                      "Products can only be donated starting the day after their creation date.",
-                      "error"
-                    );
-                    return;
-                  }
                 }
                 try {
                   const fd = new FormData();

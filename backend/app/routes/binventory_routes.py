@@ -326,6 +326,7 @@ def update_inventory(
     uploaded: str = Form(...),
     description: str = Form(None),
     template_image: str = Form(None),
+    save_to_template: str = Form(None),
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(auth.ensure_verified_user)
 ):
@@ -379,17 +380,33 @@ def update_inventory(
         expiration = datetime.strptime(expiration_date, "%Y-%m-%d").date()
         shelf_life_days = (expiration - creation).days
         
-        # Use update function to modify CSV entry
-        update_product_in_csv(
-            bakery_id=current_user.id,
-            old_product_name=old_product_name,
-            new_product_name=name,
-            threshold=threshold,
-            shelf_life_days=shelf_life_days,
-            description=description or "",
-            image=image_path or ""
-        )
-        print(f"[CSV] ✅ Updated '{old_product_name}' to '{name}' in CSV")
+        if save_to_template == "true":
+            # Name was modified - save as NEW product to CSV
+            print(f"[CSV] 📝 Saving NEW product '{name}' to CSV (name was modified)")
+            success = save_product_to_csv(
+                bakery_id=current_user.id,
+                product_name=name,
+                threshold=threshold,
+                shelf_life_days=shelf_life_days,
+                description=description or "",
+                image=image_path or ""
+            )
+            if success:
+                print(f"[CSV] ✅ Saved NEW product '{name}' to CSV")
+            else:
+                print(f"[CSV] ⚠️ Product '{name}' already exists in CSV")
+        else:
+            # Name not modified - update existing CSV entry
+            update_product_in_csv(
+                bakery_id=current_user.id,
+                old_product_name=old_product_name,
+                new_product_name=name,
+                threshold=threshold,
+                shelf_life_days=shelf_life_days,
+                description=description or "",
+                image=image_path or ""
+            )
+            print(f"[CSV] ✅ Updated '{old_product_name}' to '{name}' in CSV")
     except Exception as e:
         print(f"[CSV] Warning: Could not update CSV: {e}")
         import traceback

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from datetime import datetime, timedelta, time
 from app import models, database, auth, admin_models
-from app.timezone_utils import now_ph, today_ph
+from app.timezone_utils import now_ph, today_ph, to_ph_timezone
 
 # For geofence
 from math import radians, cos, sin, asin, sqrt # For geofence calculation helper
@@ -496,7 +496,7 @@ def process_geofence_notifications(db: Session, bakery_id: int):
             else:
                 # Scheduled re-notif logic
                 for t in notif_times:
-                    notif_time_today = datetime.combine(today, t)
+                    notif_time_today = to_ph_timezone(datetime.combine(today, t))
                     if now >= notif_time_today:
                         if notif.read_at:
                             notif.read_at = None

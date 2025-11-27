@@ -13,6 +13,7 @@ from datetime import date, datetime, timedelta, timezone
 from app.timezone_utils import now_ph, today_ph
 
 from app.routes.geofence import geocode_address, get_coordinates_osm
+from app.product_id_generator import generate_product_id
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -366,13 +367,6 @@ def seed_admin_user(db: Session):
     db.commit()
     
 # ------------------ BAKERY INVENTORY ------------------
-def generate_product_id(name: str):
-    base = (name or "P").upper().replace(" ", "")
-    prefix = "".join(name.split())[:3].upper()
-    unique = str(int(now_ph().timestamp()))[-6:] + str(random.randint(100, 999))
-    return f"{prefix}-{unique}"
-
-
 def create_inventory(
     db: Session,
     bakery_id: int,
@@ -401,9 +395,12 @@ def create_inventory(
         elif isinstance(image, str):
             image_path = image
 
+    # Generate unique product ID with sequential numbering per product type
+    product_id = generate_product_id(db, name, bakery_id)
+    
     item = models.BakeryInventory(
         bakery_id=bakery_id,
-        product_id=generate_product_id(name),
+        product_id=product_id,
         name=name,
         image=image_path,
         quantity=quantity,

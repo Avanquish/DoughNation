@@ -1199,7 +1199,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
               <th className="p-3">Image</th>
               <th className="p-3">Qty</th>
               <th className="p-3">Creation Date</th>
-              <th className="p-3">Consumed Before</th>
+              <th className="p-3">Consume Before</th>
               <th className="p-3">Date of Donation</th>
               <th className="p-3">Uploaded By</th>
               <th className="p-3">Description</th>
@@ -1434,7 +1434,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     </div>
                     <div>
                       <label htmlFor="prod_exp" className={labelTone}>
-                        Consumed Before
+                        Consume Before
                       </label>
                       <input
                         id="prod_exp"
@@ -1747,7 +1747,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                 {formatDate(selectedItem.creation_date)}
               </p>
               <p>
-                <strong className="text-[#6b4b2b]">Consumed Before:</strong>{" "}
+                <strong className="text-[#6b4b2b]">Consume Before:</strong>{" "}
                 {formatDate(selectedItem.expiration_date)}
               </p>
               <p>
@@ -2089,7 +2089,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
                 <div>
                   <label className={labelTone} htmlFor="edit_exp">
-                    Consumed Before
+                    Consume Before
                   </label>
                   <input
                     id="edit_exp"

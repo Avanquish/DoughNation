@@ -128,8 +128,7 @@ def reply_to_complaint(
     receipt = NotificationReceipt(
         notification_id=notification.id,
         user_id=user.id,
-        is_read=False,
-        received_at=now_ph()
+        is_read=False
     )
     db.add(receipt)
     

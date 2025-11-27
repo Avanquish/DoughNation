@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from datetime import datetime, timedelta, time
-from app import models, database, auth
+from app import models, database, auth, admin_models
+from app.timezone_utils import now_ph, today_ph
 
 # For geofence
 from math import radians, cos, sin, asin, sqrt # For geofence calculation helper
@@ -15,7 +16,7 @@ from app.models import User, Donation, DonationRequest, NotificationRead
 router = APIRouter()
 
 
-# --- Mark notification as read (messages only) ---
+# --- Mark notification as read ---
 @router.patch("/notifications/{notif_id}/read")
 def mark_notification_as_read(
     notif_id: str,
@@ -24,7 +25,23 @@ def mark_notification_as_read(
 ):
     user_id = current_user.id
 
-    # Only handle message notifications
+    # Handle system notifications
+    if notif_id.startswith("system-"):
+        system_notif_id = int(notif_id.replace("system-", ""))
+        receipt = db.query(admin_models.NotificationReceipt).filter(
+            admin_models.NotificationReceipt.notification_id == system_notif_id,
+            admin_models.NotificationReceipt.user_id == user_id
+        ).first()
+        
+        if receipt:
+            receipt.is_read = True
+            receipt.read_at = now_ph()
+            db.commit()
+            return {"status": "ok", "id": notif_id, "read_at": receipt.read_at}
+        else:
+            raise HTTPException(status_code=404, detail="Notification receipt not found")
+    
+    # Handle message notifications
     if not notif_id.startswith("msg-"):
         raise HTTPException(status_code=400, detail="Invalid notification ID")
 
@@ -33,7 +50,7 @@ def mark_notification_as_read(
         user_id=user_id, notif_id=notif_id
     ).first()
 
-    now = datetime.utcnow()
+    now = now_ph()
     if read_entry:
         # Update timestamp to now
         read_entry.read_at = now
@@ -195,7 +212,7 @@ def get_message_notifications(
             "donation_id": rd.id,
             "name": rd.name,
             "quantity": rd.quantity,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": now_ph().isoformat(),
             "read": rd.id in read_ids,
             "bakery_name": bakery.name if bakery else "Unknown bakery",
             "bakery_profile_picture": bakery.profile_picture if bakery else None,
@@ -280,11 +297,39 @@ def get_message_notifications(
             print("[Geofence] Parse error:", e)
             continue
 
+    # System Notifications (Admin announcements)
+    system_notifications = []
+    
+    # Get all system notifications for this user
+    receipts = db.query(admin_models.NotificationReceipt).filter(
+        admin_models.NotificationReceipt.user_id == user_id,
+        admin_models.NotificationReceipt.is_read == False
+    ).all()
+    
+    for receipt in receipts:
+        notif = receipt.notification
+        
+        # Skip expired notifications
+        if notif.expires_at and notif.expires_at < now_ph():
+            continue
+            
+        system_notifications.append({
+            "id": f"system-{notif.id}",
+            "type": "system_notification",
+            "title": notif.title,
+            "message": notif.message,
+            "notification_type": notif.notification_type,
+            "priority": notif.priority,
+            "sent_at": notif.sent_at.isoformat() if notif.sent_at else None,
+            "read": receipt.is_read
+        })
+
     return {
         "messages": latest_messages,
         "donations": donations,
         "received_donations": received_donations,
-        "geofence_notifications": geofence_notifs
+        "geofence_notifications": geofence_notifs,
+        "system_notifications": system_notifications
     }
 
 
@@ -306,7 +351,7 @@ def haversine(lat1, lon1, lat2, lon2):
 
 @router.post("/notifications/geofence/run")
 def run_geofence_notifications(db: Session = Depends(get_db)):
-    today = datetime.utcnow().date()
+    today = today_ph()
     target_date = today + timedelta(days=2)
 
     # Donations expiring in exactly 2 days
@@ -368,7 +413,7 @@ def run_geofence_notifications(db: Session = Depends(get_db)):
     return {"status": "geofence notifications scheduled"}
     
 def process_geofence_notifications(db: Session, bakery_id: int):
-    now = datetime.utcnow()
+    now = now_ph()
     today = now.date()
     one_day_from_now = today + timedelta(days=1)
     two_days_from_now = today + timedelta(days=2)
@@ -451,7 +496,8 @@ def process_geofence_notifications(db: Session, bakery_id: int):
             else:
                 # Scheduled re-notif logic
                 for t in notif_times:
-                    notif_time_today = datetime.combine(today, t)
+                    # Create timezone-aware datetime using now_ph's timezone
+                    notif_time_today = now.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)
                     if now >= notif_time_today:
                         if notif.read_at:
                             notif.read_at = None

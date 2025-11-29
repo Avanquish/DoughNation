@@ -157,8 +157,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
   // Filters
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all"); // 'all' | 'fresh' | 'soon' | 'expired'
-  const [donationFilter, setDonationFilter] = useState("all"); // 'all' | 'available' | 'requested' | 'donated' | 'unavailable'
+  const [combinedFilter, setCombinedFilter] = useState("all"); // Combined filter for all statuses  
 
   // Selection (bulk)
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -568,30 +567,35 @@ export default function BakeryInventory({ isViewOnly = false }) {
   }, [inventory]);
 
   // Status counts
-  const statusCounts = useMemo(() => {
-    const counts = { all: inventory.length, fresh: 0, soon: 0, expired: 0 };
-    for (const it of inventory) counts[statusOf(it)]++;
-    return counts;
-  }, [inventory]);
-
-  // Donation status counts
-  const donationCounts = useMemo(() => {
+  const combinedCounts = useMemo(() => {
     const counts = {
       all: inventory.length,
+      fresh: 0,
+      soon: 0,
+      expired: 0,
       available: 0,
       requested: 0,
       donated: 0,
       unavailable: 0,
     };
+    
     for (const it of inventory) {
       const st = statusOf(it);
       const donationStatus =
         currentServerDate && st === "expired"
           ? "unavailable"
           : it.status || "available";
+      
+      // Count freshness status (excluding expired)
+      if (st === "fresh") counts.fresh++;
+      if (st === "soon") counts.soon++;
+      if (st === "expired") counts.expired++;
+      
+      // Count donation status
       const key = donationStatus.toLowerCase();
       if (counts[key] !== undefined) counts[key]++;
     }
+    
     return counts;
   }, [inventory, currentServerDate]);
 
@@ -600,19 +604,22 @@ export default function BakeryInventory({ isViewOnly = false }) {
     const q = query.trim().toLowerCase();
     const filtered = inventory.filter((it) => {
       const nameOk = !q || (it.name || "").toLowerCase().includes(q);
+      
+      if (combinedFilter === "all") return nameOk;
+      
       const st = statusOf(it);
-      const statusOk = statusFilter === "all" || st === statusFilter;
-
-      // Donation status filter
       const donationStatus =
         currentServerDate && st === "expired"
           ? "unavailable"
           : it.status || "available";
-      const donationOk =
-        donationFilter === "all" ||
-        donationStatus.toLowerCase() === donationFilter;
-
-      return nameOk && statusOk && donationOk;
+      
+      // Check if filter matches freshness status (fresh, soon, expired)
+      if (combinedFilter === "fresh" || combinedFilter === "soon" || combinedFilter === "expired") {
+        return nameOk && st === combinedFilter;
+      }
+      
+      // Check if filter matches donation status
+      return nameOk && donationStatus.toLowerCase() === combinedFilter;
     });
 
     // Sort: available items first, then by expiration status, expired items at bottom
@@ -656,14 +663,14 @@ export default function BakeryInventory({ isViewOnly = false }) {
       // If same status, maintain original order (by id)
       return a.id - b.id;
     });
-  }, [inventory, query, statusFilter, donationFilter, currentServerDate]);
+  }, [inventory, query, combinedFilter, currentServerDate]);
 
-  // ✅ Reset page when filters or data change
+  // Reset page when filters or data change
   useEffect(() => {
     setPage(1);
-  }, [query, statusFilter, donationFilter, inventory.length]);
+  }, [query, combinedFilter, inventory.length]);
 
-  // ✅ Pagination derived values
+  // Pagination derived values
   const totalPages =
     filteredInventory.length === 0
       ? 1
@@ -1118,32 +1125,54 @@ export default function BakeryInventory({ isViewOnly = false }) {
             </button>
           </>
         )}
-        <div className="w-full sm:w-auto sm:ml-auto flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 sm:gap-4">
-          {/* STATUS FILTER GROUP (Fresh / Soon / Expired) */}
-          <div className="flex flex-wrap items-center gap-2 bg-white/80 rounded-2xl px-2 py-2 ring-1 ring-black/5 shadow-sm w-full sm:w-auto">
+        <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-3">
+          {/* All Filter */}
+          <div className="flex items-center gap-2 bg-white/80 rounded-2xl px-2 py-2 ring-1 ring-black/5 shadow-sm">
             {[
-              { key: "all", label: "All", tone: "bg-white" },
+              { key: "all", label: `All (${combinedCounts.all})`, tone: "bg-white" },
+            ].map(({ key, label, tone }) => {
+              const active = combinedFilter === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setCombinedFilter(key)}
+                  className={
+                    "text-xs sm:text-sm rounded-full px-3 py-1 transition " +
+                    (active
+                      ? "text-white bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] shadow"
+                      : `text-[#6b4b2b] ${tone} hover:brightness-95`)
+                  }
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          
+          {/* Freshness Status */}
+          <div className="flex items-center gap-2 bg-white/80 rounded-2xl px-2 py-2 ring-1 ring-black/5 shadow-sm">
+            {[
               {
                 key: "fresh",
-                label: `Fresh (${statusCounts.fresh})`,
+                label: `Fresh (${combinedCounts.fresh})`,
                 tone: "bg-green-100",
               },
               {
                 key: "soon",
-                label: `Soon (${statusCounts.soon})`,
+                label: `Soon (${combinedCounts.soon})`,
                 tone: "bg-amber-100",
               },
               {
                 key: "expired",
-                label: `Expired (${statusCounts.expired})`,
+                label: `Expired (${combinedCounts.expired || 0})`,
                 tone: "bg-red-100",
               },
             ].map(({ key, label, tone }) => {
-              const active = statusFilter === key;
+              const active = combinedFilter === key;
               return (
                 <button
                   key={key}
-                  onClick={() => setStatusFilter(key)}
+                  onClick={() => setCombinedFilter(key)}
                   className={
                     "text-xs sm:text-sm rounded-full px-3 py-1 transition " +
                     (active
@@ -1156,37 +1185,36 @@ export default function BakeryInventory({ isViewOnly = false }) {
               );
             })}
           </div>
-
-          {/* DONATION STATUS FILTER GROUP */}
-          <div className="flex flex-wrap items-center gap-2 bg-white/80 rounded-2xl px-2 py-2 ring-1 ring-black/5 shadow-sm w-full sm:w-auto">
+          
+          {/* Donation Status */}
+          <div className="flex items-center gap-2 bg-white/80 rounded-2xl px-2 py-2 ring-1 ring-black/5 shadow-sm">
             {[
-              { key: "all", label: "All", tone: "bg-white" },
               {
                 key: "available",
-                label: `Available (${donationCounts.available})`,
+                label: `Available (${combinedCounts.available})`,
                 tone: "bg-green-100",
               },
               {
                 key: "requested",
-                label: `Requested (${donationCounts.requested})`,
+                label: `Requested (${combinedCounts.requested})`,
                 tone: "bg-blue-100",
               },
               {
                 key: "donated",
-                label: `Donated (${donationCounts.donated})`,
+                label: `Donated (${combinedCounts.donated})`,
                 tone: "bg-amber-100",
               },
               {
                 key: "unavailable",
-                label: `Unavailable (${donationCounts.unavailable})`,
+                label: `Unavailable (${combinedCounts.unavailable})`,
                 tone: "bg-red-100",
               },
             ].map(({ key, label, tone }) => {
-              const active = donationFilter === key;
+              const active = combinedFilter === key;
               return (
                 <button
                   key={key}
-                  onClick={() => setDonationFilter(key)}
+                  onClick={() => setCombinedFilter(key)}
                   className={
                     "text-xs sm:text-sm rounded-full px-3 py-1 transition " +
                     (active
@@ -1199,15 +1227,14 @@ export default function BakeryInventory({ isViewOnly = false }) {
               );
             })}
           </div>
-
           {/* Name filter */}
-          <div className="relative w-full sm:w-[260px] sm:ml-auto">
+          <div className="relative w-full sm:w-[260px]">
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Filter by product name…"
-              className="w-full sm:w-[260px] rounded-full bg-white/90 ring-1 ring-black/10 px-4 py-2 pr-9 shadow-sm outline-none focus:ring-2 focus:ring-[#E49A52]"
+              className="w-full rounded-full bg-white/90 ring-1 ring-black/10 px-4 py-2 pr-9 shadow-sm outline-none focus:ring-2 focus:ring-[#E49A52]"
             />
             {query && (
               <button
@@ -1339,23 +1366,25 @@ export default function BakeryInventory({ isViewOnly = false }) {
             ) : (
               <tr>
                 <td className="py-10 text-gray-500 text-center" colSpan={11}>
-                  {query || statusFilter !== "all" || donationFilter !== "all"
+                  {query || combinedFilter !== "all"
                     ? "No products match your filters."
                     : "No items found."}
                 </td>
               </tr>
             )}
-          </tbody>
+          </tbody> 
         </table>
       </div>
 
       {/* Pagination controls */}
       {filteredInventory.length > 0 && (
         <div className="mt-3 flex flex-col gap-2 text-xs text-[#6b4b2b] sm:flex-row sm:items-center sm:justify-between">
-          <span>
+          <span> <strong>
             Showing {startIndex + 1}–
             {Math.min(startIndex + pageSize, filteredInventory.length)} of{" "}
             {filteredInventory.length}
+            {" | "}
+            Total Quantity: {filteredInventory.reduce((sum, item) => sum + Number(item.quantity || 0), 0)}</strong>
           </span>
 
           <div className="flex items-center gap-2">

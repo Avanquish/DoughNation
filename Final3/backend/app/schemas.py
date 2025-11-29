@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
 from datetime import date, datetime
 
@@ -93,17 +93,17 @@ class BakeryInventoryUpdate(BaseModel):
 # ------------------ BAKERY EMPLOYEE ------------------
 class EmployeeBase(BaseModel):
     name: str
-    role: str  # Owner, Manager, Full-time, Part-time
+    email: EmailStr  # Employee's Gmail address
+    role: str  # Manager, Employee
     start_date: date
 
 class EmployeeCreate(EmployeeBase):
     password: Optional[str] = None  # Optional password for login
 
 class EmployeeLogin(BaseModel):
-    """Employee login with name and password"""
-    name: str
+    """Employee login with employee_id and password"""
+    employee_id: str  # Changed from 'name' to 'employee_id'
     password: str
-    bakery_id: int
 
 class EmployeeChangePassword(BaseModel):
     """Employee password change request"""
@@ -120,8 +120,10 @@ class EmployeeUpdate(BaseModel):
 
 class EmployeeOut(BaseModel):
     id: int
+    employee_id: Optional[str] = None  # Unique Employee ID (e.g., EMP-5-001)
     bakery_id: int
     name: str
+    email: str  # Employee's Gmail address
     role: str
     start_date: date
     profile_picture: Optional[str] = None
@@ -183,6 +185,10 @@ class DonationRead(DonationBase):
 class DonationRequestCreate(BaseModel):
     donation_id: int
     bakery_id: int
+    requested_quantity: int = Field(..., gt=0, description="Quantity requested by charity")
+    
+    class Config:
+        from_attributes = True
     
 class DonationRequestRead(BaseModel):
     id: int
@@ -353,7 +359,10 @@ class ComplaintOut(ComplaintBase):
     updated_at: datetime 
     user_id: int
     user_name: Optional[str] = None  
-    user_email: Optional[str] = None  
+    user_email: Optional[str] = None
+    admin_reply: Optional[str] = None
+    replied_at: Optional[datetime] = None
+    replied_by: Optional[int] = None
 
     class Config:
         from_attributes = True

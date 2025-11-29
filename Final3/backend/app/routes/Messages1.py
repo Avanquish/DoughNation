@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, func, not_
 from app import models, database
 from datetime import datetime
+from app.timezone_utils import now_ph
 from typing import Optional, List
 import base64, os, json
 from uuid import uuid4
@@ -119,7 +120,7 @@ async def send_message(request: Request, db: Session = Depends(get_db), current_
         content=content,
         image=file_url if file_url and image_field else None,
         video=file_url if file_url and video_field else None,
-        timestamp=datetime.utcnow(),
+        timestamp=now_ph(),
         is_card=is_card,
         is_read=False
     )
@@ -183,31 +184,19 @@ async def delete_message(
         else:
             raise HTTPException(status_code=403, detail="Cannot delete this message")
     else:
-        # delete for everyone
-        allow_delete_for_all = False
-
-        # sender can always delete
-        if msg.sender_id == current_user.id:
-            allow_delete_for_all = True
-        else:
-            # check if it's a donation card and current user is Bakery
-            try:
-                parsed_content = json.loads(msg.content)
-            except Exception:
-                parsed_content = {}
-
-            is_donation_card = parsed_content.get("type") == "donation_card"
-            donation_info = parsed_content.get("donation") or {}
-
-            # only allow if Bakery user owns this donation
-            if current_user.role == "Bakery" and is_donation_card:
-                if donation_info.get("bakery_id") == current_user.id:
-                    allow_delete_for_all = True
-
-        if allow_delete_for_all:
-            db.delete(msg)
-        else:
-            raise HTTPException(status_code=403, detail="Cannot delete this message for everyone")
+        # delete for everyone - mark as deleted instead of removing
+        if msg.sender_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Only sender can delete for everyone")
+        
+        # Mark message as deleted for all by updating content
+        try:
+            parsed_content = json.loads(msg.content) if isinstance(msg.content, str) else {}
+        except:
+            parsed_content = {}
+        
+        parsed_content["type"] = "deleted"
+        msg.content = json.dumps(parsed_content)
+        msg.deleted_for_all = True  # Add this flag to your model if not exists
 
     db.commit()
     return {"status": "ok", "id": message_id}
@@ -223,7 +212,6 @@ async def accept_donation(message_id: int = Form(...), db: Session = Depends(get
     msg.accepted_by_receiver = True
     db.commit()
     return {"status": "ok", "id": message_id}
-
 
 # --- Fetch history with polling ---
 @router.get("/messages/history")
@@ -251,7 +239,8 @@ def get_history(peer_id: int = Query(...), db: Session = Depends(get_db), curren
             "timestamp": m.timestamp.isoformat(),
             "is_card": getattr(m, "is_card", False),
             "accepted": getattr(m, "accepted_by_receiver", False),
-            "is_read": m.is_read
+            "is_read": m.is_read,
+            "deleted_for_all": getattr(m, "deleted_for_all", False)
         })
 
     # Mark unread as read

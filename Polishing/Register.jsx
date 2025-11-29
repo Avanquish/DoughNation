@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useSubmitGuard } from "../hooks/useDebounce";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { useNavigate, Link } from "react-router-dom";
@@ -49,6 +50,7 @@ const LocationSelector = ({ setLocation, setFormData }) => {
 
 export default function Register() {
   const navigate = useNavigate();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   /** Form fields (unchanged logic) */
   const [formData, setFormData] = useState({
@@ -136,6 +138,18 @@ export default function Register() {
   const handleInputChange = (field, value) =>
     setFormData({ ...formData, [field]: value });
 
+  // Check if all password requirements are met
+  const isPasswordValid = () => {
+    const { password } = formData;
+    return (
+      password.length >= 8 &&
+      /[A-Z]/.test(password) &&
+      /[a-z]/.test(password) &&
+      /[0-9]/.test(password) &&
+      /[!@#$%^&*(),.?":{}|<>]/.test(password)
+    );
+  };
+
   const checkEmailAvailability = async (email) => {
     if (!email || !email.includes("@")) return;
     setEmailChecking(true);
@@ -154,6 +168,8 @@ export default function Register() {
   /** Submit - Updated for Gmail-based authentication */
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     const { email, password, confirm_password } = formData;
 
     // Gmail validation
@@ -163,6 +179,35 @@ export default function Register() {
         icon: "error",
         title: "Invalid Email",
         text: "Please use a Gmail address (@gmail.com) to register.",
+      });
+    }
+
+    // Password requirements validation
+    const passwordErrors = [];
+    if (password.length < 8) {
+      passwordErrors.push("• At least 8 characters");
+    }
+    if (!/[A-Z]/.test(password)) {
+      passwordErrors.push("• One uppercase letter");
+    }
+    if (!/[a-z]/.test(password)) {
+      passwordErrors.push("• One lowercase letter");
+    }
+    if (!/[0-9]/.test(password)) {
+      passwordErrors.push("• One number");
+    }
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      passwordErrors.push("• One special character");
+    }
+
+    if (passwordErrors.length > 0) {
+      return Swal.fire({
+        icon: "error",
+        title: "Password Requirements Not Met",
+        html: `Your password must meet the following requirements:<br><br>${passwordErrors.join(
+          "<br>"
+        )}`,
+        confirmButtonColor: "#A97142",
       });
     }
 
@@ -191,6 +236,7 @@ export default function Register() {
       submitData.append("longitude", location.lng);
     }
 
+    setIsSubmitting(true);
     try {
       await axios.post("http://localhost:8000/register", submitData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -212,6 +258,8 @@ export default function Register() {
         title: "Registration Failed",
         text: error?.response?.data?.detail || "Something went wrong.",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -646,18 +694,24 @@ export default function Register() {
                     </button>
                   </div>
 
-                  {/* passwords match banner */}
-                  {formData.password && formData.confirm_password && (
-                    <div
-                      className={`mt-2 text-sm p-2 rounded-xl border ${
-                        formData.password === formData.confirm_password
-                          ? "bg-emerald-50/80 text-emerald-700 border-emerald-200"
-                          : "bg-rose-50/80 text-rose-700 border-rose-200"
-                      }`}
-                    >
-                      {formData.password === formData.confirm_password
-                        ? "✓ Passwords match"
-                        : "✗ Passwords don't match"}
+                  {/* passwords match indicator */}
+                  {formData.confirm_password && (
+                    <div className="flex items-center gap-2 text-xs mt-2">
+                      {formData.password === formData.confirm_password ? (
+                        <>
+                          <div className="h-2 w-2 bg-emerald-500 rounded-full" />
+                          <span className="text-emerald-700 font-medium">
+                            Passwords match
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <div className="h-2 w-2 bg-rose-500 rounded-full" />
+                          <span className="text-rose-600 font-medium">
+                            Passwords don't match
+                          </span>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -766,12 +820,30 @@ export default function Register() {
               {/* Submit */}
               <Button
                 type="submit"
-                className="w-full text-[15px] sm:text-[16px] text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E] hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl transition-transform duration-150 active:scale-[0.99]"
+                className="w-full text-[15px] sm:text-[16px] text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E] hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl transition-transform duration-150 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ height: "clamp(44px, 5.5svh, 52px)" }}
-                disabled={!emailAvailable}
+                disabled={
+                  !emailAvailable ||
+                  isSubmitting ||
+                  !isPasswordValid() ||
+                  formData.password !== formData.confirm_password
+                }
               >
-                Create Account
+                {isSubmitting ? "Creating Account..." : "Create Account"}
               </Button>
+
+              {/* Validation message */}
+              {(!isPasswordValid() ||
+                formData.password !== formData.confirm_password) &&
+                formData.password && (
+                  <p className="text-xs text-center text-amber-600">
+                    {!isPasswordValid()
+                      ? "⚠️ Please meet all password requirements above"
+                      : formData.password !== formData.confirm_password
+                      ? "⚠️ Passwords must match"
+                      : ""}
+                  </p>
+                )}
 
               {/* Links */}
               <div

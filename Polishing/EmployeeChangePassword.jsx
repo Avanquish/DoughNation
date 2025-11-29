@@ -487,18 +487,24 @@ const EmployeeChangePassword = () => {
                 </div>
               </div>
 
-              {/* Passwords match indicator */}
-              {newPassword && confirmPassword && (
-                <div
-                  className={`text-sm p-2 rounded-xl border ${
-                    newPassword === confirmPassword
-                      ? "bg-emerald-50/80 text-emerald-700 border-emerald-200"
-                      : "bg-rose-50/80 text-rose-700 border-rose-200"
-                  }`}
-                >
-                  {newPassword === confirmPassword
-                    ? "✓ Passwords match"
-                    : "✗ Passwords don't match"}
+              {/* passwords match indicator */}
+              {confirmPassword && (
+                <div className="flex items-center gap-2 text-xs mt-2">
+                  {newPassword === confirmPassword ? (
+                    <>
+                      <div className="h-2 w-2 bg-emerald-500 rounded-full" />
+                      <span className="text-emerald-700 font-medium">
+                        Passwords match
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="h-2 w-2 bg-rose-500 rounded-full" />
+                      <span className="text-rose-600 font-medium">
+                        Passwords don't match
+                      </span>
+                    </>
+                  )}
                 </div>
               )}
 

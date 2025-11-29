@@ -24,7 +24,10 @@ import {
   Info,
   Phone,
   User as UserIcon,
+  Eye,
+  EyeOff,
 } from "lucide-react";
+
 import { useNavigate } from "react-router-dom";
 import Messages1 from "./Messages1";
 import BakeryNotification from "./BakeryNotification";
@@ -80,6 +83,47 @@ export default function BakeryProfile() {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isMsgOpen, setIsMsgOpen] = useState(false);
   const [inventory, setInventory] = useState([]);
+
+  // ===== Change Password UI-only state (show/hide + meter) =====
+  const [showCurrentPwd, setShowCurrentPwd] = useState(false);
+  const [showNewPwd, setShowNewPwd] = useState(false);
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
+
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const passwordChecks = useMemo(
+    () => ({
+      length: newPassword.length >= 8,
+      upper: /[A-Z]/.test(newPassword),
+      lower: /[a-z]/.test(newPassword),
+      number: /[0-9]/.test(newPassword),
+      special: /[!@#$%^&*(),.?":{}|<>]/.test(newPassword),
+    }),
+    [newPassword]
+  );
+
+  const passScore = useMemo(
+    () => Object.values(passwordChecks).filter(Boolean).length,
+    [passwordChecks]
+  );
+
+  const getStrengthColor = () => {
+    if (!newPassword) return "#e5e7eb"; // gray
+    if (passScore <= 1) return "#f87171"; // red
+    if (passScore <= 3) return "#fbbf24"; // amber
+    if (passScore === 4) return "#60a5fa"; // blue
+    return "#22c55e"; // green
+  };
+
+  const getStrengthLabel = () => {
+    if (!newPassword) return "Add a strong password";
+    if (passScore <= 1) return "Weak";
+    if (passScore <= 3) return "Okay";
+    if (passScore === 4) return "Good";
+    return "Strong";
+  };
+
   const [employeeCount, setEmployeeCount] = useState(0);
   const [readProductIds, setReadProductIds] = useState(new Set());
   const [readMessageIds, setReadMessageIds] = useState(new Set());
@@ -103,8 +147,12 @@ export default function BakeryProfile() {
         const decoded = JSON.parse(atob(employeeToken.split(".")[1]));
         setIsEmployeeMode(true);
         setBakeryId(decoded.bakery_id);
-        setName(decoded.name || "Bakery Name");
-        setCurrentUser(decoded);
+        setName(decoded.bakery_name || decoded.name || "Bakery Name");
+        setCurrentUser({
+          employee_name: decoded.employee_name,
+          role: decoded.employee_role,
+          bakery_id: decoded.bakery_id,
+        });
       } catch (err) {
         console.error("Error decoding employee token:", err);
       }
@@ -192,7 +240,18 @@ export default function BakeryProfile() {
         const user = res.data;
         setProfilePic(user.profile_picture);
         setName(user.name);
-        setCurrentUser(user); // full user object
+
+        // If employee mode, preserve employee info from token
+        if (employeeToken) {
+          const decoded = JSON.parse(atob(employeeToken.split(".")[1]));
+          setCurrentUser({
+            ...user, // bakery details
+            employee_name: decoded.employee_name,
+            role: decoded.employee_role,
+          });
+        } else {
+          setCurrentUser(user); // full user object for owner
+        }
       } catch (err) {
         console.error("Failed to fetch user:", err);
       }
@@ -777,6 +836,10 @@ export default function BakeryProfile() {
         box-shadow:0 14px 32px rgba(185,28,28,.55);
       }
 
+      .modal-input::-ms-reveal,
+      .modal-input::-ms-clear {
+        display: none;
+      }
     `}</style>
   );
 
@@ -845,16 +908,33 @@ export default function BakeryProfile() {
                 <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[var(--ink)]">
                   {name}
                 </h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  <span className="font-semibold text-[var(--ink)]">
+                    {isEmployeeMode
+                      ? currentUser?.employee_name || "Employee"
+                      : currentUser?.contact_person || "Owner"}
+                  </span>
+                  <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                    {isEmployeeMode ? currentUser?.role || "Employee" : "Owner"}
+                  </span>
+                </p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Button
-                    className="btn-pill"
-                    onClick={() => setIsEditOpen(true)}
-                  >
-                    Edit Profile
-                  </Button>
+                  {/* Only owner can edit profile */}
+                  {!isEmployeeMode && (
+                    <Button
+                      className="btn-pill"
+                      onClick={() => setIsEditOpen(true)}
+                    >
+                      Edit Profile
+                    </Button>
+                  )}
                   <Button
                     className="btn-change"
-                    onClick={() => setIsChangePassOpen(true)}
+                    onClick={() => {
+                      setIsChangePassOpen(true);
+                      setNewPassword("");
+                      setConfirmPassword("");
+                    }}
                   >
                     Change Password
                   </Button>
@@ -865,13 +945,10 @@ export default function BakeryProfile() {
             {/* ===== Edit Profile Modal ===== */}
             {isEditOpen && (
               <div className="overlay-root" role="dialog" aria-modal="true">
-                {/* dark + blur background; click to close */}
                 <div
                   className="overlay-bg"
                   onClick={() => setIsEditOpen(false)}
                 />
-
-                {/* animated panel */}
                 <div className="overlay-panel overlay-enter">
                   <Card className="modal-card">
                     <CardHeader className="modal-head">
@@ -881,45 +958,56 @@ export default function BakeryProfile() {
                     </CardHeader>
 
                     <CardContent>
-                      {/* --- KEEP your existing form exactly as-is below --- */}
                       <form className="space-y-3" onSubmit={handleEditSubmit}>
+                        {/* Bakery Name */}
                         <div className="flex flex-col">
                           <p className="brown-title">Bakery Name</p>
                           <input
                             type="text"
                             name="name"
                             defaultValue={name}
+                            placeholder="Enter bakery name"
                             className="w-full modal-input"
                           />
                         </div>
 
+                        {/* Contact Person */}
                         <div className="flex flex-col">
                           <p className="brown-title">Contact Person</p>
                           <input
                             type="text"
                             name="contact_person"
+                            defaultValue={currentUser?.contact_person || ""}
+                            placeholder="Enter contact person name"
                             className="w-full modal-input"
                           />
                         </div>
 
+                        {/* Contact Number */}
                         <div className="flex flex-col">
                           <p className="brown-title">Contact Number</p>
                           <input
                             type="text"
                             name="contact_number"
+                            defaultValue={currentUser?.contact_number || ""}
+                            placeholder="Enter contact number"
                             className="w-full modal-input"
                           />
                         </div>
 
+                        {/* About Your Bakery */}
                         <div className="flex flex-col">
                           <p className="brown-title">About Your Bakery</p>
                           <textarea
                             name="about"
                             rows="4"
                             className="w-full modal-input resize-none"
+                            defaultValue={currentUser?.about || ""}
+                            placeholder="Tell about your bakery, mission, and story..."
                           />
                         </div>
 
+                        {/* Profile Picture */}
                         <div className="flex flex-col">
                           <p className="brown-title">Profile Picture</p>
                           <input
@@ -943,7 +1031,6 @@ export default function BakeryProfile() {
                           </Button>
                         </div>
                       </form>
-                      {/* --- END: keep your form --- */}
                     </CardContent>
                   </Card>
                 </div>
@@ -953,10 +1040,13 @@ export default function BakeryProfile() {
             {/* ===== Change Password Modal ===== */}
             {isChangePassOpen && (
               <div className="overlay-root" role="dialog" aria-modal="true">
-                {/* dark + blur background; click to close */}
                 <div
                   className="overlay-bg"
-                  onClick={() => setIsChangePassOpen(false)}
+                  onClick={() => {
+                    setIsChangePassOpen(false);
+                    setNewPassword("");
+                    setConfirmPassword("");
+                  }}
                 />
 
                 {/* animated panel */}
@@ -974,41 +1064,209 @@ export default function BakeryProfile() {
                         className="space-y-3"
                         onSubmit={handleChangePassword}
                       >
+                        {/* Current password with eye icon */}
                         <div className="flex flex-col">
                           <p className="brown-title">Current Password</p>
-                          <input
-                            type="password"
-                            name="current_password"
-                            required
-                            className="w-full modal-input"
-                          />
+                          <div className="relative">
+                            <input
+                              type={showCurrentPwd ? "text" : "password"}
+                              name="current_password"
+                              required
+                              placeholder="Enter current password"
+                              className="w-full modal-input pr-10"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowCurrentPwd((s) => !s)}
+                              aria-label={
+                                showCurrentPwd
+                                  ? "Hide password"
+                                  : "Show password"
+                              }
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A66B2E] hover:text-[#81531f]"
+                            >
+                              {showCurrentPwd ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
                         </div>
 
+                        {/* New password with eye icon + strength meter */}
                         <div className="flex flex-col">
                           <p className="brown-title">New Password</p>
-                          <input
-                            type="password"
-                            name="new_password"
-                            required
-                            className="w-full modal-input"
-                          />
+                          <div className="relative">
+                            <input
+                              type={showNewPwd ? "text" : "password"}
+                              name="new_password"
+                              required
+                              placeholder="Create password"
+                              className="w-full modal-input pr-10"
+                              onChange={(e) => setNewPassword(e.target.value)}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowNewPwd((s) => !s)}
+                              aria-label={
+                                showNewPwd ? "Hide password" : "Show password"
+                              }
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A66B2E] hover:text-[#81531f]"
+                            >
+                              {showNewPwd ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
+
+                          {/* strength meter (visual only) */}
+                          {newPassword && (
+                            <div className="mt-2">
+                              <div className="h-2 w-full bg-[#FFE1BE]/70 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full transition-all"
+                                  style={{
+                                    width: `${(passScore / 5) * 100}%`,
+                                    background: getStrengthColor(),
+                                  }}
+                                />
+                              </div>
+                              <p className="mt-1 text-xs text-[#a47134]/80">
+                                Strength:{" "}
+                                <span className="font-semibold">
+                                  {getStrengthLabel()}
+                                </span>
+                              </p>
+                            </div>
+                          )}
                         </div>
 
+                        {/* Confirm new password with eye icon + match text */}
                         <div className="flex flex-col">
                           <p className="brown-title">Confirm New Password</p>
-                          <input
-                            type="password"
-                            name="confirm_password"
-                            required
-                            className="w-full modal-input"
-                          />
+                          <div className="relative">
+                            <input
+                              type={showConfirmPwd ? "text" : "password"}
+                              name="confirm_password"
+                              required
+                              placeholder="Re-enter new password"
+                              className="w-full modal-input pr-10"
+                              onChange={(e) =>
+                                setConfirmPassword(e.target.value)
+                              }
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfirmPwd((s) => !s)}
+                              aria-label={
+                                showConfirmPwd
+                                  ? "Hide password"
+                                  : "Show password"
+                              }
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A66B2E] hover:text-[#81531f]"
+                            >
+                              {showConfirmPwd ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
+
+                          {/* password match indicator – UI only */}
+                          {confirmPassword && (
+                            <div className="flex items-center gap-2 text-xs mt-2">
+                              {newPassword === confirmPassword ? (
+                                <>
+                                  <div className="h-2 w-2 bg-emerald-500 rounded-full" />
+                                  <span className="text-emerald-700 font-medium">
+                                    Passwords match
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="h-2 w-2 bg-rose-500 rounded-full" />
+                                  <span className="text-rose-600 font-medium">
+                                    Passwords don't match
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          )}
                         </div>
 
+                        {/* Password requirements (same style as Register) */}
+                        <div className="bg-[#FFF7EC] border border-[#FFE1BE] rounded-xl p-3 text-xs space-y-1.5">
+                          <p className="font-semibold text-[#8f642a]">
+                            Password Requirements
+                          </p>
+                          <ul className="space-y-1.5 text-[#a47134]">
+                            <li className="flex items-center gap-2">
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${
+                                  passwordChecks.length
+                                    ? "bg-emerald-500"
+                                    : "bg-[#E3B57E]"
+                                }`}
+                              />
+                              At least 8 characters
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${
+                                  passwordChecks.upper
+                                    ? "bg-emerald-500"
+                                    : "bg-[#E3B57E]"
+                                }`}
+                              />
+                              One uppercase letter
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${
+                                  passwordChecks.lower
+                                    ? "bg-emerald-500"
+                                    : "bg-[#E3B57E]"
+                                }`}
+                              />
+                              One lowercase letter
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${
+                                  passwordChecks.number
+                                    ? "bg-emerald-500"
+                                    : "bg-[#E3B57E]"
+                                }`}
+                              />
+                              One number
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${
+                                  passwordChecks.special
+                                    ? "bg-emerald-500"
+                                    : "bg-[#E3B57E]"
+                                }`}
+                              />
+                              One special character
+                            </li>
+                          </ul>
+                        </div>
+
+                        {/* Existing buttons – untouched */}
                         <div className="flex justify-end gap-2 pt-1">
                           <Button
                             type="button"
                             variant="ghost"
-                            onClick={() => setIsChangePassOpen(false)}
+                            onClick={() => {
+                              setIsChangePassOpen(false);
+                              setNewPassword("");
+                              setConfirmPassword("");
+                            }}
                           >
                             Cancel
                           </Button>
@@ -1017,7 +1275,6 @@ export default function BakeryProfile() {
                           </Button>
                         </div>
                       </form>
-                      {/* --- END: keep your form --- */}
                     </CardContent>
                   </Card>
                 </div>

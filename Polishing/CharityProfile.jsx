@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useSubmitGuard } from "../hooks/useDebounce";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +19,8 @@ import {
   Phone,
   User as UserIcon,
   AlertTriangle,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import Messages1 from "./Messages1";
@@ -48,12 +51,53 @@ const getInitialSubTab = () => {
 export default function CharityProfile() {
   const { id } = useParams();
   const [name, setName] = useState("Charity");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState(getInitialSubTab);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isChangePassOpen, setIsChangePassOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [profilePic, setProfilePic] = useState(null);
   const navigate = useNavigate();
+
+  /* ===== Change Password UI state ===== */
+  const [showCurrentPwd, setShowCurrentPwd] = useState(false);
+  const [showNewPwd, setShowNewPwd] = useState(false);
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
+
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const passwordChecks = useMemo(
+    () => ({
+      length: newPassword.length >= 8,
+      upper: /[A-Z]/.test(newPassword),
+      lower: /[a-z]/.test(newPassword),
+      number: /[0-9]/.test(newPassword),
+      special: /[!@#$%^&*(),.?":{}|<>]/.test(newPassword),
+    }),
+    [newPassword]
+  );
+
+  const passScore = useMemo(
+    () => Object.values(passwordChecks).filter(Boolean).length,
+    [passwordChecks]
+  );
+
+  const getStrengthColor = () => {
+    if (!newPassword) return "#e5e7eb"; // gray
+    if (passScore <= 1) return "#f87171"; // red
+    if (passScore <= 3) return "#fbbf24"; // amber
+    if (passScore === 4) return "#60a5fa"; // blue
+    return "#22c55e"; // green
+  };
+
+  const getStrengthLabel = () => {
+    if (!newPassword) return "Add a strong password";
+    if (passScore <= 1) return "Weak";
+    if (passScore <= 3) return "Okay";
+    if (passScore === 4) return "Good";
+    return "Strong";
+  };
 
   /* Keep URL + storage in sync with the current sub-tab */
   useEffect(() => {
@@ -72,7 +116,16 @@ export default function CharityProfile() {
     } catch {}
   }, [activeSubTab]);
 
-  /* Fetch current user */
+  /* Lock scroll when a modal is open */
+  useEffect(() => {
+    const anyOpen = isEditOpen || isChangePassOpen;
+    document.documentElement.style.overflow = anyOpen ? "hidden" : "";
+    return () => {
+      document.documentElement.style.overflow = "";
+    };
+  }, [isEditOpen, isChangePassOpen]);
+
+  /* Fetch current user (first effect) */
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -115,6 +168,8 @@ export default function CharityProfile() {
   /* Edit Profile */
   const handleEditSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     const token = localStorage.getItem("token");
 
     const formData = new FormData();
@@ -139,6 +194,7 @@ export default function CharityProfile() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       await axios.put(`${API}/edit`, formData, {
         headers: {
@@ -164,10 +220,12 @@ export default function CharityProfile() {
         title: "Update Failed",
         text: "There was an error saving your changes. Please try again.",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  /* Change Password */
+  /* Change Password (logic same, UI upgraded) */
   const handleChangePassword = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem("token");
@@ -196,6 +254,9 @@ export default function CharityProfile() {
       });
 
       setIsChangePassOpen(false);
+      setNewPassword("");
+      setConfirmPassword("");
+
       Swal.fire({
         icon: "success",
         title: "Password Updated",
@@ -279,7 +340,7 @@ export default function CharityProfile() {
     }
   };
 
-  /* Fetch current user */
+  /* Second fetch user (kept as in your code) */
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -573,6 +634,10 @@ export default function CharityProfile() {
         box-shadow:0 14px 32px rgba(185,28,28,.55);
       }
 
+      .modal-input::-ms-reveal,
+      .modal-input::-ms-clear {
+        display: none;
+      }
     `}</style>
   );
 
@@ -645,7 +710,11 @@ export default function CharityProfile() {
                   </Button>
                   <Button
                     className="btn-change"
-                    onClick={() => setIsChangePassOpen(true)}
+                    onClick={() => {
+                      setIsChangePassOpen(true);
+                      setNewPassword("");
+                      setConfirmPassword("");
+                    }}
                   >
                     Change Password
                   </Button>
@@ -669,40 +738,55 @@ export default function CharityProfile() {
                     </CardHeader>
                     <CardContent>
                       <form className="space-y-3" onSubmit={handleEditSubmit}>
+                        {/* Charity Name */}
                         <div className="flex flex-col">
                           <p className="brown-title">Charity Name</p>
                           <input
                             type="text"
                             name="name"
                             defaultValue={name}
+                            placeholder="Enter charity name"
                             className="w-full modal-input"
                           />
                         </div>
+
+                        {/* Contact Person */}
                         <div className="flex flex-col">
                           <p className="brown-title">Contact Person</p>
                           <input
                             type="text"
                             name="contact_person"
+                            defaultValue={currentUser?.contact_person || ""}
+                            placeholder="Enter contact person name"
                             className="w-full modal-input"
                           />
                         </div>
+
+                        {/* Contact Number */}
                         <div className="flex flex-col">
                           <p className="brown-title">Contact Number</p>
                           <input
                             type="text"
                             name="contact_number"
+                            defaultValue={currentUser?.contact_number || ""}
+                            placeholder="Enter contact number"
                             className="w-full modal-input"
                           />
                         </div>
+
+                        {/* About Your Charity */}
                         <div className="flex flex-col">
                           <p className="brown-title">About Your Charity</p>
                           <textarea
                             name="about"
                             rows="4"
                             className="w-full modal-input resize-none"
+                            defaultValue={currentUser?.about || ""}
                             placeholder="Tell about your charity, mission, and story..."
                           />
                         </div>
+
+                        {/* Profile Picture */}
                         <div className="flex flex-col">
                           <p className="brown-title">Profile Picture</p>
                           <input
@@ -712,6 +796,7 @@ export default function CharityProfile() {
                             className="w-full modal-input"
                           />
                         </div>
+
                         <div className="flex justify-end gap-2 pt-1">
                           <Button
                             type="button"
@@ -725,7 +810,6 @@ export default function CharityProfile() {
                           </Button>
                         </div>
                       </form>
-                      {/* end keep form */}
                     </CardContent>
                   </Card>
                 </div>
@@ -737,7 +821,11 @@ export default function CharityProfile() {
               <div className="overlay-root" role="dialog" aria-modal="true">
                 <div
                   className="overlay-bg"
-                  onClick={() => setIsChangePassOpen(false)}
+                  onClick={() => {
+                    setIsChangePassOpen(false);
+                    setNewPassword("");
+                    setConfirmPassword("");
+                  }}
                 />
                 <div className="overlay-panel overlay-enter">
                   <Card className="modal-card">
@@ -751,38 +839,206 @@ export default function CharityProfile() {
                         className="space-y-3"
                         onSubmit={handleChangePassword}
                       >
+                        {/* Current password with eye icon */}
                         <div className="flex flex-col">
                           <p className="brown-title">Current Password</p>
-                          <input
-                            type="password"
-                            name="current_password"
-                            required
-                            className="w-full modal-input"
-                          />
+                          <div className="relative">
+                            <input
+                              type={showCurrentPwd ? "text" : "password"}
+                              name="current_password"
+                              required
+                              placeholder="Enter current password"
+                              className="w-full modal-input pr-10"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowCurrentPwd((s) => !s)}
+                              aria-label={
+                                showCurrentPwd
+                                  ? "Hide password"
+                                  : "Show password"
+                              }
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A66B2E] hover:text-[#81531f]"
+                            >
+                              {showCurrentPwd ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
                         </div>
+
+                        {/* New password with eye + strength meter */}
                         <div className="flex flex-col">
                           <p className="brown-title">New Password</p>
-                          <input
-                            type="password"
-                            name="new_password"
-                            required
-                            className="w-full modal-input"
-                          />
+                          <div className="relative">
+                            <input
+                              type={showNewPwd ? "text" : "password"}
+                              name="new_password"
+                              required
+                              placeholder="Create password"
+                              className="w-full modal-input pr-10"
+                              onChange={(e) => setNewPassword(e.target.value)}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowNewPwd((s) => !s)}
+                              aria-label={
+                                showNewPwd ? "Hide password" : "Show password"
+                              }
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A66B2E] hover:text-[#81531f]"
+                            >
+                              {showNewPwd ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
+
+                          {newPassword && (
+                            <div className="mt-2">
+                              <div className="h-2 w-full bg-[#FFE1BE]/70 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full transition-all"
+                                  style={{
+                                    width: `${(passScore / 5) * 100}%`,
+                                    background: getStrengthColor(),
+                                  }}
+                                />
+                              </div>
+                              <p className="mt-1 text-xs text-[#a47134]/80">
+                                Strength:{" "}
+                                <span className="font-semibold">
+                                  {getStrengthLabel()}
+                                </span>
+                              </p>
+                            </div>
+                          )}
                         </div>
+
+                        {/* Confirm new password with eye + match indicator */}
                         <div className="flex flex-col">
                           <p className="brown-title">Confirm New Password</p>
-                          <input
-                            type="password"
-                            name="confirm_password"
-                            required
-                            className="w-full modal-input"
-                          />
+                          <div className="relative">
+                            <input
+                              type={showConfirmPwd ? "text" : "password"}
+                              name="confirm_password"
+                              required
+                              placeholder="Re-enter new password"
+                              className="w-full modal-input pr-10"
+                              onChange={(e) =>
+                                setConfirmPassword(e.target.value)
+                              }
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfirmPwd((s) => !s)}
+                              aria-label={
+                                showConfirmPwd
+                                  ? "Hide password"
+                                  : "Show password"
+                              }
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A66B2E] hover:text-[#81531f]"
+                            >
+                              {showConfirmPwd ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
+
+                          {confirmPassword && (
+                            <div className="flex items-center gap-2 text-xs mt-2">
+                              {newPassword === confirmPassword ? (
+                                <>
+                                  <div className="h-2 w-2 bg-emerald-500 rounded-full" />
+                                  <span className="text-emerald-700 font-medium">
+                                    Passwords match
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="h-2 w-2 bg-rose-500 rounded-full" />
+                                  <span className="text-rose-600 font-medium">
+                                    Passwords don't match
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          )}
                         </div>
+
+                        {/* Password requirements */}
+                        <div className="bg-[#FFF7EC] border border-[#FFE1BE] rounded-xl p-3 text-xs space-y-1.5">
+                          <p className="font-semibold text-[#8f642a]">
+                            Password Requirements
+                          </p>
+                          <ul className="space-y-1.5 text-[#a47134]">
+                            <li className="flex items-center gap-2">
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${
+                                  passwordChecks.length
+                                    ? "bg-emerald-500"
+                                    : "bg-[#E3B57E]"
+                                }`}
+                              />
+                              At least 8 characters
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${
+                                  passwordChecks.upper
+                                    ? "bg-emerald-500"
+                                    : "bg-[#E3B57E]"
+                                }`}
+                              />
+                              One uppercase letter
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${
+                                  passwordChecks.lower
+                                    ? "bg-emerald-500"
+                                    : "bg-[#E3B57E]"
+                                }`}
+                              />
+                              One lowercase letter
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${
+                                  passwordChecks.number
+                                    ? "bg-emerald-500"
+                                    : "bg-[#E3B57E]"
+                                }`}
+                              />
+                              One number
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${
+                                  passwordChecks.special
+                                    ? "bg-emerald-500"
+                                    : "bg-[#E3B57E]"
+                                }`}
+                              />
+                              One special character
+                            </li>
+                          </ul>
+                        </div>
+
                         <div className="flex justify-end gap-2 pt-1">
                           <Button
                             type="button"
                             variant="ghost"
-                            onClick={() => setIsChangePassOpen(false)}
+                            onClick={() => {
+                              setIsChangePassOpen(false);
+                              setNewPassword("");
+                              setConfirmPassword("");
+                            }}
                           >
                             Cancel
                           </Button>
@@ -791,7 +1047,6 @@ export default function CharityProfile() {
                           </Button>
                         </div>
                       </form>
-                      {/* end keep form */}
                     </CardContent>
                   </Card>
                 </div>

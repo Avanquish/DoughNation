@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSubmitGuard } from "../hooks/useDebounce";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -13,13 +14,22 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import Swal from "sweetalert2";
-import { Megaphone, FileText, CheckCircle2, Clock, Search } from "lucide-react";
+import {
+  Megaphone,
+  FileText,
+  CheckCircle2,
+  Clock,
+  Search,
+  Trash2,
+} from "lucide-react";
 
 export default function ComplaintModule({ isViewOnly = false }) {
   const [formData, setFormData] = useState({ subject: "", description: "" });
   const [loading, setLoading] = useState(false);
   const [complaints, setComplaints] = useState([]);
   const [open, setOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // --- UI: search & pagination state ---
   const [searchTerm, setSearchTerm] = useState("");
@@ -30,19 +40,24 @@ export default function ComplaintModule({ isViewOnly = false }) {
   const formatDate = (s) => {
     if (!s) return "—";
 
-    let value = s;
-    if (
-      typeof s === "string" &&
-      !/[zZ]|[+\-]\d{2}:\d{2}$/.test(s) // no timezone suffix
-    ) {
-      value = s + "Z";
+    // Parse datetime string - treat as Philippines time (UTC+8)
+    // Backend sends: "2024-11-29 18:40:00" (already in PH time)
+    let dateStr = s;
+
+    // Add 'T' if space exists (SQL datetime format)
+    if (typeof s === "string" && s.includes(" ")) {
+      dateStr = s.replace(" ", "T");
     }
 
-    const d = new Date(value);
+    // Parse as UTC first, then subtract 8 hours to get the correct UTC time
+    // because the string is actually PH time (UTC+8)
+    const d = new Date(dateStr + "+08:00"); // Tell JS this is UTC+8
+
     if (isNaN(d)) return "—";
 
-    // Display as local time (browser timezone, e.g. Asia/Manila)
+    // Display in Philippines timezone
     return d.toLocaleString("en-US", {
+      timeZone: "Asia/Manila",
       month: "short",
       day: "2-digit",
       year: "numeric",
@@ -80,6 +95,9 @@ export default function ComplaintModule({ isViewOnly = false }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
     setLoading(true);
 
     try {
@@ -108,6 +126,53 @@ export default function ComplaintModule({ isViewOnly = false }) {
       });
     } finally {
       setLoading(false);
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (complaintId) => {
+    if (isDeleting) return;
+
+    const result = await Swal.fire({
+      title: "Delete Concern?",
+      text: "This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#BF7327",
+      cancelButtonColor: "#6b4b2b",
+      confirmButtonText: "Yes, delete it",
+      cancelButtonText: "Cancel",
+    });
+
+    if (!result.isConfirmed) return;
+
+    setIsDeleting(true);
+    try {
+      const token =
+        localStorage.getItem("employeeToken") || localStorage.getItem("token");
+      await axios.delete(`http://localhost:8000/complaints/${complaintId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      Swal.fire({
+        icon: "success",
+        title: "Deleted!",
+        text: "Your concern has been deleted.",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+
+      fetchComplaints();
+    } catch (err) {
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text:
+          err.response?.data?.detail ||
+          "Failed to delete concern. Please try again.",
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -404,11 +469,53 @@ export default function ComplaintModule({ isViewOnly = false }) {
         {/* --- UI: list + pagination --- */}
         <CardContent className="pb-4 pt-3">
           {complaints.length === 0 ? (
-            <p className="text-sm text-gray-500">No concerns submitted yet.</p>
+            <div
+              className="
+        mt-2
+        rounded-3xl
+        border border-[#eadfce]
+        bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
+        shadow-[0_2px_8px_rgba(93,64,28,0.06)]
+        h-48 sm:h-56
+        flex items-center justify-center
+      "
+            >
+              <p
+                className="
+          text-sm
+          text-[#7b5836]
+          bg-white/70 border border-[#f2e3cf]
+          rounded-2xl px-4 py-6
+          text-center
+        "
+              >
+                No concerns submitted yet.
+              </p>
+            </div>
           ) : filteredComplaints.length === 0 ? (
-            <p className="text-sm text-gray-500">
-              No concerns match your search.
-            </p>
+            <div
+              className="
+        mt-2
+        rounded-3xl
+        border border-[#eadfce]
+        bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
+        shadow-[0_2px_8px_rgba(93,64,28,0.06)]
+        h-48 sm:h-56
+        flex items-center justify-center
+      "
+            >
+              <p
+                className="
+          text-sm
+          text-[#7b5836]
+          bg-white/70 border border-[#f2e3cf]
+          rounded-2xl px-4 py-6
+          text-center
+        "
+              >
+                No concerns match your search.
+              </p>
+            </div>
           ) : (
             <>
               <ul className="grid grid-cols-1 gap-3">
@@ -418,11 +525,11 @@ export default function ComplaintModule({ isViewOnly = false }) {
                     <li
                       key={c.id}
                       className="relative overflow-hidden rounded-xl
-                                 border border-[#f2e3cf] bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
-                                 px-4 py-3 text-sm shadow-[0_2px_8px_rgba(93,64,28,.06)]
-                                 transition-all duration-200
-                                 hover:scale-[1.005] hover:shadow-[0_10px_24px_rgba(191,115,39,.16)]
-                                 hover:ring-1 hover:ring-[#E49A52]/35"
+                         border border-[#f2e3cf] bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
+                         px-4 py-3 text-sm shadow-[0_2px_8px_rgba(93,64,28,.06)]
+                         transition-all duration-200
+                         hover:scale-[1.005] hover:shadow-[0_10px_24px_rgba(191,115,39,.16)]
+                         hover:ring-1 hover:ring-[#E49A52]/35"
                     >
                       <div
                         className={`absolute left-0 top-0 h-full w-1 ${chip.bar}`}
@@ -432,12 +539,29 @@ export default function ComplaintModule({ isViewOnly = false }) {
                         <h3 className="truncate text-[15px] font-semibold leading-6 text-[#2b1a0b]">
                           {c.subject}
                         </h3>
-                        <span
-                          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-[11px] font-semibold ${chip.cls}`}
-                        >
-                          {chip.icon}
-                          {chip.label}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-[11px] font-semibold ${chip.cls}`}
+                          >
+                            {chip.icon}
+                            {chip.label}
+                          </span>
+                          {!isViewOnly && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(c.id);
+                              }}
+                              className="flex h-7 w-7 items-center justify-center rounded-full
+                                 border border-red-200 bg-red-50 text-red-600
+                                 transition-all hover:bg-red-100 hover:border-red-300
+                                 hover:shadow-sm active:scale-95"
+                              title="Delete concern"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       {c.description && (

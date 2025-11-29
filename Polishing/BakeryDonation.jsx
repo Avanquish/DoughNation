@@ -17,6 +17,16 @@ const isExpired = (dateStr, serverDate) => {
   return d <= t; // Changed from <= to < (expired means past days only)
 };
 
+const isCreatedToday = (dateStr, serverDate) => {
+  if (!dateStr || !serverDate) return false;
+  const d = new Date(dateStr);
+  const [year, month, day] = serverDate.split("-").map(Number);
+  const t = new Date(year, month - 1, day);
+  t.setHours(0, 0, 0, 0);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime() === t.getTime();
+};
+
 const daysUntil = (dateStr, serverDate) => {
   if (!dateStr || !serverDate) return null;
   const d = new Date(dateStr);
@@ -217,6 +227,7 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
     const recIds = new Set(rec.map((i) => i.id));
     return { recommended: rec, rest: items.filter((i) => !recIds.has(i.id)) };
   };
+
   const fetchInventory = async () => {
     try {
       const res = await axios.get(`${API}/inventory`, { headers });
@@ -224,17 +235,16 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
         const s = String(it.status || "").toLowerCase();
         const isExpiredItem = isExpired(it.expiration_date, currentServerDate);
         const quantity = Number(it.quantity) || 0;
+
         return (
-          s !== "donated" &&
-          s !== "requested" &&
-          !isExpiredItem && // Filter out expired items
-          quantity > 0 // Filter out items with 0 quantity
+          s !== "donated" && s !== "requested" && !isExpiredItem && quantity > 0
         );
       });
       setInventory(ok);
       setRecommendedInventory(getRecommendedInventory(ok));
     } catch {}
   };
+
   const fetchCharities = async () => {
     try {
       const res = await axios.get(`${API}/charities/recommended`, { headers });
@@ -824,29 +834,16 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                   </label>
                   <div className="relative">
                     <input
-                      className="w-full rounded-2xl border border-[#f2d4b5] bg-white/95 px-4 py-3.5 text-[15px] outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52] transition"
+                      className="w-full bg-transparent px-4 py-3.5 text-[15px] text-[#6b4b2b] font-semibold border-0 shadow-none outline-none focus:ring-0 focus:border-0 placeholder:text-[#C9A27A] cursor-default"
                       placeholder="e.g., Cookies"
                       value={form.name}
                       onChange={(e) =>
                         setForm({ ...form, name: e.target.value })
                       }
+                      readOnly
                       required
                     />
-                    <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                      >
-                        <path
-                          d="M4 7h16M4 12h10M4 17h7"
-                          stroke="#BF7327"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    </div>
+                    <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center"></div>
                   </div>
                 </div>
 

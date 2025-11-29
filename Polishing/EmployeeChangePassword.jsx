@@ -597,8 +597,6 @@ const EmployeeChangePassword = () => {
         <Card className="mt-4 border-0 shadow-[0_10px_30px_rgba(0,0,0,0.08)] bg-amber-50/80 border-l-4 border-l-amber-400 rounded-2xl">
           <CardContent className="pt-4">
             <p className="text-sm text-gray-700">
-              <strong>Default password:</strong> Employee123!
-              <br />
               <strong>Remember:</strong> Change it to something secure that only
               you know.
             </p>

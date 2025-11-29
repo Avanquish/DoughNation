@@ -184,9 +184,16 @@ export default function BakeryFeedback({ isViewOnly = false }) {
       <div className="px-4 sm:px-6 mt-6">
         {feedbacks.length === 0 ? (
           <div className={`${headerWrap} grid place-items-center h-56`}>
-            <div className="text-center">
-              <div className="text-4xl mb-2">📝</div>
-              <p className="text-sm" style={{ color: brand.subtext }}>
+            <div className="w-full h-full flex items-center justify-center">
+              <p
+                className="
+          text-sm
+          text-[#7b5836]
+          bg-white/70 border border-[#f2e3cf]
+          rounded-2xl px-4 py-6
+          text-center
+        "
+              >
                 No feedback submitted yet.
               </p>
             </div>

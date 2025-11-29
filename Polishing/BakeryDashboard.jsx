@@ -575,7 +575,7 @@ const BakeryDashboard = () => {
     .badge{position:absolute; top:-4px; right:-4px; min-width:18px; height:18px; padding:0 4px; border-radius:9999px; background:linear-gradient(180deg,#ff6b6b,#e03131); color:#fff; font-size:11px; line-height:18px; text-align:center; font-weight:800; box-shadow:0 4px 10px rgba(224,49,49,.35)}
 
     .btn-logout{position:relative; overflow:hidden; border-radius:9999px; padding:.58rem .95rem; gap:.5rem; background:linear-gradient(90deg,var(--brand1),var(--brand2),var(--brand3)); color:#fff; border:1px solid rgba(255,255,255,.6); box-shadow:0 8px 26px rgba(201,124,44,.25); transition:transform .18s ease, box-shadow .18s ease, filter .18s ease}
-    .btn-logout:before{content:""; position:absolute; top:-40%; bottom:-40%; left:-70%; width:60%; transform:rotate(10deg); background:linear-gradient(90deg, rgba(255,255,255,.26), rgba(255,255,255,0) 55%); animation: shine 3.2s linear infinite}
+    .btn-logout:before{content:""; position:absolute; top:-40%; bottom:-40%; left:-70%; width:60%; transform:rotate(10deg); background:linear-gradient(90deg, rgba(255,255,255,.26), rgba(255,255,255,0) 55%);}
     @keyframes shine{from{left:-70%}to{left:120%}}
     .btn-logout:hover{transform:translateY(-1px) scale(1.02); box-shadow:0 12px 34px rgba(201,124,44,.32); filter:saturate(1.05)}
 
@@ -1395,15 +1395,19 @@ const BakeryDashboard = () => {
                             </div>
                           </div>
                         ) : (
-                          <p
-                            className="
-                text-sm
-                text-center
-                text-[#7b5836]
-              "
-                          >
-                            No badges unlocked yet.
-                          </p>
+                          <div className="w-full h-full flex items-center justify-center">
+                            <p
+                              className="
+        text-sm
+        text-[#7b5836]
+        bg-white/70 border border-[#f2e3cf]
+        rounded-2xl px-4 py-6
+        text-center
+      "
+                            >
+                              No badges unlocked yet.
+                            </p>
+                          </div>
                         )}
                       </div>
                     </div>

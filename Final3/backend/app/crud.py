@@ -10,11 +10,91 @@ from sqlalchemy import func
 from app import schemas
 from . import models, auth
 from datetime import date, datetime, timedelta, timezone
+from app.timezone_utils import now_ph, today_ph
 
 from app.routes.geofence import geocode_address, get_coordinates_osm
+from app.product_id_generator import generate_product_id
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# ==================== PASSWORD HISTORY HELPERS ====================
+
+def check_password_history(db: Session, user_id: int, new_password: str, is_employee: bool = False) -> bool:
+    """
+    Check if password was used in last 5 passwords.
+    Returns True if password is in history (should be blocked), False if password is unique.
+    """
+    if is_employee:
+        # Check employee password history
+        history = db.query(models.EmployeePasswordHistory).filter(
+            models.EmployeePasswordHistory.employee_id == user_id
+        ).order_by(models.EmployeePasswordHistory.changed_at.desc()).limit(5).all()
+    else:
+        # Check user password history
+        history = db.query(models.PasswordHistory).filter(
+            models.PasswordHistory.user_id == user_id
+        ).order_by(models.PasswordHistory.changed_at.desc()).limit(5).all()
+    
+    # Check if new password matches any of the last 5 passwords
+    for entry in history:
+        if pwd_context.verify(new_password, entry.hashed_password):
+            return True  # Password found in history, should be blocked
+    
+    return False  # Password is unique
+
+def save_password_to_history(db: Session, user_id: int, hashed_password: str, is_employee: bool = False):
+    """
+    Save password to history and maintain only last 5 passwords.
+    """
+    if is_employee:
+        # Save to employee password history
+        new_entry = models.EmployeePasswordHistory(
+            employee_id=user_id,
+            hashed_password=hashed_password,
+            changed_at=now_ph()
+        )
+        db.add(new_entry)
+        db.flush()
+        
+        # Keep only last 5 passwords
+        history_count = db.query(models.EmployeePasswordHistory).filter(
+            models.EmployeePasswordHistory.employee_id == user_id
+        ).count()
+        
+        if history_count > 5:
+            # Delete oldest entries
+            oldest_entries = db.query(models.EmployeePasswordHistory).filter(
+                models.EmployeePasswordHistory.employee_id == user_id
+            ).order_by(models.EmployeePasswordHistory.changed_at.asc()).limit(history_count - 5).all()
+            
+            for entry in oldest_entries:
+                db.delete(entry)
+    else:
+        # Save to user password history
+        new_entry = models.PasswordHistory(
+            user_id=user_id,
+            hashed_password=hashed_password,
+            changed_at=now_ph()
+        )
+        db.add(new_entry)
+        db.flush()
+        
+        # Keep only last 5 passwords
+        history_count = db.query(models.PasswordHistory).filter(
+            models.PasswordHistory.user_id == user_id
+        ).count()
+        
+        if history_count > 5:
+            # Delete oldest entries
+            oldest_entries = db.query(models.PasswordHistory).filter(
+                models.PasswordHistory.user_id == user_id
+            ).order_by(models.PasswordHistory.changed_at.asc()).limit(history_count - 5).all()
+            
+            for entry in oldest_entries:
+                db.delete(entry)
+
+# ==================== END PASSWORD HISTORY HELPERS ====================
 
 def create_user(
     db: Session,
@@ -33,18 +113,12 @@ def create_user(
     # Clean role input
     role = role.strip().lower()
 
-    # Email domain validation based on role
-    valid_domains = {
-        "bakery": "bakery.com",
-        "charity": "charity.com",
-        "admin": "admin.com",
-    }
-
+    # Email domain validation - must use Gmail
     email_domain = email.split("@")[-1]
-    if role not in valid_domains or email_domain != valid_domains[role]:
+    if email_domain != "gmail.com":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Email must end with @{valid_domains.get(role, 'yourdomain.com')} for role '{role}'"
+            detail="Email must be a valid Gmail address (@gmail.com)"
         )
     
     # Check if user already exists
@@ -62,6 +136,26 @@ def create_user(
             detail="Contact number must be 11 digits"
         )
 
+    # Password requirements validation
+    import re
+    password_errors = []
+    if len(password) < 8:
+        password_errors.append("At least 8 characters")
+    if not re.search(r'[A-Z]', password):
+        password_errors.append("One uppercase letter")
+    if not re.search(r'[a-z]', password):
+        password_errors.append("One lowercase letter")
+    if not re.search(r'[0-9]', password):
+        password_errors.append("One number")
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        password_errors.append("One special character")
+    
+    if password_errors:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Password requirements not met: {', '.join(password_errors)}"
+        )
+    
     # Check password confirmation
     if password != confirm_password:
         raise HTTPException(
@@ -138,9 +232,21 @@ def create_user(
                 print(f"⚠️  Employee already exists: {existing_emp.name}")
                 return db_user
             
+            # Generate unique employee_id in format: EMP-{BAKERY_ID}-{SEQUENCE}
+            existing_count = db.query(models.Employee).filter(models.Employee.bakery_id == db_user.id).count()
+            sequence = existing_count + 1
+            employee_id = f"EMP-{db_user.id}-{sequence:03d}"  # Format: EMP-2-001
+            
+            # Ensure uniqueness (in case of concurrent creation)
+            while db.query(models.Employee).filter(models.Employee.employee_id == employee_id).first():
+                sequence += 1
+                employee_id = f"EMP-{db_user.id}-{sequence:03d}"
+            
             first_employee = models.Employee(
+                employee_id=employee_id,  # Generated unique employee ID
                 bakery_id=db_user.id,
                 name=contact_person,
+                email=email,  # Use bakery owner's email for first employee
                 role="Owner",
                 start_date=date.today(),  # ✅ Set start date to today
                 hashed_password=hashed_emp_password
@@ -148,7 +254,7 @@ def create_user(
             db.add(first_employee)
             db.commit()
             db.refresh(first_employee)
-            print(f"✅ EMPLOYEE CREATED: {first_employee.name} (ID: {first_employee.id}, bakery_id: {first_employee.bakery_id}, password_set: {bool(first_employee.hashed_password)})")
+            print(f"✅ EMPLOYEE CREATED: {first_employee.name} (ID: {first_employee.id}, Employee ID: {first_employee.employee_id}, bakery_id: {first_employee.bakery_id}, password_set: {bool(first_employee.hashed_password)})")
         except Exception as e:
             print(f"❌ ERROR creating first employee: {str(e)}")
             import traceback
@@ -229,7 +335,17 @@ def change_user_password(db: Session, user_id: int, current_password: str, new_p
 
     if new_password != confirm_password:
         raise HTTPException(status_code=400, detail="New passwords do not match")
+    
+    # 🔐 PREVENT REUSING LAST 5 PASSWORDS
+    if check_password_history(db, user_id, new_password, is_employee=False):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot reuse any of your last 5 passwords. Please choose a different password for security reasons."
+        )
 
+    # Save old password to history before updating
+    save_password_to_history(db, user_id, user.hashed_password, is_employee=False)
+    
     user.hashed_password = pwd_context.hash(new_password)
     db.commit()
     return {"message": "Password updated successfully"}
@@ -246,7 +362,7 @@ def authenticate_user(db: Session, email: str, password: str):
 def seed_admin_user(db: Session):
     from .models import User
 
-    admin_email = "admin@admin.com"
+    admin_email = "doughnation04@gmail.com"
     existing_admin = db.query(User).filter(User.email == admin_email).first()
 
     if existing_admin:
@@ -263,20 +379,14 @@ def seed_admin_user(db: Session):
         hashed_password=pwd_context.hash("admin1234"), 
         profile_picture="uploads/profile_pictures/admin_profile.png",
         proof_of_validity="uploads/proofs/default_proof.pdf",
-        verified=True
+        verified=True,
+        using_default_password=True  # Flag admin as using default password
     )
 
     db.add(default_admin)
     db.commit()
     
 # ------------------ BAKERY INVENTORY ------------------
-def generate_product_id(name: str):
-    base = (name or "P").upper().replace(" ", "")
-    prefix = "".join(name.split())[:3].upper()
-    unique = str(int(datetime.now().timestamp()))[-6:] + str(random.randint(100, 999))
-    return f"{prefix}-{unique}"
-
-
 def create_inventory(
     db: Session,
     bakery_id: int,
@@ -289,12 +399,12 @@ def create_inventory(
     uploaded: str,
     description: str = None
 ):
-    from datetime import datetime, timezone, timedelta
     import random
 
-    # Use Philippine timezone (UTC+8) to match the rest of the system
-    philippine_tz = timezone(timedelta(hours=8))
-    server_creation_date = datetime.now(philippine_tz).date()
+    if isinstance(creation_date, str):
+        server_creation_date = datetime.strptime(creation_date, "%Y-%m-%d").date()
+    else:
+        server_creation_date = creation_date
 
     image_path = None
     if image:
@@ -306,9 +416,12 @@ def create_inventory(
         elif isinstance(image, str):
             image_path = image
 
+    # Generate unique product ID with sequential numbering per product type
+    product_id = generate_product_id(db, name, bakery_id)
+    
     item = models.BakeryInventory(
         bakery_id=bakery_id,
-        product_id=generate_product_id(name),
+        product_id=product_id,
         name=name,
         image=image_path,
         quantity=quantity,
@@ -354,6 +467,8 @@ def update_inventory(
 
     # Update basic fields
     item.name = name
+    item.creation_date = datetime.strptime(creation_date, "%Y-%m-%d").date() if isinstance(creation_date, str) else creation_date
+    item.quantity = quantity
     item.quantity = quantity
     item.expiration_date = datetime.strptime(expiration_date, "%Y-%m-%d").date() if expiration_date else None
     item.threshold = threshold
@@ -410,7 +525,7 @@ def create_employee(
 
     # Handle upload if picture is provided
     if profile_picture:
-        filename = f"{bakery_id}_{int(datetime.utcnow().timestamp())}_{profile_picture.filename}"
+        filename = f"{bakery_id}_{int(now_ph().timestamp())}_{profile_picture.filename}"
         file_path = os.path.join(EMPLOYEE_UPLOAD_DIR, filename)
 
         with open(file_path, "wb") as buffer:
@@ -454,7 +569,7 @@ def update_employee(
         employee.start_date = start_date
 
     if profile_picture:
-        filename = f"{employee.bakery_id}_{int(datetime.utcnow().timestamp())}_{profile_picture.filename}"
+        filename = f"{employee.bakery_id}_{int(now_ph().timestamp())}_{profile_picture.filename}"
         file_path = os.path.join(EMPLOYEE_UPLOAD_DIR, filename)
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(profile_picture.file, buffer)
@@ -523,7 +638,7 @@ def update_complaint_status(db: Session, complaint_id: int, status: str):
     if not complaint:
         return None
     complaint.status = status
-    complaint.updated_at = datetime.utcnow()
+    complaint.updated_at = now_ph()
     db.commit()
     db.refresh(complaint)
     return complaint
@@ -724,12 +839,11 @@ def get_completed_donation_count(db: Session, user_id: int) -> int:
 # ---------------- Helper ----------------
 def get_philippine_time():
     """Get current time in Philippine timezone (UTC+8)."""
-    philippine_tz = timezone(timedelta(hours=8))
-    return datetime.now(philippine_tz)
+    return now_ph()
 
 def to_datetime(value):
     """Convert date or datetime to datetime with Philippine timezone awareness."""
-    philippine_tz = timezone(timedelta(hours=8))
+    from app.timezone_utils import PHILIPPINES_TZ
     
     if value is None:
         return get_philippine_time()
@@ -737,14 +851,14 @@ def to_datetime(value):
     if isinstance(value, datetime):
         # If already timezone-aware, convert to Philippine time
         if value.tzinfo is not None:
-            return value.astimezone(philippine_tz)
+            return value.astimezone(PHILIPPINES_TZ)
         # If naive datetime, assume it's already in Philippine time
-        return value.replace(tzinfo=philippine_tz)
+        return value.replace(tzinfo=PHILIPPINES_TZ)
     
     if isinstance(value, date):
         # Convert date to datetime at midnight Philippine time
         dt = datetime.combine(value, datetime.min.time())
-        return dt.replace(tzinfo=philippine_tz)
+        return dt.replace(tzinfo=PHILIPPINES_TZ)
     
     return value  # fallback
 
@@ -961,4 +1075,3 @@ def update_user_badges(db: Session, user_id: int):
             db.add(models.UserBadge(user_id=user_id, badge_id=22))
 
     db.commit()
-

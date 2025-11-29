@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 const Home = () => {
   const [showTop, setShowTop] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false); 
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => {
@@ -231,6 +231,7 @@ const Home = () => {
     opacity:.33; mix-blend-mode:multiply;
     mask-image: linear-gradient(to bottom, #000 80%, transparent 100%);
   }
+  @keyframes dotsDrift{from{background-position:0 0}to{background-position:240px 0}}
   .sticky-boost{transition: box-shadow .25s ease, backdrop-filter .25s ease; border-bottom:1px solid rgba(201,124,44,.14)}
   .sticky-boost.is-scrolled{box-shadow: 0 10px 28px rgba(201,124,44,.18)}
 
@@ -883,7 +884,7 @@ const Home = () => {
 
           <div className="border-t border-white/70">
             <div
-              className="max-w-7xl mx-auto px-4 py-5 flex items-center justify-between"
+              className="max-w-7xl mx-auto px-4 py-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
               style={{
                 fontSize: "clamp(.85rem, .8rem + .2vw, .95rem)",
                 color: "#6b4d2e",
@@ -892,11 +893,24 @@ const Home = () => {
               <p>
                 © {new Date().getFullYear()} DoughNation. All rights reserved.
               </p>
-              <p>
+
+              {/* FOOTER BOTTOM LINKS: Privacy & Terms + Contact Support */}
+              <div className="flex items-center gap-4">
                 <Link to="/privacy-terms" className="hover:underline">
                   Privacy &amp; Terms
                 </Link>
-              </p>
+                <span
+                  className="hidden sm:inline-block"
+                  style={{
+                    height: "1.1rem",
+                    width: "1px",
+                    backgroundColor: "#d7b28a",
+                  }}
+                />
+                <Link to="/contact-support" className="hover:underline">
+                  Contact Support
+                </Link>
+              </div>
             </div>
           </div>
         </div>

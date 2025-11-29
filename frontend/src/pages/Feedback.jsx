@@ -198,7 +198,7 @@ export default function Feedback({ donationId, isDirect, onSubmitted }) {
                              hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#E7B77A]
                              transition disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Save Feedback
+                  Send Reply
                 </button>
               </div>
             </div>

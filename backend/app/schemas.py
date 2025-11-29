@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
 from datetime import date, datetime
 
@@ -185,6 +185,10 @@ class DonationRead(DonationBase):
 class DonationRequestCreate(BaseModel):
     donation_id: int
     bakery_id: int
+    requested_quantity: int = Field(..., gt=0, description="Quantity requested by charity")
+    
+    class Config:
+        from_attributes = True
     
 class DonationRequestRead(BaseModel):
     id: int

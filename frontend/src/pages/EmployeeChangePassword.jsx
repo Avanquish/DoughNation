@@ -144,6 +144,46 @@ const EmployeeChangePassword = () => {
       return;
     }
 
+    // Check uppercase letter requirement
+    if (!/[A-Z]/.test(newPassword)) {
+      Swal.fire({
+        icon: "warning",
+        title: "Password Requirements Not Met",
+        text: "Password must contain at least one uppercase letter (A-Z)",
+      });
+      return;
+    }
+
+    // Check lowercase letter requirement
+    if (!/[a-z]/.test(newPassword)) {
+      Swal.fire({
+        icon: "warning",
+        title: "Password Requirements Not Met",
+        text: "Password must contain at least one lowercase letter (a-z)",
+      });
+      return;
+    }
+
+    // Check number requirement
+    if (!/[0-9]/.test(newPassword)) {
+      Swal.fire({
+        icon: "warning",
+        title: "Password Requirements Not Met",
+        text: "Password must contain at least one number (0-9)",
+      });
+      return;
+    }
+
+    // Check special character requirement
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(newPassword)) {
+      Swal.fire({
+        icon: "warning",
+        title: "Password Requirements Not Met",
+        text: "Password must contain at least one special character (!@#$%^&*(),.?\":{}|<>)",
+      });
+      return;
+    }
+
     if (currentPassword === newPassword) {
       Swal.fire({
         icon: "warning",
@@ -487,18 +527,24 @@ const EmployeeChangePassword = () => {
                 </div>
               </div>
 
-              {/* Passwords match indicator */}
-              {newPassword && confirmPassword && (
-                <div
-                  className={`text-sm p-2 rounded-xl border ${
-                    newPassword === confirmPassword
-                      ? "bg-emerald-50/80 text-emerald-700 border-emerald-200"
-                      : "bg-rose-50/80 text-rose-700 border-rose-200"
-                  }`}
-                >
-                  {newPassword === confirmPassword
-                    ? "✓ Passwords match"
-                    : "✗ Passwords don't match"}
+              {/* passwords match indicator */}
+              {confirmPassword && (
+                <div className="flex items-center gap-2 text-xs mt-2">
+                  {newPassword === confirmPassword ? (
+                    <>
+                      <div className="h-2 w-2 bg-emerald-500 rounded-full" />
+                      <span className="text-emerald-700 font-medium">
+                        Passwords match
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="h-2 w-2 bg-rose-500 rounded-full" />
+                      <span className="text-rose-600 font-medium">
+                        Passwords don't match
+                      </span>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -564,8 +610,19 @@ const EmployeeChangePassword = () => {
               {/* Submit Button */}
               <Button
                 type="submit"
-                className="w-full text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E] hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl transition-transform active:scale-[0.99]"
-                disabled={isLoading}
+                className="w-full text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E] hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl transition-transform active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={
+                  isLoading ||
+                  !currentPassword ||
+                  !newPassword ||
+                  !confirmPassword ||
+                  newPassword !== confirmPassword ||
+                  newPassword.length < 8 ||
+                  !/[A-Z]/.test(newPassword) ||
+                  !/[a-z]/.test(newPassword) ||
+                  !/[0-9]/.test(newPassword) ||
+                  !/[!@#$%^&*(),.?":{}|<>]/.test(newPassword)
+                }
                 style={{
                   height: "clamp(2.75rem, 2.2rem + .8vw, 3rem)",
                   fontSize: "clamp(.92rem, .9rem + .2vw, 1.05rem)",
@@ -591,8 +648,6 @@ const EmployeeChangePassword = () => {
         <Card className="mt-4 border-0 shadow-[0_10px_30px_rgba(0,0,0,0.08)] bg-amber-50/80 border-l-4 border-l-amber-400 rounded-2xl">
           <CardContent className="pt-4">
             <p className="text-sm text-gray-700">
-              <strong>Default password:</strong> Employee123!
-              <br />
               <strong>Remember:</strong> Change it to something secure that only
               you know.
             </p>

@@ -484,3 +484,89 @@ def send_otp_email(to_email: str, otp_code: str, recipient_name: str = "User") -
     """
     
     return send_email(to_email, "Password Reset Verification Code", html_content)
+
+
+def send_email_verification_otp(to_email: str, otp_code: str) -> bool:
+    """
+    Send OTP code for email verification during registration
+    
+    Args:
+        to_email: Recipient email address
+        otp_code: 6-digit OTP code
+        
+    Returns:
+        bool: True if sent successfully
+    """
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); 
+                       padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+            .header h1 {{ color: white; margin: 0; font-size: 28px; }}
+            .header p {{ color: white; margin: 10px 0 0 0; font-size: 16px; }}
+            .content {{ background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }}
+            .otp-box {{ background: white; border: 2px solid #FFA500; border-radius: 8px; 
+                       padding: 20px; margin: 20px 0; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+            .otp-code {{ font-size: 36px; font-weight: bold; color: #FFA500; 
+                        letter-spacing: 10px; font-family: 'Courier New', monospace; }}
+            .info-box {{ background: #e8f4fd; border-left: 4px solid #2196F3; 
+                       padding: 15px; margin: 20px 0; border-radius: 4px; }}
+            .warning {{ background: #fff3cd; border-left: 4px solid #ffc107; 
+                       padding: 15px; margin: 20px 0; border-radius: 4px; }}
+            .footer {{ text-align: center; margin-top: 20px; color: #666; font-size: 12px; }}
+            .welcome {{ color: #FFA500; font-weight: bold; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🍞 Welcome to DoughNation!</h1>
+                <p>Verify Your Email Address</p>
+            </div>
+            <div class="content">
+                <h2>Hello!</h2>
+                <p>Thank you for registering with <span class="welcome">DoughNation</span>! We're excited to have you join our community of bakeries and charities working together to reduce food waste.</p>
+                
+                <p>To complete your registration, please verify your email address by entering the verification code below:</p>
+                
+                <div class="otp-box">
+                    <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">Your Verification Code:</p>
+                    <div class="otp-code">{otp_code}</div>
+                    <p style="margin: 10px 0 0 0; font-size: 12px; color: #999;">⏱️ This code expires in 10 minutes</p>
+                </div>
+                
+                <div class="info-box">
+                    <strong>📝 Next Steps:</strong>
+                    <ol style="margin: 10px 0 0 0; padding-left: 20px;">
+                        <li>Enter the code on the registration page</li>
+                        <li>Complete your registration details</li>
+                        <li>Wait for admin approval</li>
+                        <li>Start making a difference!</li>
+                    </ol>
+                </div>
+                
+                <div class="warning">
+                    <strong>⚠️ Security Notice:</strong>
+                    <ul style="margin: 10px 0 0 0; padding-left: 20px;">
+                        <li>Never share this code with anyone</li>
+                        <li>DoughNation will never ask for your code via phone</li>
+                        <li>If you didn't request this, please ignore this email</li>
+                    </ul>
+                </div>
+                
+                <p style="margin-top: 20px;">If you have any questions, feel free to reach out to us at <a href="mailto:doughnation04@gmail.com" style="color: #FFA500;">doughnation04@gmail.com</a></p>
+            </div>
+            <div class="footer">
+                <p>&copy; 2025 DoughNation. All rights reserved.</p>
+                <p>🥖 Connecting bakeries with charities to reduce food waste 🤝</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return send_email(to_email, "Verify Your DoughNation Email Address", html_content)

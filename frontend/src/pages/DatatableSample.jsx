@@ -8,7 +8,7 @@ import {
   flexRender,
 } from "@tanstack/react-table";
 import Swal from "sweetalert2";
-import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
 // shadcn/ui
@@ -112,6 +112,19 @@ const LocationSelector = ({ setLocation, setAddress }) => {
   return null;
 };
 
+const MapViewController = ({ center }) => {
+  const map = useMap();
+  React.useEffect(() => {
+    if (center) {
+      map.setView([center.lat, center.lng], 15, {
+        animate: true,
+        duration: 1,
+      });
+    }
+  }, [center, map]);
+  return null;
+};
+
 // --- UI-only: sortable header button with tri-state cycle ---
 function SortButton({ column, label }) {
   const sorted = column.getIsSorted(); // 'asc' | 'desc' | false
@@ -170,8 +183,15 @@ export default function DataTable({
     confirm_password: "",
   });
   const [location, setLocation] = React.useState(null);
+  const [mapCenter, setMapCenter] = React.useState(null);
   const [profilePicture, setProfilePicture] = React.useState(null);
   const [proofOfValidity, setProofOfValidity] = React.useState(null);
+  
+  // Address search autocomplete states
+  const [addressSuggestions, setAddressSuggestions] = React.useState([]);
+  const [showSuggestions, setShowSuggestions] = React.useState(false);
+  const [isSearching, setIsSearching] = React.useState(false);
+  const searchTimeoutRef = React.useRef(null);
 
   // Edit
   const [showEditModal, setShowEditModal] = React.useState(false);
@@ -186,7 +206,14 @@ export default function DataTable({
     status_reason: "",
   });
   const [editLocation, setEditLocation] = React.useState(null);
+  const [editMapCenter, setEditMapCenter] = React.useState(null);
   const [editingItemId, setEditingItemId] = React.useState(null);
+  
+  // Edit address search states
+  const [editAddressSuggestions, setEditAddressSuggestions] = React.useState([]);
+  const [showEditSuggestions, setShowEditSuggestions] = React.useState(false);
+  const [isEditSearching, setIsEditSearching] = React.useState(false);
+  const editSearchTimeoutRef = React.useRef(null);
 
   // Stable action menu
   const [openMenuForRow, setOpenMenuForRow] = React.useState(null);
@@ -195,6 +222,112 @@ export default function DataTable({
     setFormData((p) => ({ ...p, [field]: value }));
   const handleEditInputChange = (f, v) =>
     setEditFormData((p) => ({ ...p, [f]: v }));
+
+  /** Search for address suggestions */
+  const searchAddress = async (query) => {
+    if (!query || query.length < 3) {
+      setAddressSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+          query
+        )}&format=json&limit=5&countrycodes=ph&addressdetails=1`
+      );
+      const data = await res.json();
+      setAddressSuggestions(data);
+      setShowSuggestions(data.length > 0);
+    } catch (error) {
+      console.error("Address search error:", error);
+      setAddressSuggestions([]);
+      setShowSuggestions(false);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  /** Handle address input change with debounce */
+  const handleAddressChange = (value) => {
+    handleInputChange("address", value);
+    
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    searchTimeoutRef.current = setTimeout(() => {
+      searchAddress(value);
+    }, 500);
+  };
+
+  /** Handle selecting an address suggestion */
+  const handleAddressSelect = (suggestion) => {
+    const address = suggestion.display_name;
+    const lat = parseFloat(suggestion.lat);
+    const lng = parseFloat(suggestion.lon);
+    
+    setFormData((prev) => ({ ...prev, address }));
+    setLocation({ lat, lng });
+    setMapCenter({ lat, lng });
+    setShowSuggestions(false);
+    setAddressSuggestions([]);
+  };
+
+  /** Search for address suggestions (Edit modal) */
+  const searchEditAddress = async (query) => {
+    if (!query || query.length < 3) {
+      setEditAddressSuggestions([]);
+      setShowEditSuggestions(false);
+      return;
+    }
+
+    setIsEditSearching(true);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+          query
+        )}&format=json&limit=5&countrycodes=ph&addressdetails=1`
+      );
+      const data = await res.json();
+      setEditAddressSuggestions(data);
+      setShowEditSuggestions(data.length > 0);
+    } catch (error) {
+      console.error("Address search error:", error);
+      setEditAddressSuggestions([]);
+      setShowEditSuggestions(false);
+    } finally {
+      setIsEditSearching(false);
+    }
+  };
+
+  /** Handle edit address input change with debounce */
+  const handleEditAddressChange = (value) => {
+    handleEditInputChange("address", value);
+    
+    if (editSearchTimeoutRef.current) {
+      clearTimeout(editSearchTimeoutRef.current);
+    }
+    
+    editSearchTimeoutRef.current = setTimeout(() => {
+      searchEditAddress(value);
+    }, 500);
+  };
+
+  /** Handle selecting an address suggestion (Edit modal) */
+  const handleEditAddressSelect = (suggestion) => {
+    const address = suggestion.display_name;
+    const lat = parseFloat(suggestion.lat);
+    const lng = parseFloat(suggestion.lon);
+    
+    setEditFormData((prev) => ({ ...prev, address }));
+    setEditLocation({ lat, lng });
+    setEditMapCenter({ lat, lng });
+    setShowEditSuggestions(false);
+    setEditAddressSuggestions([]);
+  };
 
   const resetForm = () => {
     setFormData({
@@ -207,8 +340,12 @@ export default function DataTable({
       confirm_password: "",
     });
     setLocation(null);
+    setMapCenter(null);
     setProfilePicture(null);
     setProofOfValidity(null);
+    setAddressSuggestions([]);
+    setShowSuggestions(false);
+    setIsSearching(false);
   };
   const resetEditForm = () => {
     setEditFormData({
@@ -222,7 +359,11 @@ export default function DataTable({
       status_reason: "",
     });
     setEditLocation(null);
+    setEditMapCenter(null);
     setEditingItemId(null);
+    setEditAddressSuggestions([]);
+    setShowEditSuggestions(false);
+    setIsEditSearching(false);
   };
 
   const handleNew = () => {
@@ -1048,7 +1189,7 @@ export default function DataTable({
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 relative">
               <Label
                 htmlFor="address"
                 className="flex items-center gap-2 text-[#6b4b2b]"
@@ -1056,14 +1197,56 @@ export default function DataTable({
                 <MapPin className="h-4 w-4" />
                 Address *
               </Label>
-              <Input
-                id="address"
-                value={formData.address}
-                readOnly
-                disabled
-                placeholder="Click on the map below to select location"
-                className="rounded-2xl bg-gray-100 cursor-not-allowed"
-              />
+              <div className="relative">
+                <Input
+                  id="address"
+                  value={formData.address}
+                  onChange={(e) => handleAddressChange(e.target.value)}
+                  onFocus={() => {
+                    if (addressSuggestions.length > 0) {
+                      setShowSuggestions(true);
+                    }
+                  }}
+                  onBlur={() => {
+                    setTimeout(() => setShowSuggestions(false), 200);
+                  }}
+                  placeholder="Search address or click on map below"
+                  className="rounded-2xl border-[#f2d4b5] focus:ring-[#E49A52]"
+                />
+                {isSearching && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-[#E49A52] border-t-transparent" />
+                  </div>
+                )}
+                
+                {showSuggestions && addressSuggestions.length > 0 && (
+                  <div className="absolute w-full mt-1 bg-white border border-[#f2d4b5] rounded-xl shadow-lg max-h-60 overflow-y-auto z-[1000]">
+                    {addressSuggestions.map((suggestion, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleAddressSelect(suggestion)}
+                        className="w-full text-left px-4 py-3 hover:bg-[#FFF7EC] transition-colors border-b border-[#f2d4b5]/50 last:border-b-0 focus:outline-none focus:bg-[#FFF7EC]"
+                      >
+                        <div className="flex items-start gap-2">
+                          <MapPin className="h-4 w-4 text-[#E49A52] mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-[#6b4b2b] font-medium truncate">
+                              {suggestion.address?.road || suggestion.address?.suburb || suggestion.display_name.split(',')[0]}
+                            </p>
+                            <p className="text-xs text-[#7b5836]/80 truncate">
+                              {suggestion.display_name}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-gray-500">
+                Start typing to search, or click on the map to pin your exact location
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -1084,6 +1267,7 @@ export default function DataTable({
                       handleInputChange("address", address)
                     }
                   />
+                  <MapViewController center={mapCenter} />
                   {location && (
                     <Marker position={[location.lat, location.lng]} />
                   )}
@@ -1316,7 +1500,7 @@ export default function DataTable({
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-2 relative">
               <Label
                 htmlFor="edit-address"
                 className="flex items-center gap-2 text-[#6b4b2b]"
@@ -1324,14 +1508,56 @@ export default function DataTable({
                 <MapPin className="h-4 w-4" />
                 Address *
               </Label>
-              <Input
-                id="edit-address"
-                value={editFormData.address}
-                readOnly
-                disabled
-                placeholder="Click on the map below to update location"
-                className="rounded-2xl bg-gray-100 cursor-not-allowed"
-              />
+              <div className="relative">
+                <Input
+                  id="edit-address"
+                  value={editFormData.address}
+                  onChange={(e) => handleEditAddressChange(e.target.value)}
+                  onFocus={() => {
+                    if (editAddressSuggestions.length > 0) {
+                      setShowEditSuggestions(true);
+                    }
+                  }}
+                  onBlur={() => {
+                    setTimeout(() => setShowEditSuggestions(false), 200);
+                  }}
+                  placeholder="Search address or click on map below"
+                  className="rounded-2xl border-[#f2d4b5] focus:ring-[#E49A52]"
+                />
+                {isEditSearching && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-[#E49A52] border-t-transparent" />
+                  </div>
+                )}
+                
+                {showEditSuggestions && editAddressSuggestions.length > 0 && (
+                  <div className="absolute w-full mt-1 bg-white border border-[#f2d4b5] rounded-xl shadow-lg max-h-60 overflow-y-auto z-[1000]">
+                    {editAddressSuggestions.map((suggestion, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleEditAddressSelect(suggestion)}
+                        className="w-full text-left px-4 py-3 hover:bg-[#FFF7EC] transition-colors border-b border-[#f2d4b5]/50 last:border-b-0 focus:outline-none focus:bg-[#FFF7EC]"
+                      >
+                        <div className="flex items-start gap-2">
+                          <MapPin className="h-4 w-4 text-[#E49A52] mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-[#6b4b2b] font-medium truncate">
+                              {suggestion.address?.road || suggestion.address?.suburb || suggestion.display_name.split(',')[0]}
+                            </p>
+                            <p className="text-xs text-[#7b5836]/80 truncate">
+                              {suggestion.display_name}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-gray-500">
+                Start typing to search, or click on the map to pin your exact location
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -1357,6 +1583,7 @@ export default function DataTable({
                       handleEditInputChange("address", address)
                     }
                   />
+                  <MapViewController center={editMapCenter} />
                   {editLocation && (
                     <Marker position={[editLocation.lat, editLocation.lng]} />
                   )}

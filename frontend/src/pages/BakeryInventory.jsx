@@ -102,9 +102,9 @@ function DonationStatus({ status }) {
   const key = String(status || "available").toLowerCase();
   const styles =
     key === "requested"
-      ? { label: "Requested", dot: "bg-blue-500", text: "text-blue-700" }
+      ? { label: "Requested", dot: "bg-amber-500", text: "text-amber-700" }
       : key === "donated"
-      ? { label: "Donated", dot: "bg-amber-500", text: "text-amber-700" }
+      ? { label: "Donated", dot: "bg-blue-500", text: "text-blue-700" }
       : key === "unavailable"
       ? { label: "Unavailable", dot: "bg-red-500", text: "text-red-700" }
       : { label: "Available", dot: "bg-green-600", text: "text-green-700" };
@@ -132,6 +132,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
   // Get logged-in user's name from token
   const [uploaderName, setUploaderName] = useState("");
+  const [isBakeryOwner, setIsBakeryOwner] = useState(false);
   const [serverDate, setServerDate] = useState("");
   const [currentServerDate, setCurrentServerDate] = useState(null);
   const [isNameModified, setIsNameModified] = useState(false);
@@ -150,6 +151,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
     uploaded: "", // Will be set from token
     template_image: "",
   });
+  const [shelfLifeDays, setShelfLifeDays] = useState(null);
 
   const [showDirectDonation, setShowDirectDonation] = useState(false);
   const [directForm, setDirectForm] = useState(null);
@@ -157,8 +159,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
   // Filters
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all"); // 'all' | 'fresh' | 'soon' | 'expired'
-  const [donationFilter, setDonationFilter] = useState("all"); // 'all' | 'available' | 'requested' | 'donated' | 'unavailable'
+  const [combinedFilter, setCombinedFilter] = useState("all"); // Combined filter for all statuses
 
   // Selection (bulk)
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -269,13 +270,10 @@ export default function BakeryInventory({ isViewOnly = false }) {
     }
 
     try {
-      const res = await axios.get(
-        `${API}/inventory/product-code-preview`,
-        {
-          params: { name: productName },
-          headers
-        }
-      );
+      const res = await axios.get(`${API}/inventory/product-code-preview`, {
+        params: { name: productName },
+        headers,
+      });
       setProductCodePreview(res.data);
     } catch (error) {
       console.error("Error fetching product code preview:", error);
@@ -458,12 +456,14 @@ export default function BakeryInventory({ isViewOnly = false }) {
     const bakeryToken = localStorage.getItem("token");
 
     let name = "";
+    let isOwner = false;
 
     if (employeeToken) {
       // Decode employee JWT token
       try {
         const payload = JSON.parse(atob(employeeToken.split(".")[1]));
         name = payload.employee_name || "";
+        isOwner = false;
       } catch (e) {
         console.error("Failed to decode employee token", e);
       }
@@ -472,12 +472,14 @@ export default function BakeryInventory({ isViewOnly = false }) {
       try {
         const payload = JSON.parse(atob(bakeryToken.split(".")[1]));
         name = payload.contact_person || payload.name || "";
+        isOwner = true;
       } catch (e) {
         console.error("Failed to decode bakery token", e);
       }
     }
 
     setUploaderName(name);
+    setIsBakeryOwner(isOwner);
     setForm((prev) => ({ ...prev, uploaded: name }));
   }, []);
 
@@ -568,30 +570,35 @@ export default function BakeryInventory({ isViewOnly = false }) {
   }, [inventory]);
 
   // Status counts
-  const statusCounts = useMemo(() => {
-    const counts = { all: inventory.length, fresh: 0, soon: 0, expired: 0 };
-    for (const it of inventory) counts[statusOf(it)]++;
-    return counts;
-  }, [inventory]);
-
-  // Donation status counts
-  const donationCounts = useMemo(() => {
+  const combinedCounts = useMemo(() => {
     const counts = {
       all: inventory.length,
+      fresh: 0,
+      soon: 0,
+      expired: 0,
       available: 0,
       requested: 0,
       donated: 0,
       unavailable: 0,
     };
+
     for (const it of inventory) {
       const st = statusOf(it);
       const donationStatus =
         currentServerDate && st === "expired"
           ? "unavailable"
           : it.status || "available";
+
+      // Count freshness status (excluding expired)
+      if (st === "fresh") counts.fresh++;
+      if (st === "soon") counts.soon++;
+      if (st === "expired") counts.expired++;
+
+      // Count donation status
       const key = donationStatus.toLowerCase();
       if (counts[key] !== undefined) counts[key]++;
     }
+
     return counts;
   }, [inventory, currentServerDate]);
 
@@ -599,20 +606,47 @@ export default function BakeryInventory({ isViewOnly = false }) {
   const filteredInventory = useMemo(() => {
     const q = query.trim().toLowerCase();
     const filtered = inventory.filter((it) => {
-      const nameOk = !q || (it.name || "").toLowerCase().includes(q);
-      const st = statusOf(it);
-      const statusOk = statusFilter === "all" || st === statusFilter;
+      // Hide items that expired more than 3 days ago
+      if (currentServerDate && it.expiration_date) {
+        const expirationDate = parseDate(it.expiration_date);
+        if (expirationDate) {
+          const [year, month, day] = currentServerDate.split("-").map(Number);
+          const serverToday = new Date(year, month - 1, day);
+          serverToday.setHours(0, 0, 0, 0);
+          expirationDate.setHours(0, 0, 0, 0);
 
-      // Donation status filter
+          const daysSinceExpiration = Math.ceil(
+            (serverToday - expirationDate) / (1000 * 60 * 60 * 24)
+          );
+
+          // Hide if expired more than 3 days ago
+          if (daysSinceExpiration > 3) {
+            return false;
+          }
+        }
+      }
+
+      const nameOk = !q || (it.name || "").toLowerCase().includes(q);
+
+      if (combinedFilter === "all") return nameOk;
+
+      const st = statusOf(it);
       const donationStatus =
         currentServerDate && st === "expired"
           ? "unavailable"
           : it.status || "available";
-      const donationOk =
-        donationFilter === "all" ||
-        donationStatus.toLowerCase() === donationFilter;
 
-      return nameOk && statusOk && donationOk;
+      // Check if filter matches freshness status (fresh, soon, expired)
+      if (
+        combinedFilter === "fresh" ||
+        combinedFilter === "soon" ||
+        combinedFilter === "expired"
+      ) {
+        return nameOk && st === combinedFilter;
+      }
+
+      // Check if filter matches donation status
+      return nameOk && donationStatus.toLowerCase() === combinedFilter;
     });
 
     // Sort: available items first, then by expiration status, expired items at bottom
@@ -656,14 +690,14 @@ export default function BakeryInventory({ isViewOnly = false }) {
       // If same status, maintain original order (by id)
       return a.id - b.id;
     });
-  }, [inventory, query, statusFilter, donationFilter, currentServerDate]);
+  }, [inventory, query, combinedFilter, currentServerDate]);
 
-  // ✅ Reset page when filters or data change
+  // Reset page when filters or data change
   useEffect(() => {
     setPage(1);
-  }, [query, statusFilter, donationFilter, inventory.length]);
+  }, [query, combinedFilter, inventory.length]);
 
-  // ✅ Pagination derived values
+  // Pagination derived values
   const totalPages =
     filteredInventory.length === 0
       ? 1
@@ -707,26 +741,46 @@ export default function BakeryInventory({ isViewOnly = false }) {
       return;
     }
 
+    // Validate that either an image file or template image exists
+    if (!form.image_file && !form.template_image) {
+      Swal.fire({
+        title: "Image Required",
+        text: "Please upload a product image.",
+        icon: "error",
+        confirmButtonColor: "#A97142",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
-    // Calculate threshold days dynamically
+    // Calculate threshold days dynamically based on current date
     let thresholdDays = 2;
-    if (form.expiration_date && form.creation_date) {
+    if (form.expiration_date && currentServerDate) {
       const expDate = new Date(form.expiration_date);
-      const creationDate = new Date(form.creation_date);
+      const [year, month, day] = currentServerDate.split("-").map(Number);
+      const today = new Date(year, month - 1, day);
+
       const thresholdDate = new Date(expDate);
       thresholdDate.setDate(thresholdDate.getDate() - 2);
-      
-      // If threshold would be before creation date, set it to 0 (same as creation date)
-      if (thresholdDate < creationDate) {
-        thresholdDays = 1;
+
+      // If threshold would be before today, calculate days from today to expiration
+      if (thresholdDate < today) {
+        const daysFromToday = Math.ceil(
+          (expDate - today) / (1000 * 60 * 60 * 24)
+        );
+        thresholdDays = Math.max(0, daysFromToday);
       }
     }
-    
+
     const fd = new FormData();
     fd.append("name", form.item_name);
     fd.append("quantity", form.quantity);
-    fd.append("creation_date", form.creation_date);
+    // Ensure creation_date is in YYYY-MM-DD format
+    const creationDate = form.creation_date.includes("T")
+      ? form.creation_date.split("T")[0]
+      : form.creation_date;
+    fd.append("creation_date", creationDate);
     fd.append("expiration_date", form.expiration_date);
     fd.append("threshold", Math.max(0, thresholdDays)); // Store as integer days
     fd.append("uploaded", form.uploaded);
@@ -825,6 +879,21 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
     if (!selectedItem || isUpdating) return; // Prevent double-click
 
+    // Validate that either an image file, template image, or existing image exists
+    if (
+      !selectedItem.image_file &&
+      !selectedItem.template_image &&
+      !selectedItem.image
+    ) {
+      Swal.fire({
+        title: "Image Required",
+        text: "Please upload a product image.",
+        icon: "error",
+        confirmButtonColor: "#A97142",
+      });
+      return;
+    }
+
     const ok = await Swal.fire({
       title: "Save changes?",
       icon: "question",
@@ -836,23 +905,33 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
     setIsUpdating(true);
 
-    // Calculate threshold days dynamically
+    // Calculate threshold days dynamically based on current date
     let thresholdDays = 2;
-    if (selectedItem.expiration_date && selectedItem.creation_date) {
+    if (selectedItem.expiration_date && currentServerDate) {
       const expDate = new Date(selectedItem.expiration_date);
-      const creationDate = new Date(selectedItem.creation_date);
+      const [year, month, day] = currentServerDate.split("-").map(Number);
+      const today = new Date(year, month - 1, day);
+
       const thresholdDate = new Date(expDate);
       thresholdDate.setDate(thresholdDate.getDate() - 2);
-      
-      if (thresholdDate < creationDate) {
-        thresholdDays = 1;
+
+      // If threshold would be before today, calculate days from today to expiration
+      if (thresholdDate < today) {
+        const daysFromToday = Math.ceil(
+          (expDate - today) / (1000 * 60 * 60 * 24)
+        );
+        thresholdDays = Math.max(0, daysFromToday);
       }
     }
 
     const fd = new FormData();
     fd.append("name", selectedItem.name);
     fd.append("quantity", selectedItem.quantity);
-    fd.append("creation_date", selectedItem.creation_date);
+    // Ensure creation_date is in YYYY-MM-DD format
+    const creationDate = selectedItem.creation_date.includes("T")
+      ? selectedItem.creation_date.split("T")[0]
+      : selectedItem.creation_date;
+    fd.append("creation_date", creationDate);
     fd.append("expiration_date", selectedItem.expiration_date);
     fd.append("threshold", Math.max(0, thresholdDays)); // Store as integer days
     fd.append("uploaded", selectedItem.uploaded || "");
@@ -984,8 +1063,9 @@ export default function BakeryInventory({ isViewOnly = false }) {
       {/* Header */}
       <div className="p-2">
         <div>
-          <h2 className="text-3xl font-extrabold text-[#6b4b2b]">Inventory</h2>
-          <p className="mt-1 text-sm text-[#7b5836]">List of Inventory</p>
+          <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
+            List of Products for Donation
+          </h2>
         </div>
       </div>
 
@@ -1016,51 +1096,57 @@ export default function BakeryInventory({ isViewOnly = false }) {
                   return;
                 }
 
-                // Filter to get only items uploaded by current user
-                const userItems = filteredInventory.filter(
-                  (item) =>
-                    selectedIds.has(item.id) && item.uploaded === uploaderName
-                );
+                // Bakery owners can delete any item, employees only their own
+                if (isBakeryOwner) {
+                  // Owner can delete all selected items
+                  deleteSelected();
+                } else {
+                  // Filter to get only items uploaded by current user
+                  const userItems = filteredInventory.filter(
+                    (item) =>
+                      selectedIds.has(item.id) && item.uploaded === uploaderName
+                  );
 
-                // Check if any items belong to other users
-                const otherUserItems = filteredInventory.filter(
-                  (item) =>
-                    selectedIds.has(item.id) && item.uploaded !== uploaderName
-                );
+                  // Check if any items belong to other users
+                  const otherUserItems = filteredInventory.filter(
+                    (item) =>
+                      selectedIds.has(item.id) && item.uploaded !== uploaderName
+                  );
 
-                if (userItems.length === 0) {
-                  Swal.fire({
-                    title: "Access Denied",
-                    text: "None of the selected items were uploaded by you.",
-                    icon: "error",
-                    confirmButtonColor: "#A97142",
-                  });
-                  return;
+                  if (userItems.length === 0) {
+                    Swal.fire({
+                      title: "Access Denied",
+                      text: "None of the selected items were uploaded by you.",
+                      icon: "error",
+                      confirmButtonColor: "#A97142",
+                    });
+                    return;
+                  }
+
+                  // Show warning if some items will be skipped
+                  if (otherUserItems.length > 0) {
+                    Swal.fire({
+                      title: "Partial Deletion",
+                      text: `Only ${userItems.length} of ${selectedCount} selected items will be deleted. Items uploaded by others will be skipped.`,
+                      icon: "warning",
+                      showCancelButton: true,
+                      confirmButtonColor: "#A97142",
+                      cancelButtonColor: "#d33",
+                      confirmButtonText: "Delete My Items",
+                      cancelButtonText: "Cancel",
+                    }).then((result) => {
+                      if (result.isConfirmed) {
+                        // Delete only user's items
+                        userItems.forEach((item) => handleDelete(item.id));
+                        clearSelection();
+                      }
+                    });
+                    return;
+                  }
+
+                  // All selected items belong to user
+                  deleteSelected();
                 }
-
-                // Show warning if some items will be skipped
-                if (otherUserItems.length > 0) {
-                  Swal.fire({
-                    title: "Partial Deletion",
-                    text: `Only ${userItems.length} of ${selectedCount} selected items will be deleted. Items uploaded by others will be skipped.`,
-                    icon: "warning",
-                    showCancelButton: true,
-                    confirmButtonColor: "#A97142",
-                    cancelButtonColor: "#d33",
-                    confirmButtonText: "Delete My Items",
-                    cancelButtonText: "Cancel",
-                  }).then((result) => {
-                    if (result.isConfirmed) {
-                      // Delete only user's items
-                      userItems.forEach((item) => handleDelete(item.id));
-                      clearSelection();
-                    }
-                  });
-                  return;
-                }
-
-                // All selected items belong to user
-                deleteSelected();
               }}
               className={pillSolid}
             >
@@ -1081,32 +1167,21 @@ export default function BakeryInventory({ isViewOnly = false }) {
             </button>
           </>
         )}
-        <div className="w-full sm:w-auto sm:ml-auto flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 sm:gap-4">
-          {/* STATUS FILTER GROUP (Fresh / Soon / Expired) */}
-          <div className="flex flex-wrap items-center gap-2 bg-white/80 rounded-2xl px-2 py-2 ring-1 ring-black/5 shadow-sm w-full sm:w-auto">
+        <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-3">
+          {/* All Filter */}
+          <div className="flex items-center gap-2 bg-white/80 rounded-2xl px-2 py-2 ring-1 ring-black/5 shadow-sm">
             {[
-              { key: "all", label: "All", tone: "bg-white" },
               {
-                key: "fresh",
-                label: `Fresh (${statusCounts.fresh})`,
-                tone: "bg-green-100",
-              },
-              {
-                key: "soon",
-                label: `Soon (${statusCounts.soon})`,
-                tone: "bg-amber-100",
-              },
-              {
-                key: "expired",
-                label: `Expired (${statusCounts.expired})`,
-                tone: "bg-red-100",
+                key: "all",
+                label: `All (${combinedCounts.all})`,
+                tone: "bg-white",
               },
             ].map(({ key, label, tone }) => {
-              const active = statusFilter === key;
+              const active = combinedFilter === key;
               return (
                 <button
                   key={key}
-                  onClick={() => setStatusFilter(key)}
+                  onClick={() => setCombinedFilter(key)}
                   className={
                     "text-xs sm:text-sm rounded-full px-3 py-1 transition " +
                     (active
@@ -1120,36 +1195,74 @@ export default function BakeryInventory({ isViewOnly = false }) {
             })}
           </div>
 
-          {/* DONATION STATUS FILTER GROUP */}
-          <div className="flex flex-wrap items-center gap-2 bg-white/80 rounded-2xl px-2 py-2 ring-1 ring-black/5 shadow-sm w-full sm:w-auto">
+          {/* Freshness Status */}
+          <div className="flex items-center gap-2 bg-white/80 rounded-2xl px-2 py-2 ring-1 ring-black/5 shadow-sm">
             {[
-              { key: "all", label: "All", tone: "bg-white" },
               {
-                key: "available",
-                label: `Available (${donationCounts.available})`,
+                key: "fresh",
+                label: `Fresh (${combinedCounts.fresh})`,
                 tone: "bg-green-100",
               },
               {
-                key: "requested",
-                label: `Requested (${donationCounts.requested})`,
-                tone: "bg-blue-100",
-              },
-              {
-                key: "donated",
-                label: `Donated (${donationCounts.donated})`,
+                key: "soon",
+                label: `Soon (${combinedCounts.soon})`,
                 tone: "bg-amber-100",
               },
               {
-                key: "unavailable",
-                label: `Unavailable (${donationCounts.unavailable})`,
+                key: "expired",
+                label: `Expired (${combinedCounts.expired || 0})`,
                 tone: "bg-red-100",
               },
             ].map(({ key, label, tone }) => {
-              const active = donationFilter === key;
+              const active = combinedFilter === key;
               return (
                 <button
                   key={key}
-                  onClick={() => setDonationFilter(key)}
+                  onClick={() => setCombinedFilter(key)}
+                  className={
+                    "text-xs sm:text-sm rounded-full px-3 py-1 transition " +
+                    (active
+                      ? "text-white bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] shadow"
+                      : `text-[#6b4b2b] ${tone} hover:brightness-95`)
+                  }
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Donation Status */}
+          <div className="flex items-center gap-2 bg-white/80 rounded-2xl px-2 py-2 ring-1 ring-black/5 shadow-sm">
+            {[
+              {
+                key: "available",
+                label: `Available (${combinedCounts.available})`,
+                tone: "bg-green-100",
+              },
+              {
+                // ✅ REQUESTED = YELLOW
+                key: "requested",
+                label: `Requested (${combinedCounts.requested})`,
+                tone: "bg-amber-100",
+              },
+              {
+                // ✅ DONATED = BLUE
+                key: "donated",
+                label: `Donated (${combinedCounts.donated})`,
+                tone: "bg-blue-100",
+              },
+              {
+                key: "unavailable",
+                label: `Unavailable (${combinedCounts.unavailable})`,
+                tone: "bg-red-100",
+              },
+            ].map(({ key, label, tone }) => {
+              const active = combinedFilter === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setCombinedFilter(key)}
                   className={
                     "text-xs sm:text-sm rounded-full px-3 py-1 transition " +
                     (active
@@ -1164,13 +1277,13 @@ export default function BakeryInventory({ isViewOnly = false }) {
           </div>
 
           {/* Name filter */}
-          <div className="relative w-full sm:w-[260px] sm:ml-auto">
+          <div className="relative w-full sm:w-[260px]">
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Filter by product name…"
-              className="w-full sm:w-[260px] rounded-full bg-white/90 ring-1 ring-black/10 px-4 py-2 pr-9 shadow-sm outline-none focus:ring-2 focus:ring-[#E49A52]"
+              className="w-full rounded-full bg-white/90 ring-1 ring-black/10 px-4 py-2 pr-9 shadow-sm outline-none focus:ring-2 focus:ring-[#E49A52]"
             />
             {query && (
               <button
@@ -1274,12 +1387,15 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     <td className="p-3">{formatDate(item.expiration_date)}</td>
                     <td className="p-3">
                       {(() => {
-                        if (!item.expiration_date || !item.threshold) return "N/A";
-                        
+                        if (!item.expiration_date || !item.threshold)
+                          return "N/A";
+
                         const expDate = new Date(item.expiration_date);
                         const thresholdDate = new Date(expDate);
-                        thresholdDate.setDate(thresholdDate.getDate() - item.threshold);
-                        
+                        thresholdDate.setDate(
+                          thresholdDate.getDate() - item.threshold
+                        );
+
                         return formatDate(thresholdDate.toISOString());
                       })()}
                     </td>
@@ -1301,10 +1417,14 @@ export default function BakeryInventory({ isViewOnly = false }) {
               })
             ) : (
               <tr>
-                <td className="py-10 text-gray-500 text-center" colSpan={11}>
-                  {query || statusFilter !== "all" || donationFilter !== "all"
-                    ? "No products match your filters."
-                    : "No items found."}
+                <td colSpan={11}>
+                  <div className="h-40 grid place-items-center">
+                    <div className="inline-flex items-center rounded-2xl border border-[#eadfce] bg-[#FFF9F1] px-5 py-3 shadow-sm text-sm text-[#7b5836]">
+                      {query || combinedFilter !== "all"
+                        ? "No products match your filters."
+                        : "No items found."}
+                    </div>
+                  </div>
                 </td>
               </tr>
             )}
@@ -1316,9 +1436,18 @@ export default function BakeryInventory({ isViewOnly = false }) {
       {filteredInventory.length > 0 && (
         <div className="mt-3 flex flex-col gap-2 text-xs text-[#6b4b2b] sm:flex-row sm:items-center sm:justify-between">
           <span>
-            Showing {startIndex + 1}–
-            {Math.min(startIndex + pageSize, filteredInventory.length)} of{" "}
-            {filteredInventory.length}
+            {" "}
+            <strong>
+              Showing {startIndex + 1}–
+              {Math.min(startIndex + pageSize, filteredInventory.length)} of{" "}
+              {filteredInventory.length}
+              {" | "}
+              Total Quantity:{" "}
+              {filteredInventory.reduce(
+                (sum, item) => sum + Number(item.quantity || 0),
+                0
+              )}
+            </strong>
           </span>
 
           <div className="flex items-center gap-2">
@@ -1399,9 +1528,15 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     />
                     {productCodePreview ? (
                       <p className="mt-1 text-xs text-green-600">
-                        ✓ Next Product ID: <code className="font-semibold">{productCodePreview.next_product_id}</code>
+                        ✓ Next Product ID:{" "}
+                        <code className="font-semibold">
+                          {productCodePreview.next_product_id}
+                        </code>
                         {!productCodePreview.is_mapped && (
-                          <span className="ml-1 text-amber-600" title="Auto-generated code">
+                          <span
+                            className="ml-1 text-amber-600"
+                            title="Auto-generated code"
+                          >
                             (auto)
                           </span>
                         )}
@@ -1438,6 +1573,11 @@ export default function BakeryInventory({ isViewOnly = false }) {
                         />
                       </div>
                     )}
+                    {!form.template_image && !form.image_file && (
+                      <p className="mt-1 text-xs text-red-600">
+                        Product image is required
+                      </p>
+                    )}
                   </div>
 
                   <div className="grid sm:grid-cols-2 gap-4">
@@ -1447,12 +1587,95 @@ export default function BakeryInventory({ isViewOnly = false }) {
                       </label>
                       <input
                         id="prod_created"
-                        type="text"
-                        className={`${inputTone} rounded-2xl bg-gray-100 cursor-not-allowed`}
-                        value={serverDate || "Loading..."}
-                        readOnly
-                        disabled
+                        type="date"
+                        min={
+                          currentServerDate
+                            ? (() => {
+                                // Allow backdating up to 3 days
+                                const [year, month, day] = currentServerDate
+                                  .split("-")
+                                  .map(Number);
+                                const minDate = new Date(year, month - 1, day);
+                                minDate.setDate(minDate.getDate() - 3);
+
+                                const yyyy = minDate.getFullYear();
+                                const mm = String(
+                                  minDate.getMonth() + 1
+                                ).padStart(2, "0");
+                                const dd = String(minDate.getDate()).padStart(
+                                  2,
+                                  "0"
+                                );
+                                return `${yyyy}-${mm}-${dd}`;
+                              })()
+                            : ""
+                        }
+                        max={currentServerDate}
+                        className={`${inputTone} rounded-2xl`}
+                        value={form.creation_date}
+                        onChange={(e) => {
+                          const newCreationDate = e.target.value;
+                          
+                          // If expiration date exists and creation date is being changed
+                          if (form.expiration_date && newCreationDate) {
+                            // Calculate current shelf life if not already set
+                            let currentShelfLife = shelfLifeDays;
+                            
+                            if (currentShelfLife === null && form.creation_date) {
+                              const oldCreation = new Date(form.creation_date);
+                              const expiration = new Date(form.expiration_date);
+                              currentShelfLife = Math.ceil(
+                                (expiration - oldCreation) / (1000 * 60 * 60 * 24)
+                              );
+                              setShelfLifeDays(currentShelfLife);
+                            }
+                            
+                            // Auto-adjust expiration date to maintain shelf life
+                            if (currentShelfLife !== null) {
+                              const newCreation = new Date(newCreationDate);
+                              const newExpiration = new Date(newCreation);
+                              newExpiration.setDate(newExpiration.getDate() + currentShelfLife);
+                              
+                              const yyyy = newExpiration.getFullYear();
+                              const mm = String(newExpiration.getMonth() + 1).padStart(2, "0");
+                              const dd = String(newExpiration.getDate()).padStart(2, "0");
+                              const newExpirationStr = `${yyyy}-${mm}-${dd}`;
+                              
+                              setForm({ 
+                                ...form, 
+                                creation_date: newCreationDate,
+                                expiration_date: newExpirationStr
+                              });
+                              return;
+                            }
+                          }
+                          
+                          setForm({ ...form, creation_date: newCreationDate });
+                        }}
+                        required
                       />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Can backdate up to 3 days (from{" "}
+                        {currentServerDate
+                          ? (() => {
+                              const [year, month, day] = currentServerDate
+                                .split("-")
+                                .map(Number);
+                              const minDate = new Date(year, month - 1, day);
+                              minDate.setDate(minDate.getDate() - 3);
+                              const mm = String(
+                                minDate.getMonth() + 1
+                              ).padStart(2, "0");
+                              const dd = String(minDate.getDate()).padStart(
+                                2,
+                                "0"
+                              );
+                              const yyyy = minDate.getFullYear();
+                              return `${mm}/${dd}/${yyyy}`;
+                            })()
+                          : ""}
+                        )
+                      </p>
                     </div>
                     <div>
                       <label htmlFor="prod_exp" className={labelTone}>
@@ -1493,9 +1716,20 @@ export default function BakeryInventory({ isViewOnly = false }) {
                           templateInfo ? "bg-gray-100 cursor-not-allowed" : ""
                         }`}
                         value={form.expiration_date}
-                        onChange={(e) =>
-                          setForm({ ...form, expiration_date: e.target.value })
-                        }
+                        onChange={(e) => {
+                          const newExpirationDate = e.target.value;
+                          setForm({ ...form, expiration_date: newExpirationDate });
+                          
+                          // Update shelf life when expiration changes
+                          if (form.creation_date && newExpirationDate) {
+                            const creation = new Date(form.creation_date);
+                            const expiration = new Date(newExpirationDate);
+                            const shelfLife = Math.ceil(
+                              (expiration - creation) / (1000 * 60 * 60 * 24)
+                            );
+                            setShelfLifeDays(shelfLife);
+                          }
+                        }}
                         readOnly={!!templateInfo}
                         disabled={!!templateInfo}
                         required
@@ -1530,28 +1764,32 @@ export default function BakeryInventory({ isViewOnly = false }) {
                       <input
                         id="prod_threshold"
                         type="text"
-                        className={`${inputTone} rounded-2xl bg-gray-100 cursor-not-allowed`}
+                        className="w-full border-0 bg-transparent p-2 text-sm text-[#6b4b2b] cursor-not-allowed focus:ring-0 focus:border-0"
                         value={(() => {
-                          if (!form.expiration_date || !form.creation_date) return "Set expiration date first";
-                          
+                          if (!form.expiration_date || !currentServerDate)
+                            return "Set expiration date first";
+
                           const expDate = new Date(form.expiration_date);
-                          const creationDate = new Date(form.creation_date);
+                          const [year, month, day] = currentServerDate
+                            .split("-")
+                            .map(Number);
+                          const today = new Date(year, month - 1, day);
+
                           const thresholdDate = new Date(expDate);
                           thresholdDate.setDate(thresholdDate.getDate() - 2);
-                          
-                          // If threshold is before creation date, use creation date instead
-                          if (thresholdDate < creationDate) {
-                            return creationDate.toLocaleDateString("en-US", {
+
+                          if (thresholdDate < today) {
+                            return today.toLocaleDateString("en-US", {
                               month: "2-digit",
                               day: "2-digit",
-                              year: "numeric"
+                              year: "numeric",
                             });
                           }
-                          
+
                           return thresholdDate.toLocaleDateString("en-US", {
                             month: "2-digit",
                             day: "2-digit",
-                            year: "numeric"
+                            year: "numeric",
                           });
                         })()}
                         readOnly
@@ -1663,11 +1901,12 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     <input
                       id="prod_uploader"
                       type="text"
-                      className={`${inputTone} rounded-2xl bg-gray-100`}
+                      className="w-full border-0 bg-transparent p-2 text-sm text-[#6b4b2b] cursor-not-allowed focus:ring-0 focus:border-0"
                       value={form.uploaded}
                       readOnly
                       disabled
                     />
+
                     <p className="mt-1 text-xs text-gray-500">
                       Auto-filled from your login
                     </p>
@@ -1687,6 +1926,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     setShowForm(false);
                     setTemplateInfo(null);
                     setProductCodePreview(null);
+                    setShelfLifeDays(null);
                     setForm({
                       item_name: "",
                       quantity: 1,
@@ -1706,12 +1946,12 @@ export default function BakeryInventory({ isViewOnly = false }) {
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className={pillSolid}
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? 'Adding...' : 'Add Product'}
+                  {isSubmitting ? "Adding..." : "Add Product"}
                 </button>
               </div>
             </form>
@@ -1753,15 +1993,15 @@ export default function BakeryInventory({ isViewOnly = false }) {
                 <strong className="text-[#6b4b2b]">Date for Donation:</strong>{" "}
                 {(() => {
                   if (!selectedItem.expiration_date) return "N/A";
-                  
+
                   const expDate = new Date(selectedItem.expiration_date);
                   const thresholdDate = new Date(expDate);
                   thresholdDate.setDate(thresholdDate.getDate() - 2);
-                  
+
                   return thresholdDate.toLocaleDateString("en-US", {
                     month: "2-digit",
                     day: "2-digit",
-                    year: "numeric"
+                    year: "numeric",
                   });
                 })()}
               </p>
@@ -1796,7 +2036,8 @@ export default function BakeryInventory({ isViewOnly = false }) {
                 <>
                   <button
                     onClick={() => {
-                      if (selectedItem.uploaded !== uploaderName) {
+                      // Bakery owners can delete any item, employees only their own
+                      if (!isBakeryOwner && selectedItem.uploaded !== uploaderName) {
                         Swal.fire({
                           title: "Access Denied",
                           text: `Only ${
@@ -1811,7 +2052,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     }}
                     className={pillSolid}
                     title={
-                      selectedItem.uploaded !== uploaderName
+                      !isBakeryOwner && selectedItem.uploaded !== uploaderName
                         ? "Only the uploader can delete this item"
                         : ""
                     }
@@ -1821,7 +2062,22 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
                   <button
                     onClick={() => {
-                      if (selectedItem.uploaded !== uploaderName) {
+                      // Check if product is donated
+                      if (
+                        selectedItem.status &&
+                        selectedItem.status.toLowerCase() === "donated"
+                      ) {
+                        Swal.fire({
+                          title: "Cannot Edit",
+                          text: "Donated products cannot be edited.",
+                          icon: "error",
+                          confirmButtonColor: "#A97142",
+                        });
+                        return;
+                      }
+
+                      // Bakery owners can edit any item, employees only their own
+                      if (!isBakeryOwner && selectedItem.uploaded !== uploaderName) {
                         Swal.fire({
                           title: "Access Denied",
                           text: `Only ${
@@ -1839,8 +2095,13 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     }}
                     className={pillSolid}
                     title={
-                      selectedItem.uploaded !== uploaderName
+                      selectedItem.status &&
+                      selectedItem.status.toLowerCase() === "donated"
+                        ? "Donated products cannot be edited"
+                        : !isBakeryOwner && selectedItem.uploaded !== uploaderName
                         ? "Only the uploader can edit this item"
+                        : isBakeryOwner && selectedItem.uploaded !== uploaderName
+                        ? "Editing as owner - uploader name will be preserved"
                         : ""
                     }
                   >
@@ -1949,9 +2210,11 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     })
                   }
                 />
-                <p className="mt-1 text-xs text-gray-500">
-                  Leave empty to keep the current image.
-                </p>
+                {selectedItem.image && (
+                  <p className="mt-1 text-xs text-green-600">
+                    ✓ Current image: {selectedItem.image.split("/").pop()}
+                  </p>
+                )}
                 {selectedItem.template_image && !selectedItem.image_file && (
                   <div className="mt-2">
                     <p className="text-xs text-green-600 mb-2">
@@ -1964,6 +2227,13 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     />
                   </div>
                 )}
+                {!selectedItem.image &&
+                  !selectedItem.template_image &&
+                  !selectedItem.image_file && (
+                    <p className="mt-1 text-xs text-red-600">
+                      Product image is required
+                    </p>
+                  )}
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4">
@@ -2055,35 +2325,40 @@ export default function BakeryInventory({ isViewOnly = false }) {
                   <input
                     id="edit_threshold"
                     type="text"
-                    className={`${inputTone} rounded-2xl bg-gray-100 cursor-not-allowed`}
+                    className="w-full border-0 bg-transparent p-2 text-sm text-[#6b4b2b] cursor-not-allowed focus:ring-0 focus:border-0"
                     value={(() => {
-                      if (!selectedItem.expiration_date || !selectedItem.creation_date) return "Set expiration date first";
-                      
+                      if (!selectedItem.expiration_date || !currentServerDate)
+                        return "Set expiration date first";
+
                       const expDate = new Date(selectedItem.expiration_date);
-                      const creationDate = new Date(selectedItem.creation_date);
+                      const [year, month, day] = currentServerDate
+                        .split("-")
+                        .map(Number);
+                      const today = new Date(year, month - 1, day);
+
                       const thresholdDate = new Date(expDate);
                       thresholdDate.setDate(thresholdDate.getDate() - 2);
-                      
-                      // If threshold is before creation date, use creation date instead
-                      if (thresholdDate < creationDate) {
-                        return creationDate.toLocaleDateString("en-US", {
+
+                      if (thresholdDate < today) {
+                        return today.toLocaleDateString("en-US", {
                           month: "2-digit",
                           day: "2-digit",
-                          year: "numeric"
+                          year: "numeric",
                         });
                       }
-                      
+
                       return thresholdDate.toLocaleDateString("en-US", {
                         month: "2-digit",
                         day: "2-digit",
-                        year: "numeric"
+                        year: "numeric",
                       });
                     })()}
                     readOnly
                     disabled
                   />
+
                   <p className="mt-1 text-xs text-gray-500">
-                    Automatically set to 2 days before expiration
+                    Set to 2 days before expiration (minimum: today)
                   </p>
                 </div>
 
@@ -2093,20 +2368,64 @@ export default function BakeryInventory({ isViewOnly = false }) {
                   </label>
                   <input
                     id="edit_created"
-                    type="text"
-                    className={`${inputTone} rounded-2xl bg-gray-100 cursor-not-allowed`}
-                    value={(() => {
-                      // ALWAYS show original creation date (never changes)
-                      const dateToUse = selectedItem.creation_date;
-                      return dateToUse
-                        ? new Date(dateToUse).toLocaleDateString("en-US")
-                        : "";
-                    })()}
-                    readOnly
-                    disabled
+                    type="date"
+                    min={
+                      currentServerDate
+                        ? (() => {
+                            // Allow backdating up to 3 days
+                            const [year, month, day] = currentServerDate
+                              .split("-")
+                              .map(Number);
+                            const minDate = new Date(year, month - 1, day);
+                            minDate.setDate(minDate.getDate() - 3);
+
+                            const yyyy = minDate.getFullYear();
+                            const mm = String(minDate.getMonth() + 1).padStart(
+                              2,
+                              "0"
+                            );
+                            const dd = String(minDate.getDate()).padStart(
+                              2,
+                              "0"
+                            );
+                            return `${yyyy}-${mm}-${dd}`;
+                          })()
+                        : ""
+                    }
+                    max={currentServerDate}
+                    className={`${inputTone} rounded-2xl`}
+                    value={
+                      selectedItem.creation_date
+                        ? selectedItem.creation_date.split("T")[0]
+                        : ""
+                    }
+                    onChange={(e) =>
+                      setSelectedItem({
+                        ...selectedItem,
+                        creation_date: e.target.value,
+                      })
+                    }
+                    required
                   />
                   <p className="mt-1 text-xs text-gray-500">
-                    Creation date cannot be modified
+                    Can backdate up to 3 days (from{" "}
+                    {currentServerDate
+                      ? (() => {
+                          const [year, month, day] = currentServerDate
+                            .split("-")
+                            .map(Number);
+                          const minDate = new Date(year, month - 1, day);
+                          minDate.setDate(minDate.getDate() - 3);
+                          const mm = String(minDate.getMonth() + 1).padStart(
+                            2,
+                            "0"
+                          );
+                          const dd = String(minDate.getDate()).padStart(2, "0");
+                          const yyyy = minDate.getFullYear();
+                          return `${mm}/${dd}/${yyyy}`;
+                        })()
+                      : ""}
+                    )
                   </p>
                 </div>
 
@@ -2183,11 +2502,12 @@ export default function BakeryInventory({ isViewOnly = false }) {
                 <input
                   id="edit_uploaded"
                   type="text"
-                  className={`${inputTone} rounded-2xl bg-gray-100 cursor-not-allowed`}
+                  className="w-full border-0 bg-transparent p-2 text-sm text-[#6b4b2b] cursor-not-allowed focus:ring-0 focus:border-0"
                   value={selectedItem.uploaded || ""}
                   readOnly
                   disabled
                 />
+
                 <p className="mt-1 text-xs text-gray-500">
                   Uploader cannot be modified
                 </p>
@@ -2224,12 +2544,8 @@ export default function BakeryInventory({ isViewOnly = false }) {
               >
                 Cancel
               </button>
-              <button 
-                type="submit" 
-                className={pillSolid}
-                disabled={isUpdating}
-              >
-                {isUpdating ? 'Saving...' : 'Save Changes'}
+              <button type="submit" className={pillSolid} disabled={isUpdating}>
+                {isUpdating ? "Saving..." : "Save Changes"}
               </button>
             </div>
           </form>

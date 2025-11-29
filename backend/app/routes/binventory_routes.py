@@ -8,7 +8,7 @@ from sqlalchemy import func
 from app import models, database, schemas, auth, crud
 from app.timezone_utils import today_ph
 from app.routes.cnotification import process_geofence_notifications
-from app.product_id_generator import get_product_info, get_next_sequence_number, get_product_code
+from app.product_id_generator import get_product_info, get_next_sequence_number, get_product_code 
 
 router = APIRouter()
 UPLOAD_DIR = "uploads"
@@ -595,6 +595,7 @@ def check_inventory_status(db: Session):
     products = db.query(models.BakeryInventory).all()
 
     for p in products:
+        # Skip if no expiration date OR if already donated
         if not p.expiration_date or p.status == "donated":
             continue
 
@@ -609,9 +610,11 @@ def check_inventory_status(db: Session):
                 continue
 
         if exp_date <= today:
-            if p.status != "unavailable":
+            # Only change to unavailable if NOT donated
+            if p.status != "unavailable" and p.status != "donated":
                 p.status = "unavailable"
         else:
+            # Only restore to available if currently unavailable (not if donated)
             if p.quantity > 0 and p.status == "unavailable":
                 p.status = "available"
 

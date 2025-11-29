@@ -14,7 +14,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import Swal from "sweetalert2";
-import { Megaphone, FileText, CheckCircle2, Clock, Search, Trash2 } from "lucide-react";
+import {
+  Megaphone,
+  FileText,
+  CheckCircle2,
+  Clock,
+  Search,
+  Trash2,
+  Pencil,
+} from "lucide-react";
 
 export default function ComplaintModule({ isViewOnly = false }) {
   const [formData, setFormData] = useState({ subject: "", description: "" });
@@ -23,6 +31,7 @@ export default function ComplaintModule({ isViewOnly = false }) {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [editingComplaint, setEditingComplaint] = useState(null);
 
   // --- UI: search & pagination state ---
   const [searchTerm, setSearchTerm] = useState("");
@@ -33,19 +42,24 @@ export default function ComplaintModule({ isViewOnly = false }) {
   const formatDate = (s) => {
     if (!s) return "—";
 
-    let value = s;
-    if (
-      typeof s === "string" &&
-      !/[zZ]|[+\-]\d{2}:\d{2}$/.test(s) // no timezone suffix
-    ) {
-      value = s + "Z";
+    // Parse datetime string - treat as Philippines time (UTC+8)
+    // Backend sends: "2024-11-29 18:40:00" (already in PH time)
+    let dateStr = s;
+
+    // Add 'T' if space exists (SQL datetime format)
+    if (typeof s === "string" && s.includes(" ")) {
+      dateStr = s.replace(" ", "T");
     }
 
-    const d = new Date(value);
+    // Parse as UTC first, then subtract 8 hours to get the correct UTC time
+    // because the string is actually PH time (UTC+8)
+    const d = new Date(dateStr + "+08:00"); // Tell JS this is UTC+8
+
     if (isNaN(d)) return "—";
 
-    // Display as local time (browser timezone, e.g. Asia/Manila)
+    // Display in Philippines timezone
     return d.toLocaleString("en-US", {
+      timeZone: "Asia/Manila",
       month: "short",
       day: "2-digit",
       year: "numeric",
@@ -84,25 +98,44 @@ export default function ComplaintModule({ isViewOnly = false }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
-    
+
     setIsSubmitting(true);
     setLoading(true);
 
     try {
       const token =
         localStorage.getItem("employeeToken") || localStorage.getItem("token");
-      await axios.post("http://localhost:8000/complaints/", formData, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      
+      if (editingComplaint) {
+        // Update existing complaint
+        await axios.put(
+          `http://localhost:8000/complaints/${editingComplaint.id}`,
+          formData,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
 
-      setOpen(false);
-      Swal.fire({
-        icon: "success",
-        title: "Concern Submitted",
-        text: "Your concern has been successfully submitted.",
-      });
+        setOpen(false);
+        Swal.fire({
+          icon: "success",
+          title: "Concern Updated",
+          text: "Your concern has been successfully updated.",
+        });
+      } else {
+        // Create new complaint
+        await axios.post("http://localhost:8000/complaints/", formData, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        setOpen(false);
+        Swal.fire({
+          icon: "success",
+          title: "Concern Submitted",
+          text: "Your concern has been successfully submitted.",
+        });
+      }
 
       setFormData({ subject: "", description: "" });
+      setEditingComplaint(null);
       fetchComplaints();
     } catch (err) {
       Swal.fire({
@@ -118,9 +151,18 @@ export default function ComplaintModule({ isViewOnly = false }) {
     }
   };
 
+  const handleEdit = (complaint) => {
+    setEditingComplaint(complaint);
+    setFormData({
+      subject: complaint.subject,
+      description: complaint.description,
+    });
+    setOpen(true);
+  };
+
   const handleDelete = async (complaintId) => {
     if (isDeleting) return;
-    
+
     const result = await Swal.fire({
       title: "Delete Concern?",
       text: "This action cannot be undone.",
@@ -290,7 +332,13 @@ export default function ComplaintModule({ isViewOnly = false }) {
         </h1>
 
         {!isViewOnly && (
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog open={open} onOpenChange={(isOpen) => {
+            setOpen(isOpen);
+            if (!isOpen) {
+              setEditingComplaint(null);
+              setFormData({ subject: "", description: "" });
+            }
+          }}>
             <DialogTrigger asChild>
               <Button
                 className="rounded-full px-5 py-2 text-white shadow-md
@@ -317,7 +365,7 @@ export default function ComplaintModule({ isViewOnly = false }) {
                   </span>
                   <DialogHeader className="m-0 p-0">
                     <DialogTitle className="m-0 text-base font-semibold tracking-tight text-[#4A2F17] sm:text-lg">
-                      Submit a Concern
+                      {editingComplaint ? "Edit Concern" : "Submit a Concern"}
                     </DialogTitle>
                   </DialogHeader>
                 </div>
@@ -393,7 +441,9 @@ export default function ComplaintModule({ isViewOnly = false }) {
                                transition hover:-translate-y-0.5 hover:brightness-[1.03]
                                active:scale-95 sm:w-auto sm:flex-1"
                   >
-                    {loading ? "Submitting..." : "Submit Concern"}
+                    {loading 
+                      ? (editingComplaint ? "Updating..." : "Submitting...") 
+                      : (editingComplaint ? "Update Concern" : "Submit Concern")}
                   </Button>
                 </DialogFooter>
               </form>
@@ -457,11 +507,53 @@ export default function ComplaintModule({ isViewOnly = false }) {
         {/* --- UI: list + pagination --- */}
         <CardContent className="pb-4 pt-3">
           {complaints.length === 0 ? (
-            <p className="text-sm text-gray-500">No concerns submitted yet.</p>
+            <div
+              className="
+        mt-2
+        rounded-3xl
+        border border-[#eadfce]
+        bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
+        shadow-[0_2px_8px_rgba(93,64,28,0.06)]
+        h-48 sm:h-56
+        flex items-center justify-center
+      "
+            >
+              <p
+                className="
+          text-sm
+          text-[#7b5836]
+          bg-white/70 border border-[#f2e3cf]
+          rounded-2xl px-4 py-6
+          text-center
+        "
+              >
+                No concerns submitted yet.
+              </p>
+            </div>
           ) : filteredComplaints.length === 0 ? (
-            <p className="text-sm text-gray-500">
-              No concerns match your search.
-            </p>
+            <div
+              className="
+        mt-2
+        rounded-3xl
+        border border-[#eadfce]
+        bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
+        shadow-[0_2px_8px_rgba(93,64,28,0.06)]
+        h-48 sm:h-56
+        flex items-center justify-center
+      "
+            >
+              <p
+                className="
+          text-sm
+          text-[#7b5836]
+          bg-white/70 border border-[#f2e3cf]
+          rounded-2xl px-4 py-6
+          text-center
+        "
+              >
+                No concerns match your search.
+              </p>
+            </div>
           ) : (
             <>
               <ul className="grid grid-cols-1 gap-3">
@@ -471,11 +563,11 @@ export default function ComplaintModule({ isViewOnly = false }) {
                     <li
                       key={c.id}
                       className="relative overflow-hidden rounded-xl
-                                 border border-[#f2e3cf] bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
-                                 px-4 py-3 text-sm shadow-[0_2px_8px_rgba(93,64,28,.06)]
-                                 transition-all duration-200
-                                 hover:scale-[1.005] hover:shadow-[0_10px_24px_rgba(191,115,39,.16)]
-                                 hover:ring-1 hover:ring-[#E49A52]/35"
+                         border border-[#f2e3cf] bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
+                         px-4 py-3 text-sm shadow-[0_2px_8px_rgba(93,64,28,.06)]
+                         transition-all duration-200
+                         hover:scale-[1.005] hover:shadow-[0_10px_24px_rgba(191,115,39,.16)]
+                         hover:ring-1 hover:ring-[#E49A52]/35"
                     >
                       <div
                         className={`absolute left-0 top-0 h-full w-1 ${chip.bar}`}
@@ -493,19 +585,36 @@ export default function ComplaintModule({ isViewOnly = false }) {
                             {chip.label}
                           </span>
                           {!isViewOnly && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDelete(c.id);
-                              }}
-                              className="flex h-7 w-7 items-center justify-center rounded-full
-                                         border border-red-200 bg-red-50 text-red-600
-                                         transition-all hover:bg-red-100 hover:border-red-300
-                                         hover:shadow-sm active:scale-95"
-                              title="Delete concern"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                            <>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEdit(c);
+                                }}
+                                disabled={c.status?.toLowerCase() === "resolved"}
+                                className="flex h-7 w-7 items-center justify-center rounded-full
+                                   border border-[#E49A52] bg-[#FFF6EC] text-[#BF7327]
+                                   transition-all hover:bg-[#FFE8CC] hover:border-[#BF7327]
+                                   hover:shadow-sm active:scale-95
+                                   disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#FFF6EC]"
+                                title={c.status?.toLowerCase() === "resolved" ? "Cannot edit resolved concerns" : "Edit concern"}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(c.id);
+                                }}
+                                className="flex h-7 w-7 items-center justify-center rounded-full
+                                   border border-red-200 bg-red-50 text-red-600
+                                   transition-all hover:bg-red-100 hover:border-red-300
+                                   hover:shadow-sm active:scale-95"
+                                title="Delete concern"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </>
                           )}
                         </div>
                       </div>

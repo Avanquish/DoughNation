@@ -40,6 +40,16 @@ export default function AdminReports() {
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
   const normalizePath = (path) => path.replace(/\\/g, "/");
 
+  // Get current date in Philippine timezone (YYYY-MM-DD format)
+  const getPhilippineDate = () => {
+    const now = new Date();
+    const phTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+    const year = phTime.getFullYear();
+    const month = String(phTime.getMonth() + 1).padStart(2, '0');
+    const day = String(phTime.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Report types
     const reportTypes = [
     { key: "manage_users", label: "Manage Users" },
@@ -1612,7 +1622,7 @@ export default function AdminReports() {
                           <input
                             type="date"
                             value={startDate}
-                            max={new Date().toISOString().split("T")[0]}
+                            max={getPhilippineDate()}
                             onChange={(e) => setStartDate(e.target.value)}
                             className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                           />
@@ -1624,7 +1634,7 @@ export default function AdminReports() {
                           <input
                             type="date"
                             value={endDate}
-                            max={new Date().toISOString().split("T")[0]}
+                            max={getPhilippineDate()}
                             onChange={(e) => setEndDate(e.target.value)}
                             className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                           />
@@ -1693,7 +1703,7 @@ export default function AdminReports() {
                             <input
                               type="date"
                               value={startDate}
-                              max={new Date().toISOString().split("T")[0]}
+                              max={getPhilippineDate()}
                               onChange={(e) => setStartDate(e.target.value)}
                               className="w-full rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                             />
@@ -1707,7 +1717,7 @@ export default function AdminReports() {
                             <input
                               type="date"
                               value={endDate}
-                              max={new Date().toISOString().split("T")[0]}
+                              max={getPhilippineDate()}
                               onChange={(e) => setEndDate(e.target.value)}
                               className="w-full rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                             />
@@ -1848,7 +1858,7 @@ export default function AdminReports() {
                           <input
                             type="date"
                             value={startDate}
-                            max={new Date().toISOString().split("T")[0]}
+                            max={getPhilippineDate()}
                             onChange={(e) => setStartDate(e.target.value)}
                             className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                           />
@@ -1860,7 +1870,7 @@ export default function AdminReports() {
                           <input
                             type="date"
                             value={endDate}
-                            max={new Date().toISOString().split("T")[0]}
+                            max={getPhilippineDate()}
                             onChange={(e) => setEndDate(e.target.value)}
                             className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                           />

@@ -5,7 +5,7 @@ import Swal from "sweetalert2";
 import { useNavigate, Link } from "react-router-dom";
 
 // Map & geocoding bits
-import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
 // UI kit pieces
@@ -48,6 +48,19 @@ const LocationSelector = ({ setLocation, setFormData }) => {
   return null;
 };
 
+const MapViewController = ({ center }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (center) {
+      map.setView([center.lat, center.lng], 15, {
+        animate: true,
+        duration: 1,
+      });
+    }
+  }, [center, map]);
+  return null;
+};
+
 export default function Register() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,6 +76,12 @@ export default function Register() {
     password: "",
     confirm_password: "",
   });
+
+  /** Address search autocomplete */
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchTimeoutRef = useRef(null);
 
   const passStrength = (() => {
     const p = formData.password;
@@ -130,13 +149,76 @@ export default function Register() {
 
   /** Map-selected location */
   const [location, setLocation] = useState(null);
+  const [mapCenter, setMapCenter] = useState(null);
 
   /** Email availability */
   const [emailAvailable, setEmailAvailable] = useState(true);
   const [emailChecking, setEmailChecking] = useState(false);
 
+  /** OTP verification states */
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+
   const handleInputChange = (field, value) =>
     setFormData({ ...formData, [field]: value });
+
+  /** Search for address suggestions */
+  const searchAddress = async (query) => {
+    if (!query || query.length < 3) {
+      setAddressSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+          query
+        )}&format=json&limit=5&countrycodes=ph&addressdetails=1`
+      );
+      const data = await res.json();
+      setAddressSuggestions(data);
+      setShowSuggestions(data.length > 0);
+    } catch (error) {
+      console.error("Address search error:", error);
+      setAddressSuggestions([]);
+      setShowSuggestions(false);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  /** Handle address input change with debounce */
+  const handleAddressChange = (value) => {
+    handleInputChange("address", value);
+    
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    // Debounce search
+    searchTimeoutRef.current = setTimeout(() => {
+      searchAddress(value);
+    }, 500);
+  };
+
+  /** Handle selecting an address suggestion */
+  const handleAddressSelect = (suggestion) => {
+    const address = suggestion.display_name;
+    const lat = parseFloat(suggestion.lat);
+    const lng = parseFloat(suggestion.lon);
+    
+    setFormData((prev) => ({ ...prev, address }));
+    setLocation({ lat, lng });
+    setMapCenter({ lat, lng });
+    setShowSuggestions(false);
+    setAddressSuggestions([]);
+  };
 
   // Check if all password requirements are met
   const isPasswordValid = () => {
@@ -165,12 +247,112 @@ export default function Register() {
     }
   };
 
+  /** Send OTP to email */
+  const sendOtp = async () => {
+    const { email } = formData;
+    
+    // Gmail validation
+    const domain = email.split("@")[1]?.toLowerCase();
+    if (domain !== "gmail.com" && domain !== "googlemail.com") {
+      return Swal.fire({
+        icon: "error",
+        title: "Invalid Email",
+        text: "Please use a Gmail address (@gmail.com) to register.",
+        confirmButtonColor: "#A97142",
+      });
+    }
+
+    if (!emailAvailable) {
+      return Swal.fire({
+        icon: "error",
+        title: "Email Already Taken",
+        text: "This email is already registered. Please use a different email.",
+        confirmButtonColor: "#A97142",
+      });
+    }
+
+    setOtpSending(true);
+    try {
+      await axios.post("http://localhost:8000/send-email-verification", { email });
+      setOtpSent(true);
+      Swal.fire({
+        icon: "success",
+        title: "OTP Sent!",
+        text: `A verification code has been sent to ${email}. Please check your inbox.`,
+        confirmButtonColor: "#A97142",
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: "Failed to Send OTP",
+        text: error?.response?.data?.detail || "Unable to send verification code. Please try again.",
+        confirmButtonColor: "#A97142",
+      });
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  /** Verify OTP */
+  const verifyOtp = async () => {
+    if (!otpCode || otpCode.length !== 6) {
+      return Swal.fire({
+        icon: "error",
+        title: "Invalid OTP",
+        text: "Please enter the 6-digit verification code.",
+        confirmButtonColor: "#A97142",
+      });
+    }
+
+    setOtpVerifying(true);
+    try {
+      await axios.post("http://localhost:8000/verify-email-otp", {
+        email: formData.email,
+        otp_code: otpCode,
+      });
+      setOtpVerified(true);
+      Swal.fire({
+        icon: "success",
+        title: "Email Verified!",
+        text: "Your email has been successfully verified. You can now complete your registration.",
+        confirmButtonColor: "#A97142",
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: "Verification Failed",
+        text: error?.response?.data?.detail || "Invalid or expired verification code. Please try again.",
+        confirmButtonColor: "#A97142",
+      });
+    } finally {
+      setOtpVerifying(false);
+    }
+  };
+
+  /** Reset OTP states when email changes */
+  const handleEmailChange = (value) => {
+    handleInputChange("email", value);
+    setOtpSent(false);
+    setOtpVerified(false);
+    setOtpCode("");
+  };
+
   /** Submit - Updated for Gmail-based authentication */
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
-    
+
     const { email, password, confirm_password } = formData;
+
+    // Check if email is verified
+    if (!otpVerified) {
+      return Swal.fire({
+        icon: "error",
+        title: "Email Not Verified",
+        text: "Please verify your email address before creating an account.",
+        confirmButtonColor: "#A97142",
+      });
+    }
 
     // Gmail validation
     const domain = email.split("@")[1]?.toLowerCase();
@@ -204,7 +386,9 @@ export default function Register() {
       return Swal.fire({
         icon: "error",
         title: "Password Requirements Not Met",
-        html: `Your password must meet the following requirements:<br><br>${passwordErrors.join("<br>")}`,
+        html: `Your password must meet the following requirements:<br><br>${passwordErrors.join(
+          "<br>"
+        )}`,
         confirmButtonColor: "#A97142",
       });
     }
@@ -502,16 +686,38 @@ export default function Register() {
               {/* Email */}
               <div className="space-y-1.5">
                 <Label className="text-[#8f642a]">Email</Label>
-                <Input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange("email", e.target.value)}
-                  onBlur={(e) => checkEmailAvailability(e.target.value)}
-                  required
-                  placeholder="your.email@gmail.com"
-                  className="bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E]"
-                  style={{ height: "clamp(44px, 5.5svh, 52px)" }}
-                />
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => handleEmailChange(e.target.value)}
+                    onBlur={(e) => checkEmailAvailability(e.target.value)}
+                    required
+                    placeholder="your.email@gmail.com"
+                    disabled={otpVerified}
+                    className="bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E] disabled:opacity-60"
+                    style={{ height: "clamp(44px, 5.5svh, 52px)" }}
+                  />
+                  {!otpVerified && (
+                    <Button
+                      type="button"
+                      onClick={sendOtp}
+                      disabled={!formData.email || !emailAvailable || otpSending || emailChecking}
+                      className="whitespace-nowrap text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E] hover:from-[#E3B57E] hover:to-[#C39053] disabled:opacity-50"
+                      style={{ height: "clamp(44px, 5.5svh, 52px)" }}
+                    >
+                      {otpSending ? "Sending..." : otpSent ? "Resend OTP" : "Send OTP"}
+                    </Button>
+                  )}
+                  {otpVerified && (
+                    <div className="flex items-center gap-2 px-4 bg-emerald-100 border border-emerald-300 rounded-lg">
+                      <div className="h-2 w-2 bg-emerald-500 rounded-full" />
+                      <span className="text-emerald-700 text-sm font-medium whitespace-nowrap">
+                        Verified
+                      </span>
+                    </div>
+                  )}
+                </div>
                 <p className="text-xs text-[#a47134]/80">
                   Please use a Gmail address (@gmail.com)
                 </p>
@@ -526,6 +732,59 @@ export default function Register() {
                   </p>
                 )}
               </div>
+
+              {/* OTP Verification */}
+              {otpSent && !otpVerified && (
+                <div className="bg-[#FFF7EC] border border-[#FFE1BE] rounded-xl p-4 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <div className="h-5 w-5 rounded-full bg-amber-400/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-amber-600 text-xs font-bold">!</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-[#8f642a]">
+                        Verify Your Email
+                      </p>
+                      <p className="text-xs text-[#a47134] mt-1">
+                        We've sent a 6-digit verification code to <strong>{formData.email}</strong>. 
+                        Please enter it below to verify your email address.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Input
+                      type="text"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder="Enter 6-digit code"
+                      maxLength={6}
+                      className="bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E] text-center text-lg tracking-widest font-mono"
+                      style={{ height: "clamp(44px, 5.5svh, 52px)" }}
+                    />
+                    <Button
+                      type="button"
+                      onClick={verifyOtp}
+                      disabled={otpCode.length !== 6 || otpVerifying}
+                      className="whitespace-nowrap text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E] hover:from-[#E3B57E] hover:to-[#C39053] disabled:opacity-50"
+                      style={{ height: "clamp(44px, 5.5svh, 52px)" }}
+                    >
+                      {otpVerifying ? "Verifying..." : "Verify"}
+                    </Button>
+                  </div>
+                  
+                  <p className="text-xs text-[#a47134]/80">
+                    Didn't receive the code?{" "}
+                    <button
+                      type="button"
+                      onClick={sendOtp}
+                      disabled={otpSending}
+                      className="text-[#b88950] hover:text-[#8f5a1c] font-medium underline"
+                    >
+                      Resend OTP
+                    </button>
+                  </p>
+                </div>
+              )}
 
               {/* Contact person + number */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -558,18 +817,63 @@ export default function Register() {
               </div>
 
               {/* Address */}
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 relative">
                 <Label className="flex items-center gap-2 text-[#8f642a]">
                   <MapPin className="h-4 w-4" /> Address
                 </Label>
-                <Input
-                  value={formData.address}
-                  onChange={(e) => handleInputChange("address", e.target.value)}
-                  required
-                  placeholder="Pin your address on the map"
-                  className="bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E]"
-                  style={{ height: "clamp(44px, 5.5svh, 52px)" }}
-                />
+                <div className="relative">
+                  <Input
+                    value={formData.address}
+                    onChange={(e) => handleAddressChange(e.target.value)}
+                    onFocus={() => {
+                      if (addressSuggestions.length > 0) {
+                        setShowSuggestions(true);
+                      }
+                    }}
+                    onBlur={() => {
+                      // Delay to allow click on suggestion
+                      setTimeout(() => setShowSuggestions(false), 200);
+                    }}
+                    required
+                    placeholder="Search address or pin on map below"
+                    className="bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E]"
+                    style={{ height: "clamp(44px, 5.5svh, 52px)" }}
+                  />
+                  {isSearching && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-[#E3B57E] border-t-transparent" />
+                    </div>
+                  )}
+                  
+                  {/* Autocomplete dropdown - Absolutely positioned to overlap map */}
+                  {showSuggestions && addressSuggestions.length > 0 && (
+                    <div className="absolute w-full mt-1 bg-white border border-[#FFE1BE] rounded-xl shadow-lg max-h-60 overflow-y-auto z-[1000]">
+                      {addressSuggestions.map((suggestion, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleAddressSelect(suggestion)}
+                          className="w-full text-left px-4 py-3 hover:bg-[#FFF7EC] transition-colors border-b border-[#FFE1BE]/50 last:border-b-0 focus:outline-none focus:bg-[#FFF7EC]"
+                        >
+                          <div className="flex items-start gap-2">
+                            <MapPin className="h-4 w-4 text-[#C39053] mt-0.5 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-[#6c471d] font-medium truncate">
+                                {suggestion.address?.road || suggestion.address?.suburb || suggestion.display_name.split(',')[0]}
+                              </p>
+                              <p className="text-xs text-[#a47134]/80 truncate">
+                                {suggestion.display_name}
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-[#a47134]/80">
+                  Start typing to search, or click on the map to pin your exact location
+                </p>
               </div>
 
               {/* Map */}
@@ -589,6 +893,7 @@ export default function Register() {
                     setLocation={setLocation}
                     setFormData={setFormData}
                   />
+                  <MapViewController center={mapCenter} />
                   {location && (
                     <Marker position={[location.lat, location.lng]} />
                   )}
@@ -692,18 +997,24 @@ export default function Register() {
                     </button>
                   </div>
 
-                  {/* passwords match banner */}
-                  {formData.password && formData.confirm_password && (
-                    <div
-                      className={`mt-2 text-sm p-2 rounded-xl border ${
-                        formData.password === formData.confirm_password
-                          ? "bg-emerald-50/80 text-emerald-700 border-emerald-200"
-                          : "bg-rose-50/80 text-rose-700 border-rose-200"
-                      }`}
-                    >
-                      {formData.password === formData.confirm_password
-                        ? "✓ Passwords match"
-                        : "✗ Passwords don't match"}
+                  {/* passwords match indicator */}
+                  {formData.confirm_password && (
+                    <div className="flex items-center gap-2 text-xs mt-2">
+                      {formData.password === formData.confirm_password ? (
+                        <>
+                          <div className="h-2 w-2 bg-emerald-500 rounded-full" />
+                          <span className="text-emerald-700 font-medium">
+                            Passwords match
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <div className="h-2 w-2 bg-rose-500 rounded-full" />
+                          <span className="text-rose-600 font-medium">
+                            Passwords don't match
+                          </span>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -814,21 +1125,32 @@ export default function Register() {
                 type="submit"
                 className="w-full text-[15px] sm:text-[16px] text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E] hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl transition-transform duration-150 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ height: "clamp(44px, 5.5svh, 52px)" }}
-                disabled={!emailAvailable || isSubmitting || !isPasswordValid() || formData.password !== formData.confirm_password}
+                disabled={
+                  !emailAvailable ||
+                  !otpVerified ||
+                  isSubmitting ||
+                  !isPasswordValid() ||
+                  formData.password !== formData.confirm_password
+                }
               >
-                {isSubmitting ? 'Creating Account...' : 'Create Account'}
+                {isSubmitting ? "Creating Account..." : "Create Account"}
               </Button>
 
               {/* Validation message */}
-              {(!isPasswordValid() || formData.password !== formData.confirm_password) && formData.password && (
-                <p className="text-xs text-center text-amber-600">
-                  {!isPasswordValid() 
-                    ? "⚠️ Please meet all password requirements above" 
-                    : formData.password !== formData.confirm_password 
-                    ? "⚠️ Passwords must match" 
-                    : ""}
-                </p>
-              )}
+              {(!otpVerified ||
+                !isPasswordValid() ||
+                formData.password !== formData.confirm_password) &&
+                formData.password && (
+                  <p className="text-xs text-center text-amber-600">
+                    {!otpVerified
+                      ? "⚠️ Please verify your email address first"
+                      : !isPasswordValid()
+                      ? "⚠️ Please meet all password requirements above"
+                      : formData.password !== formData.confirm_password
+                      ? "⚠️ Passwords must match"
+                      : ""}
+                  </p>
+                )}
 
               {/* Links */}
               <div

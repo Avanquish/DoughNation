@@ -252,7 +252,7 @@ const CharityReceived = () => {
           <span className="pill">Qty: {d.quantity}</span>
           {d.expiration_date && (
             <span className="pill" style={{ background: "#FFF6E9" }}>
-              Expires: {new Date(d.expiration_date).toLocaleDateString()}
+              Consume Before: {new Date(d.expiration_date).toLocaleDateString()}
             </span>
           )}
         </div>
@@ -330,7 +330,7 @@ const CharityReceived = () => {
           <span className="pill">Qty: {d.quantity}</span>
           {d.expiration_date && (
             <span className="pill" style={{ background: "#FFF6E9" }}>
-              Expires: {new Date(d.expiration_date).toLocaleDateString()}
+              Consume Before: {new Date(d.expiration_date).toLocaleDateString()}
             </span>
           )}
         </div>

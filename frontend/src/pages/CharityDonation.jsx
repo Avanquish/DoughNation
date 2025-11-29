@@ -55,7 +55,7 @@ const statusChip = (d, serverDate) => {
   if (st === "soon") {
     const dleft = daysUntil(d.expiration_date, serverDate);
     return {
-      text: dleft === 1 ? "Expires in 1 day" : `Expires in ${dleft} days`,
+      text: dleft === 1 ? "Consume Before 1 day" : `Consume Before ${dleft} days`,
       cls: "bg-[#fff8e6] border-[#ffe7bf] text-[#8a5a25]",
       icon: (
         <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
@@ -140,6 +140,7 @@ export default function CharityDonation() {
   const [requestedDonations, setRequestedDonations] = useState({}); // donation_id -> request_id
   const [selectedDonation, setSelectedDonation] = useState(null);
   const [currentServerDate, setCurrentServerDate] = useState(null);
+  const [quantityModal, setQuantityModal] = useState(null);
 
   // pagination state
   const [page, setPage] = useState(1);
@@ -199,10 +200,10 @@ export default function CharityDonation() {
   useEffect(() => {
     fetchData();
 
-    // Auto-refresh every 1 second
+    // Auto-refresh every 3 seconds (was 1 second - too fast!)
     const refreshInterval = setInterval(() => {
       fetchData();
-    }, 1000);
+    }, 2000);
 
     return () => clearInterval(refreshInterval);
   }, []);
@@ -214,71 +215,70 @@ export default function CharityDonation() {
   }, [donations.length, page]);
 
   // Request donation
-  const requestDonation = async (donation) => {
-    console.log("DONATION OBJECT BEING REQUESTED:", donation);
-    console.log(
-      "bakery_inventory_id on donation:",
-      donation.bakery_inventory_id
-    );
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.post(
-        `${API}/donation/request`,
-        { donation_id: donation.id, bakery_id: donation.bakery_id },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      const requestId = res.data.request_id;
-
-      // FETCH the full DonationRequest that was just created
-      const requestRes = await axios.get(`${API}/donation/my_requests`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      // Find the one we just created
-      const newRequest = requestRes.data.find((req) => req.id === requestId);
-
-      setRequestedDonations((prev) => {
-        const updated = { ...prev, [donation.id]: requestId };
-        return updated;
-      });
-
-      // Combine request data with full donation object
-      const donationCardData = {
-        ...newRequest,
-        id: newRequest.id,
-        product_name: donation.name,
-        name: donation.name,
-        image: donation.image,
-        quantity: newRequest.donation_quantity || donation.quantity,
-        expiration_date: donation.expiration_date,
+  const requestDonation = async (donation, requestedQty) => {
+  console.log("DONATION OBJECT BEING REQUESTED:", donation);
+  console.log("bakery_inventory_id on donation:", donation.bakery_inventory_id);
+  console.log("Requested Quantity:", requestedQty);
+  
+  try {
+    const token = localStorage.getItem("token");
+    const res = await axios.post(
+      `${API}/donation/request`,
+      { 
+        donation_id: donation.id, 
         bakery_id: donation.bakery_id,
-        bakery_name: donation.bakery_name,
-        bakery_profile_picture: donation.bakery_profile_picture,
-        bakery_inventory_id: newRequest.bakery_inventory_id,
-      };
+        requested_quantity: requestedQty // Send the requested quantity
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
 
-      // Handoff to Messenger with complete data
-      const bakeryInfo = {
-        id: donation.bakery_id,
-        name: donation.bakery_name,
-        profile_picture: donation.bakery_profile_picture || null,
-      };
+    const requestId = res.data.request_id;
 
-      localStorage.setItem("open_chat_with", JSON.stringify(bakeryInfo));
-      localStorage.setItem("send_donation", JSON.stringify(donationCardData));
-      window.dispatchEvent(new Event("open_chat"));
+    const requestRes = await axios.get(`${API}/donation/my_requests`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
-      Swal.fire("Success", "Donation request sent!", "success");
-    } catch (err) {
-      console.error(err);
-      Swal.fire(
-        "Error",
-        err.response?.data?.detail || "Failed to request donation",
-        "error"
-      );
-    }
-  };
+    const newRequest = requestRes.data.find((req) => req.id === requestId);
+
+    setRequestedDonations((prev) => {
+      const updated = { ...prev, [donation.id]: requestId };
+      return updated;
+    });
+
+    const donationCardData = {
+      ...newRequest,
+      id: newRequest.id,
+      product_name: donation.name,
+      name: donation.name,
+      image: donation.image,
+      quantity: requestedQty, // Use the requested quantity here
+      expiration_date: donation.expiration_date,
+      bakery_id: donation.bakery_id,
+      bakery_name: donation.bakery_name,
+      bakery_profile_picture: donation.bakery_profile_picture,
+      bakery_inventory_id: newRequest.bakery_inventory_id,
+    };
+
+    const bakeryInfo = {
+      id: donation.bakery_id,
+      name: donation.bakery_name,
+      profile_picture: donation.bakery_profile_picture || null,
+    };
+
+    localStorage.setItem("open_chat_with", JSON.stringify(bakeryInfo));
+    localStorage.setItem("send_donation", JSON.stringify(donationCardData));
+    window.dispatchEvent(new Event("open_chat"));
+
+    Swal.fire("Success", "Donation request sent!", "success");
+  } catch (err) {
+    console.error(err);
+    Swal.fire(
+      "Error",
+      err.response?.data?.detail || "Failed to request donation",
+      "error"
+    );
+  }
+};
 
   const cancelRequest = async (donation_id) => {
     const request_id = requestedDonations[donation_id];
@@ -286,9 +286,14 @@ export default function CharityDonation() {
 
     try {
       const token = localStorage.getItem("token");
+      
+      // Get charity_id from token
+      const decoded = JSON.parse(atob(token.split(".")[1]));
+      const charity_id = decoded.sub;
+      
       await axios.post(
         `${API}/donation/cancel/${request_id}`,
-        {},
+        { charity_id: charity_id }, // Pass charity_id to match backend expectations
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -299,8 +304,15 @@ export default function CharityDonation() {
         return updated;
       });
 
+      // Trigger event to update messages with cancelledBy: "charity"
       window.dispatchEvent(
-        new CustomEvent("donation_cancelled", { detail: { donation_id } })
+        new CustomEvent("donation_cancelled", { 
+          detail: { 
+            donation_id, 
+            request_id,
+            cancelledBy: "charity"  // <-- ADD THIS
+          } 
+        })
       );
 
       Swal.fire("Success", "Donation request canceled", "success");
@@ -444,9 +456,10 @@ export default function CharityDonation() {
                       key={donation.id}
                       id={`donation-${donation.id}`}
                       className={`
-                      card-bouncy group overflow-hidden
-                      hover:ring-1 hover:ring-[#E49A52]/35 donation-card
-                    `}
+                        card-bouncy group overflow-hidden
+                        hover:ring-1 hover:ring-[#E49A52]/35 donation-card cursor-pointer
+                      `}
+                      onClick={() => setSelectedDonation(donation)}
                     >
                       {/* Image header with status chip */}
                       <div className="relative h-40 overflow-hidden">
@@ -546,7 +559,7 @@ export default function CharityDonation() {
                             </div>
                           </div>
                           <div className="rounded-lg border border-[#f2e3cf] bg-white/60 p-2">
-                            <div className="font-semibold">Expires</div>
+                            <div className="font-semibold">Consume Before</div>
                             <div>
                               {donation.expiration_date
                                 ? new Date(
@@ -583,7 +596,10 @@ export default function CharityDonation() {
                                           : "bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white hover:-translate-y-0.5 active:scale-95"
                                       }`}
                             disabled={isRequested}
-                            onClick={() => requestDonation(donation)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setQuantityModal({ donation, requestedQty: 1 });
+                            }}
                           >
                             {isRequested ? "Request Sent" : "Request Donation"}
                           </button>
@@ -591,7 +607,10 @@ export default function CharityDonation() {
                           {isRequested && (
                             <button
                               className="w-full rounded-full border border-[#f2d4b5] text-[#6b4b2b] bg-white px-4 py-2 shadow-sm hover:bg-white/90 transition"
-                              onClick={() => cancelRequest(donation.id)}
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent card click
+                                cancelRequest(donation.id);
+                              }}
                             >
                               Cancel Request
                             </button>
@@ -747,7 +766,7 @@ export default function CharityDonation() {
                   </div>
                 </div>
                 <div className="rounded-lg border border-[#f2e3cf] bg-white/60 p-2">
-                  <div className="font-semibold">Expires</div>
+                  <div className="font-semibold">Consume Before</div>
                   <div>
                     {selectedDonation.expiration_date
                       ? new Date(
@@ -776,12 +795,112 @@ export default function CharityDonation() {
                   className="w-full rounded-full px-4 py-2 bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327]
                             text-white font-semibold shadow-md hover:-translate-y-0.5 active:scale-95 transition"
                   onClick={() => {
-                    requestDonation(selectedDonation);
+                    setQuantityModal({ donation: selectedDonation, requestedQty: 1 });
                     setSelectedDonation(null);
                   }}
                 >
                   Request Donation
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Quantity Modal */}
+      {quantityModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fadeIn"
+          onClick={() => setQuantityModal(null)}
+        >
+          <div
+            className="relative bg-white rounded-2xl overflow-hidden shadow-2xl max-w-sm w-full mx-4 transform transition-all duration-300 scale-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              onClick={() => setQuantityModal(null)}
+              className="absolute top-3 right-3 z-10 bg-white/80 backdrop-blur-md rounded-full p-1 shadow-md text-[#6b4b2b] hover:text-[#3b2a18] transition"
+            >
+              ✕
+            </button>
+
+            <div className="p-6">
+              <h3 className="text-xl font-bold text-[#3b2a18] mb-4">
+                Request Quantity
+              </h3>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-[#6b4b2b] mb-2">
+                    Product: {quantityModal.donation.name}
+                  </label>
+                  <p className="text-xs text-[#7b5836]">
+                    Available: {quantityModal.donation.quantity} units
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-[#6b4b2b] mb-2">
+                    Quantity
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max={quantityModal.donation.quantity}
+                      value={quantityModal.requestedQty}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        
+                        // Allow empty string for deletion
+                        if (val === '') {
+                          setQuantityModal({ ...quantityModal, requestedQty: '' });
+                          return;
+                        }
+                        
+                        let num = parseInt(val);
+                        
+                        // Auto-cap if exceeds max
+                        if (num > quantityModal.donation.quantity) {
+                          num = quantityModal.donation.quantity;
+                        }
+                        
+                        setQuantityModal({ ...quantityModal, requestedQty: num });
+                      }}
+                      onBlur={(e) => {
+                        // Set to 1 if empty when user leaves the field
+                        if (e.target.value === '' || parseInt(e.target.value) < 1) {
+                          setQuantityModal({ ...quantityModal, requestedQty: 1 });
+                        }
+                      }}
+                      className="flex-1 rounded-lg border border-[#f2e3cf] px-3 py-2 text-[#3b2a18] focus:outline-none focus:ring-2 focus:ring-[#E49A52]"
+                    />
+                    <button
+                      onClick={() => setQuantityModal({ ...quantityModal, requestedQty: quantityModal.donation.quantity })}
+                      className="px-4 py-2 bg-[#FFF6E9] border border-[#f2e3cf] rounded-lg text-[#6b4b2b] font-semibold hover:bg-[#FFEFD9] transition"
+                    >
+                      Max
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 mt-6">
+                  <button
+                    onClick={() => setQuantityModal(null)}
+                    className="flex-1 rounded-full border border-[#f2d4b5] text-[#6b4b2b] bg-white px-4 py-2 shadow-sm hover:bg-white/90 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      requestDonation(quantityModal.donation, quantityModal.requestedQty);
+                      setQuantityModal(null);
+                    }}
+                    className="flex-1 rounded-full px-4 py-2 bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white font-semibold shadow-md hover:-translate-y-0.5 active:scale-95 transition"
+                  >
+                    Confirm
+                  </button>
+                </div>
               </div>
             </div>
           </div>

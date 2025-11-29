@@ -140,6 +140,7 @@ const AdminDashboard = () => {
   const [pendingUsers, setPendingUsers] = useState([]);
   const [feedbacks, setFeedbacks] = useState([]);
   const [complaints, setComplaints] = useState([]);
+  const [contactSupportNotifs, setContactSupportNotifs] = useState([]);
 
   // Notifications
   const [notifOpen, setNotifOpen] = useState(false);
@@ -229,6 +230,12 @@ const AdminDashboard = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
         setComplaints(complaintsRes.data || []);
+
+        // Fetch contact support notifications
+        const contactSupportRes = await axios.get("/admin/contact-support-notifications", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setContactSupportNotifs(contactSupportRes.data || []);
 
         // Update stats
         const statsRes = await axios.get("/admin-dashboard-stats", {
@@ -338,13 +345,20 @@ const AdminDashboard = () => {
       title: `Concern from ${c.user_name || "User"}`,
       subtitle: (c.subject || c.description || "").toString().slice(0, 120),
     }));
-    return [...reg, ...fbs, ...complaintsNotifs]
+    const contactSupportItems = contactSupportNotifs.map((cs) => ({
+      kind: "contact_support",
+      id: `cs-${cs.id}`,
+      at: cs.created_at || null,
+      title: cs.title || "Contact Support Request",
+      subtitle: (cs.message || "").toString().slice(0, 120),
+    }));
+    return [...reg, ...fbs, ...complaintsNotifs, ...contactSupportItems]
       .sort((a, b) => (a.at && b.at ? new Date(b.at) - new Date(a.at) : 0))
       .map((n) => ({
         ...n,
         isRead: readNotifs.has(n.id),
       }));
-  }, [pendingUsers, feedbacks, complaints, readNotifs]);
+  }, [pendingUsers, feedbacks, complaints, contactSupportNotifs, readNotifs]);
 
   // Action: mark as read
   const markAsRead = async (notifId) => {
@@ -402,14 +416,17 @@ const AdminDashboard = () => {
   );
   const complaintsList = notifications.filter((n) => n.kind === "complaint");
   const reportsList = notifications.filter((n) => n.kind === "feedback");
+  const contactSupportList = notifications.filter((n) => n.kind === "contact_support");
 
   const unreadVerifications = verificationList.filter((n) => !n.isRead).length;
   const unreadComplaints = complaintsList.filter((n) => !n.isRead).length;
+  const unreadContactSupport = contactSupportList.filter((n) => !n.isRead).length;
 
   // === ADMIN NOTIF PAGINATION STATE (UI ONLY) ===
-  // separate page state for Verifications & User Concerns
+  // separate page state for Verifications & User Concerns & Contact Support
   const [verificationPage, setVerificationPage] = useState(1);
   const [complaintsPage, setComplaintsPage] = useState(1);
+  const [contactSupportPage, setContactSupportPage] = useState(1);
 
   const verificationTotalPages = Math.max(
     1,
@@ -418,6 +435,10 @@ const AdminDashboard = () => {
   const complaintsTotalPages = Math.max(
     1,
     Math.ceil(complaintsList.length / ADMIN_NOTIF_PAGE_SIZE) || 1
+  );
+  const contactSupportTotalPages = Math.max(
+    1,
+    Math.ceil(contactSupportList.length / ADMIN_NOTIF_PAGE_SIZE) || 1
   );
 
   const pagedVerificationList = useMemo(
@@ -438,6 +459,15 @@ const AdminDashboard = () => {
     [complaintsList, complaintsPage]
   );
 
+  const pagedContactSupportList = useMemo(
+    () =>
+      contactSupportList.slice(
+        (contactSupportPage - 1) * ADMIN_NOTIF_PAGE_SIZE,
+        contactSupportPage * ADMIN_NOTIF_PAGE_SIZE
+      ),
+    [contactSupportList, contactSupportPage]
+  );
+
   // reset to first page whenever list length changes
   useEffect(() => {
     setVerificationPage(1);
@@ -446,6 +476,10 @@ const AdminDashboard = () => {
   useEffect(() => {
     setComplaintsPage(1);
   }, [complaintsList.length]);
+
+  useEffect(() => {
+    setContactSupportPage(1);
+  }, [contactSupportList.length]);
 
   const [showTop, setShowTop] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -584,7 +618,7 @@ const AdminDashboard = () => {
 }
 
 .btn-logout{position:relative; overflow:hidden; border-radius:9999px; padding:.58rem .95rem; gap:.5rem; background:linear-gradient(90deg,#F6C17C,#E49A52,#BF7327); color:#fff; border:1px solid rgba(255,255,255,.6); box-shadow:0 8px 26px rgba(201,124,44,.25); transition:transform .18s ease, box-shadow .18s ease, filter .18s ease}
-.btn-logout:before{content:""; position:absolute; top:-40%; bottom:-40%; left:-70%; width:60%; transform:rotate(10deg); background:linear-gradient(90deg, rgba(255,255,255,.26), rgba(255,255,255,0) 55%); animation: shine 3.2s linear infinite}
+.btn-logout:before{content:""; position:absolute; top:-40%; bottom:-40%; left:-70%; width:60%; transform:rotate(10deg); background:linear-gradient(90deg, rgba(255,255,255,.26), rgba(255,255,255,0) 55%);}
 @keyframes shine{from{left:-70%}to{left:120%}}
 .btn-logout:hover{transform:translateY(-1px) scale(1.02); box-shadow:0 12px 34px rgba(201,124,44,.32); filter:saturate(1.05)}
 
@@ -775,6 +809,11 @@ thead{ background:#EADBC8; color:#4A2F17; }
                               label: "User Concerns",
                               count: unreadComplaints,
                             },
+                            {
+                              key: "contact_support",
+                              label: "Contact Support",
+                              count: unreadContactSupport,
+                            },
                           ].map((t) => (
                             <button
                               key={t.key}
@@ -910,6 +949,55 @@ thead{ background:#EADBC8; color:#4A2F17; }
                               )}
                             </div>
                           )}
+
+                          {/* === CONTACT SUPPORT LIST (with pagination) === */}
+                          {notifTab === "contact_support" && (
+                            <div>
+                              {contactSupportList.length === 0 ? (
+                                <div className="p-4 text-sm text-gray-500">
+                                  No contact support requests
+                                </div>
+                              ) : (
+                                pagedContactSupportList.map((n) => (
+                                  <button
+                                    key={n.id}
+                                    onClick={() => {
+                                      markAsRead(n.id);
+                                      setNotifOpen(false);
+                                    }}
+                                    className={`w-full p-3 focus:outline-none transition-colors flex items-center ${
+                                      n.isRead
+                                        ? "bg-white hover:bg-[#fff6ec]"
+                                        : "bg-[rgba(255,246,236,1)]"
+                                    }`}
+                                  >
+                                    <UnreadCircle read={n.isRead} />
+                                    <div className="text-left flex-1">
+                                      <p
+                                        className={`text-[13px] ${
+                                          n.isRead
+                                            ? "text-[#6b4b2b]"
+                                            : "text-[#4f371f] font-semibold"
+                                        }`}
+                                      >
+                                        {n.title}
+                                      </p>
+                                      {n.subtitle && (
+                                        <p className="text-[12px] text-[#6b4b2b]">
+                                          {n.subtitle}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <span className="text-[10px] text-muted-foreground shrink-0">
+                                      {n.at
+                                        ? new Date(n.at).toLocaleDateString()
+                                        : ""}
+                                    </span>
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         {/* === PAGINATION FOOTER FOR ADMIN NOTIFS (UI ONLY) === */}
@@ -975,6 +1063,41 @@ thead{ background:#EADBC8; color:#4A2F17; }
                                   }
                                   disabled={
                                     complaintsPage >= complaintsTotalPages
+                                  }
+                                  className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
+                                >
+                                  Next
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                        {notifTab === "contact_support" &&
+                          contactSupportList.length > 0 && (
+                            <div className="px-3 pt-2 pb-2 bg-white border-t border-[rgba(0,0,0,0.04)] text-[#8a5a25]">
+                              <div className="text-center text-[11px] mb-1">
+                                Page {contactSupportPage} of {contactSupportTotalPages}
+                              </div>
+                              <div className="flex items-center justify-between gap-2 text-[12px]">
+                                <button
+                                  onClick={() =>
+                                    setContactSupportPage((p) =>
+                                      p > 1 ? p - 1 : p
+                                    )
+                                  }
+                                  disabled={contactSupportPage === 1}
+                                  className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
+                                >
+                                  Prev
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    setContactSupportPage((p) =>
+                                      p < contactSupportTotalPages ? p + 1 : p
+                                    )
+                                  }
+                                  disabled={
+                                    contactSupportPage >= contactSupportTotalPages
                                   }
                                   className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
                                 >

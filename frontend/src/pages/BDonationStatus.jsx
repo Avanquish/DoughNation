@@ -694,7 +694,7 @@ const BDonationStatus = () => {
                              : "text-[10px] sm:text-[11px] px-2 py-0.5"
                          }`}
               >
-                Expires in {left} {left === 1 ? "day" : "days"}
+                Consume Before {left} {left === 1 ? "day" : "days"}
               </div>
             )}
           </div>
@@ -1234,7 +1234,7 @@ const BDonationStatus = () => {
                 </div>
                 <div className="col-span-6 md:col-span-3">
                   <div className="rounded-xl border border-[#f2e3cf] bg-white/70 p-3">
-                    <div className="text-xs text-[#7b5836]">Expires</div>
+                    <div className="text-xs text-[#7b5836]">Consume Before</div>
                     <div className="text-lg font-semibold text-[#3b2a18]">
                       {selectedDonation.expiration_date
                         ? new Date(

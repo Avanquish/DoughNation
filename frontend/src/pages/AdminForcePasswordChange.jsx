@@ -459,15 +459,6 @@ const AdminForcePasswordChange = () => {
 
             {/* === FOOTER TEXT / SUPPORT LINK === */}
             <div className="mt-6 text-center space-y-1">
-              <p className="text-xs text-[#a47134]/85">
-                Need help?{" "}
-                <a
-                  href="mailto:support@doughnation.com"
-                  className="font-semibold text-[#b88950] hover:text-[#8f5a1c] transition-colors"
-                >
-                  Contact Support
-                </a>
-              </p>
               <p className="text-[11px] text-[#b88950]/80">
                 This extra step keeps your DoughNation admin account safe.
               </p>

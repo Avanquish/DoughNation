@@ -1,12 +1,9 @@
-// React & router basics
 import { useState, useEffect, useRef } from "react";
+import { useSubmitGuard } from "../hooks/useDebounce";
 import { useNavigate, Link } from "react-router-dom";
-
-// Auth context & API helper
 import { useAuth } from "../context/AuthContext";
+import { useEmployeeAuth } from "../context/EmployeeAuthContext";
 import axios from "axios";
-
-// Swal Alerts
 import Swal from "sweetalert2";
 
 // UI components
@@ -21,9 +18,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Heart, Store, Building2 } from "lucide-react";
+import { Heart, Store, Building2, Eye, EyeOff, Lock } from "lucide-react";
 
-// Role tabs config
 const ROLES = [
   { value: "Bakery", label: "Bakery", icon: Store },
   { value: "Charity", label: "Charity", icon: Heart },
@@ -32,13 +28,16 @@ const ROLES = [
 
 const Login = () => {
   const { login } = useAuth();
+  const { login: employeeLogin } = useEmployeeAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState(""); // Changed from 'email' - now accepts email OR name
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("Bakery");
+  const [showPass, setShowPass] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Parallax
+  // Parallax background
   const bgRef = useRef(null);
   const rafRef = useRef(0);
   const targetRef = useRef({ x: 0, y: 0 });
@@ -51,7 +50,6 @@ const Login = () => {
     !window.matchMedia("(pointer: coarse)").matches;
 
   const lerp = (a, b, t) => a + (b - a) * t;
-
   const loop = () => {
     const max = 22;
     currentRef.current.x = lerp(
@@ -74,7 +72,6 @@ const Login = () => {
     if (!enableParallax) return;
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enableParallax]);
 
   const onMouseMove = (e) => {
@@ -97,7 +94,6 @@ const Login = () => {
     const i = ROLES.findIndex((r) => r.value === role);
     const btn = triggerRefs.current[i];
     if (!list || !btn) return;
-
     const listBox = list.getBoundingClientRect();
     const btnBox = btn.getBoundingClientRect();
     setIndicator({
@@ -121,69 +117,205 @@ const Login = () => {
     return () => cancelAnimationFrame(raf);
   }, [role]);
 
-  // Submit
+  // Handle unified login
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (isLoggingIn) return;
+    
+    setIsLoggingIn(true);
     try {
+      // 🔑 UNIFIED LOGIN: Send identifier (email or name) and password
       const res = await axios.post("http://localhost:8000/login", {
-        email,
+        email: identifier, // Backend still uses 'email' field, but accepts name too
         password,
-        role,
+        role, // Optional: can help with validation
       });
 
       const token = res.data.access_token;
-      login(token);
 
-      const { sub, role: actualRole } = JSON.parse(atob(token.split(".")[1]));
-      if (actualRole !== role) {
-        // ✅ SweetAlert2 for unauthorized role
+      // 🔍 DECODE TOKEN to determine account type
+      const decoded = JSON.parse(atob(token.split(".")[1]));
+      console.log("🔐 Decoded token:", decoded);
+
+      const accountType = decoded.type; // "bakery", "charity", "admin", or "employee"
+
+      // ✅ VALIDATE: Employees can ONLY log in when slider is set to "Bakery"
+      if (accountType === "employee" && role !== "Bakery") {
         Swal.fire({
           icon: "error",
-          title: "Unauthorized",
-          text: `You are not authorized to log in as ${role}.`,
+          title: "Invalid Login Type",
+          text: "Employee login is only allowed when the login type is set to 'Bakery'. Please switch the slider to Bakery and try again.",
+          confirmButtonColor: "#A97142",
         });
-        return;
+        return; // Exit early - prevent login
       }
 
-      if (actualRole === "Bakery") navigate(`/bakery-dashboard/${sub}`);
-      else if (actualRole === "Charity") navigate(`/charity-dashboard/${sub}`);
-      else if (actualRole === "Admin") navigate(`/admin-dashboard/${sub}`);
+      // Store appropriate token
+      if (accountType === "employee") {
+        // Employee login - use EmployeeAuthContext
+
+        // 🚫 CHECK IF BAKERY IS VERIFIED
+        if (!decoded.bakery_verified) {
+          Swal.fire({
+            icon: "warning",
+            title: "Bakery Not Verified",
+            text: "Your bakery account is pending admin verification. Please wait until the bakery is verified before accessing the system.",
+            confirmButtonColor: "#A97142",
+          });
+          return; // Exit early - prevent login
+        }
+
+        employeeLogin(token); // ✅ This updates the context AND localStorage
+        localStorage.setItem("bakery_id_for_employee_login", decoded.bakery_id);
+
+        // 🔐 CHECK IF EMPLOYEE NEEDS TO CHANGE DEFAULT PASSWORD
+        if (decoded.requires_password_change) {
+          Swal.fire({
+            icon: "info",
+            title: "Password Change Required",
+            text: "For security, please change your default password",
+            timer: 2000,
+            showConfirmButton: false,
+          });
+
+          // Redirect to password change page
+          setTimeout(() => {
+            navigate("/employee-change-password");
+          }, 2000);
+          return;
+        }
+
+        // Clear any stored tab preference and navigate to bakery dashboard
+        localStorage.setItem("bakery_active_tab", "dashboard");
+        navigate(`/bakery-dashboard/${decoded.bakery_id}`);
+
+        Swal.fire({
+          icon: "success",
+          title: "Welcome!",
+          text: `Logged in as ${decoded.employee_name} (${decoded.employee_role})`,
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      } else {
+        // Regular user login (Bakery/Charity/Admin)
+        login(token); // Use existing auth context
+
+        const userId = decoded.sub;
+
+        // Role-based redirection
+        if (accountType === "bakery") {
+          // 🚫 CHECK IF BAKERY IS VERIFIED
+          if (!decoded.is_verified) {
+            Swal.fire({
+              icon: "warning",
+              title: "Account Not Verified",
+              text: "Your bakery account is pending admin verification. Please wait until an admin verifies your account before accessing the system.",
+              confirmButtonColor: "#A97142",
+            });
+            // Clear the token since they can't access yet
+            localStorage.removeItem("token");
+            return; // Exit early - prevent navigation
+          }
+
+          // Clear any stored tab preference
+          localStorage.setItem("bakery_active_tab", "dashboard");
+          navigate(`/bakery-dashboard/${userId}`);
+        } else if (accountType === "charity") {
+          // 🚫 CHECK IF CHARITY IS VERIFIED
+          if (!decoded.is_verified) {
+            Swal.fire({
+              icon: "warning",
+              title: "Account Not Verified",
+              text: "Your charity account is pending admin verification. Please wait until an admin verifies your account before accessing the system.",
+              confirmButtonColor: "#A97142",
+            });
+            // Clear the token since they can't access yet
+            localStorage.removeItem("token");
+            return; // Exit early - prevent navigation
+          }
+
+          // Set default tab to "donation" (Available Donation)
+          localStorage.setItem("charity_active_tab", "donation");
+          navigate(`/charity-dashboard/${userId}`);
+        } else if (accountType === "admin") {
+          // 🔐 CHECK IF ADMIN NEEDS TO CHANGE DEFAULT PASSWORD
+          if (decoded.using_default_password) {
+            Swal.fire({
+              icon: "warning",
+              title: "Password Change Required",
+              text: "For security, you must change your default password before accessing the system.",
+              confirmButtonColor: "#A97142",
+            });
+
+            // Redirect to admin force password change page
+            setTimeout(() => {
+              navigate("/admin-force-password-change");
+            }, 2000);
+            return;
+          }
+
+          // Set default tab to "dashboard"
+          localStorage.setItem("admin_active_tab", "dashboard");
+          navigate(`/admin-dashboard/${userId}`);
+        }
+
+        // Success message based on account type
+        let roleDisplay = "Owner"; // Default for Bakery/Charity owners
+        if (accountType === "admin") {
+          roleDisplay = "Admin";
+        }
+
+        Swal.fire({
+          icon: "success",
+          title: "Welcome Back!",
+          text: `Logged in as ${decoded.contact_person} (${roleDisplay})`,
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      }
     } catch (error) {
       console.error("Login error:", error);
-      const detail =
-        error.response?.data?.detail ||
-        "Login failed. Please check your credentials.";
 
-      // ✅ SweetAlert2 for login failure
+      let errorMessage = "Login failed. Please check your credentials.";
+
+      if (error.response?.status === 403) {
+        // Part-time employee blocked
+        errorMessage =
+          error.response.data.detail ||
+          "Access denied. Part-time employees cannot log in to the system.";
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      }
+
       Swal.fire({
         icon: "error",
         title: "Login Failed",
-        text: detail,
+        text: errorMessage,
       });
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
+  // Render
   return (
     <div
       className="relative min-h-screen overflow-hidden"
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
     >
-      {/* Background */}
-      <div
-        ref={bgRef}
-        aria-hidden="true"
-        className="absolute inset-0 z-0 bg-center bg-cover bg-no-repeat will-change-transform pointer-events-none filter blur-[2px] brightness-90 saturate-95"
-        style={{
-          backgroundImage: "url('/images/bakerylogin.jpg')",
-          transform: "scale(1.06)",
-        }}
-      />
-      <div className="absolute inset-0 z-10 bg-[#FFF8F0]/20" />
-      <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(120%_120%_at_50%_10%,rgba(0,0,0,0)_65%,rgba(0,0,0,0.10)_100%)]" />
-
-      {/* Local styles + MEDIA QUERIES */}
       <style>{`
+        :root{
+          --space-1: clamp(.5rem, 1.2vw, .75rem);
+          --space-2: clamp(.75rem, 1.6vw, 1rem);
+          --space-3: clamp(1rem, 2.2vw, 1.5rem);
+          --space-4: clamp(1.25rem, 3vw, 2rem);
+          --radius: clamp(14px, 2.2vw, 22px);
+          --title-xl: clamp(32px, 2.2rem + 2vw, 42px);
+          --title-md: clamp(16px, .9rem + .8vw, 18px);
+          --text: clamp(.95rem, .9rem + .2vw, 1.05rem);
+        }
+
         @keyframes cardIn {
           0% { opacity: 0; transform: translateY(18px) scale(.96); }
           60%{ opacity: 1; transform: translateY(-6px) scale(1.01); }
@@ -205,78 +337,68 @@ const Login = () => {
           border-right: 1px solid rgba(255,255,255,0.65);
           z-index: 0;
         }
-        .left-content { position: relative; z-index: 2; }
+        .left-wrap{ position:relative; overflow:hidden; }   /* contain absolute illu */
+        .left-content{ position:relative; z-index:2; }      /* copy above image */
+
         .give-illu{
           position:absolute;
           right: clamp(18px, 3vw, 40px);
           bottom: clamp(18px, 4vh, 44px);
-          width: clamp(100px, 38vw, 220px);
+          width: clamp(180px, 28vw, 320px);
           height: auto;
           object-fit: contain;
           filter: drop-shadow(0 10px 24px rgba(0,0,0,.12));
           pointer-events: none;
-          z-index: 1;
+          user-select: none;
+          z-index: 1;                 /* stays UNDER .left-content */
+          opacity: .95;
         }
 
-        /* ========== Phones ========== */
-        @media screen and (min-width:300px) and (max-width:574px){
-          .left-hero-surface{ border-right: none; }
-          .brand-head{ font-size: 32px !important; line-height: 1.08 !important; }
-          .left-copy-padding{ padding-bottom: clamp(120px, 30vw, 200px) !important; }
-          .give-illu{ right: max(10px, 3vw); bottom: max(10px, 3vh); width: clamp(88px, 36vw, 140px); }
-          .login-card{ max-width: 520px; border-radius: 22px; }
-          .login-card .shrink-pad{ padding-left: 14px; padding-right: 14px; }
-          .login-tabs{ height: 44px !important; }
-          .login-tabs button{ font-size: 13px !important; }
-          .login-card input[type="email"],
-          .login-card input[type="password"]{ height: 44px !important; }
-          .login-card .login-btn{ height: 44px !important; }
+        /* Desktop: reserve space so text never collides with the image */
+        @media (min-width: 1025px){
+          .left-content{ padding-right: clamp(140px, 20vw, 280px); }
         }
 
-        /* ========== Small tablets ========== */
-        @media screen and (min-width:575px) and (max-width:767px){
-          .brand-head{ font-size: 44px !important; }
-          .login-card{ max-width: 580px; border-radius: 24px; }
-          .login-tabs{ height: 48px !important; }
-          .login-tabs button{ font-size: 14px !important; }
-          .login-card input[type="email"],
-          .login-card input[type="password"]{ height: 48px !important; }
-          .login-card .login-btn{ height: 48px !important; }
-          .give-illu{ width: clamp(130px, 32vw, 180px); }
+        /* ≤1024px: hide illustration & remove extra right padding */
+        @media (max-width: 1024px){
+          .give-illu{ display:none; }
+          .left-content{ padding-right: 0; }
         }
 
-        /* ========== Large tablets ========== */
-        @media screen and (min-width:768px) and (max-width:959px){
-          .brand-head{ font-size: 52px !important; }
-          .login-card{ max-width: 640px; }
-          .login-tabs{ height: 50px !important; }
-          .login-card input[type="email"],
-          .login-card input[type="password"]{ height: 50px !important; }
-          .login-card .login-btn{ height: 50px !important; }
-          .give-illu{ width: clamp(150px, 28vw, 210px); }
+        /* hide native reveal/clear so only our eye toggler shows */
+        input[type="password"]::-ms-reveal,
+        input[type="password"]::-ms-clear { display: none; }
+        input[type="password"]::-webkit-credentials-auto-fill-button,
+        input[type="password"]::-webkit-textfield-decoration-container,
+        input[type="password"]::-webkit-clear-button {
+          display: none !important; visibility: hidden; pointer-events: none;
         }
 
-        /* ========== Small desktops ========== */
-        @media screen and (min-width:1368px) and (max-width:1920px){
-          .brand-head{ font-size: 58px !important; }
-          .login-card{ max-width: 660px; }
-          .give-illu{ width: clamp(170px, 24vw, 240px); }
-        }
-
-        /* ========== Large desktops========== */
-        @media screen and (min-width:1921px) and (max-width:4096px){
-          .brand-head{ font-size: 60px !important; }
-          .login-card{ max-width: 680px; }
-          .give-illu{ width: clamp(190px, 22vw, 260px); }
+        @media (max-width: 380px){
+          .shrink-pad{padding-left: var(--space-3) !important; padding-right: var(--space-3) !important;}
+          .left-copy-padding{padding-left: var(--space-3) !important; padding-right: var(--space-3) !important;}
         }
       `}</style>
 
+      {/* Background */}
+      <div
+        ref={bgRef}
+        aria-hidden="true"
+        className="absolute inset-0 z-0 bg-center bg-cover bg-no-repeat will-change-transform pointer-events-none filter blur-[2px] brightness-90 saturate-95"
+        style={{
+          backgroundImage: "url('/images/bakerylogin.jpg')",
+          transform: "scale(1.06)",
+        }}
+      />
+      <div className="absolute inset-0 z-10 bg-[#FFF8F0]/20" />
+      <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(120%_120%_at_50%_10%,rgba(0,0,0,0)_65%,rgba(0,0,0,0.10)_100%)]" />
+
       {/* Layout */}
       <div className="relative z-20 flex flex-col md:flex-row min-h-screen">
-        {/* RIGHT (Login card) — first on mobile */}
+        {/* Login card */}
         <section className="order-1 md:order-2 md:basis-[55%] flex items-center justify-center px-6 pt-6 md:pt-0 py-10">
           <Card
-            className="login-card relative w-full max-w-[640px] rounded-[26px] backdrop-blur-2xl bg-white/50 border-white/60 shadow-[0_16px_56px_rgba(0,0,0,0.16)]"
+            className="login-card relative w-full max-w-[680px] rounded-[26px] backdrop-blur-2xl bg-white/55 border-white/60 shadow-[0_16px_56px_rgba(0,0,0,0.16)]"
             style={{ animation: "cardIn 720ms cubic-bezier(.2,.7,.2,1) both" }}
           >
             <div className="absolute inset-0 pointer-events-none rounded-[26px] bg-gradient-to-b from-[#FFF8F0]/50 via-transparent to-[#FFF0E0]/45" />
@@ -289,7 +411,7 @@ const Login = () => {
                   alt="DoughNation"
                   loading="eager"
                   decoding="async"
-                  className="h-14 sm:h-16 md:h-[82px] w-auto max-w-[520px] object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,.06)]"
+                  className="h-[56px] sm:h-[64px] md:h-[82px] w-auto max-w-[520px] object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,.06)]"
                   style={{
                     animation: "headPop 700ms cubic-bezier(.2,.7,.2,1) both",
                   }}
@@ -297,10 +419,9 @@ const Login = () => {
               </div>
 
               <CardTitle
-                className="relative z-10 mt-2 text-[30px] sm:text[36px] md:text-[40px]
-                           bg-gradient-to-r from-[#FFC66E] via-[#E88A1A] to-[#B86A1E]
-                           bg-clip-text text-transparent"
+                className="relative z-10 mt-2 font-extrabold bg-gradient-to-r from-[#FFC66E] via-[#E88A1A] to-[#B86A1E] bg-clip-text text-transparent"
                 style={{
+                  fontSize: "var(--title-xl)",
                   animation:
                     "headBounce 800ms cubic-bezier(.2,.7,.2,1) both 80ms",
                 }}
@@ -309,10 +430,9 @@ const Login = () => {
               </CardTitle>
 
               <CardDescription
-                className="relative z-10 text-[14px] sm:text-[16px]
-                           bg-gradient-to-r from-[#C17B2A] via-[#AD6A21] to-[#8E5216]
-                           bg-clip-text text-transparent"
+                className="relative z-10 bg-gradient-to-r from-[#C17B2A] via-[#AD6A21] to-[#8E5216] bg-clip-text text-transparent"
                 style={{
+                  fontSize: "var(--title-md)",
                   animation:
                     "headPop 680ms cubic-bezier(.2,.7,.2,1) both 120ms",
                 }}
@@ -330,8 +450,7 @@ const Login = () => {
                   >
                     <span
                       aria-hidden
-                      className="absolute top-1 bottom-1 left-0 z-0 rounded-full
-                                 bg-[linear-gradient(180deg,#FFE3B8_0%,#F6BE83_100%)] transition-[transform,width] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] pointer-events-none"
+                      className="absolute top-1 bottom-1 left-0 z-0 rounded-full bg-[linear-gradient(180deg,#FFE3B8_0%,#F6BE83_100%)] transition-[transform,width] duration-300 ease-[cubic-bezier(.2,.7,.2,1)] pointer-events-none"
                       style={{
                         transform: `translateX(${indicator.left}px)`,
                         width: indicator.width,
@@ -357,20 +476,24 @@ const Login = () => {
                   </TabsList>
                 </Tabs>
 
-                {/* Email */}
+                {/* Identifier (Email or Employee ID) */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="email" className="text-[#8f642a] font-medium">
-                    Email
+                  <Label
+                    htmlFor="identifier"
+                    className="text-[#8f642a] font-medium"
+                  >
+                    Username
                   </Label>
                   <Input
-                    id="email"
-                    type="email"
-                    placeholder="Enter your email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    id="identifier"
+                    type="text"
+                    placeholder="Enter your username"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
                     required
                     className="h-11 md:h-12 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E] focus-visible:ring-offset-0"
                   />
+                  <p  className="text-[#b88950] hover:text-[#8f5a1c] transition-colors font-medium text-sm">Use Email/Employee ID</p>
                 </div>
 
                 {/* Password */}
@@ -381,15 +504,30 @@ const Login = () => {
                   >
                     Password
                   </Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className="h-11 md:h-12 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E] focus-visible:ring-offset-0"
-                  />
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-[#E3B57E]" />
+                    <Input
+                      id="password"
+                      type={showPass ? "text" : "password"}
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      className="appearance-none pl-11 pr-11 h-11 md:h-12 bg-white/85 border-[#FFE1BE] text-[#6c471d] placeholder:text-[#E3B57E] focus-visible:ring-[#E3B57E] focus-visible:ring-offset-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass((s) => !s)}
+                      aria-label={showPass ? "Hide password" : "Show password"}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A66B2E] hover:text-[#81531f]"
+                    >
+                      {showPass ? (
+                        <EyeOff className="h-5 w-5" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Remember + Forgot */}
@@ -411,8 +549,9 @@ const Login = () => {
                   type="submit"
                   className="login-btn h-11 md:h-12 w-full text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E]
                              hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl"
+                  disabled={isLoggingIn}
                 >
-                  Sign In as {role}
+                  {isLoggingIn ? 'Signing In...' : `Sign In as ${role}`}
                 </Button>
 
                 {/* Bottom links */}
@@ -440,49 +579,61 @@ const Login = () => {
           </Card>
         </section>
 
-        {/* LEFT (DoughNation info) — second on mobile */}
+         {/* DoughNation info */}
         <section className="order-2 md:order-1 left-hero relative md:basis-[45%] min-h-[52vh] md:min-h-screen flex mt-4 md:mt-0">
           <div className="left-hero-surface absolute inset-0" />
-          <div className="relative w-full h-full flex items-center">
+          <div className="left-wrap relative w-full h-full flex items-center">
             <div className="left-content w-full px-6 md:px-8 lg:px-12 py-10 left-copy-padding">
-              <h1 className="brand-head text-[38px] sm:text-[52px] lg:text-[60px] leading-[1.04] font-extrabold bg-gradient-to-r from-[#FFC062] via-[#E88A1A] to-[#B86A1E] bg-clip-text text-transparent">
+              <h1
+                className="leading-[1.04] font-extrabold bg-gradient-to-r from-[#FFC062] via-[#E88A1A] to-[#B86A1E] bg-clip-text text-transparent"
+                style={{ fontSize: "clamp(34px, 6vw, 60px)" }}
+              >
                 DOUGHNATION
               </h1>
 
-              <p className="mt-5 text-[16px] sm:text-[17px] text-[#8f642a] max-w-[52ch]">
-                Sign in to manage inventory and move surplus bread to nearby
-                charities.
+              <p
+                className="mt-5 text-[#8f642a] max-w-[52ch]"
+                style={{ fontSize: "var(--text)" }}
+              >
+                Sign in with your Gmail account (Bakery, Charity, or Admin) or
+                your bakery employee ID to manage inventory and donations.
               </p>
 
-              <ul className="mt-6 space-y-4 text-[#8f642a]">
+              <ul
+                className="mt-6 space-y-4 text-[#8f642a]"
+                style={{ fontSize: "var(--text)" }}
+              >
                 <li className="flex items-start gap-3">
                   <Store className="h-5 w-5 mt-0.5 text-[#ce893b]" />
                   <span>
-                    Bakery — Track inventory, and schedule donation pickups.
+                    Bakery Owners & Employees — Track inventory, manage
+                    donations, and connect with charities.
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
                   <Heart className="h-5 w-5 mt-0.5 text-[#ce893b]" />
                   <span>
-                    Charity — See nearby bread offers, claim what you can use,
-                    coordinate fast.
+                    Charities — View nearby bread offers, claim donations, and
+                    schedule pickups with partner bakeries.
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
                   <Building2 className="h-5 w-5 mt-0.5 text-[#ce893b]" />
                   <span>
-                    Admin — Manage roles, partners, analytics, and full donation
-                    logs.
+                    Admins — Oversee the entire system, including user
+                    verification, managing audit logs, performing maintenance,
+                    and more.
                   </span>
                 </li>
               </ul>
             </div>
           </div>
 
-          {/* Illustration (under text) */}
+          {/* Hide image */}
           <img
-            src="/images/GivingDonation.png"
-            alt="Giving donation"
+            src="/images/givingdonation.png"
+            alt=""
+            aria-hidden="true"
             className="give-illu"
           />
         </section>

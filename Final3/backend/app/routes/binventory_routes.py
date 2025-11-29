@@ -8,6 +8,7 @@ from sqlalchemy import func
 from app import models, database, schemas, auth, crud
 from app.timezone_utils import today_ph
 from app.routes.cnotification import process_geofence_notifications
+from app.product_id_generator import get_product_info, get_next_sequence_number, get_product_code 
 
 router = APIRouter()
 UPLOAD_DIR = "uploads"
@@ -200,6 +201,40 @@ def get_template_from_csv(bakery_id: int, product_name: str):
 
 
 # INVENTORY ROUTES
+
+# Preview product code before creating product
+@router.get("/inventory/product-code-preview")
+def preview_product_code(
+    name: str,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.ensure_verified_user)
+):
+    """
+    Get a preview of the product code that will be generated for a given product name.
+    Returns the product code and the next sequence number that would be assigned.
+    """
+    if current_user.role.lower() != "bakery":
+        raise HTTPException(status_code=403, detail="Only bakeries can preview product codes")
+    
+    # Get basic product info (code and normalized name)
+    info = get_product_info(name)
+    product_code = info['product_code']
+    
+    # Get the next sequence number for this bakery
+    next_sequence = get_next_sequence_number(db, product_code, current_user.id)
+    
+    # Build the full product ID that would be generated (5-digit format)
+    next_product_id = f"{product_code}-{next_sequence:05d}"
+    
+    return {
+        "product_name": name,
+        "normalized_name": info['normalized_name'],
+        "product_code": product_code,
+        "next_sequence": next_sequence,
+        "next_product_id": next_product_id,
+        "is_mapped": info['is_mapped']
+    }
+
 @router.post("/inventory", response_model=schemas.BakeryInventoryOut)
 def add_inventory(
     name: str = Form(...),
@@ -560,6 +595,7 @@ def check_inventory_status(db: Session):
     products = db.query(models.BakeryInventory).all()
 
     for p in products:
+        # Skip if no expiration date OR if already donated
         if not p.expiration_date or p.status == "donated":
             continue
 
@@ -574,9 +610,11 @@ def check_inventory_status(db: Session):
                 continue
 
         if exp_date <= today:
-            if p.status != "unavailable":
+            # Only change to unavailable if NOT donated
+            if p.status != "unavailable" and p.status != "donated":
                 p.status = "unavailable"
         else:
+            # Only restore to available if currently unavailable (not if donated)
             if p.quantity > 0 and p.status == "unavailable":
                 p.status = "available"
 

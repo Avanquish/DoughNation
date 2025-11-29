@@ -100,7 +100,7 @@ const Pill = ({ tone = "neutral", children }) => {
 const leftBadge = (d) => {
   if (d === null) return { tone: "good", label: "Fresh" };
   if (d <= 0) return { tone: "danger", label: "Expired" };
-  return { tone: d <= 3 ? "warn" : "good", label: `Expires in ${d} days` };
+  return { tone: d <= 3 ? "warn" : "good", label: `Consume Before ${d} days` };
 };
 
 const getCurrentUserName = () => {
@@ -480,7 +480,7 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                         </div>
                         <div className="rounded-lg border border-[#f2e3cf] bg-white/60 p-2">
                           <div className="text-[11px] font-semibold text-[#7b5836]">
-                            Expires
+                            Consume Before
                           </div>
                           <div className="text-sm text-[#3b2a18]">
                             {d.expiration_date
@@ -1198,7 +1198,7 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                             </div>
                             <div className="rounded-lg border border-[#f2e3cf] bg-white/60 p-2">
                               <div className="text-xs font-semibold">
-                                Expires
+                                Consume Before
                               </div>
                               <div>
                                 {chosen.expiration_date

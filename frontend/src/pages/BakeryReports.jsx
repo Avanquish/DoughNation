@@ -96,6 +96,14 @@ export default function BakeryReports({ isViewOnly = false }) {
     return `${year}-${month}-${day}`;
   };
 
+  // Helper to get a Date object in PH timezone from a yyyy-mm-dd string
+  const getPHDateObj = (dateStr) => {
+    if (!dateStr) return null;
+    // Create a Date object at midnight in Asia/Manila
+    const [year, month, day] = dateStr.split('-');
+    return new Date(new Date(`${year}-${month}-${day}T00:00:00+08:00`).toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+  };
+
   // Helper: which type should be used for fetching/exports?
   const getEffectiveReportType = () =>
     activeReport === "summary" ? activeSummary : activeReport;
@@ -107,10 +115,9 @@ export default function BakeryReports({ isViewOnly = false }) {
       return;
     }
 
-    // Validate future month
-    const today = new Date();
-    const currentMonth = today.toISOString().slice(0, 7); // Format: YYYY-MM
-
+    // Validate future month using PH time
+    const todayPH = getPhilippineDate();
+    const currentMonth = todayPH.slice(0, 7); // Format: YYYY-MM
     if (selectedMonth > currentMonth) {
       Swal.fire(
         "Invalid Date",
@@ -136,22 +143,18 @@ export default function BakeryReports({ isViewOnly = false }) {
       return;
     }
 
-    // Validate future dates
-    const today = new Date().toISOString().split("T")[0];
-
-    if (weekStart > today) {
+    // Validate future dates using PH time
+    const todayPH = getPhilippineDate();
+    if (weekStart > todayPH) {
       Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
       return;
     }
-
-    if (weekEnd > today) {
+    if (weekEnd > todayPH) {
       Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
       return;
     }
-
-    const start = new Date(weekStart);
-    const end = new Date(weekEnd);
-
+    const start = getPHDateObj(weekStart);
+    const end = getPHDateObj(weekEnd);
     const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
     if (diffDays > 7) {
       Swal.fire(
@@ -180,19 +183,16 @@ export default function BakeryReports({ isViewOnly = false }) {
       return;
     }
 
-    // Validate future dates
-    const today = new Date().toISOString().split("T")[0];
-    
-    if (customStart > today) {
+    // Validate future dates using PH time
+    const todayPH = getPhilippineDate();
+    if (customStart > todayPH) {
       Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
       return;
     }
-    
-    if (customEnd > today) {
+    if (customEnd > todayPH) {
       Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
       return;
     }
-    
     if (customStart > customEnd) {
       Swal.fire("Invalid Date Range", "End date must be after or equal to start date.", "error");
       return;
@@ -211,15 +211,13 @@ export default function BakeryReports({ isViewOnly = false }) {
 
   // Handlers for other report filters
   const handleDonationHistoryFilter = () => {
-    // Validate future dates
-    const today = new Date().toISOString().split("T")[0];
-
-    if (donationHistoryStart && donationHistoryStart > today) {
+    // Validate future dates using PH time
+    const todayPH = getPhilippineDate();
+    if (donationHistoryStart && donationHistoryStart > todayPH) {
       Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
       return;
     }
-
-    if (donationHistoryEnd && donationHistoryEnd > today) {
+    if (donationHistoryEnd && donationHistoryEnd > todayPH) {
       Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
       return;
     }
@@ -231,15 +229,13 @@ export default function BakeryReports({ isViewOnly = false }) {
   };
 
   const handleExpiryLossFilter = () => {
-    // Validate future dates
-    const today = new Date().toISOString().split("T")[0];
-
-    if (expiryLossStart && expiryLossStart > today) {
+    // Validate future dates using PH time
+    const todayPH = getPhilippineDate();
+    if (expiryLossStart && expiryLossStart > todayPH) {
       Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
       return;
     }
-
-    if (expiryLossEnd && expiryLossEnd > today) {
+    if (expiryLossEnd && expiryLossEnd > todayPH) {
       Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
       return;
     }
@@ -251,15 +247,13 @@ export default function BakeryReports({ isViewOnly = false }) {
   };
 
   const handleTopItemsFilter = () => {
-    // Validate future dates
-    const today = new Date().toISOString().split("T")[0];
-
-    if (topItemsStart && topItemsStart > today) {
+    // Validate future dates using PH time
+    const todayPH = getPhilippineDate();
+    if (topItemsStart && topItemsStart > todayPH) {
       Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
       return;
     }
-
-    if (topItemsEnd && topItemsEnd > today) {
+    if (topItemsEnd && topItemsEnd > todayPH) {
       Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
       return;
     }
@@ -271,15 +265,13 @@ export default function BakeryReports({ isViewOnly = false }) {
   };
 
   const handleCharityListFilter = () => {
-    // Validate future dates
-    const today = new Date().toISOString().split("T")[0];
-
-    if (charityListStart && charityListStart > today) {
+    // Validate future dates using PH time
+    const todayPH = getPhilippineDate();
+    if (charityListStart && charityListStart > todayPH) {
       Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
       return;
     }
-
-    if (charityListEnd && charityListEnd > today) {
+    if (charityListEnd && charityListEnd > todayPH) {
       Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
       return;
     }

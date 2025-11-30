@@ -31,10 +31,11 @@ def donation_history(
     # Parse date filters if provided
     date_start = None
     date_end = None
+    from app.timezone_utils import PHILIPPINES_TZ
     if start_date:
-        date_start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        date_start = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=PHILIPPINES_TZ)
     if end_date:
-        date_end = datetime.strptime(end_date, "%Y-%m-%d").date()
+        date_end = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=PHILIPPINES_TZ)
 
     # For bakeries — donations they sent
     query_requests = db.query(models.DonationRequest).filter(
@@ -135,9 +136,9 @@ def expiry_loss_report(
     date_start = None
     date_end = None
     if start_date:
-        date_start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        date_start = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=PHILIPPINES_TZ)
     if end_date:
-        date_end = datetime.strptime(end_date, "%Y-%m-%d").date()
+        date_end = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=PHILIPPINES_TZ)
     
     query = (
         db.query(models.BakeryInventory)
@@ -193,9 +194,9 @@ def top_donated_items(
     date_start = None
     date_end = None
     if start_date:
-        date_start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        date_start = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=PHILIPPINES_TZ)
     if end_date:
-        date_end = datetime.strptime(end_date, "%Y-%m-%d").date()
+        date_end = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=PHILIPPINES_TZ)
     
     # --- Direct donations (only complete) ---
     query_direct = (
@@ -414,7 +415,7 @@ def period_summary(
     elif period == "monthly":
         if month:
             try:
-                period_start = datetime.strptime(month + "-01", "%Y-%m-%d").date()
+                period_start = datetime.strptime(month + "-01", "%Y-%m-%d").replace(tzinfo=PHILIPPINES_TZ)
             except ValueError:
                 raise HTTPException(status_code=400, detail="Invalid month format. Use YYYY-MM.")
         else:
@@ -432,8 +433,8 @@ def period_summary(
         if not start_date or not end_date:
             raise HTTPException(status_code=400, detail="Custom period requires both start_date and end_date.")
         
-        period_start = datetime.strptime(start_date, "%Y-%m-%d").date()
-        period_end = datetime.strptime(end_date, "%Y-%m-%d").date()
+        period_start = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=PHILIPPINES_TZ)
+        period_end = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=PHILIPPINES_TZ)
         
         # Validate that end_date is not before start_date
         if period_end < period_start:

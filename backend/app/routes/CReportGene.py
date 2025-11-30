@@ -237,8 +237,11 @@ def period_summary(
         if not start_date or not end_date:
             raise HTTPException(status_code=400, detail="Custom period requires both start_date and end_date.")
         
-        period_start = datetime.strptime(start_date, "%Y-%m-%d").date()
-        period_end = datetime.strptime(end_date, "%Y-%m-%d").date()
+        # Parse as datetime in PH timezone for accuracy
+        from app.timezone_utils import PHILIPPINES_TZ
+        period_start = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=PHILIPPINES_TZ)
+        period_end = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=PHILIPPINES_TZ)
+        # Use .date() if only date is needed, but keep tz-aware for comparisons
         
         if period_end < period_start:
             raise HTTPException(status_code=400, detail="End date must be after or equal to start date.")
@@ -620,8 +623,8 @@ def monthly_summary(
         db.query(func.sum(models.BakeryInventory.quantity))
         .filter(models.BakeryInventory.bakery_id == current_user.id)
         .filter(models.BakeryInventory.status != "donated")
-        .filter(models.BakeryInventory.expiration_date >= start_date,
-                models.BakeryInventory.expiration_date < end_date_inclusive)
+        .filter(models.BakeryInventory.expiration_date >= period_start,
+            models.BakeryInventory.expiration_date < period_end_inclusive)
         .scalar() or 0
     )
 
@@ -629,8 +632,8 @@ def monthly_summary(
         db.query(func.sum(models.BakeryInventory.quantity))
         .filter(models.BakeryInventory.bakery_id == current_user.id)
         .filter(models.BakeryInventory.status == "available")
-        .filter(models.BakeryInventory.expiration_date >= start_date,
-                models.BakeryInventory.expiration_date < end_date_inclusive)
+        .filter(models.BakeryInventory.expiration_date >= period_start,
+            models.BakeryInventory.expiration_date < period_end_inclusive)
         .scalar() or 0
     )
 

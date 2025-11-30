@@ -835,7 +835,7 @@ export default function CharityDonation() {
                     Product: {quantityModal.donation.name}
                   </label>
                   <p className="text-xs text-[#7b5836]">
-                    Available: {quantityModal.donation.quantity} units
+                    Available: {quantityModal.donation.quantity} remaining
                   </p>
                 </div>
 

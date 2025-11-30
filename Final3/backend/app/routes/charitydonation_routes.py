@@ -385,7 +385,7 @@ def accept_donation(
                         "quantity": cancel_info["requested_qty"],
                         "expiration_date": cancelled_req.donation_expiration.isoformat() if cancelled_req.donation_expiration else None
                     },
-                    "message": f"Your donation request has been cancelled. You requested {cancel_info['requested_qty']} units but only {cancel_info['remaining_qty']} remaining. You can request again.",
+                    "message": f"Your donation request has been cancelled. You requested {cancel_info['requested_qty']} quantity but only {cancel_info['remaining_qty']} remaining. You can request again.",
                     "reason": "insufficient_quantity",
                     "cancelledBy": "system"
                 })

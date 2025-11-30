@@ -282,6 +282,9 @@ const BDonationStatus = () => {
   const [qReqApplied, setQReqApplied] = useState(""); // Requested section
   const [qDirApplied, setQDirApplied] = useState(""); // Direct section
 
+  // Auto refresh
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   // helpers
   const toStr = (v = "") => String(v).toLowerCase();
   const normStatus = (d) => toStr(d.tracking_status || d.status || "pending");
@@ -450,67 +453,81 @@ const BDonationStatus = () => {
     }
   };
 
-  useEffect(() => {
+  const fetchAll = async (silent = false) => {
     if (!currentUser) return;
+    if (!silent) setIsRefreshing(true);
+    
     const token =
       localStorage.getItem("employeeToken") || localStorage.getItem("token");
 
-    if (currentUser.role === "charity" || currentUser.role === "bakery") {
-      const url =
-        currentUser.role === "charity"
-          ? `${API}/donation/received`
-          : `${API}/donation/requests`;
-      fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-        .then((res) => res.json())
-        .then((data) => {
-          const accepted = (data || []).filter((d) => d.status === "accepted");
-          const pending = (data || []).filter((d) => d.status === "pending");
+    try {
+      if (currentUser.role === "charity" || currentUser.role === "bakery") {
+        const url =
+          currentUser.role === "charity"
+            ? `${API}/donation/received`
+            : `${API}/donation/requests`;
+        const res = await fetch(url, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        const accepted = (data || []).filter((d) => d.status === "accepted");
+        const pending = (data || []).filter((d) => d.status === "pending");
 
-          setAcceptedNorm(
-            accepted.map((d) => ({
-              ...d,
-              tracking_status: (
-                d.tracking_status ||
-                d.status ||
-                ""
-              ).toLowerCase(),
-            }))
-          );
-          setPendingNorm(
-            pending.map((d) => ({
-              ...d,
-              tracking_status: "pending",
-            }))
-          );
-        })
-        .catch((err) =>
-          console.error("Failed to fetch requests/received:", err)
+        setAcceptedNorm(
+          accepted.map((d) => ({
+            ...d,
+            tracking_status: (
+              d.tracking_status ||
+              d.status ||
+              ""
+            ).toLowerCase(),
+          }))
         );
-    }
+        setPendingNorm(
+          pending.map((d) => ({
+            ...d,
+            tracking_status: "pending",
+          }))
+        );
+      }
 
-    if (currentUser.role === "bakery") {
-      (async () => {
-        try {
-          const resp = await fetch(`${API}/direct/bakery`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          const data = await resp.json();
-          setMapped(
-            (data || []).map((d) => ({
-              ...d,
-              tracking_status: (
-                d.btracking_status ||
-                d.tracking_status ||
-                d.status ||
-                "pending"
-              ).toLowerCase(),
-            }))
-          );
-        } catch (e) {
-          console.error("Failed to fetch direct donations:", e);
-        }
-      })();
+      if (currentUser.role === "bakery") {
+        const resp = await fetch(`${API}/direct/bakery`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await resp.json();
+        setMapped(
+          (data || []).map((d) => ({
+            ...d,
+            tracking_status: (
+              d.btracking_status ||
+              d.tracking_status ||
+              d.status ||
+              "pending"
+            ).toLowerCase(),
+          }))
+        );
+      }
+    } catch (e) {
+      console.error("Failed to fetch donations:", e);
+    } finally {
+      if (!silent) setIsRefreshing(false);
     }
+  };
+
+  useEffect(() => {
+    fetchAll();
+  }, [currentUser]);
+
+  // Auto-refresh every 1 second
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    const intervalId = setInterval(() => {
+      fetchAll(true); // silent refresh
+    }, 1000);
+
+    return () => clearInterval(intervalId);
   }, [currentUser]);
 
   useEffect(() => {
@@ -1269,7 +1286,7 @@ const BDonationStatus = () => {
                 >
                   {selectedDonation.tracking_status === "preparing"
                     ? "Mark as Ready for Pickup"
-                    : "Mark as In Transit"}
+                    : "Mark as In Transit"} 
                 </button>
               )}
             </div>

@@ -534,13 +534,6 @@ export default function CharityDonation() {
                           >
                             Qty: {donation.quantity}
                           </span>
-                          <span
-                            className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full
-                                     bg-[#FFF6E9] border border-[#f4e6cf]"
-                            style={{ color: "#6b4b2b" }}
-                          >
-                            Threshold: {donation.threshold ?? "—"}
-                          </span>
                         </div>
 
                         {/* dates grid */}
@@ -835,7 +828,7 @@ export default function CharityDonation() {
                     Product: {quantityModal.donation.name}
                   </label>
                   <p className="text-xs text-[#7b5836]">
-                    Available: {quantityModal.donation.quantity} units
+                    Available: {quantityModal.donation.quantity} remaining
                   </p>
                 </div>
 

@@ -42,15 +42,39 @@ const toManilaDate = (ts) => {
 
 const formatTime = (ts) => {
   try {
-    const d = toManilaDate(ts);
-    if (!d || isNaN(d.getTime())) return String(ts);
+    if (!ts) return "";
+    
+    let date;
+    
+    // Handle different timestamp formats
+    if (typeof ts === "number") {
+      // Unix timestamp in milliseconds
+      date = new Date(ts);
+    } else if (typeof ts === "string") {
+      // Try parsing as ISO string first
+      date = new Date(ts);
+      
+      // If invalid, try manual parsing
+      if (isNaN(date.getTime())) {
+        // Handle format like "2024-01-15 10:30:00"
+        const normalized = ts.trim().replace(" ", "T");
+        date = new Date(normalized);
+      }
+    } else {
+      return String(ts);
+    }
+    
+    if (isNaN(date.getTime())) return String(ts);
+    
+    // Format in Asia/Manila timezone
     return new Intl.DateTimeFormat("en-PH", {
-      hour: "2-digit",
+      hour: "numeric",
       minute: "2-digit",
       hour12: true,
       timeZone: "Asia/Manila",
-    }).format(d);
-  } catch {
+    }).format(date);
+  } catch (err) {
+    console.error("Error formatting time:", err);
     return String(ts);
   }
 };
@@ -391,6 +415,9 @@ export default function Messages({ currentUser: currentUserProp }) {
 
       if (decoded.type === "employee") {
         return decoded.employee_name || decoded.name || "Employee";
+      } else if (decoded.type === "bakery") {
+        // For bakery users, use contact_person (owner's name) instead of bakery name
+        return decoded.contact_person || decoded.name || "User";
       } else {
         return decoded.name || "User";
       }
@@ -631,6 +658,12 @@ export default function Messages({ currentUser: currentUserProp }) {
       return;
     }
 
+    // Prevent double-clicks
+    if (disabledDonations.has(donation.id)) {
+      console.log("Action already in progress for donation:", donation.id);
+      return;
+    }
+
     setDisabledDonations((prev) => new Set(prev).add(donation.id));
 
     try {
@@ -667,7 +700,12 @@ export default function Messages({ currentUser: currentUserProp }) {
       await fetchAllDonationStatuses();
       await fetchRemovedProducts();
 
+      if (donation.bakery_inventory_id) {
+        await fetchInventoryStatus(donation.bakery_inventory_id);
+      }
+
       if (accepted_charity_id) {
+        // Send confirmation to charity
         await axios.post(
           `${API_URL}/messages/send`,
           {
@@ -736,6 +774,12 @@ export default function Messages({ currentUser: currentUserProp }) {
       return;
     }
 
+    // Prevent double-clicks
+    if (disabledDonations.has(donation.id)) {
+      console.log("Action already in progress for donation:", donation.id);
+      return;
+    }
+
     setDisabledDonations((prev) => new Set(prev).add(donation.id));
 
     try {
@@ -798,6 +842,11 @@ export default function Messages({ currentUser: currentUserProp }) {
       }
     } catch (err) {
       console.error("Failed to cancel donation:", err?.response?.data || err);
+
+      if (donation?.bakery_inventory_id) {
+        await fetchInventoryStatus(donation.bakery_inventory_id);
+      }
+
     } finally {
       setDisabledDonations((prev) => {
         const copy = new Set(prev);
@@ -902,22 +951,25 @@ export default function Messages({ currentUser: currentUserProp }) {
         
         const inventoryStatus = inventoryStatuses.get(inventoryId);
         const employeeToken = localStorage.getItem("employeeToken");
+        const bakeryToken = localStorage.getItem("token");
+        const isBakeryUser = employeeToken || bakeryToken;
 
-        // KEY CHANGE: Check THIS specific request's status
+        // Get this specific request's status from backend
         const thisRequestStatus = inventoryStatus?.request_statuses?.[requestId];
         
-        // Hide buttons if THIS request is accepted or canceled
-        const thisRequestIsAccepted = thisRequestStatus?.status === "accepted";
-        const thisRequestIsCanceled = thisRequestStatus?.status === "canceled";
-        const thisRequestIsPending = thisRequestStatus?.status === "pending";
+        // ONLY use backend flags - NO time calculations
+        const shouldShowAcceptButton = thisRequestStatus?.show_accept_button === true;
+        const shouldShowCancelButton = thisRequestStatus?.show_cancel_button === true;
         
-        // Show buttons ONLY if:
-        // This specific request is still "pending"
-        // User is receiver (charity side viewing it)
-        // Has employee token (bakery side)
-        const shouldShowButtons = thisRequestIsPending && iAmReceiver && employeeToken && inventoryStatus;
+        // Show buttons ONLY if: bakery user (owner/manager/employee) AND backend says show them
+        const showButtons = iAmReceiver && isBakeryUser && (shouldShowAcceptButton || shouldShowCancelButton);
 
-        // Get remaining quantity for display
+        // Get display status
+        const requestStatus = thisRequestStatus?.status || "unknown";
+        const isAccepted = requestStatus === "accepted";
+        const isCanceled = requestStatus === "canceled";
+        const isPending = requestStatus === "pending";
+        
         const remainingQty = inventoryStatus?.remaining_quantity ?? null;
         const isInventoryEmpty = remainingQty !== null && remainingQty <= 0;
 
@@ -931,8 +983,8 @@ export default function Messages({ currentUser: currentUserProp }) {
                 {d.quantity ?? "-"}
               </div>
 
-              {/* Show accepted badge for THIS specific request */}
-              {thisRequestIsAccepted && (
+              {/* Show accepted badge */}
+              {isAccepted && (
                 <div style={{ 
                   fontSize: 12, 
                   color: "#166534", 
@@ -947,14 +999,14 @@ export default function Messages({ currentUser: currentUserProp }) {
                 }}>
                   <Check className="w-4 h-4" />
                   <span>
-                    ✓ Accepted
+                    Accepted
                     {thisRequestStatus?.accepted_by && ` by ${thisRequestStatus.accepted_by}`}
                   </span>
                 </div>
               )}
 
-              {/* Show cancelled badge for THIS specific request */}
-              {thisRequestIsCanceled && (
+              {/* Show cancelled badge */}
+              {isCanceled && (
                 <div style={{ 
                   fontSize: 12, 
                   color: "#991b1b", 
@@ -968,12 +1020,12 @@ export default function Messages({ currentUser: currentUserProp }) {
                   gap: 6
                 }}>
                   <XCircle className="w-4 h-4" />
-                  <span>Request Cancelled (Inventory depleted)</span>
+                  <span>Request Cancelled</span>
                 </div>
               )}
 
-              {/* Show available quantity ONLY for pending requests */}
-              {thisRequestIsPending && remainingQty !== null && (
+              {/* Show available quantity for pending requests */}
+              {isPending && remainingQty !== null && (
                 <div style={{ 
                   fontSize: 11, 
                   color: isInventoryEmpty ? "#991b1b" : "#059669",
@@ -985,32 +1037,36 @@ export default function Messages({ currentUser: currentUserProp }) {
                 }}>
                   {isInventoryEmpty 
                     ? "⚠️ No inventory remaining" 
-                    : `✓ Available: ${remainingQty} units`}
+                    : `✓ Available: ${remainingQty} remaining`}
                 </div>
               )}
 
-              {/* Show buttons ONLY for pending requests with available inventory */}
-              {shouldShowButtons && !isInventoryEmpty && (
+              {/* Show buttons based ONLY on backend flags */}
+              {showButtons && (
                 <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                  <button
-                    className="btn-mini accept"
-                    onClick={() => acceptDonation(m)}
-                    disabled={disabledDonations.has(d.id)}
-                  >
-                    <Check className="w-4 h-4" /> Accept
-                  </button>
-                  <button
-                    className="btn-mini"
-                    onClick={() => cancelDonation(m)}
-                    disabled={disabledDonations.has(d.id)}
-                  >
-                    <XCircle className="w-4 h-4" /> Cancel
-                  </button>
+                  {shouldShowAcceptButton && (
+                    <button
+                      className="btn-mini accept"
+                      onClick={() => acceptDonation(m)}
+                      disabled={disabledDonations.has(d.id)}
+                    >
+                      <Check className="w-4 h-4" /> Accept
+                    </button>
+                  )}
+                  {shouldShowCancelButton && (
+                    <button
+                      className="btn-mini"
+                      onClick={() => cancelDonation(m)}
+                      disabled={disabledDonations.has(d.id)}
+                    >
+                      <XCircle className="w-4 h-4" /> Cancel
+                    </button>
+                  )}
                 </div>
               )}
 
-              {/* Warning if pending but no inventory */}
-              {thisRequestIsPending && isInventoryEmpty && (
+              {/* Warning if pending but inventory gone */}
+              {isPending && isInventoryEmpty && (
                 <div style={{ 
                   fontSize: 12, 
                   color: "#92400e",
@@ -1055,6 +1111,41 @@ export default function Messages({ currentUser: currentUserProp }) {
                 </strong>
                 <span style={{ fontSize: 13, color: "#374151" }}>
                   {donation?.name} • Qty: {donation?.quantity}
+                </span>
+              </div>
+            </div>
+          ),
+        };
+      }
+
+      if (parsed?.type === "bakery_donation_accepted") {
+        const { donation, message } = parsed;
+        return {
+          isMedia: false,
+          undeletable: true,
+          body: (
+            <div
+              className="flex items-center gap-2 p-3 border rounded-2xl bg-green-50"
+              style={{ alignItems: "center" }}
+            >
+              {donation?.image && (
+                <img
+                  src={`${API_URL}/${donation.image}`}
+                  alt={donation.name}
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 10,
+                    objectFit: "cover",
+                  }}
+                />
+              )}
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <strong style={{ color: "#166534" }}>
+                  {message || "You successfully donated this item!"}
+                </strong>
+                <span style={{ fontSize: 13, color: "#374151" }}>
+                  {donation?.name || donation?.product_name} • Qty: {donation?.quantity}
                 </span>
               </div>
             </div>
@@ -1321,29 +1412,31 @@ export default function Messages({ currentUser: currentUserProp }) {
   useEffect(() => {
     if (!selectedUser || filteredMessages.length === 0) return;
 
+    // Collect all inventory IDs from donation cards
+    const inventoryIds = new Set();
+    filteredMessages.forEach((m) => {
+      try {
+        const parsed = typeof m.content === "string" ? JSON.parse(m.content) : m.content;
+        if (parsed?.type === "donation_card" && parsed?.donation?.bakery_inventory_id) {
+          inventoryIds.add(parsed.donation.bakery_inventory_id);
+        }
+      } catch {}
+    });
+
+    // Fetch immediately when component loads
+    inventoryIds.forEach((id) => {
+      fetchInventoryStatus(id);
+    });
+
+    // Poll every 2 seconds (faster response)
     const pollInterval = setInterval(() => {
-      const inventoryIds = new Set();
-
-      filteredMessages.forEach((m) => {
-        try {
-          const parsed =
-            typeof m.content === "string" ? JSON.parse(m.content) : m.content;
-          if (
-            parsed?.type === "donation_card" &&
-            parsed?.donation?.bakery_inventory_id
-          ) {
-            inventoryIds.add(parsed.donation.bakery_inventory_id);
-          }
-        } catch {}
-      });
-
       inventoryIds.forEach((id) => {
         fetchInventoryStatus(id);
       });
-    }, 3000);
+    }, 2000);
 
     return () => clearInterval(pollInterval);
-  }, [selectedUser, filteredMessages]);
+  }, [selectedUser, filteredMessages.length]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -1781,6 +1874,7 @@ export default function Messages({ currentUser: currentUserProp }) {
                       const donationTypes = [
                         "donation_card",
                         "confirmed_donation",
+                        "bakery_donation_accepted",
                         "donation_unavailable",
                         "donation_cancelled",
                         "donation_request_cancelled",
@@ -1838,6 +1932,7 @@ export default function Messages({ currentUser: currentUserProp }) {
                         const donationTypes = [
                           "donation_card",
                           "confirmed_donation",
+                          "bakery_donation_accepted",
                           "donation_unavailable",
                           "donation_cancelled",
                         ];
@@ -1867,6 +1962,8 @@ export default function Messages({ currentUser: currentUserProp }) {
                                 ? "Donation Request"
                                 : parsed.type === "confirmed_donation"
                                 ? "Donation Request Confirmed"
+                                : parsed.type === "bakery_donation_accepted"
+                                ? "Donation Accepted"
                                 : parsed.type === "donation_request_cancelled"
                                 ? "Donation request cancelled"
                                 : parsed.message ||
@@ -2089,6 +2186,8 @@ export default function Messages({ currentUser: currentUserProp }) {
                     const iAmReceiver =
                       Number(card.receiver_id) === Number(currentUser?.id);
                     const employeeToken = localStorage.getItem("employeeToken");
+                    const bakeryToken = localStorage.getItem("token");
+                    const isBakeryUser = employeeToken || bakeryToken;
 
                     return (
                       <div key={`pend-${card.id}`} className="pend-row">
@@ -2110,7 +2209,7 @@ export default function Messages({ currentUser: currentUserProp }) {
                           >
                             Open
                           </button>
-                          {iAmReceiver && employeeToken && (
+                          {iAmReceiver && isBakeryUser && (
                             <>
                               <button
                                 className="btn-mini accept"

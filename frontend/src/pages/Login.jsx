@@ -487,7 +487,11 @@ const Login = () => {
                   <Input
                     id="identifier"
                     type="text"
-                    placeholder="Enter your Email or Employee ID"
+                    placeholder={
+                      role === "Bakery"
+                        ? "Enter your Email or Employee ID"
+                        : "Enter your Email"
+                    }
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     required

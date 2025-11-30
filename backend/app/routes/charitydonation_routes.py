@@ -139,25 +139,24 @@ def request_donation(
             detail=f"Requested quantity ({payload.requested_quantity}) exceeds available quantity ({donation.quantity})"
         )
 
-    existing_request = db.query(models.DonationRequest).filter(
+    # FIXED: Auto-cancel ALL previous pending requests when creating a new one
+    existing_pending = db.query(models.DonationRequest).filter(
         models.DonationRequest.charity_id == current_user.id,
-        models.DonationRequest.donation_id == payload.donation_id
-    ).first()
+        models.DonationRequest.bakery_inventory_id == donation.bakery_inventory_id,
+        models.DonationRequest.status == "pending"
+    ).all()
 
-    if existing_request:
-        if existing_request.status == "pending":
-            raise HTTPException(status_code=400, detail="You already requested this donation")
-        elif existing_request.status == "canceled":
-            # Re-activate the canceled request with new quantity
-            existing_request.status = "pending"
-            existing_request.donation_quantity = payload.requested_quantity
-            existing_request.timestamp = now_ph()
-            db.commit()
-            db.refresh(existing_request)
-            update_inventory_status(db, donation.bakery_inventory_id)
-            return {"message": "Donation re-requested", "request_id": existing_request.id}
+    # Auto-cancel all previous pending requests to allow new quantity
+    for old_request in existing_pending:
+        old_request.status = "canceled"
+        old_request.rdonated_by = "Auto-canceled (User requested different quantity)"
+    
+    if existing_pending:
+        db.commit()
 
     bakery = db.query(models.User).filter(models.User.id == payload.bakery_id).first()
+    
+    # Always create a NEW request
     new_request = models.DonationRequest(
         donation_id=payload.donation_id,
         charity_id=current_user.id,
@@ -178,7 +177,6 @@ def request_donation(
     update_inventory_status(db, donation.bakery_inventory_id)
 
     return {"message": "Donation request sent", "request_id": new_request.id}
-
 
 @router.post("/donation/cancel/{request_id}")
 async def cancel_donation_request(
@@ -266,20 +264,20 @@ def accept_donation(
     request_id: int,
     payload: dict = Body(...),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(ensure_verified_user)
+    current_auth = Depends(auth.get_current_user_or_employee)
 ):
+    from app.auth import get_bakery_id_from_auth, get_donor_name_from_auth
+    
     charity_id = payload.get("charity_id")
-    donated_by = payload.get("donated_by")
+    bakery_id = get_bakery_id_from_auth(current_auth)
+    donated_by = get_donor_name_from_auth(current_auth)
     
     if not charity_id:
         raise HTTPException(status_code=400, detail="charity_id required")
-    
-    if not donated_by:
-        raise HTTPException(status_code=400, detail="donated_by (employee/owner name) required")
 
     donation_request = db.query(models.DonationRequest).filter(
         models.DonationRequest.id == request_id,
-        models.DonationRequest.bakery_id == current_user.id,
+        models.DonationRequest.bakery_id == bakery_id,
         models.DonationRequest.charity_id == charity_id,
         models.DonationRequest.status == "pending"
     ).first()
@@ -305,7 +303,7 @@ def accept_donation(
             detail=f"Insufficient inventory. Available: {inventory_item.quantity}, Requested: {requested_quantity}"
         )
 
-    # ✅ Store the remaining quantity BEFORE reducing
+    # Store the remaining quantity BEFORE reducing
     quantity_before = inventory_item.quantity
     
     # Reduce inventory quantity
@@ -328,9 +326,9 @@ def accept_donation(
         if donation.quantity <= 0:
             donation.quantity = 0
 
-    # ✅ Mark THIS specific request as accepted
+    # Mark THIS specific request as accepted
     donation_request.status = "accepted"
-    donation_request.rdonated_by = donated_by or current_user.name or "Unknown"
+    donation_request.rdonated_by = donated_by
 
     # Create checking record
     new_check = models.DonationCardChecking(
@@ -341,7 +339,7 @@ def accept_donation(
     )
     db.add(new_check)
 
-    # ✅ NEW LOGIC: Cancel requests that exceed remaining quantity
+    # Cancel requests that exceed remaining quantity
     canceled_charity_ids = []
     canceled_requests = []
 
@@ -370,16 +368,14 @@ def accept_donation(
     db.refresh(inventory_item)
     db.refresh(donation_request)
 
-    # Send simple italic messages for cancelled requests
+    # Send cancellation messages
     for cancel_info in canceled_requests:
         try:
-            # Get the cancelled request details
             cancelled_req = db.query(models.DonationRequest).filter(
                 models.DonationRequest.id == cancel_info["request_id"]
             ).first()
             
             if cancelled_req:
-                # Create a card message with cancellation info
                 cancellation_content = json.dumps({
                     "type": "donation_request_cancelled",
                     "donation": {
@@ -389,7 +385,7 @@ def accept_donation(
                         "quantity": cancel_info["requested_qty"],
                         "expiration_date": cancelled_req.donation_expiration.isoformat() if cancelled_req.donation_expiration else None
                     },
-                    "message": f"Your donation request has been cancelled. You requested {cancel_info['requested_qty']} units but only {cancel_info['remaining_qty']} remaining. You can request again.",
+                    "message": f"Your donation request has been cancelled. You requested {cancel_info['requested_qty']} quantity but only {cancel_info['remaining_qty']} remaining. You can request again.",
                     "reason": "insufficient_quantity",
                     "cancelledBy": "system"
                 })
@@ -402,7 +398,7 @@ def accept_donation(
                     is_read=False,
                     is_card=True
                 )
-                db.add(cancellation_message)
+                db.add(cancellation_message) 
         except Exception as e:
             print(f"Error sending cancellation message for request {cancel_info['request_id']}: {e}")
             continue
@@ -720,9 +716,9 @@ def get_inventory_status(
 ):
     """
     Get detailed status for each donation request.
-    Returns individual request statuses so frontend can hide buttons per request.
+    TIME-INDEPENDENT: Uses only database status, not timestamps.
     """
-    # Get the inventory item to check remaining quantity
+    # Step 1: Get inventory item
     inventory_item = db.query(models.BakeryInventory).filter(
         models.BakeryInventory.id == bakery_inventory_id
     ).first()
@@ -730,30 +726,64 @@ def get_inventory_status(
     if not inventory_item:
         raise HTTPException(status_code=404, detail="Inventory item not found")
     
-    # Get all requests for this inventory
-    requests = db.query(models.DonationRequest).filter(
+    # Step 2: Get ALL requests, ordered by ID descending (newest first)
+    all_requests = db.query(models.DonationRequest).filter(
         models.DonationRequest.bakery_inventory_id == bakery_inventory_id
-    ).all()
+    ).order_by(models.DonationRequest.id.desc()).all()
     
-    # ✅ Build a map of request_id -> status for quick lookup
-    request_status_map = {}
-    for r in requests:
-        request_status_map[r.id] = {
-            "status": r.status,
-            "charity_id": r.charity_id,
-            "requested_quantity": r.donation_quantity,
-            "timestamp": r.timestamp.isoformat() if r.timestamp else None,
-            "accepted_by": r.rdonated_by if r.status == "accepted" else None
+    # Step 3: Filter only PENDING requests
+    pending_requests = [r for r in all_requests if r.status == "pending"]
+    
+    # Step 4: Find the LATEST pending request per charity (highest ID = newest)
+    charity_latest_pending = {}
+    for r in pending_requests:
+        charity_id = r.charity_id
+        # Only store if this charity doesn't have a latest yet
+        # Since we ordered by ID desc, the first one we see is the latest
+        if charity_id not in charity_latest_pending:
+            charity_latest_pending[charity_id] = r
+    
+    # Step 5: Build response for each request
+    request_statuses = {}
+    
+    # First, add all the LATEST pending requests (these can show buttons)
+    for request in charity_latest_pending.values():
+        # Check if we can accept this request
+        can_accept = (
+            request.status == "pending" and 
+            inventory_item.quantity > 0 and 
+            request.donation_quantity <= inventory_item.quantity
+        )
+        
+        can_cancel = (request.status == "pending")
+        
+        request_statuses[request.id] = {
+            "status": "pending",
+            "charity_id": request.charity_id,
+            "requested_quantity": request.donation_quantity,
+            "accepted_by": None,
+            "show_accept_button": can_accept,
+            "show_cancel_button": can_cancel,
+            "is_latest": True
         }
     
-    has_pending = any(r.status == "pending" for r in requests)
-    all_canceled = all(r.status == "canceled" for r in requests) if requests else False
+    # Then, add all OTHER requests (old or non-pending) - NO buttons
+    for request in all_requests:
+        if request.id not in request_statuses:
+            request_statuses[request.id] = {
+                "status": request.status,
+                "charity_id": request.charity_id,
+                "requested_quantity": request.donation_quantity,
+                "accepted_by": request.rdonated_by if request.status == "accepted" else None,
+                "show_accept_button": False,  # Never show for old requests
+                "show_cancel_button": False,  # Never show for old requests
+                "is_latest": False
+            }
     
+    # Step 6: Return complete status
     return {
         "bakery_inventory_id": bakery_inventory_id,
-        "remaining_quantity": inventory_item.quantity,  # ✅ Current available quantity
-        "has_pending": has_pending,
-        "all_canceled": all_canceled,
-        "total_requests": len(requests),
-        "request_statuses": request_status_map,  # ✅ Individual request statuses
-    }
+        "remaining_quantity": inventory_item.quantity,
+        "has_pending": len(charity_latest_pending) > 0,
+        "request_statuses": request_statuses
+    } 

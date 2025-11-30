@@ -351,12 +351,17 @@ def get_audit_logs(
     # Get column names for mapping
     column_names = result.keys()
     
-    # Helper function to get user name by ID
-    def get_user_name(user_id):
+    # Helper function to get user info by ID
+    def get_user_info(user_id):
         if not user_id:
-            return "System"
+            return {"name": "System", "type": "System"}
         user = db.query(models.User).filter(models.User.id == user_id).first()
-        return user.name if user else "Unknown"
+        if not user:
+            return {"name": "Unknown", "type": "Unknown"}
+        return {
+            "name": user.name,  # Organization name (bakery/charity name)
+            "type": user.role   # Role: Admin, bakery, charity
+        }
     
     # Format response to match what frontend expects
     formatted_logs = []
@@ -374,6 +379,33 @@ def get_audit_logs(
         elif not event_data:
             event_data = {}
         
+        # Get actor information
+        actor_info = get_user_info(log_dict.get("user_id"))
+        
+        # Check if this was an employee action (has employee_name and employee_role in metadata)
+        employee_name = event_data.get("employee_name")
+        employee_role = event_data.get("employee_role")
+        
+        # Build actor display name
+        # For employees: "TheBakeMac - Paul Morada (Employee)"
+        # For owners: "TheBakeMac - John Doe (Owner)" 
+        # For admins/charities: Just the name
+        if employee_name and employee_role:
+            # Employee login or action
+            actor_display_name = actor_info["name"]  # Organization name
+            actor_person = employee_name
+            actor_person_role = employee_role
+        elif actor_info["type"] in ["bakery", "charity"]:
+            # Owner/main user login
+            actor_display_name = actor_info["name"]  # Organization name
+            actor_person = event_data.get("name") or log_dict.get("description", "").split("User ")[1].split(" (")[0] if "User " in log_dict.get("description", "") else None
+            actor_person_role = "Owner" if actor_info["type"] == "bakery" else "Representative"
+        else:
+            # Admin or system
+            actor_display_name = actor_info["name"]
+            actor_person = None
+            actor_person_role = None
+        
         # Extract target info from event_data if available
         target_name = event_data.get("email") or event_data.get("target_name") or "N/A"
         target_type = event_data.get("role") or event_data.get("target_type") or "User"
@@ -389,8 +421,10 @@ def get_audit_logs(
             "event_category": categorize_event(log_dict.get("event_type")),
             "description": log_dict.get("description"),
             "actor_id": log_dict.get("user_id"),
-            "actor_type": "Admin" if log_dict.get("user_id") == 1 else "User",
-            "actor_name": get_user_name(log_dict.get("user_id")),
+            "actor_type": actor_info["type"],
+            "actor_name": actor_display_name,
+            "actor_person": actor_person,  # Individual person's name (Paul Morada, Tesia Kate)
+            "actor_person_role": actor_person_role,  # Individual role (Owner, Employee, Manager)
             "target_id": None,
             "target_type": target_type,
             "target_name": target_name,

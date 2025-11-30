@@ -390,7 +390,7 @@ const BDonationStatus = () => {
     isDirect = false
   ) => {
     if (isUpdatingTracking) return;
-    
+
     const token =
       localStorage.getItem("employeeToken") || localStorage.getItem("token");
     if (!token) return;
@@ -452,65 +452,78 @@ const BDonationStatus = () => {
 
   useEffect(() => {
     if (!currentUser) return;
-    const token =
-      localStorage.getItem("employeeToken") || localStorage.getItem("token");
+    
+    const fetchData = () => {
+      const token =
+        localStorage.getItem("employeeToken") || localStorage.getItem("token");
 
-    if (currentUser.role === "charity" || currentUser.role === "bakery") {
-      const url =
-        currentUser.role === "charity"
-          ? `${API}/donation/received`
-          : `${API}/donation/requests`;
-      fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-        .then((res) => res.json())
-        .then((data) => {
-          const accepted = (data || []).filter((d) => d.status === "accepted");
-          const pending = (data || []).filter((d) => d.status === "pending");
+      if (currentUser.role === "charity" || currentUser.role === "bakery") {
+        const url =
+          currentUser.role === "charity"
+            ? `${API}/donation/received`
+            : `${API}/donation/requests`;
+        fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+          .then((res) => res.json())
+          .then((data) => {
+            const accepted = (data || []).filter((d) => d.status === "accepted");
+            const pending = (data || []).filter((d) => d.status === "pending");
 
-          setAcceptedNorm(
-            accepted.map((d) => ({
-              ...d,
-              tracking_status: (
-                d.tracking_status ||
-                d.status ||
-                ""
-              ).toLowerCase(),
-            }))
+            setAcceptedNorm(
+              accepted.map((d) => ({
+                ...d,
+                tracking_status: (
+                  d.tracking_status ||
+                  d.status ||
+                  ""
+                ).toLowerCase(),
+              }))
+            );
+            setPendingNorm(
+              pending.map((d) => ({
+                ...d,
+                tracking_status: "pending",
+              }))
+            );
+          })
+          .catch((err) =>
+            console.error("Failed to fetch requests/received:", err)
           );
-          setPendingNorm(
-            pending.map((d) => ({
-              ...d,
-              tracking_status: "pending",
-            }))
-          );
-        })
-        .catch((err) =>
-          console.error("Failed to fetch requests/received:", err)
-        );
-    }
+      }
 
-    if (currentUser.role === "bakery") {
-      (async () => {
-        try {
-          const resp = await fetch(`${API}/direct/bakery`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          const data = await resp.json();
-          setMapped(
-            (data || []).map((d) => ({
-              ...d,
-              tracking_status: (
-                d.btracking_status ||
-                d.tracking_status ||
-                d.status ||
-                "pending"
-              ).toLowerCase(),
-            }))
-          );
-        } catch (e) {
-          console.error("Failed to fetch direct donations:", e);
-        }
-      })();
-    }
+      if (currentUser.role === "bakery") {
+        (async () => {
+          try {
+            const resp = await fetch(`${API}/direct/bakery`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const data = await resp.json();
+            setMapped(
+              (data || []).map((d) => ({
+                ...d,
+                tracking_status: (
+                  d.btracking_status ||
+                  d.tracking_status ||
+                  d.status ||
+                  "pending"
+                ).toLowerCase(),
+              }))
+            );
+          } catch (e) {
+            console.error("Failed to fetch direct donations:", e);
+          }
+        })();
+      }
+    };
+    
+    // Initial fetch
+    fetchData();
+    
+    // Poll every 5 seconds
+    const interval = setInterval(() => {
+      fetchData();
+    }, 5000);
+    
+    return () => clearInterval(interval);
   }, [currentUser]);
 
   useEffect(() => {
@@ -551,6 +564,59 @@ const BDonationStatus = () => {
     setReceivedDonations([...acceptedNorm, ...pendingNorm]);
     setDirectDonations(mapped);
   }, [acceptedNorm, pendingNorm, mapped]);
+
+  // Poll selected donation status in modal for real-time updates
+  useEffect(() => {
+    if (!selectedDonation || !currentUser) return;
+    
+    const fetchSelectedDonation = async () => {
+      try {
+        const token =
+          localStorage.getItem("employeeToken") || localStorage.getItem("token");
+        const isDirect = selectedDonation.btracking_status !== undefined;
+        
+        let endpoint;
+        if (isDirect) {
+          endpoint = `${API}/direct/bakery`;
+        } else {
+          endpoint = currentUser.role === "charity"
+            ? `${API}/donation/received`
+            : `${API}/donation/requests`;
+        }
+        
+        const res = await fetch(endpoint, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        
+        // Find the matching donation
+        const updated = (data || []).find(
+          (d) => d.id === selectedDonation.id
+        );
+        
+        if (updated) {
+          setSelectedDonation({
+            ...updated,
+            tracking_status: (
+              updated.tracking_status ||
+              updated.btracking_status ||
+              updated.status ||
+              ""
+            ).toLowerCase(),
+          });
+        }
+      } catch (e) {
+        console.error("Failed to fetch selected donation:", e);
+      }
+    };
+    
+    // Poll every 3 seconds
+    const interval = setInterval(() => {
+      fetchSelectedDonation();
+    }, 3000);
+    
+    return () => clearInterval(interval);
+  }, [selectedDonation?.id, currentUser]);
 
   /* ---------------- UI shells ---------------- */
   const SearchBar = React.memo(function SearchBar({
@@ -658,7 +724,9 @@ const BDonationStatus = () => {
         className={`group rounded-2xl border border-[#f2e3cf] bg-white/70
             shadow-[0_2px_10px_rgba(93,64,28,.05)]
             overflow-hidden transition-all duration-300 cursor-pointer
-            hover:scale-[1.015] hover:shadow-[0_14px_32px_rgba(191,115,39,.18)] hover:ring-1 ${theme.hoverRing}
+            hover:scale-[1.015] hover:shadow-[0_14px_32px_rgba(191,115,39,.18)] hover:ring-1 ${
+              theme.hoverRing
+            }
             ${
               highlightedId === (d.donation_id || d.id)
                 ? `ring-2 ${theme.ring}`
@@ -821,7 +889,27 @@ const BDonationStatus = () => {
           {items.length ? (
             pageItems.map(renderItem)
           ) : (
-            <p className="text-sm text-[#7b5836]">{emptyText}</p>
+            <div
+              className="
+      mt-2
+      rounded-2xl
+      border border-dashed border-[#eadfce]
+      bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
+      h-40
+      flex items-center justify-center
+    "
+            >
+              <p
+                className="
+        text-sm text-[#7b5836]
+        bg-white/70 border border-[#f2e3cf]
+        rounded-2xl px-4 py-6
+        text-center
+      "
+              >
+                {emptyText}
+              </p>
+            </div>
           )}
         </div>
         {items.length > 0 && (
@@ -906,9 +994,7 @@ const BDonationStatus = () => {
                     {nice(s)}
                   </span>
                   {active && (
-                    <span
-                      className={`text-[11px] font-semibold ${theme.text}`}
-                    >
+                    <span className={`text-[11px] font-semibold ${theme.text}`}>
                       Current
                     </span>
                   )}
@@ -1050,6 +1136,7 @@ const BDonationStatus = () => {
                       />
                     )}
                   />
+
                   {/* Preparing column with pagination */}
                   <ScrollColumn
                     title={`Preparing (${preparing.length})`}
@@ -1064,6 +1151,7 @@ const BDonationStatus = () => {
                       />
                     )}
                   />
+
                   {/* Complete column with pagination */}
                   <ScrollColumn
                     title={`Complete (${complete.length})`}
@@ -1082,7 +1170,28 @@ const BDonationStatus = () => {
               );
             })()
           ) : (
-            <p className="text-[#7b5836]">No donations yet.</p>
+            <div
+              className="
+      mt-2
+      rounded-3xl
+      border border-[#eadfce]
+      bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
+      shadow-[0_2px_8px_rgba(93,64,28,0.06)]
+      h-48 sm:h-56
+      flex items-center justify-center
+    "
+            >
+              <p
+                className="
+        text-sm text-[#7b5836]
+        bg-white/70 border border-[#f2e3cf]
+        rounded-2xl px-4 py-6
+        text-center
+      "
+              >
+                No donations yet.
+              </p>
+            </div>
           )}
         </Section>
       )}
@@ -1136,7 +1245,28 @@ const BDonationStatus = () => {
               );
             })()
           ) : (
-            <p className="text-[#7b5836]">No direct donations yet.</p>
+            <div
+              className="
+      mt-2
+      rounded-3xl
+      border border-[#eadfce]
+      bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
+      shadow-[0_2px_8px_rgba(93,64,28,0.06)]
+      h-48 sm:h-56
+      flex items-center justify-center
+    "
+            >
+              <p
+                className="
+        text-sm text-[#7b5836]
+        bg-white/70 border border-[#f2e3cf]
+        rounded-2xl px-4 py-6
+        text-center
+      "
+              >
+                No direct donations yet.
+              </p>
+            </div>
           )}
         </Section>
       )}

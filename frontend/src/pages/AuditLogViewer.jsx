@@ -358,7 +358,9 @@ const AuditLogViewer = () => {
       const rows = allLogs.map((log) => [
         formatDate(log.timestamp),
         log.event_type || "",
-        log.actor_name || "System",
+        log.actor_person 
+          ? `${log.actor_name} - ${log.actor_person} (${log.actor_person_role})`
+          : log.actor_name || "System",
         (log.severity || "").toUpperCase(),
         log.success ? "Success" : "Failed",
         // eslint-disable-next-line no-control-regex
@@ -757,7 +759,7 @@ const AuditLogViewer = () => {
                         Status
                       </TableHead>
                       <TableHead className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-[#4A2F17] text-right">
-                        Actions
+                        
                       </TableHead>
                     </TableRow>
                   </TableHeader>
@@ -800,9 +802,14 @@ const AuditLogViewer = () => {
                           </TableCell>
 
                           <TableCell className="align-top">
-                            <div className="text-xs sm:text-sm text-[#4A2F17]">
+                            <div className="text-xs sm:text-sm font-semibold text-[#4A2F17]">
                               {log.actor_name || "System"}
                             </div>
+                            {log.actor_person && (
+                              <div className="text-[10px] sm:text-[11px] text-[#8B6F47] font-medium">
+                                {log.actor_person} ({log.actor_person_role})
+                              </div>
+                            )}
                             <div className="text-[10px] sm:text-[11px] text-gray-500">
                               {log.actor_type}
                             </div>
@@ -978,6 +985,11 @@ const AuditLogViewer = () => {
                   <div className="mt-1 text-xs sm:text-sm font-semibold text-[#4A2F17]">
                     {selectedLog.actor_name || "System"}
                   </div>
+                  {selectedLog.actor_person && (
+                    <div className="mt-1 text-xs sm:text-sm text-[#8B6F47] font-medium">
+                      {selectedLog.actor_person} ({selectedLog.actor_person_role})
+                    </div>
+                  )}
                   <div className="text-[11px] text-gray-500">
                     {selectedLog.actor_type}
                   </div>

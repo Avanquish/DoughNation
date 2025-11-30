@@ -437,7 +437,11 @@ export default function BakeryProfile() {
     };
 
     // Validation checks
-    if (!data.current_password || !data.new_password || !data.confirm_password) {
+    if (
+      !data.current_password ||
+      !data.new_password ||
+      !data.confirm_password
+    ) {
       Swal.fire({
         icon: "warning",
         title: "Missing Fields",
@@ -499,7 +503,7 @@ export default function BakeryProfile() {
       Swal.fire({
         icon: "warning",
         title: "Password Requirements Not Met",
-        text: "Password must contain at least one special character (!@#$%^&*(),.?\":{}|<>)",
+        text: 'Password must contain at least one special character (!@#$%^&*(),.?":{}|<>)',
       });
       return;
     }
@@ -1170,7 +1174,7 @@ export default function BakeryProfile() {
                               type={showNewPwd ? "text" : "password"}
                               name="new_password"
                               required
-                              placeholder="Create password"
+                              placeholder="Create new password"
                               className="w-full modal-input pr-10"
                               onChange={(e) => setNewPassword(e.target.value)}
                             />

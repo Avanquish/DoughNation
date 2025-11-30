@@ -537,77 +537,39 @@ export default function AdminReports() {
 
   // Download Donation CSV
   const downloadDonationCSV = () => {
-      if (!donationData || donationData.length === 0) return;
+    if (!donationData || donationData.length === 0) return;
 
-      // Group donations by donor-receiver pair
-      const groupedData = donationData.reduce((acc, donation) => {
-        const key = `${donation.donor_name}|${donation.receiver_name}`;
-        
-        if (!acc[key]) {
-          acc[key] = {
-            donor_name: donation.donor_name,
-            receiver_name: donation.receiver_name,
-            total_quantity: 0,
-            request_count: 0,
-            direct_count: 0,
-            request_quantity: 0,
-            direct_quantity: 0,
-            latest_date: donation.timestamp
-          };
-        }
-        
-        acc[key].total_quantity += donation.quantity;
-        
-        if (donation.type === "Request") {
-          acc[key].request_count += 1;
-          acc[key].request_quantity += donation.quantity;
-        } else {
-          acc[key].direct_count += 1;
-          acc[key].direct_quantity += donation.quantity;
-        }
-        
-        if (new Date(donation.timestamp) > new Date(acc[key].latest_date)) {
-          acc[key].latest_date = donation.timestamp;
-        }
-        
-        return acc;
-      }, {});
+    const headers = [
+      "Transaction ID",
+      "Type",
+      "Product Name",
+      "Donor Name",
+      "Receiver Name",
+      "Quantity",
+      "Completion Date"
+    ];
 
-      const groupedArray = Object.values(groupedData);
+    const rows = donationData.map((donation) => [
+      `"${donation.id}"`,
+      `"${donation.type}"`,
+      `"${donation.donation_name || 'N/A'}"`,
+      `"${donation.donor_name}"`,
+      `"${donation.receiver_name}"`,
+      `"${donation.quantity}"`,
+      `"${donation.completed_at ? new Date(donation.completed_at).toLocaleDateString('en-PH') : 'N/A'}"`
+    ].join(","));
 
-      const headers = [
-        "Donor Name",
-        "Receiver Name",
-        "Total Quantity",
-        "Request Count",
-        "Request Quantity",
-        "Direct Count",
-        "Direct Quantity",
-        "Latest Date"
-      ];
+    const csvContent = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
 
-      const rows = groupedArray.map((group) => [
-        `"${group.donor_name}"`,
-        `"${group.receiver_name}"`,
-        `"${group.total_quantity}"`,
-        `"${group.request_count}"`,
-        `"${group.request_quantity}"`,
-        `"${group.direct_count}"`,
-        `"${group.direct_quantity}"`,
-        `"${group.latest_date ? new Date(group.latest_date).toLocaleDateString() : 'N/A'}"`
-      ].join(","));
-
-      const csvContent = [headers.join(","), ...rows].join("\n");
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `Donation_List_Report_${startDate}_to_${endDate}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    };
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Donation_List_Report_${startDate}_to_${endDate}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Download Donation PDF
   const downloadDonationPDF = async () => {
@@ -765,28 +727,42 @@ export default function AdminReports() {
     currentY += 20;
     }
 
-    // Table
-    const headers = ["Donor", "Receiver", "Total Qty", "Request Count", "Request Qty", "Direct Count", "Direct Qty", "Latest Date"];
-    const rows = groupedArray.map((group) => [
-      group.donor_name,
-      group.receiver_name,
-      group.total_quantity,
-      group.request_count,
-      group.request_quantity,
-      group.direct_count,
-      group.direct_quantity,
-      group.latest_date ? new Date(group.latest_date).toLocaleDateString() : 'N/A'
-    ]);
+  // Table
+  const headers = [ "Type", "Product", "Donor", "Receiver", "Quantity", "Completion Date"];
+  const rows = donationData.map((donation) => [
+    donation.type,
+    donation.donation_name || 'N/A',
+    donation.donor_name,
+    donation.receiver_name,
+    donation.quantity,
+    donation.completed_at 
+      ? new Date(donation.completed_at).toLocaleString('en-PH', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+          timeZone: 'Asia/Manila'
+        })
+      : 'N/A'
+  ]);
 
     autoTable(doc, {
       head: [headers],
       body: rows,
       startY: currentY,
-      styles: { fontSize: 8, valign: "middle" },
+      styles: { 
+        fontSize: 8, 
+        valign: "middle",
+        halign: "center"  // Center align all cells
+      },
       headStyles: {
         fillColor: [185, 115, 39],
         textColor: 255,
         fontStyle: "bold",
+        halign: "center",  // Center align headers
+        valign: "middle"
       },
       margin: { left: 40, right: 40 },
     });
@@ -851,65 +827,25 @@ export default function AdminReports() {
           <table>
             <thead>
               <tr>
+                <th>Type</th>
+                <th>Product</th>
                 <th>Donor</th>
                 <th>Receiver</th>
-                <th>Total Quantity</th>
-                <th>Request Count</th>
-                <th>Request Qty</th>
-                <th>Direct Count</th>
-                <th>Direct Qty</th>
+                <th>Quantity</th>
                 <th>Completion Date</th>
               </tr>
             </thead>
             <tbody>
-              ${(() => {
-                // Group donations
-                const groupedData = donationData.reduce((acc, donation) => {
-                  const key = `${donation.donor_name}|${donation.receiver_name}`;
-                  
-                  if (!acc[key]) {
-                    acc[key] = {
-                      donor_name: donation.donor_name,
-                      receiver_name: donation.receiver_name,
-                      total_quantity: 0,
-                      request_count: 0,
-                      direct_count: 0,
-                      request_quantity: 0,
-                      direct_quantity: 0,
-                      latest_date: donation.timestamp
-                    };
-                  }
-                  
-                  acc[key].total_quantity += donation.quantity;
-                  
-                  if (donation.type === "Request") {
-                    acc[key].request_count += 1;
-                    acc[key].request_quantity += donation.quantity;
-                  } else {
-                    acc[key].direct_count += 1;
-                    acc[key].direct_quantity += donation.quantity;
-                  }
-                  
-                  if (new Date(donation.timestamp) > new Date(acc[key].latest_date)) {
-                    acc[key].latest_date = donation.timestamp;
-                  }
-                  
-                  return acc;
-                }, {});
-                
-                return Object.values(groupedData).map((group) => `
-                  <tr>
-                    <td>${group.donor_name}</td>
-                    <td>${group.receiver_name}</td>
-                    <td style="font-weight: bold;">${group.total_quantity}</td>
-                    <td>${group.request_count}</td>
-                    <td>${group.request_quantity}</td>
-                    <td>${group.direct_count}</td>
-                    <td>${group.direct_quantity}</td>
-                    <td>${group.latest_date ? new Date(group.latest_date).toLocaleDateString() : 'N/A'}</td>
-                  </tr>
-                `).join("");
-              })()}
+              ${donationData.map((donation) => `
+                <tr class="${donation.type === 'Request' ? 'request' : 'direct'}">
+                  <td>${donation.type}</td>
+                  <td>${donation.donation_name || 'N/A'}</td>
+                  <td>${donation.donor_name}</td>
+                  <td>${donation.receiver_name}</td>
+                  <td style="font-weight: bold;">${donation.quantity}</td>
+                  <td>${donation.completed_at ? new Date(donation.completed_at).toLocaleDateString('en-PH') : 'N/A'}</td>
+                </tr>
+              `).join("")}
             </tbody>
           </table>
         </body>
@@ -1398,111 +1334,70 @@ export default function AdminReports() {
 
   // Render donations table 
   const renderDonationsTable = (data) => {
-    if (!Array.isArray(data) || data.length === 0) {
-      return (
-        <p className="text-[#6b4b2b]/70 text-center py-8">
-          No donations available
-        </p>
-      );
-    }
-
-    // Group donations by donor-receiver pair
-    const groupedData = data.reduce((acc, donation) => {
-      const key = `${donation.donor_name}|${donation.receiver_name}`;
-      
-      if (!acc[key]) {
-        acc[key] = {
-          donor_name: donation.donor_name,
-          receiver_name: donation.receiver_name,
-          total_quantity: 0,
-          request_count: 0,
-          direct_count: 0,
-          request_quantity: 0,
-          direct_quantity: 0,
-          latest_date: donation.timestamp
-        };
-      }
-      
-      acc[key].total_quantity += donation.quantity;
-      
-      if (donation.type === "Request") {
-        acc[key].request_count += 1;
-        acc[key].request_quantity += donation.quantity;
-      } else {
-        acc[key].direct_count += 1;
-        acc[key].direct_quantity += donation.quantity;
-      }
-      
-      // Keep the latest date
-      if (new Date(donation.timestamp) > new Date(acc[key].latest_date)) {
-        acc[key].latest_date = donation.timestamp;
-      }
-      
-      return acc;
-    }, {});
-
-    const groupedArray = Object.values(groupedData);
-
+  if (!Array.isArray(data) || data.length === 0) {
     return (
-      <div className="overflow-x-auto rounded-xl ring-1 ring-black/10 bg-white/70">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gradient-to-r from-[#B97327] to-[#E49A52] text-white">
-            <tr>
-              <th className="px-4 py-3 text-left font-semibold">Donor</th>
-              <th className="px-4 py-3 text-left font-semibold">Receiver</th>
-              <th className="px-4 py-3 text-center font-semibold">Total Quantity</th>
-              <th className="px-4 py-3 text-center font-semibold">Request Count</th>
-              <th className="px-4 py-3 text-center font-semibold">Direct Count</th>
-              <th className="px-4 py-3 text-left font-semibold">Completion Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {groupedArray.map((group, idx) => (
-              <tr
-                key={idx}
-                className="odd:bg-white even:bg-white/60 border-b border-[#f2d4b5] hover:bg-amber-50/50 transition-colors"
-              >
-                <td className="px-4 py-3 font-medium">{group.donor_name}</td>
-                <td className="px-4 py-3 font-medium">{group.receiver_name}</td>
-                <td className="px-4 py-3 text-center font-bold text-[#6b4b2b]">
-                  {group.total_quantity}
-                </td>
-                <td className="px-4 py-3 text-center">
-                  <div className="flex flex-col items-center gap-1">
-                    <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
-                      {group.request_count} transactions
-                    </span>
-                    <span className="text-xs text-[#6b4b2b]/70">
-                      ({group.request_quantity} items)
-                    </span>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-center">
-                  <div className="flex flex-col items-center gap-1">
-                    <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
-                      {group.direct_count} transactions
-                    </span>
-                    <span className="text-xs text-[#6b4b2b]/70">
-                      ({group.direct_quantity} items)
-                    </span>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-xs whitespace-nowrap">
-                  {group.latest_date 
-                    ? new Date(group.latest_date).toLocaleDateString('en-PH', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
-                      }) 
-                    : 'N/A'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <p className="text-[#6b4b2b]/70 text-center py-8">
+        No donations available
+      </p>
     );
-  };
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-xl ring-1 ring-black/10 bg-white/70">
+      <table className="min-w-full text-sm">
+        <thead className="bg-gradient-to-r from-[#B97327] to-[#E49A52] text-white">
+          <tr>
+            <th className="px-4 py-3 text-left font-semibold">Type</th>
+            <th className="px-4 py-3 text-left font-semibold">Product Name</th>
+            <th className="px-4 py-3 text-left font-semibold">Donor</th>
+            <th className="px-4 py-3 text-left font-semibold">Receiver</th>
+            <th className="px-4 py-3 text-center font-semibold">Quantity</th>
+            <th className="px-4 py-3 text-left font-semibold">Completion Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((donation, idx) => (
+            <tr
+              key={idx}
+              className={`odd:bg-white even:bg-white/60 border-b border-[#f2d4b5] hover:bg-amber-50/50 transition-colors ${
+                donation.type === "Request" ? "border-l-4 border-l-blue-400" : "border-l-4 border-l-green-400"
+              }`}
+            >
+              <td className="px-4 py-3">
+                <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                  donation.type === "Request" 
+                    ? "bg-blue-100 text-blue-800" 
+                    : "bg-green-100 text-green-800"
+                }`}>
+                  {donation.type}
+                </span>
+              </td>
+              <td className="px-4 py-3 font-medium">{donation.donation_name || 'N/A'}</td>
+              <td className="px-4 py-3">{donation.donor_name}</td>
+              <td className="px-4 py-3">{donation.receiver_name}</td>
+              <td className="px-4 py-3 text-center font-bold text-[#6b4b2b]">
+                {donation.quantity}
+              </td>
+              <td className="px-4 py-3 text-xs whitespace-nowrap">
+                {donation.completed_at 
+                  ? new Date(donation.completed_at).toLocaleString('en-PH', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true,
+                      timeZone: 'Asia/Manila'
+                    }) 
+                  : 'N/A'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
   // Table renderer (for Manage Users)
   const renderTable = (data) => {
@@ -1931,4 +1826,4 @@ export default function AdminReports() {
       </div>
     </div>
   );
-} 
+}  

@@ -343,15 +343,57 @@ const CharityDashboard = () => {
   useEffect(() => {
     const fetchTotals = async () => {
       try {
-        const res = await fetch(`${API}/charity/total_donations`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        const token = localStorage.getItem("token");
+        
+        // Fetch both regular and direct donations
+        const [normalRes, directRes] = await Promise.all([
+          fetch(`${API}/donation/received`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API}/direct/mine`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+        
+        if (!normalRes.ok || !directRes.ok) return;
+        
+        const normalData = await normalRes.json();
+        const directData = await directRes.json();
+        
+        // Count only completed donations (tracking_status === 'complete' or 'completed')
+        const normalCompleted = (normalData || []).filter(
+          (d) => {
+            const status = (d.tracking_status || "").toLowerCase();
+            return status === "complete" || status === "completed";
+          }
+        ).length;
+        
+        const directCompleted = (directData || []).filter(
+          (d) => {
+            const status = (d.btracking_status || "").toLowerCase();
+            return status === "complete" || status === "completed";
+          }
+        ).length;
+        
+        setTotals({
+          grand_total: normalCompleted + directCompleted,
+          normal_total: normalCompleted,
+          direct_total: directCompleted,
         });
-        if (!res.ok) return;
-        const data = await res.json();
-        setTotals(data);
-      } catch {}
+      } catch (err) {
+        console.error("Failed to fetch totals:", err);
+      }
     };
+    
+    // Initial fetch
     fetchTotals();
+    
+    // Poll every 5 seconds for real-time updates
+    const interval = setInterval(() => {
+      fetchTotals();
+    }, 5000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   if (!isVerified) {

@@ -3,11 +3,39 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from datetime import datetime, date
 from app import database, models, auth
+from app.timezone_utils import today_ph, get_day_start_ph, get_day_end_ph, to_ph_timezone
 
 router = APIRouter(
     prefix="/reports",
     tags=["Reports"]
 )
+
+# Helper function to safely convert date/datetime to Philippine timezone ISO format
+def to_ph_iso(dt):
+    """Convert date or datetime to Philippine timezone ISO format string."""
+    if dt is None:
+        return None
+    
+    from zoneinfo import ZoneInfo
+    PHILIPPINES_TZ = ZoneInfo("Asia/Manila")
+    
+    # If it's a date object, convert to datetime at midnight Philippine time
+    if isinstance(dt, date) and not isinstance(dt, datetime):
+        dt = datetime.combine(dt, datetime.min.time())
+        dt = dt.replace(tzinfo=PHILIPPINES_TZ)
+        return dt.isoformat()
+    
+    # If it's a datetime object
+    if isinstance(dt, datetime):
+        # If datetime is naive (no timezone), assume it's already in Philippine timezone
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=PHILIPPINES_TZ)
+        else:
+            # If it has timezone info, convert to Philippine timezone
+            dt = dt.astimezone(PHILIPPINES_TZ)
+        return dt.isoformat()
+    
+    return None
 
 # Admin-only check
 def check_admin(current_user: models.User = Depends(auth.get_current_user)):
@@ -24,7 +52,7 @@ def manage_users_report(
     sort: str = "desc"
 ):
     # validate date range
-    today = date.today()
+    today = today_ph()
     if end_date > today:
         raise HTTPException(status_code=400, detail="End date cannot be in the future")
     if start_date > end_date:
@@ -51,7 +79,7 @@ def manage_users_report(
             "contact_person": u.contact_person,
             "address": u.address,
             "profile_picture": u.profile_picture,
-            "created_at": u.created_at.isoformat() if u.created_at else None,
+            "created_at": to_ph_iso(u.created_at),
         })
 
      # admin details for report header
@@ -83,18 +111,22 @@ def donation_list_report(
     current_user: models.User = Depends(check_admin),
 ):
     # Validate date range
-    today = date.today()
+    today = today_ph()
     if end_date > today:
         raise HTTPException(status_code=400, detail="End date cannot be in the future")
     if start_date > end_date:
         raise HTTPException(status_code=400, detail="Start date cannot be after end date")
 
+    # Convert dates to datetime ranges in Philippine timezone
+    start_datetime = get_day_start_ph(start_date)
+    end_datetime = get_day_end_ph(end_date)
+
     # Query ONLY COMPLETED donation requests (tracking_status = "complete")
     donation_requests = (
         db.query(models.DonationRequest)
         .filter(models.DonationRequest.tracking_status == "complete")
-        .filter(models.DonationRequest.tracking_completed_at >= start_date)
-        .filter(models.DonationRequest.tracking_completed_at <= end_date)
+        .filter(models.DonationRequest.tracking_completed_at >= start_datetime)
+        .filter(models.DonationRequest.tracking_completed_at <= end_datetime)
         .order_by(desc(models.DonationRequest.tracking_completed_at))
         .all()
     )
@@ -103,8 +135,8 @@ def donation_list_report(
     direct_donations = (
         db.query(models.DirectDonation)
         .filter(models.DirectDonation.btracking_status == "complete")
-        .filter(models.DirectDonation.btracking_completed_at >= start_date)
-        .filter(models.DirectDonation.btracking_completed_at <= end_date)
+        .filter(models.DirectDonation.btracking_completed_at >= start_datetime)
+        .filter(models.DirectDonation.btracking_completed_at <= end_datetime)
         .order_by(desc(models.DirectDonation.btracking_completed_at))
         .all()
     )
@@ -133,8 +165,8 @@ def donation_list_report(
             "status": req.status,
             "tracking_status": req.tracking_status,
             "is_completed": True,  # Always true since we're filtering completed
-            "completed_at": req.tracking_completed_at.isoformat() if req.tracking_completed_at else None,
-            "timestamp": req.tracking_completed_at.isoformat() if req.tracking_completed_at else None,
+            "completed_at": to_ph_iso(req.tracking_completed_at),
+            "timestamp": to_ph_iso(req.tracking_completed_at),
             "expiration_date": req.donation_expiration.isoformat() if req.donation_expiration else None,
         })
 
@@ -165,8 +197,8 @@ def donation_list_report(
             "quantity": quantity,
             "tracking_status": dd.btracking_status,
             "is_completed": True,  # Always true since we're filtering completed
-            "completed_at": dd.btracking_completed_at.isoformat() if dd.btracking_completed_at else None,
-            "timestamp": dd.btracking_completed_at.isoformat() if dd.btracking_completed_at else None,
+            "completed_at": to_ph_iso(dd.btracking_completed_at),
+            "timestamp": to_ph_iso(dd.btracking_completed_at),
             "expiration_date": dd.expiration_date.isoformat() if dd.expiration_date else None,
         })
 

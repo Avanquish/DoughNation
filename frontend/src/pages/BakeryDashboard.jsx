@@ -341,32 +341,8 @@ const BakeryDashboard = () => {
         })
         .catch(() => setEmployeeCount(0));
 
-    const loadUploadedProducts = () =>
-      axios
-        .get(`${API}/donations`, { headers })
-        .then((r) => {
-          const available = (r.data || []).filter(
-            (d) => d.status === "available"
-          ).length;
-          setUploadedProducts(available);
-        })
-        .catch(() => setUploadedProducts(0));
-
-    const loadDonatedProducts = () =>
-      axios
-        .get(`${API}/donations`, { headers })
-        .then((r) => {
-          const donated = (r.data || []).filter(
-            (d) => d.status === "donated"
-          ).length;
-          setDonatedProducts(donated);
-        })
-        .catch(() => setDonatedProducts(0));
-
     loadInventory();
     loadEmployees();
-    loadUploadedProducts();
-    loadDonatedProducts();
 
     const onInventoryChange = () => loadInventory();
     const onEmployeesChange = () => loadEmployees();
@@ -382,7 +358,7 @@ const BakeryDashboard = () => {
     const pollId = setInterval(() => {
       loadInventory();
       loadEmployees();
-    }, 10000);
+    }, 1000);
 
     return () => {
       window.removeEventListener("inventory:changed", onInventoryChange);
@@ -429,7 +405,7 @@ const BakeryDashboard = () => {
 
     fetchStats();
 
-    const interval = setInterval(fetchStats, 30000);
+    const interval = setInterval(fetchStats, 1000);
     return () => clearInterval(interval);
   }, [isEmployeeMode]);
 
@@ -477,6 +453,9 @@ const BakeryDashboard = () => {
     };
 
     fetchTotals();
+    
+    const interval = setInterval(fetchTotals, 1000);
+    return () => clearInterval(interval);
   }, [isEmployeeMode]);
 
   // Fetch uploaded products
@@ -501,6 +480,9 @@ const BakeryDashboard = () => {
     };
 
     fetchUploadedProducts();
+    
+    const interval = setInterval(fetchUploadedProducts, 1000);
+    return () => clearInterval(interval);
   }, [isEmployeeMode]);
 
   // ================= CSS (UI only) =================

@@ -407,7 +407,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
           text: `${res.data.product_name} - ${res.data.shelf_life_days} days`,
         });
       } else {
-        // Product not found - clear template info
+        // Product not found - clear template info but preserve template_image if it exists
         setTemplateInfo(null);
 
         if (!isEditMode) {
@@ -416,6 +416,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
             threshold: 0,
             expiration_date: "",
             description: "",
+            // Don't clear template_image here - it might be set from a previous template fetch
           }));
         }
 
@@ -445,6 +446,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
           threshold: 0,
           expiration_date: "",
           description: "",
+          // Don't clear template_image here - preserve it if already set
         }));
       }
     }
@@ -606,7 +608,28 @@ export default function BakeryInventory({ isViewOnly = false }) {
   const filteredInventory = useMemo(() => {
     const q = query.trim().toLowerCase();
     const filtered = inventory.filter((it) => {
-      // Hide items that expired more than 3 days ago
+      // FRONTEND VALIDATION: Hide donated products after 7 days
+      if (currentServerDate && it.status && it.status.toLowerCase() === "donated") {
+        // Check if we can find a completion date (this is a fallback check)
+        // Backend should already filter these, but this is an extra safety layer
+        if (it.updated_at) {
+          const completionDate = new Date(it.updated_at);
+          const [year, month, day] = currentServerDate.split("-").map(Number);
+          const serverToday = new Date(year, month - 1, day);
+          serverToday.setHours(0, 0, 0, 0);
+          completionDate.setHours(0, 0, 0, 0);
+
+          const daysSinceDonation = Math.ceil(
+            (serverToday - completionDate) / (1000 * 60 * 60 * 24)
+          );
+
+          if (daysSinceDonation > 7) {
+            return false; // Hide donated items older than 7 days
+          }
+        }
+      }
+
+      // FRONTEND VALIDATION: Hide expired/unavailable products after 3 days
       if (currentServerDate && it.expiration_date) {
         const expirationDate = parseDate(it.expiration_date);
         if (expirationDate) {
@@ -1515,6 +1538,11 @@ export default function BakeryInventory({ isViewOnly = false }) {
                         if (newName.trim().length < 3) {
                           setTemplateInfo(null);
                           setProductCodePreview(null);
+                          // Clear template_image only if name is very short (less than 3 chars)
+                          setForm((prev) => ({
+                            ...prev,
+                            template_image: "",
+                          }));
                           return;
                         }
 
@@ -1992,17 +2020,16 @@ export default function BakeryInventory({ isViewOnly = false }) {
               <p>
                 <strong className="text-[#6b4b2b]">Date for Donation:</strong>{" "}
                 {(() => {
-                  if (!selectedItem.expiration_date) return "N/A";
+                  if (!selectedItem.expiration_date || !selectedItem.threshold)
+                    return "N/A";
 
                   const expDate = new Date(selectedItem.expiration_date);
                   const thresholdDate = new Date(expDate);
-                  thresholdDate.setDate(thresholdDate.getDate() - 2);
+                  thresholdDate.setDate(
+                    thresholdDate.getDate() - selectedItem.threshold
+                  );
 
-                  return thresholdDate.toLocaleDateString("en-US", {
-                    month: "2-digit",
-                    day: "2-digit",
-                    year: "numeric",
-                  });
+                  return formatDate(thresholdDate.toISOString());
                 })()}
               </p>
               <p>
@@ -2034,8 +2061,50 @@ export default function BakeryInventory({ isViewOnly = false }) {
             <div className="mt-auto p-5 flex flex-wrap gap-2 justify-end border-t bg-white">
               {!isViewOnly && (
                 <>
-                  <button
+                 <button
                     onClick={() => {
+                      // Check if product is donated
+                      if (
+                        selectedItem.status &&
+                        selectedItem.status.toLowerCase() === "donated"
+                      ) {
+                        Swal.fire({
+                          title: "Error",
+                          text: "Cannot delete donated product",
+                          icon: "error",
+                          confirmButtonColor: "#A97142",
+                        });
+                        return;
+                      }
+
+                      // Check if product is unavailable
+                      if (
+                        selectedItem.status &&
+                        selectedItem.status.toLowerCase() === "unavailable"
+                      ) {
+                        Swal.fire({
+                          title: "Error",
+                          text: "Cannot delete unavailable product",
+                          icon: "error",
+                          confirmButtonColor: "#A97142",
+                        });
+                        return;
+                      }
+
+                      // Check if product is requested
+                      if (
+                        selectedItem.status &&
+                        selectedItem.status.toLowerCase() === "requested"
+                      ) {
+                        Swal.fire({
+                          title: "Error",
+                          text: "Cannot delete requested product",
+                          icon: "error",
+                          confirmButtonColor: "#A97142",
+                        });
+                        return;
+                      }
+
                       // Bakery owners can delete any item, employees only their own
                       if (!isBakeryOwner && selectedItem.uploaded !== uploaderName) {
                         Swal.fire({
@@ -2052,7 +2121,16 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     }}
                     className={pillSolid}
                     title={
-                      !isBakeryOwner && selectedItem.uploaded !== uploaderName
+                      selectedItem.status &&
+                      selectedItem.status.toLowerCase() === "donated"
+                        ? "Cannot delete donated product"
+                        : selectedItem.status &&
+                          selectedItem.status.toLowerCase() === "unavailable"
+                        ? "Cannot delete unavailable product"
+                        : selectedItem.status &&
+                          selectedItem.status.toLowerCase() === "requested"
+                        ? "Cannot delete requested product"
+                        : !isBakeryOwner && selectedItem.uploaded !== uploaderName
                         ? "Only the uploader can delete this item"
                         : ""
                     }
@@ -2068,8 +2146,36 @@ export default function BakeryInventory({ isViewOnly = false }) {
                         selectedItem.status.toLowerCase() === "donated"
                       ) {
                         Swal.fire({
-                          title: "Cannot Edit",
-                          text: "Donated products cannot be edited.",
+                          title: "Error",
+                          text: "Cannot edit donated product",
+                          icon: "error",
+                          confirmButtonColor: "#A97142",
+                        });
+                        return;
+                      }
+
+                      // Check if product is unavailable
+                      if (
+                        selectedItem.status &&
+                        selectedItem.status.toLowerCase() === "unavailable"
+                      ) {
+                        Swal.fire({
+                          title: "Error",
+                          text: "Cannot edit unavailable product",
+                          icon: "error",
+                          confirmButtonColor: "#A97142",
+                        });
+                        return;
+                      }
+
+                      // Check if product is requested
+                      if (
+                        selectedItem.status &&
+                        selectedItem.status.toLowerCase() === "requested"
+                      ) {
+                        Swal.fire({
+                          title: "Error",
+                          text: "Cannot edit requested product",
                           icon: "error",
                           confirmButtonColor: "#A97142",
                         });
@@ -2097,7 +2203,13 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     title={
                       selectedItem.status &&
                       selectedItem.status.toLowerCase() === "donated"
-                        ? "Donated products cannot be edited"
+                        ? "Cannot edit donated product"
+                        : selectedItem.status &&
+                          selectedItem.status.toLowerCase() === "unavailable"
+                        ? "Cannot edit unavailable product"
+                        : selectedItem.status &&
+                          selectedItem.status.toLowerCase() === "requested"
+                        ? "Cannot edit requested product"
                         : !isBakeryOwner && selectedItem.uploaded !== uploaderName
                         ? "Only the uploader can edit this item"
                         : isBakeryOwner && selectedItem.uploaded !== uploaderName
@@ -2553,4 +2665,4 @@ export default function BakeryInventory({ isViewOnly = false }) {
       </SlideOver>
     </div>
   );
-}
+} 

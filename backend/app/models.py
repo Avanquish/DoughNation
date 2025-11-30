@@ -163,7 +163,7 @@ class DonationRequest(Base):
     timestamp = Column(DateTime, default=now_ph)
     status = Column(String, default="pending") 
     tracking_status = Column(String, default="preparing")
-    tracking_completed_at = Column(Date, nullable=True) 
+    tracking_completed_at = Column(DateTime, nullable=True) 
     feedback_submitted = Column(Boolean, default=False) 
     bakery_name = Column(String, nullable=True)
     bakery_profile_picture = Column(String, nullable=True)
@@ -203,7 +203,7 @@ class DirectDonation(Base):
     description = Column(String, nullable=True)
     image = Column(String, nullable=True)
     btracking_status = Column(String, default="preparing")
-    btracking_completed_at = Column(Date, nullable=True)
+    btracking_completed_at = Column(DateTime, nullable=True)
     feedback_submitted = Column(Boolean, default=False)
     donated_by = Column(String, nullable=True) 
 

@@ -48,10 +48,10 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
 
   // Check if current user is an owner (not an employee)
   const isOwner = !localStorage.getItem("employeeToken");
-  
+
   // Check if current user is a manager
   const [isManager, setIsManager] = useState(false);
-  
+
   useEffect(() => {
     const employeeToken = localStorage.getItem("employeeToken");
     if (employeeToken) {
@@ -63,7 +63,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
       }
     }
   }, []);
-  
+
   const canEditEmail = isOwner || isManager;
 
   const [formData, setFormData] = useState({
@@ -89,8 +89,8 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
 
   const filteredEmployees = useMemo(() => {
     // First, filter out employees with "Owner" role
-    const activeEmployees = employees.filter((emp) => 
-      emp?.role?.toLowerCase() !== "owner"
+    const activeEmployees = employees.filter(
+      (emp) => emp?.role?.toLowerCase() !== "owner"
     );
 
     const term = searchTerm.trim().toLowerCase();
@@ -163,8 +163,6 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
     }
   }, [headers]);
 
-
-
   useEffect(() => {
     fetchEmployees();
   }, [fetchEmployees]);
@@ -217,7 +215,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
   // Send OTP to email
   const sendOtp = async () => {
     const { email } = formData;
-    
+
     if (!email) {
       setIsDialogOpen(false);
       await Swal.fire({
@@ -261,7 +259,9 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
       await Swal.fire({
         icon: "error",
         title: "Failed to Send OTP",
-        text: error?.response?.data?.detail || "Unable to send verification code. Please try again.",
+        text:
+          error?.response?.data?.detail ||
+          "Unable to send verification code. Please try again.",
         confirmButtonColor: "#C97C2C",
       });
       setIsDialogOpen(true);
@@ -304,7 +304,9 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
       await Swal.fire({
         icon: "error",
         title: "Verification Failed",
-        text: error?.response?.data?.detail || "Invalid or expired verification code. Please try again.",
+        text:
+          error?.response?.data?.detail ||
+          "Invalid or expired verification code. Please try again.",
         confirmButtonColor: "#C97C2C",
       });
       setIsDialogOpen(true);
@@ -316,7 +318,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
   // Save (add or edit)
   const handleSave = async () => {
     if (isSaving) return;
-    
+
     // For new employees, require OTP verification
     if (!editingEmployee && !otpVerified) {
       setIsDialogOpen(false);
@@ -329,7 +331,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
       setIsDialogOpen(true);
       return;
     }
-    
+
     if (editingEmployee) {
       setIsDialogOpen(false);
       const ok = await Swal.fire({
@@ -435,7 +437,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
 
   const handleDelete = async (id) => {
     if (isDeleting) return;
-    
+
     setIsDialogOpen(false);
     const ok = await Swal.fire({
       title: "Delete Employee?",
@@ -499,7 +501,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
         {},
         { headers }
       );
-      
+
       Swal.fire({
         title: "Password Reset!",
         html: `
@@ -814,7 +816,11 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
                     disabled={otpSending || !formData.email || otpVerified}
                     className="flex-shrink-0 rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-4 py-2 text-sm font-semibold shadow-md hover:brightness-105 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {otpSending ? "Sending..." : otpSent ? "Resend OTP" : "Send OTP"}
+                    {otpSending
+                      ? "Sending..."
+                      : otpSent
+                      ? "Resend OTP"
+                      : "Send OTP"}
                   </button>
                 )}
               </div>
@@ -825,7 +831,9 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
                   </p>
                   {otpVerified && (
                     <p className="text-xs text-green-600 mt-1 font-semibold flex items-center gap-1">
-                      <span className="inline-block w-4 h-4 rounded-full bg-green-600 text-white text-[10px] leading-4 text-center">✓</span>
+                      <span className="inline-block w-4 h-4 rounded-full bg-green-600 text-white text-[10px] leading-4 text-center">
+                        ✓
+                      </span>
                       Email verified
                     </p>
                   )}
@@ -851,7 +859,9 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
                       placeholder="000000"
                       value={otpCode}
                       onChange={(e) => {
-                        const value = e.target.value.replace(/\D/g, "").slice(0, 6);
+                        const value = e.target.value
+                          .replace(/\D/g, "")
+                          .slice(0, 6);
                         setOtpCode(value);
                       }}
                       className={`${inputTone} font-mono text-center text-lg tracking-widest`}
@@ -884,18 +894,28 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
                 <div className="bg-[#FFF6EC] border border-[#f2e3cf] rounded-xl p-4">
                   <div className="flex items-start gap-3">
                     <div className="flex-shrink-0 w-10 h-10 rounded-full bg-[#FFE7C5] grid place-items-center">
-                      <KeyRound className="h-5 w-5 text-[#E49A52]" strokeWidth={2.4} />
+                      <KeyRound
+                        className="h-5 w-5 text-[#E49A52]"
+                        strokeWidth={2.4}
+                      />
                     </div>
                     <div className="flex-1">
-                      <h4 className="text-sm font-semibold text-[#4A2F17] mb-1">Reset Password</h4>
+                      <h4 className="text-sm font-semibold text-[#4A2F17] mb-1">
+                        Reset Password
+                      </h4>
                       <p className="text-xs text-[#7b5836] mb-3">
-                        Reset this employee's password to the default temporary password. They will be required to change it on their next login.
+                        Reset this employee's password to the default temporary
+                        password. They will be required to change it on their
+                        next login.
                       </p>
                       <button
                         type="button"
                         onClick={() => {
                           setIsDialogOpen(false);
-                          setTimeout(() => handleResetPassword(editingEmployee), 100);
+                          setTimeout(
+                            () => handleResetPassword(editingEmployee),
+                            100
+                          );
                         }}
                         className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-4 py-2 text-sm font-semibold shadow-md hover:brightness-105 transition"
                       >
@@ -956,14 +976,10 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
 
             {/* Start date */}
             <div className="sm:col-span-2">
-              <label className={labelTone}>Start Date</label>
-              <Input
-                type="date"
-                value={formData.start_date}
-                readOnly
-                disabled
-                className="bg-gray-100 rounded-md border-[#f2d4b5] cursor-not-allowed"
-              />
+              <label className={labelTone}>Account Creation Date</label>
+              <div className="mt-1 w-full rounded-md bg-[#FFF7ED] px-3 py-2 text-sm font-semibold text-[#6b4b2b]">
+                {formData.start_date || "—"}
+              </div>
             </div>
           </div>
 
@@ -984,12 +1000,12 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
             >
               Cancel
             </button>
-            <button 
-              onClick={handleSave} 
+            <button
+              onClick={handleSave}
               className={primaryBtn}
               disabled={isSaving}
             >
-              {isSaving ? 'Saving...' : 'Save'}
+              {isSaving ? "Saving..." : "Save"}
             </button>
           </DialogFooter>
         </DialogContent>

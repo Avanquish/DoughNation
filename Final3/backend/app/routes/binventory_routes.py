@@ -242,7 +242,7 @@ def add_inventory(
     quantity: int = Form(...),
     creation_date: str = Form(...),
     expiration_date: str = Form(...),
-    threshold: int = Form(...),
+    threshold: int = Form(...),  # Receive from frontend but recalculate
     uploaded: str = Form(...),
     description: str = Form(None),
     template_image: str = Form(None),
@@ -252,7 +252,7 @@ def add_inventory(
     if current_user.role.lower() != "bakery":
         raise HTTPException(status_code=403, detail="Only bakeries can add inventory")
 
-    # Handle image: either upload new file or use template image
+    # Handle image
     file_path = None
     if image and image.filename:
         os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -262,7 +262,34 @@ def add_inventory(
     elif template_image:
         file_path = template_image
 
-    # Create inventory item
+    # ✅ RECALCULATE threshold based on CURRENT SERVER DATE (not creation_date)
+    recalculated_threshold = 2  # Default
+    if expiration_date:
+        try:
+            # Get current server date
+            from app.timezone_utils import today_ph
+            current_server_date = today_ph()
+            
+            # Parse expiration date
+            exp_date = datetime.strptime(expiration_date, "%Y-%m-%d").date()
+            
+            # Calculate threshold date (2 days before expiration)
+            threshold_date = exp_date - timedelta(days=2)
+            
+            # If threshold date is before today, calculate days from today to expiration
+            if threshold_date < current_server_date:
+                days_from_today = (exp_date - current_server_date).days
+                recalculated_threshold = max(0, days_from_today)
+            else:
+                recalculated_threshold = 2
+                
+            print(f"[Threshold] Current date: {current_server_date}, Expiration: {exp_date}, Threshold days: {recalculated_threshold}")
+            
+        except Exception as e:
+            print(f"[Threshold] Error calculating: {e}")
+            recalculated_threshold = 2
+
+    # Create inventory with RECALCULATED threshold
     new_item = crud.create_inventory(
         db=db,
         bakery_id=current_user.id,
@@ -271,52 +298,29 @@ def add_inventory(
         quantity=quantity,
         creation_date=creation_date,
         expiration_date=expiration_date,
-        threshold=threshold,
+        threshold=recalculated_threshold,  # ✅ Use recalculated value
         uploaded=uploaded,
         description=description
     )
 
-    # Calculate shelf life and save to bakery's CSV
+    # Save to CSV with recalculated threshold
     try:
-        print(f"[CSV] 📝 Attempting to save product '{name}' for bakery {current_user.id}")
-        
-        # Ensure CSV directory exists
         os.makedirs(CSV_DIR, exist_ok=True)
-        
-        # Parse dates
         creation = datetime.strptime(creation_date, "%Y-%m-%d").date()
         expiration = datetime.strptime(expiration_date, "%Y-%m-%d").date()
         shelf_life_days = (expiration - creation).days
         
-        print(f"[CSV] Shelf life calculated: {shelf_life_days} days")
-        
-        # Initialize CSV if it doesn't exist
         csv_path = initialize_bakery_csv(current_user.id)
-        print(f"[CSV] CSV path: {csv_path}")
-        
-        # Save to CSV
-        success = save_product_to_csv(
+        save_product_to_csv(
             bakery_id=current_user.id,
             product_name=name,
-            threshold=threshold,
+            threshold=recalculated_threshold,  # ✅ Use recalculated value
             shelf_life_days=shelf_life_days,
             description=description or "",
             image=file_path or ""
         )
-        
-        if success:
-            print(f"[CSV] ✅ Successfully saved '{name}' to CSV")
-        else:
-            print(f"[CSV] ⚠️ Product '{name}' already exists in CSV, skipped")
-            
-    except ValueError as e:
-        print(f"[CSV] ❌ Date parsing error: {e}")
-        raise HTTPException(status_code=400, detail=f"Invalid date format: {e}")
     except Exception as e:
-        print(f"[CSV] ❌ Error saving to CSV: {e}")
-        # Don't fail the entire request, but log the error
-        import traceback
-        traceback.print_exc()
+        print(f"[CSV] Error: {e}")
 
     check_threshold_and_create_donation(db)
     check_inventory_status(db)
@@ -333,8 +337,53 @@ def list_inventory(
 
     inventory_items = crud.list_inventory(db, bakery_id=bakery_id)
     updated_items = []
+    
+    from app.timezone_utils import today_ph
+    today = today_ph()
 
     for item in inventory_items:
+        # ✅ BACKEND VALIDATION: Hide donated products after 7 days
+        if item.status and item.status.lower() == "donated":
+            # Find donation completion date
+            donation_request = db.query(models.DonationRequest).join(models.Donation).filter(
+                models.Donation.bakery_inventory_id == item.id,
+                models.DonationRequest.tracking_status.ilike("complete")
+            ).first()
+            
+            direct_donation = db.query(models.DirectDonation).filter(
+                models.DirectDonation.bakery_inventory_id == item.id,
+                models.DirectDonation.btracking_status.ilike("complete")
+            ).first()
+            
+            completion_date = None
+            if donation_request and hasattr(donation_request, 'updated_at'):
+                completion_date = donation_request.updated_at
+            elif direct_donation and hasattr(direct_donation, 'created_at'):
+                completion_date = direct_donation.created_at
+            
+            if completion_date:
+                if isinstance(completion_date, str):
+                    completion_date = datetime.strptime(completion_date.split('T')[0], "%Y-%m-%d").date()
+                elif isinstance(completion_date, datetime):
+                    completion_date = completion_date.date()
+                
+                days_since_donation = (today - completion_date).days
+                if days_since_donation > 7:
+                    continue  # Skip this item
+        
+        # ✅ BACKEND VALIDATION: Hide expired/unavailable products after 3 days
+        if item.expiration_date:
+            exp_date = item.expiration_date
+            if isinstance(exp_date, str):
+                exp_date = datetime.strptime(exp_date.split('T')[0], "%Y-%m-%d").date()
+            elif isinstance(exp_date, datetime):
+                exp_date = exp_date.date()
+            
+            days_since_expiration = (today - exp_date).days
+            
+            if days_since_expiration > 3:
+                continue  # Skip this item
+        
         pending_request = db.query(models.DonationRequest).join(models.Donation).filter(
             models.Donation.bakery_inventory_id == item.id,
             models.DonationRequest.status == "pending"
@@ -347,7 +396,6 @@ def list_inventory(
         updated_items.append(item_dict)
 
     return updated_items
-
 
 @router.put("/inventory/{inventory_id}", response_model=schemas.BakeryInventoryOut)
 def update_inventory(
@@ -368,7 +416,6 @@ def update_inventory(
     if current_user.role.lower() != "bakery":
         raise HTTPException(status_code=403, detail="Only bakeries can update inventory")
 
-    # Get the old product name before updating
     old_item = db.query(models.BakeryInventory).filter(
         models.BakeryInventory.id == inventory_id,
         models.BakeryInventory.bakery_id == current_user.id
@@ -378,22 +425,37 @@ def update_inventory(
         raise HTTPException(status_code=404, detail="Inventory item not found")
     
     old_product_name = old_item.name
-    old_image = old_item.image  # Keep the existing image path
+    old_image = old_item.image
 
-    # Handle image: either upload new file, use template image, or retain old image
+    # Handle image
     image_path = None
     if image and image.filename:
-        # New image uploaded
         os.makedirs(UPLOAD_DIR, exist_ok=True)
         image_path = os.path.join(UPLOAD_DIR, image.filename)
         with open(image_path, "wb") as buffer:
             shutil.copyfileobj(image.file, buffer)
     elif template_image:
-        # Template image provided
         image_path = template_image
     else:
-        # No new image, retain the old one
         image_path = old_image
+
+    # ✅ RECALCULATE threshold based on CURRENT SERVER DATE
+    recalculated_threshold = 2
+    if expiration_date:
+        try:
+            from app.timezone_utils import today_ph
+            current_server_date = today_ph()
+            exp_date = datetime.strptime(expiration_date, "%Y-%m-%d").date()
+            threshold_date = exp_date - timedelta(days=2)
+            
+            if threshold_date < current_server_date:
+                days_from_today = (exp_date - current_server_date).days
+                recalculated_threshold = max(0, days_from_today)
+            else:
+                recalculated_threshold = 2
+        except Exception as e:
+            print(f"[Threshold] Error: {e}")
+            recalculated_threshold = 2
 
     updated_item = crud.update_inventory(
         db=db,
@@ -404,48 +466,38 @@ def update_inventory(
         quantity=quantity,
         creation_date=creation_date,
         expiration_date=expiration_date,
-        threshold=threshold,
+        threshold=recalculated_threshold,  # ✅ Use recalculated value
         uploaded=uploaded,
         description=description
     )
 
-    # Update bakery's CSV with the new product information
+    # Update CSV with recalculated threshold
     try:
         creation = datetime.strptime(creation_date, "%Y-%m-%d").date()
         expiration = datetime.strptime(expiration_date, "%Y-%m-%d").date()
         shelf_life_days = (expiration - creation).days
         
         if save_to_template == "true":
-            # Name was modified - save as NEW product to CSV
-            print(f"[CSV] 📝 Saving NEW product '{name}' to CSV (name was modified)")
-            success = save_product_to_csv(
+            save_product_to_csv(
                 bakery_id=current_user.id,
                 product_name=name,
-                threshold=threshold,
+                threshold=recalculated_threshold,
                 shelf_life_days=shelf_life_days,
                 description=description or "",
                 image=image_path or ""
             )
-            if success:
-                print(f"[CSV] ✅ Saved NEW product '{name}' to CSV")
-            else:
-                print(f"[CSV] ⚠️ Product '{name}' already exists in CSV")
         else:
-            # Name not modified - update existing CSV entry
             update_product_in_csv(
                 bakery_id=current_user.id,
                 old_product_name=old_product_name,
                 new_product_name=name,
-                threshold=threshold,
+                threshold=recalculated_threshold,
                 shelf_life_days=shelf_life_days,
                 description=description or "",
                 image=image_path or ""
             )
-            print(f"[CSV] ✅ Updated '{old_product_name}' to '{name}' in CSV")
     except Exception as e:
         print(f"[CSV] Warning: Could not update CSV: {e}")
-        import traceback
-        traceback.print_exc()
 
     check_threshold_and_create_donation(db)
     check_inventory_status(db)

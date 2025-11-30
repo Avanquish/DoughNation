@@ -264,20 +264,20 @@ def accept_donation(
     request_id: int,
     payload: dict = Body(...),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(ensure_verified_user)
+    current_auth = Depends(auth.get_current_user_or_employee)
 ):
+    from app.auth import get_bakery_id_from_auth, get_donor_name_from_auth
+    
     charity_id = payload.get("charity_id")
-    donated_by = payload.get("donated_by")
+    bakery_id = get_bakery_id_from_auth(current_auth)
+    donated_by = get_donor_name_from_auth(current_auth)
     
     if not charity_id:
         raise HTTPException(status_code=400, detail="charity_id required")
-    
-    if not donated_by:
-        raise HTTPException(status_code=400, detail="donated_by (employee/owner name) required")
 
     donation_request = db.query(models.DonationRequest).filter(
         models.DonationRequest.id == request_id,
-        models.DonationRequest.bakery_id == current_user.id,
+        models.DonationRequest.bakery_id == bakery_id,
         models.DonationRequest.charity_id == charity_id,
         models.DonationRequest.status == "pending"
     ).first()
@@ -328,7 +328,7 @@ def accept_donation(
 
     # Mark THIS specific request as accepted
     donation_request.status = "accepted"
-    donation_request.rdonated_by = donated_by or current_user.name or "Unknown"
+    donation_request.rdonated_by = donated_by
 
     # Create checking record
     new_check = models.DonationCardChecking(
@@ -786,4 +786,4 @@ def get_inventory_status(
         "remaining_quantity": inventory_item.quantity,
         "has_pending": len(charity_latest_pending) > 0,
         "request_statuses": request_statuses
-    }
+    } 

@@ -655,6 +655,12 @@ export default function Messages({ currentUser: currentUserProp }) {
       return;
     }
 
+    // Prevent double-clicks
+    if (disabledDonations.has(donation.id)) {
+      console.log("Action already in progress for donation:", donation.id);
+      return;
+    }
+
     setDisabledDonations((prev) => new Set(prev).add(donation.id));
 
     try {
@@ -690,6 +696,10 @@ export default function Messages({ currentUser: currentUserProp }) {
 
       await fetchAllDonationStatuses();
       await fetchRemovedProducts();
+
+      if (donation.bakery_inventory_id) {
+        await fetchInventoryStatus(donation.bakery_inventory_id);
+      }
 
       if (accepted_charity_id) {
         await axios.post(
@@ -760,6 +770,12 @@ export default function Messages({ currentUser: currentUserProp }) {
       return;
     }
 
+    // Prevent double-clicks
+    if (disabledDonations.has(donation.id)) {
+      console.log("Action already in progress for donation:", donation.id);
+      return;
+    }
+
     setDisabledDonations((prev) => new Set(prev).add(donation.id));
 
     try {
@@ -822,6 +838,11 @@ export default function Messages({ currentUser: currentUserProp }) {
       }
     } catch (err) {
       console.error("Failed to cancel donation:", err?.response?.data || err);
+
+      if (donation?.bakery_inventory_id) {
+        await fetchInventoryStatus(donation.bakery_inventory_id);
+      }
+
     } finally {
       setDisabledDonations((prev) => {
         const copy = new Set(prev);
@@ -927,14 +948,14 @@ export default function Messages({ currentUser: currentUserProp }) {
         const inventoryStatus = inventoryStatuses.get(inventoryId);
         const employeeToken = localStorage.getItem("employeeToken");
 
-        //Use backend's explicit flags instead of frontend logic
+        // Get this specific request's status from backend
         const thisRequestStatus = inventoryStatus?.request_statuses?.[requestId];
         
-        // Backend tells us exactly what to show - no time comparison needed!
+        // ONLY use backend flags - NO time calculations
         const shouldShowAcceptButton = thisRequestStatus?.show_accept_button === true;
         const shouldShowCancelButton = thisRequestStatus?.show_cancel_button === true;
         
-        // Only show buttons if: user is receiver (bakery) AND backend says so
+        // Show buttons ONLY if: bakery employee AND backend says show them
         const showButtons = iAmReceiver && employeeToken && (shouldShowAcceptButton || shouldShowCancelButton);
 
         // Get display status
@@ -993,7 +1014,7 @@ export default function Messages({ currentUser: currentUserProp }) {
                   gap: 6
                 }}>
                   <XCircle className="w-4 h-4" />
-                  <span>Request Cancelled (Inventory depleted)</span>
+                  <span>Request Cancelled</span>
                 </div>
               )}
 
@@ -1014,7 +1035,7 @@ export default function Messages({ currentUser: currentUserProp }) {
                 </div>
               )}
 
-              {/*Show buttons based on backend flags */}
+              {/* Show buttons based ONLY on backend flags */}
               {showButtons && (
                 <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
                   {shouldShowAcceptButton && (
@@ -1350,29 +1371,31 @@ export default function Messages({ currentUser: currentUserProp }) {
   useEffect(() => {
     if (!selectedUser || filteredMessages.length === 0) return;
 
+    // Collect all inventory IDs from donation cards
+    const inventoryIds = new Set();
+    filteredMessages.forEach((m) => {
+      try {
+        const parsed = typeof m.content === "string" ? JSON.parse(m.content) : m.content;
+        if (parsed?.type === "donation_card" && parsed?.donation?.bakery_inventory_id) {
+          inventoryIds.add(parsed.donation.bakery_inventory_id);
+        }
+      } catch {}
+    });
+
+    // Fetch immediately when component loads
+    inventoryIds.forEach((id) => {
+      fetchInventoryStatus(id);
+    });
+
+    // Poll every 2 seconds (faster response)
     const pollInterval = setInterval(() => {
-      const inventoryIds = new Set();
-
-      filteredMessages.forEach((m) => {
-        try {
-          const parsed =
-            typeof m.content === "string" ? JSON.parse(m.content) : m.content;
-          if (
-            parsed?.type === "donation_card" &&
-            parsed?.donation?.bakery_inventory_id
-          ) {
-            inventoryIds.add(parsed.donation.bakery_inventory_id);
-          }
-        } catch {}
-      });
-
       inventoryIds.forEach((id) => {
         fetchInventoryStatus(id);
       });
-    }, 3000);
+    }, 2000);
 
     return () => clearInterval(pollInterval);
-  }, [selectedUser, filteredMessages]);
+  }, [selectedUser, filteredMessages.length]);
 
   useEffect(() => {
     const handler = (e) => {

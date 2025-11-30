@@ -1031,7 +1031,7 @@ export default function Messages({ currentUser: currentUserProp }) {
                 }}>
                   {isInventoryEmpty 
                     ? "⚠️ No inventory remaining" 
-                    : `✓ Available: ${remainingQty} units`}
+                    : `✓ Available: ${remainingQty} remaining`}
                 </div>
               )}
 

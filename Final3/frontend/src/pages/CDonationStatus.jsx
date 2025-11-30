@@ -567,6 +567,9 @@ const CDonationStatus = () => {
   const [qReq, setQReq] = useState(""); // Requested Donations search
   const [qDir, setQDir] = useState(""); // Direct Donations search
 
+  // Auto refresh
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const matchesQuery = (d, q) => {
     if (!q) return true;
     const s = q.toLowerCase();
@@ -605,9 +608,10 @@ const CDonationStatus = () => {
     }
   }, []);
 
-  const fetchAll = async () => {
+  const fetchAll = async (silent = false) => {
     if (!currentUser || currentUser.role !== "charity") return;
     const token = localStorage.getItem("token");
+    if (!silent) setIsRefreshing(true);
     try {
       // Normal
       const resNormal = await fetch(`${API}/donation/received`, {
@@ -636,10 +640,24 @@ const CDonationStatus = () => {
       );
     } catch (e) {
       console.error(e);
+    } finally {
+      if (!silent) setIsRefreshing(false);
     }
   };
+
   useEffect(() => {
     fetchAll();
+  }, [currentUser]);
+
+  // Auto refresh every 1 second
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    const intervalId = setInterval(() => {
+      fetchAll(true); // silent refresh
+    }, 1000);
+
+    return () => clearInterval(intervalId);
   }, [currentUser]);
 
   const markAsReceived = async (donationId) => {
@@ -1043,4 +1061,4 @@ const CDonationStatus = () => {
   );
 };
 
-export default CDonationStatus;
+export default CDonationStatus; 

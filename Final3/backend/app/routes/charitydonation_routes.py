@@ -139,40 +139,30 @@ def request_donation(
             detail=f"Requested quantity ({payload.requested_quantity}) exceeds available quantity ({donation.quantity})"
         )
 
-    # KEY FIX: Check for existing requests by bakery_inventory_id (not donation_id)
-    # This ensures we check the actual inventory item, not just the donation record
-    existing_requests = db.query(models.DonationRequest).filter(
+    # FIXED: Auto-cancel ALL previous pending requests when creating a new one
+    existing_pending = db.query(models.DonationRequest).filter(
         models.DonationRequest.charity_id == current_user.id,
-        models.DonationRequest.bakery_inventory_id == donation.bakery_inventory_id
-    ).order_by(models.DonationRequest.id.desc()).all()  # Order by ID (database sequence), not timestamp
+        models.DonationRequest.bakery_inventory_id == donation.bakery_inventory_id,
+        models.DonationRequest.status == "pending"
+    ).all()
 
-    # Check if there's already a PENDING request
-    pending_request = next((r for r in existing_requests if r.status == "pending"), None)
+    # Auto-cancel all previous pending requests to allow new quantity
+    for old_request in existing_pending:
+        old_request.status = "canceled"
+        old_request.rdonated_by = "Auto-canceled (User requested different quantity)"
     
-    if pending_request:
-        # Check current inventory to see if this pending request is still valid
-        current_inventory = db.query(models.BakeryInventory).filter(
-            models.BakeryInventory.id == donation.bakery_inventory_id
-        ).first()
-        
-        if current_inventory and pending_request.donation_quantity > current_inventory.quantity:
-            # Auto-cancel the outdated pending request
-            pending_request.status = "canceled"
-            pending_request.rdonated_by = f"Auto-canceled (Requested {pending_request.donation_quantity}, only {current_inventory.quantity} available)"
-            db.commit()
-            # Continue to create new request
-        else:
-            raise HTTPException(status_code=400, detail="You already have a pending request for this item. Please cancel it first to request a different quantity.")
+    if existing_pending:
+        db.commit()
 
     bakery = db.query(models.User).filter(models.User.id == payload.bakery_id).first()
     
-    # Always create a NEW request (never reactivate cancelled ones)
+    # Always create a NEW request
     new_request = models.DonationRequest(
         donation_id=payload.donation_id,
         charity_id=current_user.id,
         bakery_id=payload.bakery_id,
         bakery_inventory_id=donation.bakery_inventory_id,
-        timestamp=now_ph(),  #  Server time only, never used for logic
+        timestamp=now_ph(),
         status="pending",
         bakery_name=bakery.name,
         bakery_profile_picture=bakery.profile_picture,
@@ -378,16 +368,14 @@ def accept_donation(
     db.refresh(inventory_item)
     db.refresh(donation_request)
 
-    # Send simple italic messages for cancelled requests
+    # Send cancellation messages
     for cancel_info in canceled_requests:
         try:
-            # Get the cancelled request details
             cancelled_req = db.query(models.DonationRequest).filter(
                 models.DonationRequest.id == cancel_info["request_id"]
             ).first()
             
             if cancelled_req:
-                # Create a card message with cancellation info
                 cancellation_content = json.dumps({
                     "type": "donation_request_cancelled",
                     "donation": {
@@ -728,9 +716,9 @@ def get_inventory_status(
 ):
     """
     Get detailed status for each donation request.
-    Returns individual request statuses so frontend can hide buttons per request.
     TIME-INDEPENDENT: Uses only database status, not timestamps.
     """
+    # Step 1: Get inventory item
     inventory_item = db.query(models.BakeryInventory).filter(
         models.BakeryInventory.id == bakery_inventory_id
     ).first()
@@ -738,71 +726,64 @@ def get_inventory_status(
     if not inventory_item:
         raise HTTPException(status_code=404, detail="Inventory item not found")
     
-    # Get all requests, ordered by database ID (insertion order)
+    # Step 2: Get ALL requests, ordered by ID descending (newest first)
     all_requests = db.query(models.DonationRequest).filter(
         models.DonationRequest.bakery_inventory_id == bakery_inventory_id
-    ).order_by(models.DonationRequest.id.desc()).all()  # Order by ID, not timestamp
+    ).order_by(models.DonationRequest.id.desc()).all()
     
-    # Group by charity_id and keep ONLY the most recent request per charity
-    # "Most recent" = highest ID number (latest insertion into database)
-    charity_latest_request = {}
-    for r in all_requests:
-        cid = r.charity_id
-        if cid not in charity_latest_request:
-            # First time seeing this charity = this is their latest request (since we ordered by ID desc)
-            charity_latest_request[cid] = r
+    # Step 3: Filter only PENDING requests
+    pending_requests = [r for r in all_requests if r.status == "pending"]
     
-    # Build status map - ONLY include the latest request per charity
-    request_status_map = {}
-    for r in charity_latest_request.values():
-        # Backend decides button visibility based on DATABASE STATE ONLY
-        # NO timestamp comparisons - purely based on status and quantity
+    # Step 4: Find the LATEST pending request per charity (highest ID = newest)
+    charity_latest_pending = {}
+    for r in pending_requests:
+        charity_id = r.charity_id
+        # Only store if this charity doesn't have a latest yet
+        # Since we ordered by ID desc, the first one we see is the latest
+        if charity_id not in charity_latest_pending:
+            charity_latest_pending[charity_id] = r
+    
+    # Step 5: Build response for each request
+    request_statuses = {}
+    
+    # First, add all the LATEST pending requests (these can show buttons)
+    for request in charity_latest_pending.values():
+        # Check if we can accept this request
         can_accept = (
-            r.status == "pending" and 
+            request.status == "pending" and 
             inventory_item.quantity > 0 and 
-            r.donation_quantity <= inventory_item.quantity
+            request.donation_quantity <= inventory_item.quantity
         )
         
-        can_cancel = r.status == "pending"
+        can_cancel = (request.status == "pending")
         
-        request_status_map[r.id] = {
-            "status": r.status,
-            "charity_id": r.charity_id,
-            "requested_quantity": r.donation_quantity,
-            "timestamp": r.timestamp.isoformat() if r.timestamp else None,  # Only for display, not logic
-            "accepted_by": r.rdonated_by if r.status == "accepted" else None,
-            # Backend controls UI
+        request_statuses[request.id] = {
+            "status": "pending",
+            "charity_id": request.charity_id,
+            "requested_quantity": request.donation_quantity,
+            "accepted_by": None,
             "show_accept_button": can_accept,
             "show_cancel_button": can_cancel,
-            "can_be_accepted": can_accept,
-            "is_latest": True  # Flag indicating this is the charity's latest request
+            "is_latest": True
         }
     
-    # Also include older requests but mark them as non-latest (for reference only)
-    for r in all_requests:
-        if r.id not in request_status_map:  # Not the latest for this charity
-            request_status_map[r.id] = {
-                "status": r.status,
-                "charity_id": r.charity_id,
-                "requested_quantity": r.donation_quantity,
-                "timestamp": r.timestamp.isoformat() if r.timestamp else None,
-                "accepted_by": r.rdonated_by if r.status == "accepted" else None,
-                # Old requests never show buttons
-                "show_accept_button": False,
-                "show_cancel_button": False,
-                "can_be_accepted": False,
-                "is_latest": False  # Not the latest request
+    # Then, add all OTHER requests (old or non-pending) - NO buttons
+    for request in all_requests:
+        if request.id not in request_statuses:
+            request_statuses[request.id] = {
+                "status": request.status,
+                "charity_id": request.charity_id,
+                "requested_quantity": request.donation_quantity,
+                "accepted_by": request.rdonated_by if request.status == "accepted" else None,
+                "show_accept_button": False,  # Never show for old requests
+                "show_cancel_button": False,  # Never show for old requests
+                "is_latest": False
             }
     
-    has_pending = any(r.status == "pending" for r in charity_latest_request.values())
-    all_canceled = all(r.status == "canceled" for r in all_requests) if all_requests else False
-    
+    # Step 6: Return complete status
     return {
         "bakery_inventory_id": bakery_inventory_id,
-        "remaining_quantity": inventory_item.quantity,  # Current state from DB
-        "has_pending": has_pending,
-        "all_canceled": all_canceled,
-        "total_requests": len(all_requests),
-        "request_statuses": request_status_map,  # Only latest requests have buttons
-        "current_time": now_ph().isoformat()  # Optional: for display only
+        "remaining_quantity": inventory_item.quantity,
+        "has_pending": len(charity_latest_pending) > 0,
+        "request_statuses": request_statuses
     }

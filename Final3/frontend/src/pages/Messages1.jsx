@@ -42,15 +42,39 @@ const toManilaDate = (ts) => {
 
 const formatTime = (ts) => {
   try {
-    const d = toManilaDate(ts);
-    if (!d || isNaN(d.getTime())) return String(ts);
+    if (!ts) return "";
+    
+    let date;
+    
+    // Handle different timestamp formats
+    if (typeof ts === "number") {
+      // Unix timestamp in milliseconds
+      date = new Date(ts);
+    } else if (typeof ts === "string") {
+      // Try parsing as ISO string first
+      date = new Date(ts);
+      
+      // If invalid, try manual parsing
+      if (isNaN(date.getTime())) {
+        // Handle format like "2024-01-15 10:30:00"
+        const normalized = ts.trim().replace(" ", "T");
+        date = new Date(normalized);
+      }
+    } else {
+      return String(ts);
+    }
+    
+    if (isNaN(date.getTime())) return String(ts);
+    
+    // Format in Asia/Manila timezone
     return new Intl.DateTimeFormat("en-PH", {
-      hour: "2-digit",
+      hour: "numeric",
       minute: "2-digit",
       hour12: true,
       timeZone: "Asia/Manila",
-    }).format(d);
-  } catch {
+    }).format(date);
+  } catch (err) {
+    console.error("Error formatting time:", err);
     return String(ts);
   }
 };
@@ -903,21 +927,22 @@ export default function Messages({ currentUser: currentUserProp }) {
         const inventoryStatus = inventoryStatuses.get(inventoryId);
         const employeeToken = localStorage.getItem("employeeToken");
 
-        // KEY CHANGE: Check THIS specific request's status
+        //Use backend's explicit flags instead of frontend logic
         const thisRequestStatus = inventoryStatus?.request_statuses?.[requestId];
         
-        // Hide buttons if THIS request is accepted or canceled
-        const thisRequestIsAccepted = thisRequestStatus?.status === "accepted";
-        const thisRequestIsCanceled = thisRequestStatus?.status === "canceled";
-        const thisRequestIsPending = thisRequestStatus?.status === "pending";
+        // Backend tells us exactly what to show - no time comparison needed!
+        const shouldShowAcceptButton = thisRequestStatus?.show_accept_button === true;
+        const shouldShowCancelButton = thisRequestStatus?.show_cancel_button === true;
         
-        // Show buttons ONLY if:
-        // This specific request is still "pending"
-        // User is receiver (charity side viewing it)
-        // Has employee token (bakery side)
-        const shouldShowButtons = thisRequestIsPending && iAmReceiver && employeeToken && inventoryStatus;
+        // Only show buttons if: user is receiver (bakery) AND backend says so
+        const showButtons = iAmReceiver && employeeToken && (shouldShowAcceptButton || shouldShowCancelButton);
 
-        // Get remaining quantity for display
+        // Get display status
+        const requestStatus = thisRequestStatus?.status || "unknown";
+        const isAccepted = requestStatus === "accepted";
+        const isCanceled = requestStatus === "canceled";
+        const isPending = requestStatus === "pending";
+        
         const remainingQty = inventoryStatus?.remaining_quantity ?? null;
         const isInventoryEmpty = remainingQty !== null && remainingQty <= 0;
 
@@ -931,8 +956,8 @@ export default function Messages({ currentUser: currentUserProp }) {
                 {d.quantity ?? "-"}
               </div>
 
-              {/* Show accepted badge for THIS specific request */}
-              {thisRequestIsAccepted && (
+              {/* Show accepted badge */}
+              {isAccepted && (
                 <div style={{ 
                   fontSize: 12, 
                   color: "#166534", 
@@ -953,8 +978,8 @@ export default function Messages({ currentUser: currentUserProp }) {
                 </div>
               )}
 
-              {/* Show cancelled badge for THIS specific request */}
-              {thisRequestIsCanceled && (
+              {/* Show cancelled badge */}
+              {isCanceled && (
                 <div style={{ 
                   fontSize: 12, 
                   color: "#991b1b", 
@@ -972,8 +997,8 @@ export default function Messages({ currentUser: currentUserProp }) {
                 </div>
               )}
 
-              {/* Show available quantity ONLY for pending requests */}
-              {thisRequestIsPending && remainingQty !== null && (
+              {/* Show available quantity for pending requests */}
+              {isPending && remainingQty !== null && (
                 <div style={{ 
                   fontSize: 11, 
                   color: isInventoryEmpty ? "#991b1b" : "#059669",
@@ -989,28 +1014,32 @@ export default function Messages({ currentUser: currentUserProp }) {
                 </div>
               )}
 
-              {/* Show buttons ONLY for pending requests with available inventory */}
-              {shouldShowButtons && !isInventoryEmpty && (
+              {/*Show buttons based on backend flags */}
+              {showButtons && (
                 <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                  <button
-                    className="btn-mini accept"
-                    onClick={() => acceptDonation(m)}
-                    disabled={disabledDonations.has(d.id)}
-                  >
-                    <Check className="w-4 h-4" /> Accept
-                  </button>
-                  <button
-                    className="btn-mini"
-                    onClick={() => cancelDonation(m)}
-                    disabled={disabledDonations.has(d.id)}
-                  >
-                    <XCircle className="w-4 h-4" /> Cancel
-                  </button>
+                  {shouldShowAcceptButton && (
+                    <button
+                      className="btn-mini accept"
+                      onClick={() => acceptDonation(m)}
+                      disabled={disabledDonations.has(d.id)}
+                    >
+                      <Check className="w-4 h-4" /> Accept
+                    </button>
+                  )}
+                  {shouldShowCancelButton && (
+                    <button
+                      className="btn-mini"
+                      onClick={() => cancelDonation(m)}
+                      disabled={disabledDonations.has(d.id)}
+                    >
+                      <XCircle className="w-4 h-4" /> Cancel
+                    </button>
+                  )}
                 </div>
               )}
 
-              {/* Warning if pending but no inventory */}
-              {thisRequestIsPending && isInventoryEmpty && (
+              {/* Warning if pending but inventory gone */}
+              {isPending && isInventoryEmpty && (
                 <div style={{ 
                   fontSize: 12, 
                   color: "#92400e",

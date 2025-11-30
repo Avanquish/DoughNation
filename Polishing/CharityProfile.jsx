@@ -236,11 +236,83 @@ export default function CharityProfile() {
       confirm_password: e.target.confirm_password.value,
     };
 
+    // Validation checks
+    if (
+      !data.current_password ||
+      !data.new_password ||
+      !data.confirm_password
+    ) {
+      Swal.fire({
+        icon: "warning",
+        title: "Missing Fields",
+        text: "Please fill in all fields",
+      });
+      return;
+    }
+
     if (data.new_password !== data.confirm_password) {
       Swal.fire({
         icon: "error",
         title: "Password Mismatch",
         text: "New password and confirm password do not match.",
+      });
+      return;
+    }
+
+    if (data.new_password.length < 8) {
+      Swal.fire({
+        icon: "warning",
+        title: "Password Too Short",
+        text: "Password must be at least 8 characters",
+      });
+      return;
+    }
+
+    // Check uppercase letter requirement
+    if (!/[A-Z]/.test(data.new_password)) {
+      Swal.fire({
+        icon: "warning",
+        title: "Password Requirements Not Met",
+        text: "Password must contain at least one uppercase letter (A-Z)",
+      });
+      return;
+    }
+
+    // Check lowercase letter requirement
+    if (!/[a-z]/.test(data.new_password)) {
+      Swal.fire({
+        icon: "warning",
+        title: "Password Requirements Not Met",
+        text: "Password must contain at least one lowercase letter (a-z)",
+      });
+      return;
+    }
+
+    // Check number requirement
+    if (!/[0-9]/.test(data.new_password)) {
+      Swal.fire({
+        icon: "warning",
+        title: "Password Requirements Not Met",
+        text: "Password must contain at least one number (0-9)",
+      });
+      return;
+    }
+
+    // Check special character requirement
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(data.new_password)) {
+      Swal.fire({
+        icon: "warning",
+        title: "Password Requirements Not Met",
+        text: 'Password must contain at least one special character (!@#$%^&*(),.?":{}|<>)',
+      });
+      return;
+    }
+
+    if (data.current_password === data.new_password) {
+      Swal.fire({
+        icon: "warning",
+        title: "Same Password",
+        text: "New password must be different from current password",
       });
       return;
     }
@@ -698,9 +770,6 @@ export default function CharityProfile() {
                 <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[var(--ink)]">
                   {name}
                 </h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Welcome to your public profile.
-                </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Button
                     className="btn-pill"
@@ -877,7 +946,7 @@ export default function CharityProfile() {
                               type={showNewPwd ? "text" : "password"}
                               name="new_password"
                               required
-                              placeholder="Create password"
+                              placeholder="Create new password"
                               className="w-full modal-input pr-10"
                               onChange={(e) => setNewPassword(e.target.value)}
                             />

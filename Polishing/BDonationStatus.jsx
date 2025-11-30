@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSubmitGuard } from "../hooks/useDebounce";
 import axios from "axios";
 import Swal from "sweetalert2";
 
@@ -381,11 +382,15 @@ const BDonationStatus = () => {
       );
     });
 
+  const [isUpdatingTracking, setIsUpdatingTracking] = useState(false);
+
   const handleUpdateTracking = async (
     donationId,
     currentStatus,
     isDirect = false
   ) => {
+    if (isUpdatingTracking) return;
+
     const token =
       localStorage.getItem("employeeToken") || localStorage.getItem("token");
     if (!token) return;
@@ -403,6 +408,7 @@ const BDonationStatus = () => {
       ? `${API}/direct/tracking/${donationId}`
       : `${API}/donation/tracking/${donationId}`;
 
+    setIsUpdatingTracking(true);
     try {
       const body = isDirect
         ? { btracking_status: nextStatus }
@@ -439,6 +445,8 @@ const BDonationStatus = () => {
       }
     } catch (err) {
       console.error("Failed to update tracking status:", err);
+    } finally {
+      setIsUpdatingTracking(false);
     }
   };
 
@@ -643,23 +651,15 @@ const BDonationStatus = () => {
     const stat = (d.tracking_status || d.status || "pending").toLowerCase();
     const theme = statusTheme(stat);
 
-    // Only allow clicks for employees
-    const handleClick = currentUser?.isEmployee ? onClick : undefined;
-    const cursorClass = currentUser?.isEmployee
-      ? "cursor-pointer"
-      : "cursor-not-allowed opacity-60";
-
     return (
       <div
         id={`received-${d.donation_id || d.id}`}
-        onClick={handleClick}
+        onClick={onClick}
         className={`group rounded-2xl border border-[#f2e3cf] bg-white/70
             shadow-[0_2px_10px_rgba(93,64,28,.05)]
-            overflow-hidden transition-all duration-300 ${cursorClass}
-            ${
-              currentUser?.isEmployee
-                ? `hover:scale-[1.015] hover:shadow-[0_14px_32px_rgba(191,115,39,.18)] hover:ring-1 ${theme.hoverRing}`
-                : ""
+            overflow-hidden transition-all duration-300 cursor-pointer
+            hover:scale-[1.015] hover:shadow-[0_14px_32px_rgba(191,115,39,.18)] hover:ring-1 ${
+              theme.hoverRing
             }
             ${
               highlightedId === (d.donation_id || d.id)
@@ -696,7 +696,7 @@ const BDonationStatus = () => {
                              : "text-[10px] sm:text-[11px] px-2 py-0.5"
                          }`}
               >
-                Expires in {left} {left === 1 ? "day" : "days"}
+                Consume Before {left} {left === 1 ? "day" : "days"}
               </div>
             )}
           </div>
@@ -823,7 +823,27 @@ const BDonationStatus = () => {
           {items.length ? (
             pageItems.map(renderItem)
           ) : (
-            <p className="text-sm text-[#7b5836]">{emptyText}</p>
+            <div
+              className="
+      mt-2
+      rounded-2xl
+      border border-dashed border-[#eadfce]
+      bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
+      h-40
+      flex items-center justify-center
+    "
+            >
+              <p
+                className="
+        text-sm text-[#7b5836]
+        bg-white/70 border border-[#f2e3cf]
+        rounded-2xl px-4 py-6
+        text-center
+      "
+              >
+                {emptyText}
+              </p>
+            </div>
           )}
         </div>
         {items.length > 0 && (
@@ -908,9 +928,7 @@ const BDonationStatus = () => {
                     {nice(s)}
                   </span>
                   {active && (
-                    <span
-                      className={`text-[11px] font-semibold ${theme.text}`}
-                    >
+                    <span className={`text-[11px] font-semibold ${theme.text}`}>
                       Current
                     </span>
                   )}
@@ -1052,6 +1070,7 @@ const BDonationStatus = () => {
                       />
                     )}
                   />
+
                   {/* Preparing column with pagination */}
                   <ScrollColumn
                     title={`Preparing (${preparing.length})`}
@@ -1066,6 +1085,7 @@ const BDonationStatus = () => {
                       />
                     )}
                   />
+
                   {/* Complete column with pagination */}
                   <ScrollColumn
                     title={`Complete (${complete.length})`}
@@ -1084,7 +1104,28 @@ const BDonationStatus = () => {
               );
             })()
           ) : (
-            <p className="text-[#7b5836]">No donations yet.</p>
+            <div
+              className="
+      mt-2
+      rounded-3xl
+      border border-[#eadfce]
+      bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
+      shadow-[0_2px_8px_rgba(93,64,28,0.06)]
+      h-48 sm:h-56
+      flex items-center justify-center
+    "
+            >
+              <p
+                className="
+        text-sm text-[#7b5836]
+        bg-white/70 border border-[#f2e3cf]
+        rounded-2xl px-4 py-6
+        text-center
+      "
+              >
+                No donations yet.
+              </p>
+            </div>
           )}
         </Section>
       )}
@@ -1138,7 +1179,28 @@ const BDonationStatus = () => {
               );
             })()
           ) : (
-            <p className="text-[#7b5836]">No direct donations yet.</p>
+            <div
+              className="
+      mt-2
+      rounded-3xl
+      border border-[#eadfce]
+      bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
+      shadow-[0_2px_8px_rgba(93,64,28,0.06)]
+      h-48 sm:h-56
+      flex items-center justify-center
+    "
+            >
+              <p
+                className="
+        text-sm text-[#7b5836]
+        bg-white/70 border border-[#f2e3cf]
+        rounded-2xl px-4 py-6
+        text-center
+      "
+              >
+                No direct donations yet.
+              </p>
+            </div>
           )}
         </Section>
       )}
@@ -1236,7 +1298,7 @@ const BDonationStatus = () => {
                 </div>
                 <div className="col-span-6 md:col-span-3">
                   <div className="rounded-xl border border-[#f2e3cf] bg-white/70 p-3">
-                    <div className="text-xs text-[#7b5836]">Expires</div>
+                    <div className="text-xs text-[#7b5836]">Consume Before</div>
                     <div className="text-lg font-semibold text-[#3b2a18]">
                       {selectedDonation.expiration_date
                         ? new Date(
@@ -1254,27 +1316,26 @@ const BDonationStatus = () => {
               </div>
 
               {/* CTA*/}
-              {currentUser?.isEmployee &&
-                (selectedDonation.tracking_status === "preparing" ||
-                  selectedDonation.tracking_status === "ready_for_pickup") && (
-                  <button
-                    onClick={() =>
-                      handleUpdateTracking(
-                        selectedDonation.id,
-                        selectedDonation.tracking_status,
-                        selectedDonation.btracking_status !== undefined
-                      )
-                    }
-                    className="mt-6 w-full rounded-full px-5 py-3 font-semibold text-white
+              {(selectedDonation.tracking_status === "preparing" ||
+                selectedDonation.tracking_status === "ready_for_pickup") && (
+                <button
+                  onClick={() =>
+                    handleUpdateTracking(
+                      selectedDonation.id,
+                      selectedDonation.tracking_status,
+                      selectedDonation.btracking_status !== undefined
+                    )
+                  }
+                  className="mt-6 w-full rounded-full px-5 py-3 font-semibold text-white
                            bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327]
                            shadow-[0_10px_26px_rgba(201,124,44,.25)]
                            hover:brightness-[1.05] transition"
-                  >
-                    {selectedDonation.tracking_status === "preparing"
-                      ? "Mark as Ready for Pickup"
-                      : "Mark as In Transit"}
-                  </button>
-                )}
+                >
+                  {selectedDonation.tracking_status === "preparing"
+                    ? "Mark as Ready for Pickup"
+                    : "Mark as In Transit"}
+                </button>
+              )}
             </div>
           </div>
         </div>

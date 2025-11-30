@@ -86,6 +86,16 @@ export default function BakeryReports({ isViewOnly = false }) {
   const formatHeader = (h) =>
     h.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
+  // Get current date in Philippine timezone (YYYY-MM-DD format)
+  const getPhilippineDate = () => {
+    const now = new Date();
+    const phTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+    const year = phTime.getFullYear();
+    const month = String(phTime.getMonth() + 1).padStart(2, '0');
+    const day = String(phTime.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Helper: which type should be used for fetching/exports?
   const getEffectiveReportType = () =>
     activeReport === "summary" ? activeSummary : activeReport;
@@ -2284,7 +2294,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                       type="date"
                       value={donationHistoryStart}
                       onChange={(e) => setDonationHistoryStart(e.target.value)}
-                      max={new Date().toISOString().split("T")[0]}
+                      max={getPhilippineDate()}
                       className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                     />
                   </div>
@@ -2296,7 +2306,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                       type="date"
                       value={donationHistoryEnd}
                       onChange={(e) => setDonationHistoryEnd(e.target.value)}
-                      max={new Date().toISOString().split("T")[0]}
+                      max={getPhilippineDate()}
                       className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                     />
                   </div>
@@ -2365,7 +2375,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                       type="date"
                       value={expiryLossStart}
                       onChange={(e) => setExpiryLossStart(e.target.value)}
-                      max={new Date().toISOString().split("T")[0]}
+                      max={getPhilippineDate()}
                       className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                     />
                   </div>
@@ -2377,7 +2387,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                       type="date"
                       value={expiryLossEnd}
                       onChange={(e) => setExpiryLossEnd(e.target.value)}
-                      max={new Date().toISOString().split("T")[0]}
+                      max={getPhilippineDate()}
                       className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                     />
                   </div>
@@ -2446,7 +2456,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                       type="date"
                       value={topItemsStart}
                       onChange={(e) => setTopItemsStart(e.target.value)}
-                      max={new Date().toISOString().split("T")[0]}
+                      max={getPhilippineDate()}
                       className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                     />
                   </div>
@@ -2458,7 +2468,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                       type="date"
                       value={topItemsEnd}
                       onChange={(e) => setTopItemsEnd(e.target.value)}
-                      max={new Date().toISOString().split("T")[0]}
+                      max={getPhilippineDate()}
                       className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                     />
                   </div>
@@ -2527,7 +2537,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                       type="date"
                       value={charityListStart}
                       onChange={(e) => setCharityListStart(e.target.value)}
-                      max={new Date().toISOString().split("T")[0]}
+                      max={getPhilippineDate()}
                       className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                     />
                   </div>
@@ -2539,7 +2549,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                       type="date"
                       value={charityListEnd}
                       onChange={(e) => setCharityListEnd(e.target.value)}
-                      max={new Date().toISOString().split("T")[0]}
+                      max={getPhilippineDate()}
                       className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                     />
                   </div>
@@ -2637,7 +2647,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                           type="date"
                           value={weekStart}
                           onChange={(e) => setWeekStart(e.target.value)}
-                          max={new Date().toISOString().split("T")[0]}
+                          max={getPhilippineDate()}
                           className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                         />
                       </div>
@@ -2649,7 +2659,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                           type="date"
                           value={weekEnd}
                           onChange={(e) => setWeekEnd(e.target.value)}
-                          max={new Date().toISOString().split("T")[0]}
+                          max={getPhilippineDate()}
                           className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                         />
                       </div>
@@ -2670,7 +2680,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                           type="month"
                           value={selectedMonth}
                           onChange={(e) => setSelectedMonth(e.target.value)}
-                          max={new Date().toISOString().slice(0, 7)}
+                          max={getPhilippineDate().slice(0, 7)}
                           className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                         />
                       </div>
@@ -2691,7 +2701,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                           type="date"
                           value={customStart}
                           onChange={(e) => setCustomStart(e.target.value)}
-                          max={new Date().toISOString().split("T")[0]}
+                          max={getPhilippineDate()}
                           className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                         />
                       </div>
@@ -2703,7 +2713,7 @@ export default function BakeryReports({ isViewOnly = false }) {
                           type="date"
                           value={customEnd}
                           onChange={(e) => setCustomEnd(e.target.value)}
-                          max={new Date().toISOString().split("T")[0]}
+                          max={getPhilippineDate()}
                           className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                         />
                       </div>
@@ -3293,4 +3303,4 @@ export default function BakeryReports({ isViewOnly = false }) {
       </Tabs>
     </div>
   );
-}
+} 

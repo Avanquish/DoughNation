@@ -216,69 +216,79 @@ export default function CharityDonation() {
 
   // Request donation
   const requestDonation = async (donation, requestedQty) => {
-  console.log("DONATION OBJECT BEING REQUESTED:", donation);
-  console.log("bakery_inventory_id on donation:", donation.bakery_inventory_id);
-  console.log("Requested Quantity:", requestedQty);
-  
-  try {
-    const token = localStorage.getItem("token");
-    const res = await axios.post(
-      `${API}/donation/request`,
-      { 
-        donation_id: donation.id, 
+    // Validation: Only allow 3 pending requests at a time
+    const pendingCount = Object.keys(requestedDonations).length;
+    if (pendingCount >= 3) {
+      Swal.fire(
+        "Request Limit Reached",
+        "You can only have 3 pending donation requests at a time. Please resolve, finish, or complete your pending requests before making a new one.",
+        "error"
+      );
+      return;
+    }
+
+    console.log("DONATION OBJECT BEING REQUESTED:", donation);
+    console.log("bakery_inventory_id on donation:", donation.bakery_inventory_id);
+    console.log("Requested Quantity:", requestedQty);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.post(
+        `${API}/donation/request`,
+        { 
+          donation_id: donation.id, 
+          bakery_id: donation.bakery_id,
+          requested_quantity: requestedQty // Send the requested quantity
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const requestId = res.data.request_id;
+
+      const requestRes = await axios.get(`${API}/donation/my_requests`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const newRequest = requestRes.data.find((req) => req.id === requestId);
+
+      setRequestedDonations((prev) => {
+        const updated = { ...prev, [donation.id]: requestId };
+        return updated;
+      });
+
+      const donationCardData = {
+        ...newRequest,
+        id: newRequest.id,
+        product_name: donation.name,
+        name: donation.name,
+        image: donation.image,
+        quantity: requestedQty, // Use the requested quantity here
+        expiration_date: donation.expiration_date,
         bakery_id: donation.bakery_id,
-        requested_quantity: requestedQty // Send the requested quantity
-      },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+        bakery_name: donation.bakery_name,
+        bakery_profile_picture: donation.bakery_profile_picture,
+        bakery_inventory_id: newRequest.bakery_inventory_id,
+      };
 
-    const requestId = res.data.request_id;
+      const bakeryInfo = {
+        id: donation.bakery_id,
+        name: donation.bakery_name,
+        profile_picture: donation.bakery_profile_picture || null,
+      };
 
-    const requestRes = await axios.get(`${API}/donation/my_requests`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+      localStorage.setItem("open_chat_with", JSON.stringify(bakeryInfo));
+      localStorage.setItem("send_donation", JSON.stringify(donationCardData));
+      window.dispatchEvent(new Event("open_chat"));
 
-    const newRequest = requestRes.data.find((req) => req.id === requestId);
-
-    setRequestedDonations((prev) => {
-      const updated = { ...prev, [donation.id]: requestId };
-      return updated;
-    });
-
-    const donationCardData = {
-      ...newRequest,
-      id: newRequest.id,
-      product_name: donation.name,
-      name: donation.name,
-      image: donation.image,
-      quantity: requestedQty, // Use the requested quantity here
-      expiration_date: donation.expiration_date,
-      bakery_id: donation.bakery_id,
-      bakery_name: donation.bakery_name,
-      bakery_profile_picture: donation.bakery_profile_picture,
-      bakery_inventory_id: newRequest.bakery_inventory_id,
-    };
-
-    const bakeryInfo = {
-      id: donation.bakery_id,
-      name: donation.bakery_name,
-      profile_picture: donation.bakery_profile_picture || null,
-    };
-
-    localStorage.setItem("open_chat_with", JSON.stringify(bakeryInfo));
-    localStorage.setItem("send_donation", JSON.stringify(donationCardData));
-    window.dispatchEvent(new Event("open_chat"));
-
-    Swal.fire("Success", "Donation request sent!", "success");
-  } catch (err) {
-    console.error(err);
-    Swal.fire(
-      "Error",
-      err.response?.data?.detail || "Failed to request donation",
-      "error"
-    );
-  }
-};
+      Swal.fire("Success", "Donation request sent!", "success");
+    } catch (err) {
+      console.error(err);
+      Swal.fire(
+        "Error",
+        err.response?.data?.detail || "Failed to request donation",
+        "error"
+      );
+    }
+  };
 
   const cancelRequest = async (donation_id) => {
     const request_id = requestedDonations[donation_id];

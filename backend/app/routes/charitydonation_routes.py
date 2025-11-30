@@ -120,7 +120,10 @@ def request_donation(
     if total_not_complete >= 3:
         raise HTTPException(
             status_code=400,
-            detail=f"You have {total_not_complete} donations not complete. Please complete."
+            detail=(
+                "You can only have 3 pending donation requests at a time. "
+                "Please resolve, finish, or complete your pending requests or transactions before making a new one."
+            )
         )
     
     donation = db.query(models.Donation).filter(models.Donation.id == payload.donation_id).first()

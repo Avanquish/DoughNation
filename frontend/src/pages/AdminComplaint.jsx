@@ -21,20 +21,24 @@ import {
 const formatDate = (s) => {
   if (!s) return "—";
 
-  let value = s;
-
-  // pag walang timezone, treat as UTC para hindi mag-shift
-  if (
-    typeof s === "string" &&
-    !/[zZ]|[+\-]\d{2}:\d{2}$/.test(s) // no Z or +08:00, etc.
-  ) {
-    value = s + "Z";
+  // Parse datetime string - treat as Philippines time (UTC+8)
+  // Backend sends: "2024-11-29 18:40:00" (already in PH time)
+  let dateStr = s;
+  
+  // Add 'T' if space exists (SQL datetime format)
+  if (typeof s === "string" && s.includes(' ')) {
+    dateStr = s.replace(' ', 'T');
   }
-
-  const d = new Date(value);
+  
+  // Parse as UTC first, then subtract 8 hours to get the correct UTC time
+  // because the string is actually PH time (UTC+8)
+  const d = new Date(dateStr + '+08:00'); // Tell JS this is UTC+8
+  
   if (isNaN(d)) return "—";
 
+  // Display in Philippines timezone
   return d.toLocaleString("en-US", {
+    timeZone: "Asia/Manila",
     month: "short",
     day: "2-digit",
     year: "numeric",
@@ -49,6 +53,7 @@ export default function AdminComplaints() {
   const [loading, setLoading] = useState(true);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [replyMessage, setReplyMessage] = useState("");
+  const [isSendingReply, setIsSendingReply] = useState(false);
 
   // --- UI: search + status filter + pagination ---
   const [searchTerm, setSearchTerm] = useState("");
@@ -105,14 +110,41 @@ export default function AdminComplaints() {
   // Update complaint status
   const updateStatus = async (id, newStatus) => {
     try {
+      // If changing to "Resolved", open the reply modal instead
+      if (newStatus === "Resolved") {
+        const complaint = complaints.find((c) => c.id === id);
+        if (complaint) {
+          openReplyDialog(complaint);
+        }
+        return;
+      }
+
+      // Update status normally for other cases
       await axios.put(
         `https://api.doughnationhq.cloud/complaints/${id}/status`,
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+
+      // If changing to "In Review", send notification to user
+      if (newStatus === "In Review") {
+        Swal.fire({
+          icon: "success",
+          title: "Status Updated",
+          text: "The user has been notified that their concern is now under review.",
+          timer: 2500,
+          showConfirmButton: false,
+        });
+      }
+
       fetchComplaints();
     } catch (err) {
       console.error("Error updating complaint status:", err);
+      Swal.fire({
+        icon: "error",
+        title: "Failed to Update Status",
+        text: err.response?.data?.detail || "An error occurred while updating the status.",
+      });
     }
   };
 
@@ -127,7 +159,12 @@ export default function AdminComplaints() {
       return;
     }
 
+    // Prevent double submission
+    if (isSendingReply) return;
+
     try {
+      setIsSendingReply(true);
+
       await axios.post(
         `https://api.doughnationhq.cloud/complaints/${selectedComplaint.id}/reply`,
         {
@@ -157,6 +194,8 @@ export default function AdminComplaints() {
           err.response?.data?.detail ||
           "An error occurred while sending the reply.",
       });
+    } finally {
+      setIsSendingReply(false);
     }
   };
 
@@ -408,7 +447,7 @@ export default function AdminComplaints() {
                         </th>
                       )}
                       {visibleColumns.actions && (
-                        <th className="px-3 py-3 text-center font-semibold w-[200px]">
+                        <th className="px-3 py-3 text-center font-semibold w-[160px]">
                           Actions
                         </th>
                       )}
@@ -465,60 +504,57 @@ export default function AdminComplaints() {
 
                           {visibleColumns.actions && (
                             <td className="px-3 py-3">
-                              <div className="flex items-center justify-center gap-2">
-                                {/* STATUS DROPDOWN */}
-                                <Select
-                                  onValueChange={(val) =>
-                                    updateStatus(c.id, val)
-                                  }
-                                  defaultValue={c.status}
-                                >
-                                  <SelectTrigger className="w-[150px] justify-between rounded-full border border-[#f2e3cf] bg-[#FFF9F1] px-4 py-2 text-xs sm:text-sm font-semibold text-[#6b4b2b] shadow-sm hover:bg-[#FFEBD5] focus:ring-2 focus:ring-[#E49A52] focus:ring-offset-0">
-                                    <SelectValue placeholder="Status" />
-                                  </SelectTrigger>
+                              <div className="flex items-center justify-center">
+                                {/* If Resolved, show static status */}
+                                {c.status === "Resolved" ? (
+                                  <div className="w-[150px] rounded-full border border-[#bbecd0] bg-[#e8f7ee] px-4 py-2 text-xs sm:text-sm font-semibold text-[#166534] text-center">
+                                    Resolved
+                                  </div>
+                                ) : (
+                                  /* STATUS DROPDOWN for non-resolved */
+                                  <Select
+                                    onValueChange={(val) =>
+                                      updateStatus(c.id, val)
+                                    }
+                                    value={c.status}
+                                  >
+                                    <SelectTrigger className="w-[150px] justify-between rounded-full border border-[#f2e3cf] bg-[#FFF9F1] px-4 py-2 text-xs sm:text-sm font-semibold text-[#6b4b2b] shadow-sm hover:bg-[#FFEBD5] focus:ring-2 focus:ring-[#E49A52] focus:ring-offset-0">
+                                      <SelectValue placeholder="Status" />
+                                    </SelectTrigger>
 
-                                  <SelectContent className="min-w-[180px] rounded-2xl border border-[#f2e3cf] bg-white shadow-xl py-1">
-                                    <SelectItem
-                                      value="Pending"
-                                      className="relative cursor-pointer select-none px-4 py-2 text-sm text-[#4A2F17] outline-none data-[highlighted]:bg-[#FFF6EC] data-[highlighted]:text-[#4A2F17] data-[state=checked]:bg-[#FFF1DA] data-[state=checked]:font-semibold [&>span:first-child]:hidden"
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <span className="h-2.5 w-2.5 rounded-full bg-[#F97316]" />
-                                        <span>Pending</span>
-                                      </div>
-                                    </SelectItem>
+                                    <SelectContent className="min-w-[180px] rounded-2xl border border-[#f2e3cf] bg-white shadow-xl py-1">
+                                      <SelectItem
+                                        value="Pending"
+                                        className="relative cursor-pointer select-none px-4 py-2 text-sm text-[#4A2F17] outline-none data-[highlighted]:bg-[#FFF6EC] data-[highlighted]:text-[#4A2F17] data-[state=checked]:bg-[#FFF1DA] data-[state=checked]:font-semibold [&>span:first-child]:hidden"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span className="h-2.5 w-2.5 rounded-full bg-[#F97316]" />
+                                          <span>Pending</span>
+                                        </div>
+                                      </SelectItem>
 
-                                    <SelectItem
-                                      value="In Review"
-                                      className="relative cursor-pointer select-none px-4 py-2 text-sm text-[#4A2F17] outline-none data-[highlighted]:bg-[#FFF6EC] data-[highlighted]:text-[#4A2F17] data-[state=checked]:bg-[#FFF1DA] data-[state=checked]:font-semibold [&>span:first-child]:hidden"
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <span className="h-2.5 w-2.5 rounded-full bg-[#FACC15]" />
-                                        <span>In Review</span>
-                                      </div>
-                                    </SelectItem>
+                                      <SelectItem
+                                        value="In Review"
+                                        className="relative cursor-pointer select-none px-4 py-2 text-sm text-[#4A2F17] outline-none data-[highlighted]:bg-[#FFF6EC] data-[highlighted]:text-[#4A2F17] data-[state=checked]:bg-[#FFF1DA] data-[state=checked]:font-semibold [&>span:first-child]:hidden"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span className="h-2.5 w-2.5 rounded-full bg-[#FACC15]" />
+                                          <span>In Review</span>
+                                        </div>
+                                      </SelectItem>
 
-                                    <SelectItem
-                                      value="Resolved"
-                                      className="relative cursor-pointer select-none px-4 py-2 text-sm text-[#4A2F17] outline-none data-[highlighted]:bg-[#FFF6EC] data-[highlighted]:text-[#4A2F17] data-[state=checked]:bg-[#FFF1DA] data-[state=checked]:font-semibold [&>span:first-child]:hidden"
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <span className="h-2.5 w-2.5 rounded-full bg-[#22C55E]" />
-                                        <span>Resolved</span>
-                                      </div>
-                                    </SelectItem>
-                                  </SelectContent>
-                                </Select>
-
-                                <Button
-                                  onClick={() => openReplyDialog(c)}
-                                  className="rounded-full px-3 py-1 text-xs font-semibold text-white
-                                       bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327]
-                                       shadow-sm hover:brightness-105"
-                                  size="sm"
-                                >
-                                  Send Message
-                                </Button>
+                                      <SelectItem
+                                        value="Resolved"
+                                        className="relative cursor-pointer select-none px-4 py-2 text-sm text-[#4A2F17] outline-none data-[highlighted]:bg-[#FFF6EC] data-[highlighted]:text-[#4A2F17] data-[state=checked]:bg-[#FFF1DA] data-[state=checked]:font-semibold [&>span:first-child]:hidden"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span className="h-2.5 w-2.5 rounded-full bg-[#22C55E]" />
+                                          <span>Resolved</span>
+                                        </div>
+                                      </SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                )}
                               </div>
                             </td>
                           )}
@@ -658,11 +694,12 @@ export default function AdminComplaints() {
               </Button>
               <Button
                 onClick={sendReply}
+                disabled={isSendingReply}
                 className="rounded-full px-5 font-semibold text-white
                          bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327]
-                         shadow-md hover:brightness-105"
+                         shadow-md hover:brightness-105 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Send Reply & Resolve
+                {isSendingReply ? "Sending..." : "Send Reply & Resolve"}
               </Button>
             </div>
           </div>

@@ -338,3 +338,16 @@ def can_edit_own_only(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="You can only edit your own records"
     )
+
+def get_donor_name_from_auth(current_auth):
+    """
+    Extract the donor name (owner or employee name) from authentication.
+    Returns the actual person's name who is making the donation.
+    """
+    if isinstance(current_auth, dict):
+        # It's an employee token
+        return current_auth.get("employee_name", "Employee")
+    else:
+        # It's a bakery owner (User object)
+        # Use contact_person (owner's name) instead of bakery name
+        return current_auth.contact_person or current_auth.name or "Owner"

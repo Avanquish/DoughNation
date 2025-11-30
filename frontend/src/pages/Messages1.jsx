@@ -42,15 +42,39 @@ const toManilaDate = (ts) => {
 
 const formatTime = (ts) => {
   try {
-    const d = toManilaDate(ts);
-    if (!d || isNaN(d.getTime())) return String(ts);
+    if (!ts) return "";
+    
+    let date;
+    
+    // Handle different timestamp formats
+    if (typeof ts === "number") {
+      // Unix timestamp in milliseconds
+      date = new Date(ts);
+    } else if (typeof ts === "string") {
+      // Try parsing as ISO string first
+      date = new Date(ts);
+      
+      // If invalid, try manual parsing
+      if (isNaN(date.getTime())) {
+        // Handle format like "2024-01-15 10:30:00"
+        const normalized = ts.trim().replace(" ", "T");
+        date = new Date(normalized);
+      }
+    } else {
+      return String(ts);
+    }
+    
+    if (isNaN(date.getTime())) return String(ts);
+    
+    // Format in Asia/Manila timezone
     return new Intl.DateTimeFormat("en-PH", {
-      hour: "2-digit",
+      hour: "numeric",
       minute: "2-digit",
       hour12: true,
       timeZone: "Asia/Manila",
-    }).format(d);
-  } catch {
+    }).format(date);
+  } catch (err) {
+    console.error("Error formatting time:", err);
     return String(ts);
   }
 };
@@ -391,6 +415,9 @@ export default function Messages({ currentUser: currentUserProp }) {
 
       if (decoded.type === "employee") {
         return decoded.employee_name || decoded.name || "Employee";
+      } else if (decoded.type === "bakery") {
+        // For bakery users, use contact_person (owner's name) instead of bakery name
+        return decoded.contact_person || decoded.name || "User";
       } else {
         return decoded.name || "User";
       }
@@ -631,6 +658,12 @@ export default function Messages({ currentUser: currentUserProp }) {
       return;
     }
 
+    // Prevent double-clicks
+    if (disabledDonations.has(donation.id)) {
+      console.log("Action already in progress for donation:", donation.id);
+      return;
+    }
+
     setDisabledDonations((prev) => new Set(prev).add(donation.id));
 
     try {
@@ -667,7 +700,12 @@ export default function Messages({ currentUser: currentUserProp }) {
       await fetchAllDonationStatuses();
       await fetchRemovedProducts();
 
+      if (donation.bakery_inventory_id) {
+        await fetchInventoryStatus(donation.bakery_inventory_id);
+      }
+
       if (accepted_charity_id) {
+        // Send confirmation to charity
         await axios.post(
           `${API_URL}/messages/send`,
           {
@@ -693,7 +731,7 @@ export default function Messages({ currentUser: currentUserProp }) {
               content: JSON.stringify({
                 type: "donation_unavailable",
                 donation,
-                message: `Sorry ${donation_name} has already been donated to other charity.`,
+                message: `Request cancelled: You requested ${donation?.quantity} quantity but only ${remainingQty} remaining. You can request again`,
               }),
             },
             opts
@@ -736,14 +774,32 @@ export default function Messages({ currentUser: currentUserProp }) {
       return;
     }
 
+    // Prevent double-clicks
+    if (disabledDonations.has(donation.id)) {
+      console.log("Action already in progress for donation:", donation.id);
+      return;
+    }
+
     setDisabledDonations((prev) => new Set(prev).add(donation.id));
 
     try {
       const opts = makeAuthOpts();
 
+      // Change the message to show it's cancelled instead of deleting
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === donationCardMessage.id ? { ...m, cancelled: true } : m
+          m.id === donationCardMessage.id
+            ? {
+                ...m,
+                cancelled: true,
+                content: JSON.stringify({
+                type: "donation_request_cancelled",
+                donation,
+                message: "Donation request cancelled by bakery",
+                cancelledBy: "bakery"
+              }),
+              }
+            : m
         )
       );
 
@@ -758,19 +814,14 @@ export default function Messages({ currentUser: currentUserProp }) {
         opts
       );
 
-      try {
-        await deleteThisMessage(donationCardMessage.id);
-      } catch (err) {
-        console.error(err);
-      }
-
       const detail = {
         request_id: donation.id,
         message_id: donationCardMessage.id,
         donation_id: donation.id || donation.id,
         charity_id: originalCharityId,
+        cancelledBy: "bakery"  // <-- ADD THIS LINE
       };
-      window.dispatchEvent(new CustomEvent("donation_cancelled", { detail }));
+      window.dispatchEvent(new CustomEvent("donation_cancelled", { detail })); 
 
       try {
         await axios.post(
@@ -791,6 +842,11 @@ export default function Messages({ currentUser: currentUserProp }) {
       }
     } catch (err) {
       console.error("Failed to cancel donation:", err?.response?.data || err);
+
+      if (donation?.bakery_inventory_id) {
+        await fetchInventoryStatus(donation.bakery_inventory_id);
+      }
+
     } finally {
       setDisabledDonations((prev) => {
         const copy = new Set(prev);
@@ -801,7 +857,9 @@ export default function Messages({ currentUser: currentUserProp }) {
   };
 
   /* Unified delete */
-  const deleteThisMessage = async (id) => {
+  const deleteThisMessage = async (id, forEveryone = true) => {
+  if (forEveryone) {
+    // Delete for everyone - show tombstone
     setMessages((prev) =>
       prev.map((m) =>
         m.id === id
@@ -823,18 +881,22 @@ export default function Messages({ currentUser: currentUserProp }) {
           : m
       )
     );
+  } else {
+    // Delete for me only - remove from local state
+    setMessages((prev) => prev.filter((m) => m.id !== id));
+  }
 
-    try {
-      await axios.post(
-        `${API_URL}/messages/delete`,
-        { id, for_all: true }, // reflect to both users
-        makeAuthOpts()
-      );
-      fetchActiveChats();
-    } catch (err) {
-      console.debug("deleteThisMessage failed:", err?.message || err);
-    }
-  };
+  try {
+    await axios.post(
+      `${API_URL}/messages/delete`,
+      { id, for_all: forEveryone },
+      makeAuthOpts()
+    );
+    fetchActiveChats();
+  } catch (err) {
+    console.debug("deleteThisMessage failed:", err?.message || err);
+  }
+};
 
   const removePendingDonation = (donationCardMessage) => {
     if (!donationCardMessage) return;
@@ -871,9 +933,10 @@ export default function Messages({ currentUser: currentUserProp }) {
         return {
           isMedia: false,
           tombstone: true,
+          undeletable: true,
           body: (
-            <div>
-              <em>This message was deleted</em>
+            <div style={{ fontStyle: "italic" }}>
+              <em>Message deleted for everyone</em>
             </div>
           ),
         };
@@ -884,11 +947,31 @@ export default function Messages({ currentUser: currentUserProp }) {
         const iAmReceiver = Number(m.receiver_id) === Number(currentUser?.id);
 
         const inventoryId = d.bakery_inventory_id;
+        const requestId = d.id || d.request_id || d.donation_request_id;
+        
         const inventoryStatus = inventoryStatuses.get(inventoryId);
-
-        const hasAccepted = inventoryStatus?.has_accepted || false;
-        const shouldShowButtons = !hasAccepted && inventoryStatus;
         const employeeToken = localStorage.getItem("employeeToken");
+        const bakeryToken = localStorage.getItem("token");
+        const isBakeryUser = employeeToken || bakeryToken;
+
+        // Get this specific request's status from backend
+        const thisRequestStatus = inventoryStatus?.request_statuses?.[requestId];
+        
+        // ONLY use backend flags - NO time calculations
+        const shouldShowAcceptButton = thisRequestStatus?.show_accept_button === true;
+        const shouldShowCancelButton = thisRequestStatus?.show_cancel_button === true;
+        
+        // Show buttons ONLY if: bakery user (owner/manager/employee) AND backend says show them
+        const showButtons = iAmReceiver && isBakeryUser && (shouldShowAcceptButton || shouldShowCancelButton);
+
+        // Get display status
+        const requestStatus = thisRequestStatus?.status || "unknown";
+        const isAccepted = requestStatus === "accepted";
+        const isCanceled = requestStatus === "canceled";
+        const isPending = requestStatus === "pending";
+        
+        const remainingQty = inventoryStatus?.remaining_quantity ?? null;
+        const isInventoryEmpty = remainingQty !== null && remainingQty <= 0;
 
         return {
           isMedia: false,
@@ -896,26 +979,104 @@ export default function Messages({ currentUser: currentUserProp }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <div style={{ fontWeight: 800 }}>Donation Request</div>
               <div style={{ fontSize: 13 }}>
-                {d.product_name || d.name || "Baked Goods"} • Qty:{" "}
+                {d.product_name || d.name || "Baked Goods"} • Requested Qty:{" "}
                 {d.quantity ?? "-"}
               </div>
 
-              {shouldShowButtons && iAmReceiver && (
+              {/* Show accepted badge */}
+              {isAccepted && (
+                <div style={{ 
+                  fontSize: 12, 
+                  color: "#166534", 
+                  fontStyle: "italic",
+                  padding: "6px 10px",
+                  background: "#dcfce7",
+                  borderRadius: "8px",
+                  border: "1px solid #86efac",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6
+                }}>
+                  <Check className="w-4 h-4" />
+                  <span>
+                    Accepted
+                    {thisRequestStatus?.accepted_by && ` by ${thisRequestStatus.accepted_by}`}
+                  </span>
+                </div>
+              )}
+
+              {/* Show cancelled badge */}
+              {isCanceled && (
+                <div style={{ 
+                  fontSize: 12, 
+                  color: "#991b1b", 
+                  fontStyle: "italic",
+                  padding: "6px 10px",
+                  background: "#fee2e2",
+                  borderRadius: "8px",
+                  border: "1px solid #fecaca",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6
+                }}>
+                  <XCircle className="w-4 h-4" />
+                  <span>Request Cancelled</span>
+                </div>
+              )}
+
+              {/* Show available quantity for pending requests */}
+              {isPending && remainingQty !== null && (
+                <div style={{ 
+                  fontSize: 11, 
+                  color: isInventoryEmpty ? "#991b1b" : "#059669",
+                  fontWeight: 600,
+                  padding: "4px 8px",
+                  background: isInventoryEmpty ? "#fee2e2" : "#d1fae5",
+                  borderRadius: "6px",
+                  border: `1px solid ${isInventoryEmpty ? "#fecaca" : "#6ee7b7"}`
+                }}>
+                  {isInventoryEmpty 
+                    ? "⚠️ No inventory remaining" 
+                    : `✓ Available: ${remainingQty} remaining`}
+                </div>
+              )}
+
+              {/* Show buttons based ONLY on backend flags */}
+              {showButtons && (
                 <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                  <button
-                    className="btn-mini accept"
-                    onClick={() => acceptDonation(m)}
-                    disabled={disabledDonations.has(d.id)}
-                  >
-                    <Check className="w-4 h-4" /> Accept
-                  </button>
-                  <button
-                    className="btn-mini"
-                    onClick={() => cancelDonation(m)}
-                    disabled={disabledDonations.has(d.id)}
-                  >
-                    <XCircle className="w-4 h-4" /> Cancel
-                  </button>
+                  {shouldShowAcceptButton && (
+                    <button
+                      className="btn-mini accept"
+                      onClick={() => acceptDonation(m)}
+                      disabled={disabledDonations.has(d.id)}
+                    >
+                      <Check className="w-4 h-4" /> Accept
+                    </button>
+                  )}
+                  {shouldShowCancelButton && (
+                    <button
+                      className="btn-mini"
+                      onClick={() => cancelDonation(m)}
+                      disabled={disabledDonations.has(d.id)}
+                    >
+                      <XCircle className="w-4 h-4" /> Cancel
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Warning if pending but inventory gone */}
+              {isPending && isInventoryEmpty && (
+                <div style={{ 
+                  fontSize: 12, 
+                  color: "#92400e",
+                  fontStyle: "italic",
+                  padding: "6px 10px",
+                  background: "#fef3c7",
+                  borderRadius: "8px",
+                  border: "1px solid #fcd34d"
+                }}>
+                  ⚠️ This item has been fully donated to others
                 </div>
               )}
             </div>
@@ -957,6 +1118,41 @@ export default function Messages({ currentUser: currentUserProp }) {
         };
       }
 
+      if (parsed?.type === "bakery_donation_accepted") {
+        const { donation, message } = parsed;
+        return {
+          isMedia: false,
+          undeletable: true,
+          body: (
+            <div
+              className="flex items-center gap-2 p-3 border rounded-2xl bg-green-50"
+              style={{ alignItems: "center" }}
+            >
+              {donation?.image && (
+                <img
+                  src={`${API_URL}/${donation.image}`}
+                  alt={donation.name}
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 10,
+                    objectFit: "cover",
+                  }}
+                />
+              )}
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <strong style={{ color: "#166534" }}>
+                  {message || "You successfully donated this item!"}
+                </strong>
+                <span style={{ fontSize: 13, color: "#374151" }}>
+                  {donation?.name || donation?.product_name} • Qty: {donation?.quantity}
+                </span>
+              </div>
+            </div>
+          ),
+        };
+      }
+
       if (parsed?.type === "donation_unavailable") {
         const { donation, message } = parsed;
         return {
@@ -982,10 +1178,21 @@ export default function Messages({ currentUser: currentUserProp }) {
                 <strong style={{ color: "#991b1b" }}>
                   {message || "This donation is no longer available."}
                 </strong>
-                <span style={{ fontSize: 13, color: "#374151" }}>
-                  {donation?.name} • Qty: {donation?.quantity}
-                </span>
               </div>
+            </div>
+          ),
+        };
+      }
+
+      if (parsed?.type === "donation_request_cancelled") {
+        const { donation, message, cancelledBy } = parsed;
+        const displayMessage = message || (cancelledBy === "bakery" ? "Donation request cancelled by bakery" : "Donation request cancelled");
+        return {
+          isMedia: false,
+          undeletable: true,
+          body: (
+            <div style={{ fontStyle: "italic", color: "#6b7280" }}>
+              <em>{displayMessage}</em>
             </div>
           ),
         };
@@ -1205,29 +1412,31 @@ export default function Messages({ currentUser: currentUserProp }) {
   useEffect(() => {
     if (!selectedUser || filteredMessages.length === 0) return;
 
+    // Collect all inventory IDs from donation cards
+    const inventoryIds = new Set();
+    filteredMessages.forEach((m) => {
+      try {
+        const parsed = typeof m.content === "string" ? JSON.parse(m.content) : m.content;
+        if (parsed?.type === "donation_card" && parsed?.donation?.bakery_inventory_id) {
+          inventoryIds.add(parsed.donation.bakery_inventory_id);
+        }
+      } catch {}
+    });
+
+    // Fetch immediately when component loads
+    inventoryIds.forEach((id) => {
+      fetchInventoryStatus(id);
+    });
+
+    // Poll every 2 seconds (faster response)
     const pollInterval = setInterval(() => {
-      const inventoryIds = new Set();
-
-      filteredMessages.forEach((m) => {
-        try {
-          const parsed =
-            typeof m.content === "string" ? JSON.parse(m.content) : m.content;
-          if (
-            parsed?.type === "donation_card" &&
-            parsed?.donation?.bakery_inventory_id
-          ) {
-            inventoryIds.add(parsed.donation.bakery_inventory_id);
-          }
-        } catch {}
-      });
-
       inventoryIds.forEach((id) => {
         fetchInventoryStatus(id);
       });
-    }, 3000);
+    }, 2000);
 
     return () => clearInterval(pollInterval);
-  }, [selectedUser, filteredMessages]);
+  }, [selectedUser, filteredMessages.length]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -1295,28 +1504,51 @@ export default function Messages({ currentUser: currentUserProp }) {
   useEffect(() => {
     const handleCancel = (e) => {
       const donation_id = e.detail?.donation_id;
+      const request_id = e.detail?.request_id;
+      const cancelledBy = e.detail?.cancelledBy || "bakery"; // <-- GET cancelledBy from event
       if (!donation_id) return;
 
       setCancelledDonationIds((prev) => new Set(prev).add(donation_id));
 
-      const cardsToDelete = messages.filter((m) => {
-        try {
-          const parsed = JSON.parse(m.content);
-          return (
-            parsed?.donation?.donation_id === donation_id &&
-            parsed.type === "donation_card"
-          );
-        } catch {
-          return false;
-        }
-      });
-
-      cardsToDelete.forEach((m) => deleteThisMessage(m.id));
+      // Find donation cards to update (not delete)
+      setMessages((prev) =>
+        prev.map((m) => {
+          try {
+            const parsed = JSON.parse(m.content);
+            // Check if this is the donation card that was cancelled
+            if (
+              parsed?.type === "donation_card" &&
+              (parsed?.donation?.id === donation_id || 
+              parsed?.donation?.donation_id === donation_id ||
+              (request_id && parsed?.donation?.id === request_id))
+            ) {
+              // Update the message to show cancelled status
+              const message = cancelledBy === "bakery" 
+                ? "Donation request cancelled by bakery" 
+                : "Donation request cancelled";
+              
+              return {
+                ...m,
+                cancelled: true,
+                content: JSON.stringify({
+                  type: "donation_request_cancelled",
+                  donation: parsed.donation,
+                  message: message,
+                  cancelledBy: cancelledBy
+                }),
+              };
+            }
+            return m;
+          } catch {
+            return m;
+          }
+        })
+      );
     };
 
     window.addEventListener("donation_cancelled", handleCancel);
     return () => window.removeEventListener("donation_cancelled", handleCancel);
-  }, [messages]);
+  }, []);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -1642,8 +1874,10 @@ export default function Messages({ currentUser: currentUserProp }) {
                       const donationTypes = [
                         "donation_card",
                         "confirmed_donation",
+                        "bakery_donation_accepted",
                         "donation_unavailable",
                         "donation_cancelled",
+                        "donation_request_cancelled",
                       ];
                       const meId = Number(currentUser?.id);
                       const involved =
@@ -1698,6 +1932,7 @@ export default function Messages({ currentUser: currentUserProp }) {
                         const donationTypes = [
                           "donation_card",
                           "confirmed_donation",
+                          "bakery_donation_accepted",
                           "donation_unavailable",
                           "donation_cancelled",
                         ];
@@ -1707,6 +1942,10 @@ export default function Messages({ currentUser: currentUserProp }) {
                           last.deleted_for_all
                         ) {
                           snippet = "Message deleted";
+                        } else if (
+                          parsed?.type === "donation_request_cancelled"
+                        ) {
+                          snippet = "Donation request cancelled";
                         } else if (
                           parsed &&
                           donationTypes.includes(parsed.type)
@@ -1723,6 +1962,10 @@ export default function Messages({ currentUser: currentUserProp }) {
                                 ? "Donation Request"
                                 : parsed.type === "confirmed_donation"
                                 ? "Donation Request Confirmed"
+                                : parsed.type === "bakery_donation_accepted"
+                                ? "Donation Accepted"
+                                : parsed.type === "donation_request_cancelled"
+                                ? "Donation request cancelled"
                                 : parsed.message ||
                                   last.content ||
                                   "Donation Update";
@@ -1943,6 +2186,8 @@ export default function Messages({ currentUser: currentUserProp }) {
                     const iAmReceiver =
                       Number(card.receiver_id) === Number(currentUser?.id);
                     const employeeToken = localStorage.getItem("employeeToken");
+                    const bakeryToken = localStorage.getItem("token");
+                    const isBakeryUser = employeeToken || bakeryToken;
 
                     return (
                       <div key={`pend-${card.id}`} className="pend-row">
@@ -1964,7 +2209,7 @@ export default function Messages({ currentUser: currentUserProp }) {
                           >
                             Open
                           </button>
-                          {iAmReceiver && employeeToken && (
+                          {iAmReceiver && isBakeryUser && (
                             <>
                               <button
                                 className="btn-mini accept"
@@ -2024,7 +2269,7 @@ export default function Messages({ currentUser: currentUserProp }) {
                         ref={setMsgRef(m.id)}
                         className={`msg-row ${me ? "right" : "left"}`}
                       >
-                        {me && (
+                        {me && !render.undeletable && (
                           <div className="left-controls">
                             <button
                               className="icon-btn-tiny"
@@ -2043,10 +2288,19 @@ export default function Messages({ currentUser: currentUserProp }) {
                                   className="ctx-item"
                                   onClick={() => {
                                     setMenuOpenId(null);
-                                    deleteThisMessage(m.id);
+                                    deleteThisMessage(m.id, true); // for everyone
                                   }}
                                 >
-                                  Delete this message
+                                  Delete for everyone
+                                </button>
+                                <button
+                                  className="ctx-item"
+                                  onClick={() => {
+                                    setMenuOpenId(null);
+                                    deleteThisMessage(m.id, false); // for me only
+                                  }}
+                                >
+                                  Delete for me
                                 </button>
                               </div>
                             )}

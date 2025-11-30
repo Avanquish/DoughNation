@@ -65,6 +65,16 @@ export default function BakeryReports() {
   const formatHeader = (h) =>
     h.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
+  // Get current date in Philippine timezone (YYYY-MM-DD format)
+  const getPhilippineDate = () => {
+    const now = new Date();
+    const phTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+    const year = phTime.getFullYear();
+    const month = String(phTime.getMonth() + 1).padStart(2, '0');
+    const day = String(phTime.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const handleWeeklyFilter = () => {
     const effType = "weekly";
     if (!weekStart || !weekEnd) {
@@ -2176,7 +2186,7 @@ export default function BakeryReports() {
                     type="date"
                     value={donationHistoryStart}
                     onChange={(e) => setDonationHistoryStart(e.target.value)}
-                    max={new Date().toISOString().split("T")[0]}
+                    max={getPhilippineDate()}
                     className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                   />
                 </div>
@@ -2188,7 +2198,7 @@ export default function BakeryReports() {
                     type="date"
                     value={donationHistoryEnd}
                     onChange={(e) => setDonationHistoryEnd(e.target.value)}
-                    max={new Date().toISOString().split("T")[0]}
+                    max={getPhilippineDate()}
                     className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                   />
                 </div>
@@ -2259,7 +2269,7 @@ export default function BakeryReports() {
                     type="date"
                     value={bakeryListStart}
                     onChange={(e) => setBakeryListStart(e.target.value)}
-                    max={new Date().toISOString().split("T")[0]}
+                    max={getPhilippineDate()}
                     className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                   />
                 </div>
@@ -2271,7 +2281,7 @@ export default function BakeryReports() {
                     type="date"
                     value={bakeryListEnd}
                     onChange={(e) => setBakeryListEnd(e.target.value)}
-                    max={new Date().toISOString().split("T")[0]}
+                    max={getPhilippineDate()}
                     className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                   />
                 </div>
@@ -2368,7 +2378,7 @@ export default function BakeryReports() {
                             type="date"
                             value={weekStart}
                             onChange={(e) => setWeekStart(e.target.value)}
-                            max={new Date().toISOString().split("T")[0]}
+                            max={getPhilippineDate()}
                             className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                           />
                         </div>
@@ -2380,7 +2390,7 @@ export default function BakeryReports() {
                             type="date"
                             value={weekEnd}
                             onChange={(e) => setWeekEnd(e.target.value)}
-                            max={new Date().toISOString().split("T")[0]}
+                            max={getPhilippineDate()}
                             className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                           />
                         </div>
@@ -2401,7 +2411,7 @@ export default function BakeryReports() {
                             type="month"
                             value={selectedMonth}
                             onChange={(e) => setSelectedMonth(e.target.value)}
-                            max={new Date().toISOString().slice(0, 7)}
+                            max={getPhilippineDate().slice(0, 7)}
                             className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                           />
                         </div>
@@ -2422,7 +2432,7 @@ export default function BakeryReports() {
                             type="date"
                             value={customStart}
                             onChange={(e) => setCustomStart(e.target.value)}
-                            max={new Date().toISOString().split("T")[0]}
+                            max={getPhilippineDate()}
                             className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                           />
                         </div>
@@ -2434,7 +2444,7 @@ export default function BakeryReports() {
                             type="date"
                             value={customEnd}
                             onChange={(e) => setCustomEnd(e.target.value)}
-                            max={new Date().toISOString().split("T")[0]}
+                            max={getPhilippineDate()}
                             className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                           />
                         </div>

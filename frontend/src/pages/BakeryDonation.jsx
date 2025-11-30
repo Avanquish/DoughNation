@@ -227,22 +227,19 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
     const recIds = new Set(rec.map((i) => i.id));
     return { recommended: rec, rest: items.filter((i) => !recIds.has(i.id)) };
   };
-  
+
   const fetchInventory = async () => {
-  try {
-    const res = await axios.get(`${API}/inventory`, { headers });
-    const ok = (res.data || []).filter((it) => {
-      const s = String(it.status || "").toLowerCase();
-      const isExpiredItem = isExpired(it.expiration_date, currentServerDate);
-      const quantity = Number(it.quantity) || 0;
-      
-      return (
-        s !== "donated" &&
-        s !== "requested" &&
-        !isExpiredItem &&
-        quantity > 0
-      );
-    });
+    try {
+      const res = await axios.get(`${API}/inventory`, { headers });
+      const ok = (res.data || []).filter((it) => {
+        const s = String(it.status || "").toLowerCase();
+        const isExpiredItem = isExpired(it.expiration_date, currentServerDate);
+        const quantity = Number(it.quantity) || 0;
+
+        return (
+          s !== "donated" && s !== "requested" && !isExpiredItem && quantity > 0
+        );
+      });
       setInventory(ok);
       setRecommendedInventory(getRecommendedInventory(ok));
     } catch {}
@@ -460,11 +457,6 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                         <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#FFEFD9] border border-[#f3ddc0] text-[#6b4b2b]">
                           Qty: {d.quantity ?? "—"}
                         </span>
-                        {d.threshold != null && (
-                          <span className="text-xs font-semibold px-2 py-1 rounded-full bg-[#FFF6E9] border border-[#f4e6cf] text-[#6b4b2b]">
-                            Threshold: {d.threshold}
-                          </span>
-                        )}
                       </div>
 
                       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -837,29 +829,16 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                   </label>
                   <div className="relative">
                     <input
-                      className="w-full rounded-2xl border border-[#f2d4b5] bg-white/95 px-4 py-3.5 text-[15px] outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52] transition"
+                      className="w-full bg-transparent px-4 py-3.5 text-[15px] text-[#6b4b2b] font-semibold border-0 shadow-none outline-none focus:ring-0 focus:border-0 placeholder:text-[#C9A27A] cursor-default"
                       placeholder="e.g., Cookies"
                       value={form.name}
                       onChange={(e) =>
                         setForm({ ...form, name: e.target.value })
                       }
+                      readOnly
                       required
                     />
-                    <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                      >
-                        <path
-                          d="M4 7h16M4 12h10M4 17h7"
-                          stroke="#BF7327"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    </div>
+                    <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center"></div>
                   </div>
                 </div>
 
@@ -900,19 +879,19 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                         );
                       }}
                       onChange={(e) => {
-                        const value =
-                          e.target.value === ""
-                            ? ""
-                            : parseInt(e.target.value, 10);
+                        const rawValue = e.target.value;
+                        
+                        // Allow empty string (for backspacing/deleting)
+                        if (rawValue === "") {
+                          setForm((f) => ({ ...f, quantity: "" }));
+                          return;
+                        }
 
-                        if (value === 0) {
-                          Swal.fire({
-                            title: "Invalid Quantity",
-                            text: "Quantity must be at least 1.",
-                            icon: "warning",
-                            confirmButtonColor: "#A97142",
-                            timer: 2500,
-                          });
+                        const value = parseInt(rawValue, 10);
+
+                        // Validate the value
+                        if (isNaN(value) || value === 0) {
+                          setForm((f) => ({ ...f, quantity: "" }));
                           return;
                         }
 
@@ -921,14 +900,19 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                             (x) => Number(x.id) === +f.bakery_inventory_id
                           );
                           const maxQ = chosen ? Number(chosen.quantity) : 1;
-                          const val = value === "" ? 1 : value;
                           return {
                             ...f,
-                            quantity: Math.min(maxQ, Math.max(1, val)),
+                            quantity: Math.min(maxQ, Math.max(1, value)),
                           };
                         });
                       }}
-                      value={Number(form.quantity)}
+                      onBlur={(e) => {
+                        // On blur, if empty or invalid, set to 1
+                        if (e.target.value === "" || Number(e.target.value) < 1) {
+                          setForm((f) => ({ ...f, quantity: 1 }));
+                        }
+                      }}
+                      value={form.quantity}
                       required
                       aria-label="Quantity"
                     />
@@ -1077,9 +1061,7 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                                     <img
                                       src={
                                         c.profile_picture
-                                          ? `${import.meta.env.VITE_API_URL}/${
-                                              c.profile_picture
-                                            }`
+                                          ? `${API}/${c.profile_picture}`
                                           : "/default-avatar.png"
                                       }
                                       alt={c.name}
@@ -1116,9 +1098,7 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                                     <img
                                       src={
                                         c.profile_picture
-                                          ? `${import.meta.env.VITE_API_URL}/${
-                                              c.profile_picture
-                                            }`
+                                          ? `${API}/${c.profile_picture}`
                                           : "/default-avatar.png"
                                       }
                                       alt={c.name}

@@ -370,69 +370,6 @@ const AnalyticsDashboard = () => {
             </CardContent>
           </Card>
         </div>
-
-        <Card className="bg-white/95 border-[#e8d8c2] shadow-sm rounded-2xl hover:shadow-md hover:-translate-y-[2px] hover:scale-[1.02] transition-all duration-200">
-          <CardHeader className="pb-2 sm:pb-3">
-            <CardTitle className="text-sm font-semibold text-[#2a170a]">
-              Account Status Summary
-            </CardTitle>
-            <CardDescription className="text-xs text-[#7b5836]">
-              Overview of all user account statuses
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-1">
-            <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
-              <div className="text-center p-2.5 sm:p-4 bg-gradient-to-br from-emerald-50 to-emerald-100/60 rounded-2xl border border-emerald-100 shadow-[0_1px_3px_rgba(16,185,129,0.2)] hover:shadow-md hover:-translate-y-[2px] hover:scale-[1.03] transition-all duration-200">
-                <div className="text-lg sm:text-2xl font-extrabold text-emerald-700">
-                  {users?.active || 0}
-                </div>
-                <div className="text-[10px] sm:text-xs text-emerald-800 mt-1 font-medium">
-                  Active
-                </div>
-              </div>
-              <div className="text-center p-2.5 sm:p-4 bg-gradient-to-br from-orange-50 to-orange-100/60 rounded-2xl border border-orange-100 hover:shadow-md hover:-translate-y-[2px] hover:scale-[1.03] transition-all duration-200">
-                <div className="text-lg sm:text-2xl font-extrabold text-orange-600">
-                  {users?.pending || 0}
-                </div>
-                <div className="text-[10px] sm:text-xs text-orange-800 mt-1 font-medium">
-                  Pending
-                </div>
-              </div>
-              <div className="text-center p-2.5 sm:p-4 bg-gradient-to-br from-yellow-50 to-yellow-100/60 rounded-2xl border border-yellow-100 hover:shadow-md hover:-translate-y-[2px] hover:scale-[1.03] transition-all duration-200">
-                <div className="text-lg sm:text-2xl font-extrabold text-yellow-600">
-                  {users?.suspended || 0}
-                </div>
-                <div className="text-[10px] sm:text-xs text-yellow-800 mt-1 font-medium">
-                  Suspended
-                </div>
-              </div>
-              <div className="text-center p-2.5 sm:p-4 bg-gradient-to-br from-red-50 to-red-100/60 rounded-2xl border border-red-100 hover:shadow-md hover:-translate-y-[2px] hover:scale-[1.03] transition-all duration-200">
-                <div className="text-lg sm:text-2xl font-extrabold text-red-600">
-                  {users?.banned || 0}
-                </div>
-                <div className="text-[10px] sm:text-xs text-red-800 mt-1 font-medium">
-                  Banned
-                </div>
-              </div>
-              <div className="text-center p-2.5 sm:p-4 bg-gradient-to-br from-gray-50 to-gray-100/60 rounded-2xl border border-gray-100 hover:shadow-md hover:-translate-y-[2px] hover:scale-[1.03] transition-all duration-200">
-                <div className="text-lg sm:text-2xl font-extrabold text-gray-700">
-                  {users?.deactivated || 0}
-                </div>
-                <div className="text-[10px] sm:text-xs text-gray-700 mt-1 font-medium">
-                  Deactivated
-                </div>
-              </div>
-              <div className="text-center p-2.5 sm:p-4 bg-gradient-to-br from-purple-50 to-purple-100/60 rounded-2xl border border-purple-100 hover:shadow-md hover:-translate-y-[2px] hover:scale-[1.03] transition-all duration-200">
-                <div className="text-lg sm:text-2xl font-extrabold text-purple-600">
-                  {users?.rejected || 0}
-                </div>
-                <div className="text-[10px] sm:text-xs text-purple-800 mt-1 font-medium">
-                  Rejected
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

@@ -1,11 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,7 +20,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AlertTriangle, Key, Users, History } from "lucide-react";
+import {
+  AlertTriangle,
+  Key,
+  Users,
+  History,
+  Search as SearchIcon,
+} from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import api from "../api/axios";
 import Swal from "sweetalert2";
@@ -56,6 +56,15 @@ const EmergencyControlPanel = () => {
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
 
+  // Password reset search UI
+  const [userSearchInput, setUserSearchInput] = useState("");
+  const [selectedUserLabel, setSelectedUserLabel] = useState("");
+  const [isUserSearchFocused, setIsUserSearchFocused] = useState(false);
+  const [recentResetUsers, setRecentResetUsers] = useState([]);
+
+  const [bakeryUsers, setBakeryUsers] = useState([]);
+  const [charityUsers, setCharityUsers] = useState([]);
+
   // Ownership Transfer State
   const [bakeryId, setBakeryId] = useState("");
   const [toEmployeeId, setToEmployeeId] = useState("");
@@ -71,9 +80,17 @@ const EmergencyControlPanel = () => {
   const [loadingBakeries, setLoadingBakeries] = useState(false);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
 
+  // Ownership transfer bakery search UI
+  const [bakerySearchInput, setBakerySearchInput] = useState("");
+  const [bakerySearchLabel, setBakerySearchLabel] = useState("");
+  const [isBakerySearchFocused, setIsBakerySearchFocused] = useState(false);
+  const [recentTransferBakeries, setRecentTransferBakeries] = useState([]);
+
   // History State
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // ---------------- useEffects ----------------
 
   useEffect(() => {
     if (activeTab === "history") {
@@ -95,6 +112,20 @@ const EmergencyControlPanel = () => {
     }
   }, [bakeryId]);
 
+  // ---------------- Helpers ----------------
+
+  const sortByNewestThenName = (list) => {
+    if (!Array.isArray(list)) return [];
+    return [...list].sort((a, b) => {
+      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      if (dateA !== dateB) return dateB - dateA;
+      return (a.name || "").localeCompare(b.name || "");
+    });
+  };
+
+  // ---------------- API ----------------
+
   const fetchUsers = async () => {
     try {
       setLoadingUsers(true);
@@ -103,11 +134,20 @@ const EmergencyControlPanel = () => {
         api.get("/admin/charities"),
       ]);
 
-      const allUsers = [
-        ...(bakeriesRes.data || []),
-        ...(charitiesRes.data || []),
-      ].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      // ONLY VERIFIED USERS
+      const bakeryListRaw = bakeriesRes.data || [];
+      const charityListRaw = charitiesRes.data || [];
 
+      const bakeryList = sortByNewestThenName(
+        bakeryListRaw.filter((u) => u.verified)
+      );
+      const charityList = sortByNewestThenName(
+        charityListRaw.filter((u) => u.verified)
+      );
+      const allUsers = [...bakeryList, ...charityList];
+
+      setBakeryUsers(bakeryList);
+      setCharityUsers(charityList);
       setUsers(allUsers);
     } catch (error) {
       console.error("Failed to fetch users:", error);
@@ -121,7 +161,8 @@ const EmergencyControlPanel = () => {
     try {
       setLoadingBakeries(true);
       const response = await api.get("/admin/emergency/bakeries-list");
-      setBakeries(response.data.bakeries || []);
+      const sorted = sortByNewestThenName(response.data.bakeries || []);
+      setBakeries(sorted);
     } catch (error) {
       console.error("Failed to fetch bakeries:", error);
       Swal.fire("Error", "Failed to load bakeries list", "error");
@@ -165,6 +206,8 @@ const EmergencyControlPanel = () => {
       setLoadingHistory(false);
     }
   };
+
+  // ---------------- Actions ----------------
 
   const generatePassword = () => {
     const chars =
@@ -243,6 +286,8 @@ const EmergencyControlPanel = () => {
       setResetUserId("");
       setResetReason("");
       setNewPassword("");
+      setUserSearchInput("");
+      setSelectedUserLabel("");
     } catch (error) {
       console.error("Failed to reset password:", error);
       Swal.fire(
@@ -354,6 +399,8 @@ const EmergencyControlPanel = () => {
       setTransferType("emergency");
       setIsTemporary(true);
       setDurationDays(30);
+      setBakerySearchInput("");
+      setBakerySearchLabel("");
     } catch (error) {
       console.error("Failed to transfer ownership:", error);
       Swal.fire(
@@ -371,13 +418,86 @@ const EmergencyControlPanel = () => {
     return new Date(dateString).toLocaleString();
   };
 
+  // ---------------- Password Reset Search Logic ----------------
+
+  const normalizedUserSearch = userSearchInput.trim().toLowerCase();
+  const inputIsEmpty = normalizedUserSearch === "";
+
+  const filterUsers = (list) =>
+    normalizedUserSearch
+      ? list.filter((u) =>
+          (u.name || "").toLowerCase().includes(normalizedUserSearch)
+        )
+      : list;
+
+  const filteredBakeryUsers = filterUsers(bakeryUsers);
+  const filteredCharityUsers = filterUsers(charityUsers);
+
+  const hasAnyUserResults =
+    filteredBakeryUsers.length || filteredCharityUsers.length;
+
+  const showUserRecents =
+    isUserSearchFocused && inputIsEmpty && recentResetUsers.length > 0;
+
+  const handleSelectResetUser = (user) => {
+    setResetUserId(user.id.toString());
+
+    const label = `${user.name || `User ${user.id}`} ${
+      user.role ? `(${user.role})` : ""
+    }`.trim();
+
+    setSelectedUserLabel(label);
+    setUserSearchInput("");
+
+    setRecentResetUsers((prev) => {
+      const existingWithout = prev.filter((u) => u.id !== user.id);
+      const updated = [user, ...existingWithout];
+      return updated.slice(0, 5);
+    });
+
+    setIsUserSearchFocused(false);
+  };
+
+  // ---------------- Ownership Bakery Search Logic ----------------
+
+  const normalizedBakerySearch = bakerySearchInput.trim().toLowerCase();
+  const bakeryInputIsEmpty = normalizedBakerySearch === "";
+
+  const verifiedBakeries = bakeries.filter((b) => b.verified);
+
+  const filteredBakeries = verifiedBakeries.filter((b) =>
+    bakeryInputIsEmpty
+      ? true
+      : (b.name || "").toLowerCase().includes(normalizedBakerySearch)
+  );
+
+  const verifiedBakeriesCount = verifiedBakeries.length;
+
+  const handleSelectBakery = (bakery) => {
+    setBakeryId(bakery.id.toString());
+
+    const label = bakery.name || `Bakery ${bakery.id}`;
+    setBakerySearchLabel(label);
+
+    setBakerySearchInput("");
+    setIsBakerySearchFocused(false);
+
+    setRecentTransferBakeries((prev) => {
+      const existingWithout = prev.filter((b) => b.id !== bakery.id);
+      const updated = [bakery, ...existingWithout];
+      return updated.slice(0, 5);
+    });
+  };
+
+  // ---------------- Render ----------------
+
   return (
     <div className="w-full space-y-4">
       <Card className="border-none bg-transparent shadow-none">
         <div
           className={`overflow-hidden rounded-[28px] bg-white ${tones.ring}`}
         >
-          {/* ── Header warning bar ── */}
+          {/* Header warning bar */}
           <CardHeader
             className={`${tones.headerGrad} px-4 sm:px-6 py-3 sm:py-4 border-b border-[#f2d4b5]/60`}
           >
@@ -396,7 +516,7 @@ const EmergencyControlPanel = () => {
             </div>
           </CardHeader>
 
-          {/* ───────────────────────── Content + Tabs ───────────────────────── */}
+          {/* Content + Tabs */}
           <CardContent className="bg-white pt-4 pb-5 sm:pt-5 sm:pb-6 px-3 sm:px-6 space-y-5">
             <Tabs
               value={activeTab}
@@ -434,7 +554,7 @@ const EmergencyControlPanel = () => {
                 </p>
               </div>
 
-              {/* ───────────────────────── Password Reset Tab ───────────────────────── */}
+              {/* ---------- Password Reset Tab ---------- */}
               <TabsContent
                 value="password-reset"
                 className="mt-2 space-y-4 rounded-2xl border border-[#f2d4b5] bg-[#FFF9F1] px-3 py-4 sm:px-5 sm:py-5"
@@ -457,51 +577,134 @@ const EmergencyControlPanel = () => {
                   </div>
                 </div>
 
-                {/* SELECT USER */}
+                {/* PASSWORD RESET SEARCH FIELD */}
                 <div className="space-y-2">
                   <Label
-                    htmlFor="user-select"
+                    htmlFor="user-search"
                     className="text-xs font-semibold text-[#4A2F17]"
                   >
                     Bakery / Charity Name{" "}
                     <span className="text-[#DE7F21]">*</span>
                   </Label>
-                  <Select value={resetUserId} onValueChange={setResetUserId}>
-                    <SelectTrigger
-                      id="user-select"
-                      className="h-10 rounded-full border-[#f2d4b5] bg-white/90 px-4 text-xs sm:text-sm shadow-sm focus:ring-[#DE7F21] focus-visible:ring-[#DE7F21]"
-                    >
-                      <SelectValue
+                  <div className="relative">
+                    <div className="flex items-center gap-2 h-10 rounded-full border border-[#f2d4b5] bg-white/90 px-3 shadow-sm focus-within:ring-2 focus-within:ring-[#DE7F21]">
+                      <SearchIcon className="w-4 h-4 text-[#BF7327]/80 shrink-0" />
+                      <input
+                        id="user-search"
+                        type="text"
+                        value={userSearchInput || selectedUserLabel}
+                        onChange={(e) => {
+                          setUserSearchInput(e.target.value);
+                          if (selectedUserLabel) setSelectedUserLabel("");
+                        }}
+                        onFocus={() => setIsUserSearchFocused(true)}
+                        onBlur={() =>
+                          setTimeout(() => setIsUserSearchFocused(false), 120)
+                        }
                         placeholder={
                           loadingUsers
                             ? "Loading users..."
-                            : "Select a bakery or charity"
+                            : "Search bakery or charity"
                         }
+                        className="flex-1 bg-transparent text-xs sm:text-sm text-[#4A2F17] placeholder:text-gray-400 focus:outline-none"
                       />
-                    </SelectTrigger>
-                    <SelectContent className="z-50 max-h-64 overflow-y-auto rounded-2xl border border-[#f2d4b5] bg-white shadow-lg text-sm py-1">
-                      {loadingUsers ? (
-                        <div className="py-6 text-center text-sm text-gray-500">
-                          Loading...
-                        </div>
-                      ) : users.length === 0 ? (
-                        <div className="py-6 text-center text-sm text-gray-500">
-                          No users available
-                        </div>
-                      ) : (
-                        users.map((user) => (
-                          <SelectItem
-                            key={user.id}
-                            value={user.id.toString()}
-                            className="relative flex w-full select-none items-center rounded-lg pl-8 pr-3 py-2 text-sm outline-none cursor-pointer text-[#4A2F17] hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] data-[state=checked]:bg-[#FFEFD9] data-[state=checked]:font-semibold"
-                          >
-                            {user.name} ({user.role}){" "}
-                            {!user.verified && "(Unverified)"}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                    </div>
+
+                    {(isUserSearchFocused || userSearchInput) && (
+                      <div className="absolute z-50 mt-2 w-full rounded-2xl border border-[#f2d4b5] bg-white shadow-lg">
+                        {loadingUsers ? (
+                          <div className="py-6 text-center text-sm text-gray-500">
+                            Loading...
+                          </div>
+                        ) : inputIsEmpty ? (
+                          showUserRecents ? (
+                            <div className="max-h-52 overflow-y-auto py-2 text-xs sm:text-sm">
+                              <div className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#BF7327]/80">
+                                Recent searches
+                              </div>
+                              {recentResetUsers.map((user) => (
+                                <button
+                                  type="button"
+                                  key={`recent-${user.id}`}
+                                  onClick={() => handleSelectResetUser(user)}
+                                  className="w-full text-left px-3 py-1.5 rounded-xl hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] transition"
+                                >
+                                  <div className="flex flex-col">
+                                    <span className="font-medium text-[#4A2F17] line-clamp-1">
+                                      {user.name}
+                                    </span>
+                                    <span className="text-[11px] text-gray-500">
+                                      {(user.role && String(user.role)) ||
+                                        "User"}
+                                    </span>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="py-6 text-center text-xs sm:text-sm text-gray-500">
+                              No recent searches yet
+                            </div>
+                          )
+                        ) : !hasAnyUserResults ? (
+                          <div className="py-6 text-center text-xs sm:text-sm text-gray-500">
+                            No results for{" "}
+                            <span className="font-semibold">
+                              "{userSearchInput}"
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="max-h-52 overflow-y-auto py-2 text-xs sm:text-sm">
+                            {/* Bakeries */}
+                            {filteredBakeryUsers.length > 0 && (
+                              <>
+                                <div className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#BF7327]/80">
+                                  Bakeries
+                                </div>
+                                {filteredBakeryUsers.map((user) => (
+                                  <button
+                                    type="button"
+                                    key={user.id}
+                                    onClick={() => handleSelectResetUser(user)}
+                                    className="w-full text-left px-3 py-1.5 rounded-xl hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] transition"
+                                  >
+                                    <div className="flex flex-col">
+                                      <span className="font-medium text-[#4A2F17] line-clamp-1">
+                                        {user.name}
+                                      </span>
+                                    </div>
+                                  </button>
+                                ))}
+                              </>
+                            )}
+
+                            {/* Charities */}
+                            {filteredCharityUsers.length > 0 && (
+                              <>
+                                <div className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-[#BF7327]/80">
+                                  Charities
+                                </div>
+                                {filteredCharityUsers.map((user) => (
+                                  <button
+                                    type="button"
+                                    key={user.id}
+                                    onClick={() => handleSelectResetUser(user)}
+                                    className="w-full text-left px-3 py-1.5 rounded-xl hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] transition"
+                                  >
+                                    <div className="flex flex-col">
+                                      <span className="font-medium text-[#4A2F17] line-clamp-1">
+                                        {user.name}
+                                      </span>
+                                    </div>
+                                  </button>
+                                ))}
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   <p className="text-[11px] text-gray-500">
                     Found {users.length} user(s)
                   </p>
@@ -575,7 +778,7 @@ const EmergencyControlPanel = () => {
                 </div>
               </TabsContent>
 
-              {/* ───────────────────────── Ownership Transfer Tab ───────────────────────── */}
+              {/* ---------- Ownership Transfer Tab ---------- */}
               <TabsContent
                 value="ownership-transfer"
                 className="mt-2 space-y-4 rounded-2xl border border-[#f2d4b5] bg-[#FFF9F1] px-3 py-4 sm:px-5 sm:py-5"
@@ -600,47 +803,118 @@ const EmergencyControlPanel = () => {
 
                 {/* BAKERY + EMPLOYEE */}
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {/* Bakery search bar */}
                   <div className="space-y-2">
                     <Label
-                      htmlFor="bakery-select"
+                      htmlFor="bakery-search"
                       className="text-xs font-semibold text-[#4A2F17]"
                     >
                       Bakery Name <span className="text-[#DE7F21]">*</span>
                     </Label>
-                    <Select value={bakeryId} onValueChange={setBakeryId}>
-                      <SelectTrigger
-                        id="bakery-select"
-                        className="h-10 rounded-full border-[#f2d4b5] bg-white/90 px-4 text-xs sm:text-sm shadow-sm focus:ring-[#DE7F21] focus-visible:ring-[#DE7F21]"
-                      >
-                        <SelectValue
+                    <div className="relative">
+                      <div className="flex items-center gap-2 h-10 rounded-full border border-[#f2d4b5] bg-white/90 px-3 shadow-sm focus-within:ring-2 focus-within:ring-[#DE7F21]">
+                        <SearchIcon className="w-4 h-4 text-[#BF7327]/80 shrink-0" />
+                        <input
+                          id="bakery-search"
+                          type="text"
+                          value={bakerySearchInput || bakerySearchLabel}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setBakerySearchInput(value);
+                            if (bakerySearchLabel) setBakerySearchLabel("");
+                            if (bakeryId) {
+                              setBakeryId("");
+                            }
+                          }}
+                          onFocus={() => setIsBakerySearchFocused(true)}
+                          onBlur={() =>
+                            setTimeout(
+                              () => setIsBakerySearchFocused(false),
+                              120
+                            )
+                          }
                           placeholder={
                             loadingBakeries
                               ? "Loading bakeries..."
-                              : "Select a bakery"
+                              : "Search bakery"
                           }
+                          className="flex-1 bg-transparent text-xs sm:text-sm text-[#4A2F17] placeholder:text-gray-400 focus:outline-none"
                         />
-                      </SelectTrigger>
-                      <SelectContent className="z-50 max-h-64 overflow-y-auto rounded-2xl border-[#f2d4b5] bg-white shadow-lg text-sm py-1">
-                        {bakeries.length === 0 && !loadingBakeries ? (
-                          <div className="py-6 text-center text-sm text-gray-500">
-                            No bakeries available
-                          </div>
-                        ) : (
-                          bakeries.map((bakery) => (
-                            <SelectItem
-                              key={bakery.id}
-                              value={bakery.id.toString()}
-                              className="relative flex w-full select-none items-center rounded-lg pl-8 pr-3 py-2 text-sm outline-none cursor-pointer text-[#4A2F17] hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] data-[state=checked]:bg-[#FFEFD9] data-[state=checked]:font-semibold"
-                            >
-                              {bakery.name} {!bakery.verified && "(Unverified)"}{" "}
-                              - {bakery.status}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
+                      </div>
+
+                      {(isBakerySearchFocused || bakerySearchInput) && (
+                        <div className="absolute z-50 mt-2 w-full rounded-2xl border border-[#f2d4b5] bg-white shadow-lg">
+                          {loadingBakeries ? (
+                            <div className="py-6 text-center text-xs sm:text-sm text-gray-500">
+                              Loading...
+                            </div>
+                          ) : bakeryInputIsEmpty ? (
+                            recentTransferBakeries.length === 0 ? (
+                              <div className="py-6 text-center text-xs sm:text-sm text-gray-500">
+                                No recent searches yet
+                              </div>
+                            ) : (
+                              <div className="max-h-52 overflow-y-auto py-2 text-xs sm:text-sm">
+                                <div className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#BF7327]/80">
+                                  Recent searches
+                                </div>
+                                {recentTransferBakeries.map((bakery) => (
+                                  <button
+                                    type="button"
+                                    key={`recent-bakery-${bakery.id}`}
+                                    onClick={() => handleSelectBakery(bakery)}
+                                    className="w-full text-left px-3 py-1.5 rounded-xl hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] transition"
+                                  >
+                                    <div className="flex flex-col">
+                                      <span className="font-medium text-[#4A2F17] line-clamp-1">
+                                        {bakery.name}
+                                      </span>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            )
+                          ) : filteredBakeries.length === 0 ? (
+                            <div className="py-6 text-center text-xs sm:text-sm text-gray-500">
+                              No results for{" "}
+                              <span className="font-semibold">
+                                "{bakerySearchInput}"
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="max-h-52 overflow-y-auto py-2 text-xs sm:text-sm">
+                              <div className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#BF7327]/80">
+                                Bakeries
+                              </div>
+                              {filteredBakeries.map((bakery) => (
+                                <button
+                                  type="button"
+                                  key={bakery.id}
+                                  onClick={() => handleSelectBakery(bakery)}
+                                  className="w-full text-left px-3 py-1.5 rounded-xl hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] transition"
+                                >
+                                  <div className="flex flex-col">
+                                    <span className="font-medium text-[#4A2F17] line-clamp-1">
+                                      {bakery.name}
+                                    </span>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-gray-500">
+                      {verifiedBakeriesCount === 0
+                        ? "No verified bakeries registered"
+                        : `Found ${verifiedBakeriesCount} verified bakery${
+                            verifiedBakeriesCount === 1 ? "" : "ies"
+                          }`}
+                    </p>
                   </div>
 
+                  {/* Employee dropdown */}
                   <div className="space-y-2">
                     <Label
                       htmlFor="employee-select"
@@ -698,6 +972,7 @@ const EmergencyControlPanel = () => {
 
                 {/* TRANSFER TYPE + TEMPORARY */}
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {/* Transfer Type */}
                   <div className="space-y-2">
                     <Label
                       htmlFor="transfer-type"
@@ -712,15 +987,36 @@ const EmergencyControlPanel = () => {
                       <SelectTrigger className="h-10 rounded-full border-[#f2d4b5] bg-white/90 px-4 text-xs sm:text-sm shadow-sm focus:ring-[#DE7F21] focus-visible:ring-[#DE7F21]">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="z-50 max-h-64 overflow-y-auto rounded-2xl border-[#f2d4b5] bg-white shadow-lg text-sm py-1">
-                        <SelectItem value="emergency">Emergency</SelectItem>
-                        <SelectItem value="planned">Planned</SelectItem>
-                        <SelectItem value="temporary">Temporary</SelectItem>
-                        <SelectItem value="permanent">Permanent</SelectItem>
+                      <SelectContent className="z-50 max-h-64 overflow-y-auto rounded-2xl border-[#f2d4b5] bg-white shadow-lg text-xs sm:text-sm py-1">
+                        <SelectItem
+                          value="emergency"
+                          className="relative flex w-full select-none items-center rounded-lg pl-8 pr-3 py-2 text-xs sm:text-sm outline-none cursor-pointer text-[#4A2F17] hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] data-[state=checked]:bg-[#FFEFD9] data-[state=checked]:font-semibold"
+                        >
+                          Emergency
+                        </SelectItem>
+                        <SelectItem
+                          value="planned"
+                          className="relative flex w-full select-none items-center rounded-lg pl-8 pr-3 py-2 text-xs sm:text-sm outline-none cursor-pointer text-[#4A2F17] hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] data-[state=checked]:bg-[#FFEFD9] data-[state=checked]:font-semibold"
+                        >
+                          Planned
+                        </SelectItem>
+                        <SelectItem
+                          value="temporary"
+                          className="relative flex w-full select-none items-center rounded-lg pl-8 pr-3 py-2 text-xs sm:text-sm outline-none cursor-pointer text-[#4A2F17] hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] data-[state=checked]:bg-[#FFEFD9] data-[state=checked]:font-semibold"
+                        >
+                          Temporary
+                        </SelectItem>
+                        <SelectItem
+                          value="permanent"
+                          className="relative flex w-full select-none items-center rounded-lg pl-8 pr-3 py-2 text-xs sm:text-sm outline-none cursor-pointer text-[#4A2F17] hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] data-[state=checked]:bg-[#FFEFD9] data-[state=checked]:font-semibold"
+                        >
+                          Permanent
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
+                  {/* Temporary toggle + Duration */}
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2 pt-1">
                       <Checkbox
@@ -752,12 +1048,57 @@ const EmergencyControlPanel = () => {
                           <SelectTrigger className="h-10 rounded-full border-[#f2d4b5] bg-white/90 px-4 text-xs sm:text-sm shadow-sm focus:ring-[#DE7F21] focus-visible:ring-[#DE7F21]">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent className="z-50 max-h-64 overflow-y-auto rounded-2xl border-[#f2d4b5] bg-white shadow-lg text-sm py-1">
-                            <SelectItem value="7">7 days</SelectItem>
-                            <SelectItem value="14">14 days</SelectItem>
-                            <SelectItem value="30">30 days</SelectItem>
-                            <SelectItem value="60">60 days</SelectItem>
-                            <SelectItem value="90">90 days</SelectItem>
+
+                          <SelectContent
+                            position="popper"
+                            side="bottom"
+                            align="start"
+                            sideOffset={4}
+                            avoidCollisions={false}
+                            className="z-50 max-h-52 overflow-y-auto rounded-2xl border-[#f2d4b5] bg-white shadow-lg text-xs sm:text-sm py-1 mb-4"
+                          >
+                            <SelectItem
+                              value="1"
+                              className="relative flex w-full select-none items-center rounded-lg pl-8 pr-3 py-2 text-xs sm:text-sm outline-none cursor-pointer text-[#4A2F17] hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] data-[state=checked]:bg-[#FFEFD9] data-[state=checked]:font-semibold"
+                            >
+                              1 day
+                            </SelectItem>
+                            <SelectItem
+                              value="3"
+                              className="relative flex w-full select-none items-center rounded-lg pl-8 pr-3 py-2 text-xs sm:text-sm outline-none cursor-pointer text-[#4A2F17] hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] data-[state=checked]:bg-[#FFEFD9] data-[state=checked]:font-semibold"
+                            >
+                              3 days
+                            </SelectItem>
+                            <SelectItem
+                              value="7"
+                              className="relative flex w-full select-none items-center rounded-lg pl-8 pr-3 py-2 text-xs sm:text-sm outline-none cursor-pointer text-[#4A2F17] hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] data-[state=checked]:bg-[#FFEFD9] data-[state=checked]:font-semibold"
+                            >
+                              7 days
+                            </SelectItem>
+                            <SelectItem
+                              value="14"
+                              className="relative flex w-full select-none items-center rounded-lg pl-8 pr-3 py-2 text-xs sm:text-sm outline-none cursor-pointer text-[#4A2F17] hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] data-[state=checked]:bg-[#FFEFD9] data-[state=checked]:font-semibold"
+                            >
+                              14 days
+                            </SelectItem>
+                            <SelectItem
+                              value="30"
+                              className="relative flex w-full select-none items-center rounded-lg pl-8 pr-3 py-2 text-xs sm:text-sm outline-none cursor-pointer text-[#4A2F17] hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] data-[state=checked]:bg-[#FFEFD9] data-[state=checked]:font-semibold"
+                            >
+                              30 days
+                            </SelectItem>
+                            <SelectItem
+                              value="60"
+                              className="relative flex w-full select-none items-center rounded-lg pl-8 pr-3 py-2 text-xs sm:text-sm outline-none cursor-pointer text-[#4A2F17] hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] data-[state=checked]:bg-[#FFEFD9] data-[state=checked]:font-semibold"
+                            >
+                              60 days
+                            </SelectItem>
+                            <SelectItem
+                              value="90"
+                              className="relative flex w-full select-none items-center rounded-lg pl-8 pr-3 py-2 text-xs sm:text-sm outline-none cursor-pointer text-[#4A2F17] hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] data-[state=checked]:bg-[#FFEFD9] data-[state=checked]:font-semibold"
+                            >
+                              90 days
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -802,7 +1143,7 @@ const EmergencyControlPanel = () => {
                 </div>
               </TabsContent>
 
-              {/* ───────────────────────── History Tab ───────────────────────── */}
+              {/* ---------- History Tab ---------- */}
               <TabsContent
                 value="history"
                 className="mt-2 rounded-2xl border border-[#f2d4b5] bg-[#FFF9F1] px-3 py-4 sm:px-5 sm:py-5"

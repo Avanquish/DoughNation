@@ -163,7 +163,7 @@ class DonationRequest(Base):
     timestamp = Column(DateTime, default=now_ph)
     status = Column(String, default="pending") 
     tracking_status = Column(String, default="preparing")
-    tracking_completed_at = Column(Date, nullable=True) 
+    tracking_completed_at = Column(DateTime, nullable=True) 
     feedback_submitted = Column(Boolean, default=False) 
     bakery_name = Column(String, nullable=True)
     bakery_profile_picture = Column(String, nullable=True)
@@ -203,7 +203,7 @@ class DirectDonation(Base):
     description = Column(String, nullable=True)
     image = Column(String, nullable=True)
     btracking_status = Column(String, default="preparing")
-    btracking_completed_at = Column(Date, nullable=True)
+    btracking_completed_at = Column(DateTime, nullable=True)
     feedback_submitted = Column(Boolean, default=False)
     donated_by = Column(String, nullable=True) 
 
@@ -227,6 +227,7 @@ class Message(Base):
     is_read = Column(Boolean, default=False)
     deleted_for_sender = Column(Boolean, default=False)
     deleted_for_receiver = Column(Boolean, default=False)
+    deleted_for_all = Column(Boolean, default=False)
     accepted_by_receiver = Column(Boolean, default=False)
 
     sender = relationship("User", back_populates="sent_messages", foreign_keys=[sender_id])
@@ -365,4 +366,16 @@ class SystemEvent(Base):
     event_metadata = Column(String, nullable=True)  # JSON string for additional data (IP address, location, etc.)
     
     user = relationship("User", back_populates="events")
+
+class EmailVerification(Base):
+    """Temporary storage for email verification OTPs during registration"""
+    __tablename__ = "email_verifications"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    otp_code = Column(String, nullable=True)  # 6-digit OTP code
+    otp_expires = Column(DateTime, nullable=True)  # OTP expiration time
+    verified = Column(Boolean, default=False)  # Whether email has been verified
+    verified_at = Column(DateTime, nullable=True)  # When verification was completed
+    created_at = Column(DateTime, default=now_ph)
     

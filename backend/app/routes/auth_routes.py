@@ -1,12 +1,13 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, UploadFile, Form, File, HTTPException
 from sqlalchemy.orm import Session
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from app import crud, auth, database, schemas, models
 from app.auth import create_access_token, get_current_user, verify_password
 from app.event_logger import log_system_event
 from passlib.context import CryptContext
 from app.timezone_utils import now_ph, to_ph_timezone
+import random
 
 router = APIRouter()
 
@@ -31,6 +32,118 @@ async def register(
         db, role, name, email, contact_person, contact_number, address,
         password, confirm_password, profile_picture, proof_of_validity
     )
+
+# ==================== EMAIL VERIFICATION WITH OTP (For Registration) ====================
+
+@router.post("/send-email-verification")
+def send_email_verification_otp(data: dict, db: Session = Depends(database.get_db)):
+    """Send OTP to user's email for email verification during registration"""
+    from app.email_utils import send_email_verification_otp
+    
+    email = data.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+    
+    # Validate Gmail domain
+    domain = email.split("@")[1].lower() if "@" in email else ""
+    if domain not in ["gmail.com", "googlemail.com"]:
+        raise HTTPException(
+            status_code=400, 
+            detail="Please use a Gmail address (@gmail.com) to register."
+        )
+    
+    # Check if email already exists
+    existing_user = db.query(models.User).filter(models.User.email == email).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email is already registered")
+    
+    # Generate 6-digit OTP
+    otp_code = str(random.randint(100000, 999999))
+    
+    # Set OTP expiration (10 minutes from now)
+    otp_expires = now_ph() + timedelta(minutes=10)
+    
+    # Store OTP in a temporary verification table or in-memory cache
+    # For now, we'll use a simple approach by storing in a model
+    # Check if there's an existing verification record
+    verification = db.query(models.EmailVerification).filter(
+        models.EmailVerification.email == email
+    ).first()
+    
+    if verification:
+        # Update existing record
+        verification.otp_code = otp_code
+        verification.otp_expires = otp_expires
+        verification.verified = False
+    else:
+        # Create new verification record
+        verification = models.EmailVerification(
+            email=email,
+            otp_code=otp_code,
+            otp_expires=otp_expires,
+            verified=False
+        )
+        db.add(verification)
+    
+    db.commit()
+    
+    # Send OTP via email using dedicated email verification template
+    email_sent = send_email_verification_otp(email, otp_code)
+    
+    if not email_sent:
+        raise HTTPException(status_code=500, detail="Failed to send OTP email")
+    
+    return {
+        "message": "OTP sent successfully to your email",
+        "email": email,
+        "valid": True
+    }
+
+
+@router.post("/verify-email-otp")
+def verify_email_otp(data: dict, db: Session = Depends(database.get_db)):
+    """Verify OTP code for email verification during registration"""
+    
+    email = data.get("email")
+    otp_code = data.get("otp_code")
+    
+    if not email or not otp_code:
+        raise HTTPException(status_code=400, detail="Email and OTP code are required")
+    
+    # Find verification record
+    verification = db.query(models.EmailVerification).filter(
+        models.EmailVerification.email == email
+    ).first()
+    
+    if not verification:
+        raise HTTPException(status_code=400, detail="No verification request found for this email")
+    
+    # Check if OTP exists
+    if not verification.otp_code:
+        raise HTTPException(status_code=400, detail="No OTP found. Please request a new one.")
+    
+    # Check if OTP has expired
+    otp_expires_aware = to_ph_timezone(verification.otp_expires)
+    if otp_expires_aware < now_ph():
+        verification.otp_code = None
+        verification.otp_expires = None
+        db.commit()
+        raise HTTPException(status_code=400, detail="OTP has expired. Please request a new one.")
+    
+    # Verify OTP
+    if verification.otp_code != otp_code:
+        raise HTTPException(status_code=400, detail="Invalid OTP code")
+    
+    # Mark as verified
+    verification.verified = True
+    verification.verified_at = now_ph()
+    db.commit()
+    
+    return {
+        "message": "Email verified successfully",
+        "email": email,
+        "valid": True
+    }
 
 @router.post("/login", response_model=schemas.Token)
 def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db)):
@@ -1781,4 +1894,124 @@ def deactivate_account(
     return {
         "message": "Account deactivated successfully",
         "deactivated_at": current_user.deactivated_at
+    }
+
+@router.post("/contact-support")
+async def contact_support(
+    name: str = Form(...),
+    email: str = Form(...),
+    subject: str = Form(...),
+    message: str = Form(...),
+    db: Session = Depends(database.get_db)
+):
+    """
+    Contact support endpoint for users who cannot access their accounts.
+    Sends a notification to all admin accounts and emails to admin email.
+    """
+    from app.email_utils import send_email
+    from app.admin_models import SystemNotification, NotificationReceipt
+    
+    # Get all admin users
+    admins = db.query(models.User).filter(models.User.role == "Admin").all()
+    
+    if not admins:
+        raise HTTPException(
+            status_code=500,
+            detail="No admin accounts found. Please try contacting via email directly."
+        )
+    
+    # Create notification title and message
+    notification_title = f"Support Request: {subject}"
+    notification_message = f"Support Request from {name} ({email})\n\nSubject: {subject}\n\nMessage: {message}\n\nPlease respond to: {email}"
+    
+    # Create notification for each admin
+    for admin in admins:
+        # Create system notification in database
+        notification = SystemNotification(
+            title=notification_title,
+            message=notification_message,
+            notification_type="user_specific",
+            target_user_id=admin.id,
+            sent_by_admin_id=admin.id,  # Use admin's own ID for system messages
+            send_email=False,
+            send_in_app=True,
+            sent_at=now_ph()
+        )
+        db.add(notification)
+        db.flush()  # Get the notification ID
+        
+        # Create notification receipt
+        receipt = NotificationReceipt(
+            notification_id=notification.id,
+            user_id=admin.id,
+            is_read=False
+        )
+        db.add(receipt)
+    
+    db.commit()
+    
+    # Send email to admin email
+    admin_email = "doughnation04@gmail.com"
+    email_subject = f"DoughNation Support Request: {subject}"
+    email_body = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px; background-color: #fff7ec; border-radius: 10px;">
+            <h2 style="color: #c97c2c; border-bottom: 2px solid #e3b57e; padding-bottom: 10px;">
+                🆘 New Support Request
+            </h2>
+            
+            <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <p><strong style="color: #6f4a23;">From:</strong> {name}</p>
+                <p><strong style="color: #6f4a23;">Email:</strong> <a href="mailto:{email}" style="color: #c97c2c;">{email}</a></p>
+                <p><strong style="color: #6f4a23;">Subject:</strong> {subject}</p>
+                
+                <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #ffe1be;">
+                    <p><strong style="color: #6f4a23;">Message:</strong></p>
+                    <p style="background-color: #fffaf3; padding: 15px; border-left: 4px solid #c97c2c; border-radius: 4px;">
+                        {message}
+                    </p>
+                </div>
+            </div>
+            
+            <div style="margin-top: 20px; padding: 15px; background-color: #ffe7c8; border-radius: 8px;">
+                <p style="margin: 0; font-size: 14px; color: #6f4a23;">
+                    ⚠️ <strong>Action Required:</strong> Please respond to this user at <a href="mailto:{email}" style="color: #c97c2c;">{email}</a>
+                </p>
+            </div>
+            
+            <p style="margin-top: 20px; font-size: 12px; color: #7a5a34; text-align: center;">
+                This is an automated message from DoughNation Support System
+            </p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    try:
+        send_email(
+            to_email=admin_email,
+            subject=email_subject,
+            html_content=email_body
+        )
+    except Exception as e:
+        print(f"Failed to send email to admin: {e}")
+        # Don't fail the request if email fails - notification is still created
+    
+    # Log the event
+    log_system_event(
+        db=db,
+        event_type="SUPPORT_REQUEST",
+        description=f"Support request from {name} ({email}): {subject}",
+        severity="info",
+        metadata={
+            "name": name,
+            "email": email,
+            "subject": subject
+        }
+    )
+    
+    return {
+        "message": "Your message has been sent to the admin successfully. They will respond to your email shortly.",
+        "status": "success"
     }

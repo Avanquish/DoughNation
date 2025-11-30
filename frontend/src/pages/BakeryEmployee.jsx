@@ -48,10 +48,10 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
 
   // Check if current user is an owner (not an employee)
   const isOwner = !localStorage.getItem("employeeToken");
-  
+
   // Check if current user is a manager
   const [isManager, setIsManager] = useState(false);
-  
+
   useEffect(() => {
     const employeeToken = localStorage.getItem("employeeToken");
     if (employeeToken) {
@@ -63,7 +63,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
       }
     }
   }, []);
-  
+
   const canEditEmail = isOwner || isManager;
 
   const [formData, setFormData] = useState({
@@ -75,6 +75,13 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
   });
   const [preview, setPreview] = useState(null);
 
+  // OTP verification states
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+
   const headers = useMemo(
     () => ({ Authorization: `Bearer ${token}` }),
     [token]
@@ -82,8 +89,8 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
 
   const filteredEmployees = useMemo(() => {
     // First, filter out employees with "Owner" role
-    const activeEmployees = employees.filter((emp) => 
-      emp?.role?.toLowerCase() !== "owner"
+    const activeEmployees = employees.filter(
+      (emp) => emp?.role?.toLowerCase() !== "owner"
     );
 
     const term = searchTerm.trim().toLowerCase();
@@ -156,8 +163,6 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
     }
   }, [headers]);
 
-
-
   useEffect(() => {
     fetchEmployees();
   }, [fetchEmployees]);
@@ -183,6 +188,10 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
       start_date: new Date().toISOString().split("T")[0],
       profile_image_file: null,
     });
+    // Reset OTP states
+    setOtpSent(false);
+    setOtpVerified(false);
+    setOtpCode("");
     setIsDialogOpen(true);
   };
 
@@ -196,13 +205,133 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
       profile_image_file: null,
     });
     setPreview(emp?.profile_picture ? toUrl(emp.profile_picture) : null);
+    // Reset OTP states (not needed for edit)
+    setOtpSent(false);
+    setOtpVerified(false);
+    setOtpCode("");
     setIsDialogOpen(true);
+  };
+
+  // Send OTP to email
+  const sendOtp = async () => {
+    const { email } = formData;
+
+    if (!email) {
+      setIsDialogOpen(false);
+      await Swal.fire({
+        icon: "error",
+        title: "Email Required",
+        text: "Please enter an email address first.",
+        confirmButtonColor: "#C97C2C",
+      });
+      setIsDialogOpen(true);
+      return;
+    }
+
+    // Gmail validation
+    const domain = email.split("@")[1]?.toLowerCase();
+    if (domain !== "gmail.com" && domain !== "googlemail.com") {
+      setIsDialogOpen(false);
+      await Swal.fire({
+        icon: "error",
+        title: "Invalid Email",
+        text: "Please use a Gmail address (@gmail.com).",
+        confirmButtonColor: "#C97C2C",
+      });
+      setIsDialogOpen(true);
+      return;
+    }
+
+    setOtpSending(true);
+    try {
+      await axios.post(`${API_BASE}/send-email-verification`, { email });
+      setOtpSent(true);
+      setIsDialogOpen(false);
+      await Swal.fire({
+        icon: "success",
+        title: "OTP Sent!",
+        text: `A verification code has been sent to ${email}. Please check your inbox.`,
+        confirmButtonColor: "#C97C2C",
+      });
+      setIsDialogOpen(true);
+    } catch (error) {
+      setIsDialogOpen(false);
+      await Swal.fire({
+        icon: "error",
+        title: "Failed to Send OTP",
+        text:
+          error?.response?.data?.detail ||
+          "Unable to send verification code. Please try again.",
+        confirmButtonColor: "#C97C2C",
+      });
+      setIsDialogOpen(true);
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  // Verify OTP
+  const verifyOtp = async () => {
+    if (!otpCode || otpCode.length !== 6) {
+      setIsDialogOpen(false);
+      await Swal.fire({
+        icon: "error",
+        title: "Invalid OTP",
+        text: "Please enter the 6-digit verification code.",
+        confirmButtonColor: "#C97C2C",
+      });
+      setIsDialogOpen(true);
+      return;
+    }
+
+    setOtpVerifying(true);
+    try {
+      await axios.post(`${API_BASE}/verify-email-otp`, {
+        email: formData.email,
+        otp_code: otpCode,
+      });
+      setOtpVerified(true);
+      setIsDialogOpen(false);
+      await Swal.fire({
+        icon: "success",
+        title: "Email Verified!",
+        text: "The email has been successfully verified.",
+        confirmButtonColor: "#C97C2C",
+      });
+      setIsDialogOpen(true);
+    } catch (error) {
+      setIsDialogOpen(false);
+      await Swal.fire({
+        icon: "error",
+        title: "Verification Failed",
+        text:
+          error?.response?.data?.detail ||
+          "Invalid or expired verification code. Please try again.",
+        confirmButtonColor: "#C97C2C",
+      });
+      setIsDialogOpen(true);
+    } finally {
+      setOtpVerifying(false);
+    }
   };
 
   // Save (add or edit)
   const handleSave = async () => {
     if (isSaving) return;
-    
+
+    // For new employees, require OTP verification
+    if (!editingEmployee && !otpVerified) {
+      setIsDialogOpen(false);
+      await Swal.fire({
+        icon: "error",
+        title: "Email Not Verified",
+        text: "Please verify the email address with OTP before adding the employee.",
+        confirmButtonColor: "#C97C2C",
+      });
+      setIsDialogOpen(true);
+      return;
+    }
+
     if (editingEmployee) {
       setIsDialogOpen(false);
       const ok = await Swal.fire({
@@ -308,7 +437,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
 
   const handleDelete = async (id) => {
     if (isDeleting) return;
-    
+
     setIsDialogOpen(false);
     const ok = await Swal.fire({
       title: "Delete Employee?",
@@ -372,7 +501,7 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
         {},
         { headers }
       );
-      
+
       Swal.fire({
         title: "Password Reset!",
         html: `
@@ -663,18 +792,52 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
             {/* Email */}
             <div className="sm:col-span-2">
               <label className={labelTone}>Email Address (Gmail)</label>
-              <input
-                type="email"
-                placeholder="e.g., employee@gmail.com"
-                value={formData.email}
-                onChange={(e) => handleChange("email", e.target.value)}
-                className={inputTone}
-                disabled={editingEmployee && !canEditEmail}
-              />
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  placeholder="e.g., employee@gmail.com"
+                  value={formData.email}
+                  onChange={(e) => {
+                    handleChange("email", e.target.value);
+                    // Reset OTP states when email changes
+                    if (!editingEmployee) {
+                      setOtpSent(false);
+                      setOtpVerified(false);
+                      setOtpCode("");
+                    }
+                  }}
+                  className={inputTone}
+                  disabled={(editingEmployee && !canEditEmail) || otpVerified}
+                />
+                {!editingEmployee && (
+                  <button
+                    type="button"
+                    onClick={sendOtp}
+                    disabled={otpSending || !formData.email || otpVerified}
+                    className="flex-shrink-0 rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-4 py-2 text-sm font-semibold shadow-md hover:brightness-105 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {otpSending
+                      ? "Sending..."
+                      : otpSent
+                      ? "Resend OTP"
+                      : "Send OTP"}
+                  </button>
+                )}
+              </div>
               {!editingEmployee ? (
-                <p className="text-xs text-[#8a5a25] mt-1.5 italic">
-                  Login credentials will be sent to this email address
-                </p>
+                <>
+                  <p className="text-xs text-[#8a5a25] mt-1.5 italic">
+                    Login credentials will be sent to this email address
+                  </p>
+                  {otpVerified && (
+                    <p className="text-xs text-green-600 mt-1 font-semibold flex items-center gap-1">
+                      <span className="inline-block w-4 h-4 rounded-full bg-green-600 text-white text-[10px] leading-4 text-center">
+                        ✓
+                      </span>
+                      Email verified
+                    </p>
+                  )}
+                </>
               ) : !canEditEmail ? (
                 <p className="text-xs text-red-600 mt-1.5 italic">
                   Only owners and managers can change email addresses
@@ -682,24 +845,77 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
               ) : null}
             </div>
 
+            {/* OTP Verification (only for new employees) */}
+            {!editingEmployee && otpSent && !otpVerified && (
+              <div className="sm:col-span-2">
+                <div className="bg-[#FFF6EC] border border-[#f2e3cf] rounded-xl p-4">
+                  <label className={labelTone}>Verification Code</label>
+                  <p className="text-xs text-[#7b5836] mb-2">
+                    Enter the 6-digit code sent to {formData.email}
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="000000"
+                      value={otpCode}
+                      onChange={(e) => {
+                        const value = e.target.value
+                          .replace(/\D/g, "")
+                          .slice(0, 6);
+                        setOtpCode(value);
+                      }}
+                      className={`${inputTone} font-mono text-center text-lg tracking-widest`}
+                      maxLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={verifyOtp}
+                      disabled={otpVerifying || otpCode.length !== 6}
+                      className="flex-shrink-0 rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-4 py-2 text-sm font-semibold shadow-md hover:brightness-105 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {otpVerifying ? "Verifying..." : "Verify"}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={sendOtp}
+                    disabled={otpSending}
+                    className="mt-2 text-xs text-[#E49A52] hover:text-[#D68942] font-semibold underline"
+                  >
+                    Resend Code
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Reset Password Button (Owner only, Edit mode only) */}
             {editingEmployee && isOwner && (
               <div className="sm:col-span-2">
                 <div className="bg-[#FFF6EC] border border-[#f2e3cf] rounded-xl p-4">
                   <div className="flex items-start gap-3">
                     <div className="flex-shrink-0 w-10 h-10 rounded-full bg-[#FFE7C5] grid place-items-center">
-                      <KeyRound className="h-5 w-5 text-[#E49A52]" strokeWidth={2.4} />
+                      <KeyRound
+                        className="h-5 w-5 text-[#E49A52]"
+                        strokeWidth={2.4}
+                      />
                     </div>
                     <div className="flex-1">
-                      <h4 className="text-sm font-semibold text-[#4A2F17] mb-1">Reset Password</h4>
+                      <h4 className="text-sm font-semibold text-[#4A2F17] mb-1">
+                        Reset Password
+                      </h4>
                       <p className="text-xs text-[#7b5836] mb-3">
-                        Reset this employee's password to the default temporary password. They will be required to change it on their next login.
+                        Reset this employee's password to the default temporary
+                        password. They will be required to change it on their
+                        next login.
                       </p>
                       <button
                         type="button"
                         onClick={() => {
                           setIsDialogOpen(false);
-                          setTimeout(() => handleResetPassword(editingEmployee), 100);
+                          setTimeout(
+                            () => handleResetPassword(editingEmployee),
+                            100
+                          );
                         }}
                         className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-4 py-2 text-sm font-semibold shadow-md hover:brightness-105 transition"
                       >
@@ -760,14 +976,10 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
 
             {/* Start date */}
             <div className="sm:col-span-2">
-              <label className={labelTone}>Start Date</label>
-              <Input
-                type="date"
-                value={formData.start_date}
-                readOnly
-                disabled
-                className="bg-gray-100 rounded-md border-[#f2d4b5] cursor-not-allowed"
-              />
+              <label className={labelTone}>Account Creation Date</label>
+              <div className="mt-1 w-full rounded-md bg-[#FFF7ED] px-3 py-2 text-sm font-semibold text-[#6b4b2b]">
+                {formData.start_date || "—"}
+              </div>
             </div>
           </div>
 
@@ -779,17 +991,21 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
                 setIsDialogOpen(false);
                 if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
                 setPreview(null);
+                // Reset OTP states
+                setOtpSent(false);
+                setOtpVerified(false);
+                setOtpCode("");
               }}
               className="rounded-full border border-[#f2d4b5] text-[#6b4b2b] bg-white px-5 py-2 shadow-sm hover:bg-white/90 transition"
             >
               Cancel
             </button>
-            <button 
-              onClick={handleSave} 
+            <button
+              onClick={handleSave}
               className={primaryBtn}
               disabled={isSaving}
             >
-              {isSaving ? 'Saving...' : 'Save'}
+              {isSaving ? "Saving..." : "Save"}
             </button>
           </DialogFooter>
         </DialogContent>

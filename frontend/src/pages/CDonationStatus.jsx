@@ -298,9 +298,30 @@ const ScrollColumn = ({ title, items, emptyText, renderItem }) => {
         {items.length ? (
           pageItems.map(renderItem)
         ) : (
-          <p className="text-sm text-[#7b5836]">{emptyText}</p>
+          <div
+            className="
+        mt-2
+        rounded-2xl
+        border border-dashed border-[#eadfce]
+        bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
+        h-40
+        flex items-center justify-center
+      "
+          >
+            <p
+              className="
+          text-sm text-[#7b5836]
+          bg-white/70 border border-[#f2e3cf]
+          rounded-2xl px-4 py-6
+          text-center
+        "
+            >
+              {emptyText}
+            </p>
+          </div>
         )}
       </div>
+
       {items.length > 0 && (
         <div className="px-4 pb-3 pt-1 border-t border-[#f2e3cf] bg-white/80 rounded-b-xl flex items-center justify-center gap-3">
           <button
@@ -379,7 +400,7 @@ const Card = ({ d, highlightedId, onClick, compact = false }) => {
                   : "text-[10px] sm:text-[11px] px-2 py-0.5"
               }`}
             >
-              Expires in {left} {left === 1 ? "day" : "days"}
+              Consume Before {left} {left === 1 ? "day" : "days"}
             </div>
           )}
         </div>
@@ -472,7 +493,9 @@ const Stepper = ({ status }) => {
                   }`}
               >
                 <StatusIcon
-                  status={passed && i === statusOrder.length - 1 ? "complete" : s}
+                  status={
+                    passed && i === statusOrder.length - 1 ? "complete" : s
+                  }
                   className="w-5 h-5"
                 />
               </div>
@@ -638,8 +661,19 @@ const CDonationStatus = () => {
       console.error(e);
     }
   };
+  
   useEffect(() => {
+    if (!currentUser) return;
+    
+    // Initial fetch
     fetchAll();
+    
+    // Poll every 5 seconds
+    const interval = setInterval(() => {
+      fetchAll();
+    }, 5000);
+    
+    return () => clearInterval(interval);
   }, [currentUser]);
 
   const markAsReceived = async (donationId) => {
@@ -669,6 +703,44 @@ const CDonationStatus = () => {
       console.error(e);
     }
   };
+
+  // Poll selected donation status in modal for real-time updates
+  useEffect(() => {
+    if (!selectedDonation) return;
+    
+    const fetchSelectedDonation = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const isDirect = selectedDonation.btracking_status !== undefined;
+        const endpoint = isDirect
+          ? `${API}/direct/mine`
+          : `${API}/donation/received`;
+        
+        const res = await fetch(endpoint, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        
+        // Find the matching donation
+        const updated = (data || []).find(
+          (d) => d.id === selectedDonation.id
+        );
+        
+        if (updated) {
+          setSelectedDonation(updated);
+        }
+      } catch (e) {
+        console.error("Failed to fetch selected donation:", e);
+      }
+    };
+    
+    // Poll every 3 seconds
+    const interval = setInterval(() => {
+      fetchSelectedDonation();
+    }, 3000);
+    
+    return () => clearInterval(interval);
+  }, [selectedDonation?.id]);
 
   useEffect(() => {
     const handler = (storageKey, prefix) => {
@@ -738,9 +810,7 @@ const CDonationStatus = () => {
   );
 
   // Direct section (apply qDir) – pending & preparing
-  const dirPendingFiltered = directPending.filter((d) =>
-    matchesQuery(d, qDir)
-  );
+  const dirPendingFiltered = directPending.filter((d) => matchesQuery(d, qDir));
   const dirPreparingFiltered = directPreparing.filter((d) =>
     matchesQuery(d, qDir)
   );
@@ -944,7 +1014,7 @@ const CDonationStatus = () => {
                 </div>
                 <div className="col-span-6 md:col-span-3">
                   <div className="rounded-xl border border-[#f2e3cf] bg-white/70 p-3">
-                    <div className="text-xs text-[#7b5836]">Expires</div>
+                    <div className="text-xs text-[#7b5836]">Consume Before</div>
                     <div className="text-lg font-semibold text-[#3b2a18]">
                       {selectedDonation.expiration_date
                         ? new Date(

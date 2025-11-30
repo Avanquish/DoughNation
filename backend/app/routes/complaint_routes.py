@@ -69,6 +69,40 @@ def update_complaint_status(
     complaint = crud.update_complaint_status(db, complaint_id, status.status)
     if not complaint:
         raise HTTPException(status_code=404, detail="Complaint not found")
+    
+    # If status is changed to "In Review", create a notification for the user
+    if status.status == "In Review":
+        # Get the user who filed the complaint
+        user = db.query(models.User).filter(
+            models.User.id == complaint.user_id
+        ).first()
+        
+        if user:
+            # Create a system notification for the user
+            from app.admin_models import SystemNotification, NotificationReceipt
+            notification = SystemNotification(
+                title=f"Complaint Update: {complaint.subject}",
+                message=f"Your complaint is now under review. We are looking into your concern and will get back to you soon.",
+                notification_type="Super Admin",
+                target_user_id=user.id,
+                send_in_app=True,
+                send_email=False,
+                sent_by_admin_id=current_user.id,
+                sent_at=now_ph(),
+                priority="medium"
+            )
+            db.add(notification)
+            db.flush()  # Get the notification ID
+            
+            # Create notification receipt for the user
+            receipt = NotificationReceipt(
+                notification_id=notification.id,
+                user_id=user.id,
+                is_read=False
+            )
+            db.add(receipt)
+            db.commit()
+    
     return complaint
 
 # Reply to complaint (admin only)
@@ -113,7 +147,7 @@ def reply_to_complaint(
     notification = SystemNotification(
         title=f"Complaint Response: {complaint.subject}",
         message=f"Admin has replied to your complaint.\n\nStatus: {reply.status}\n\nResponse: {reply.message}",
-        notification_type="user_specific",
+        notification_type="Super Admin",
         target_user_id=user.id,
         send_in_app=True,
         send_email=False,  # Email is sent separately below

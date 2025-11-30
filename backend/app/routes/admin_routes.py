@@ -6,6 +6,7 @@ from app import models, database
 from app.timezone_utils import now_ph
 from app.auth import get_current_admin  # Only allow admins
 from app.email_utils import send_account_verified_email, send_email  # ✅ NEW: Import email function
+from app import admin_models  # Import admin models for SystemNotification
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -65,6 +66,10 @@ def reject_user(user_id: int, body: RejectUserRequest, db: Session = Depends(dat
     user_email = user.email
     user_role = user.role
     rejection_reason = body.reason
+    
+    # Delete associated employees first (to avoid NOT NULL constraint violation)
+    if user.role == "Bakery":
+        db.query(models.Employee).filter(models.Employee.bakery_id == user_id).delete(synchronize_session=False)
     
     # Delete the user
     db.delete(user)
@@ -278,3 +283,34 @@ def get_read_notifications(
         models.NotificationRead.user_id == admin.id
     ).all()
     return [r.notif_id for r in reads]
+
+@router.get("/contact-support-notifications")
+def get_contact_support_notifications(
+    db: Session = Depends(database.get_db),
+    admin=Depends(get_current_admin)
+):
+    """
+    Fetch contact support notifications from SystemNotification table.
+    Returns notifications targeted to the current admin user.
+    """
+    # Query SystemNotification table for user_specific notifications targeted at this admin
+    notifications = (
+        db.query(admin_models.SystemNotification)
+        .filter(
+            admin_models.SystemNotification.target_user_id == admin.id,
+            admin_models.SystemNotification.notification_type == "user_specific"
+        )
+        .order_by(admin_models.SystemNotification.sent_at.desc())
+        .all()
+    )
+    
+    return [
+        {
+            "id": n.id,
+            "title": n.title,
+            "message": n.message,
+            "created_at": n.sent_at.isoformat() if n.sent_at else n.created_at.isoformat() if n.created_at else None,
+            "notification_type": n.notification_type
+        }
+        for n in notifications
+    ]

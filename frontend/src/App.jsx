@@ -16,6 +16,7 @@ import CharityProfile from "./pages/CharityProfile";
 import ForgotPassword from "./pages/ForgetPassword";
 import PrivacyTerms from "./pages/PrivacyTerms";
 import DataTableDemo from "./pages/DatatableSample";
+import ContactSupport from "./pages/ContactSupport";
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/privacy-terms" element={<PrivacyTerms/>} />
           <Route path="/sample-page" element={<DataTableDemo/>} />
+          <Route path="/contact-support" element={<ContactSupport />} />
 
           {/* Unified Bakery Dashboard Route - handles both bakery owners and employees */}
           <Route path="/bakery-dashboard/:id" element={<BakeryDashboardRoute><BakeryDashboard /></BakeryDashboardRoute>} />

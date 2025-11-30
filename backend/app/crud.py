@@ -399,11 +399,12 @@ def create_inventory(
     uploaded: str,
     description: str = None
 ):
-    from datetime import datetime
     import random
 
-    # Use Philippine timezone (UTC+8) to match the rest of the system
-    server_creation_date = today_ph()
+    if isinstance(creation_date, str):
+        server_creation_date = datetime.strptime(creation_date, "%Y-%m-%d").date()
+    else:
+        server_creation_date = creation_date
 
     image_path = None
     if image:
@@ -466,6 +467,8 @@ def update_inventory(
 
     # Update basic fields
     item.name = name
+    item.creation_date = datetime.strptime(creation_date, "%Y-%m-%d").date() if isinstance(creation_date, str) else creation_date
+    item.quantity = quantity
     item.quantity = quantity
     item.expiration_date = datetime.strptime(expiration_date, "%Y-%m-%d").date() if expiration_date else None
     item.threshold = threshold

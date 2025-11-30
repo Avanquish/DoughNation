@@ -487,7 +487,11 @@ const Login = () => {
                   <Input
                     id="identifier"
                     type="text"
-                    placeholder="Enter your username"
+                    placeholder={
+                      role === "Bakery"
+                        ? "Enter your Email or Employee ID"
+                        : "Enter your Email"
+                    }
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     required
@@ -578,7 +582,7 @@ const Login = () => {
           </Card>
         </section>
 
-        {/* DoughNation info */}
+         {/* DoughNation info */}
         <section className="order-2 md:order-1 left-hero relative md:basis-[45%] min-h-[52vh] md:min-h-screen flex mt-4 md:mt-0">
           <div className="left-hero-surface absolute inset-0" />
           <div className="left-wrap relative w-full h-full flex items-center">
@@ -594,8 +598,8 @@ const Login = () => {
                 className="mt-5 text-[#8f642a] max-w-[52ch]"
                 style={{ fontSize: "var(--text)" }}
               >
-                Sign in with your email (Bakery/Charity/Admin) or employee name
-                to manage inventory and donations.
+                Sign in with your Gmail account (Bakery, Charity, or Admin) or
+                your bakery employee ID to manage inventory and donations.
               </p>
 
               <ul
@@ -605,22 +609,23 @@ const Login = () => {
                 <li className="flex items-start gap-3">
                   <Store className="h-5 w-5 mt-0.5 text-[#ce893b]" />
                   <span>
-                    Bakery & Employees — Track inventory, schedule donations,
-                    manage team.
+                    Bakery Owners & Employees — Track inventory, manage
+                    donations, and connect with charities.
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
                   <Heart className="h-5 w-5 mt-0.5 text-[#ce893b]" />
                   <span>
-                    Charity — View nearby bread offers, claim donations,
-                    coordinate pickup.
+                    Charities — View nearby bread offers, claim donations, and
+                    schedule pickups with partner bakeries.
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
                   <Building2 className="h-5 w-5 mt-0.5 text-[#ce893b]" />
                   <span>
-                    Admin — Manage all users, partners, analytics, and donation
-                    logs.
+                    Admins — Oversee the entire system, including user
+                    verification, managing audit logs, performing maintenance,
+                    and more.
                   </span>
                 </li>
               </ul>

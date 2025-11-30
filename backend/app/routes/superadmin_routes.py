@@ -24,6 +24,8 @@ from app.database import get_db
 from app.auth import get_current_user, pwd_context
 from app.email_utils import send_email
 import json
+import secrets
+import string
 from app import database, auth
 from app.timezone_utils import now_ph, today_ph, get_day_start_ph, get_day_end_ph
 
@@ -1038,14 +1040,45 @@ def create_ownership_transfer(
     employee_name = employee.name
     employee_email = employee.email
     employee_profile_picture = employee.profile_picture
+    employee_old_role = employee.role
     
-    # Transfer ownership: Update bakery's contact person and email to employee's details
-    # Note: Bakery profile picture remains unchanged (keeps original registration photo)
+    # Generate a secure one-time password (16 characters: letters, digits, special chars)
+    def generate_secure_password(length=16):
+        alphabet = string.ascii_letters + string.digits + "!@#$%"
+        password = ''.join(secrets.choice(alphabet) for i in range(length))
+        return password
+    
+    one_time_password = generate_secure_password()
+    
+    # Hash the one-time password for the bakery account
+    hashed_one_time_password = pwd_context.hash(one_time_password)
+    
+    # Transfer ownership: Update bakery's contact person, email, and password
     bakery.contact_person = employee.name
     bakery.email = employee.email
+    bakery.hashed_password = hashed_one_time_password
+    bakery.must_change_password = True
+    bakery.temp_password_created_at = now_ph()
     
-    # Change employee role to "Owner" (they remain in the employees table with Owner role)
+    # Archive/Remove old owner data
+    # Store old owner info in the override record for audit trail
+    old_owner_archived_data = {
+        "old_contact_person": old_contact_person,
+        "old_email": old_email,
+        "archived_at": now_ph().isoformat(),
+        "reason": "Ownership transferred to employee"
+    }
+    
+    # The bakery record now represents the new owner
+    # Old owner's access is completely removed as their email is no longer associated
+    
+    # Update employee record:
+    # - Change role to "Owner"
+    # - Invalidate old employee credentials (they'll use bakery login now)
+    # - Mark that password must be changed
     employee.role = "Owner"
+    employee.hashed_password = None  # Invalidate old employee login
+    employee.must_change_password = False  # Reset this since they use bakery account now
     
     db.commit()
     
@@ -1089,10 +1122,12 @@ def create_ownership_transfer(
             "transfer_type": transfer.transfer_type,
             "is_temporary": transfer.is_temporary,
             "expires_at": expires_at.isoformat() if expires_at else None,
-            "old_contact_person": old_contact_person,
-            "old_email": old_email,
+            "old_owner_archived": old_owner_archived_data,
             "new_contact_person": employee_name,
-            "new_email": employee_email
+            "new_email": employee_email,
+            "one_time_password_generated": True,
+            "employee_old_credentials_invalidated": True,
+            "employee_old_role": employee_old_role
         }
     )
     db.add(override)
@@ -1116,30 +1151,69 @@ def create_ownership_transfer(
         severity="critical"
     )
     
-    # Send notification to new owner (former employee)
+    # Send notification to new owner (former employee) with one-time password
     send_email(
         to_email=employee_email,
-        subject="Bakery Ownership Transfer - DoughNation",
+        subject="🔑 Bakery Ownership Transfer - Login Credentials - DoughNation",
         html_content=f"""
-        <h2>Ownership Transfer Notification</h2>
-        <p>Dear {employee_name},</p>
-        <p>You have been designated as the {'Acting' if transfer.is_temporary else 'New'} Owner/Contact Person for <strong>{bakery.name}</strong>.</p>
-        <p><strong>Transfer Type:</strong> {transfer.transfer_type.capitalize()}</p>
-        <p><strong>Reason:</strong> {transfer.reason}</p>
-        {f'<p><strong>Duration:</strong> {transfer.duration_days} days (expires: {expires_at.strftime("%Y-%m-%d")})</p>' if expires_at else '<p><strong>Duration:</strong> Permanent</p>'}
-        <p><strong>Previous Owner:</strong> {old_contact_person} ({old_email})</p>
-        <p><strong>Your New Status:</strong></p>
-        <ul>
-            <li>You are now the Bakery Owner</li>
-            <li>Your role has been updated to "Owner" in the system</li>
-            <li>Login Email: {employee_email}</li>
-            <li>Contact Person: {employee_name}</li>
-        </ul>
-        <p><strong>⚠️ Important:</strong> You now have full ownership access with Owner role.</p>
-        <p>The bakery's contact person and email have been updated to your details.</p>
-        <p>Please contact the administrator if you have any questions.</p>
-        <hr>
-        <p><small>This is an emergency action performed by Super Admin: {current_admin.name}</small></p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #DE7F21;">🏪 Ownership Transfer Notification</h2>
+            <p>Dear {employee_name},</p>
+            <p>You have been designated as the {'Acting' if transfer.is_temporary else 'New'} Owner/Contact Person for <strong>{bakery.name}</strong>.</p>
+            
+            <div style="background-color: #FFF9F1; border-left: 4px solid #DE7F21; padding: 15px; margin: 20px 0;">
+                <h3 style="margin-top: 0; color: #4A2F17;">🔐 Your New Login Credentials</h3>
+                <p><strong>Email:</strong> {employee_email}</p>
+                <p><strong>One-Time Password:</strong> <code style="background-color: #FFE1BD; padding: 5px 10px; font-size: 16px; font-weight: bold; border-radius: 4px;">{one_time_password}</code></p>
+            </div>
+            
+            <div style="background-color: #FEF3E6; border: 2px solid #F0A955; border-radius: 8px; padding: 15px; margin: 20px 0;">
+                <p style="margin: 0; color: #B45A0D; font-weight: bold;">⚠️ IMPORTANT SECURITY NOTICE:</p>
+                <ul style="margin: 10px 0; padding-left: 20px; color: #6b4b2b;">
+                    <li><strong>This is a ONE-TIME password</strong></li>
+                    <li><strong>You MUST change this password immediately upon first login</strong></li>
+                    <li>Your old employee account credentials are no longer valid</li>
+                    <li>You will be prompted to create a new secure password when you log in</li>
+                    <li>Do not share this password with anyone</li>
+                </ul>
+            </div>
+            
+            <p><strong>Transfer Details:</strong></p>
+            <ul>
+                <li><strong>Transfer Type:</strong> {transfer.transfer_type.capitalize()}</li>
+                <li><strong>Reason:</strong> {transfer.reason}</li>
+                {f'<li><strong>Duration:</strong> {transfer.duration_days} days (expires: {expires_at.strftime("%Y-%m-%d")})</li>' if expires_at else '<li><strong>Duration:</strong> Permanent</li>'}
+                <li><strong>Previous Owner:</strong> {old_contact_person} ({old_email})</li>
+            </ul>
+            
+            <p><strong>Your New Status:</strong></p>
+            <ul>
+                <li>✅ You are now the Bakery Owner</li>
+                <li>✅ Your role has been updated to "Owner" in the system</li>
+                <li>✅ Login Email: {employee_email}</li>
+                <li>✅ Contact Person: {employee_name}</li>
+                <li>✅ You now have full ownership access</li>
+            </ul>
+            
+            <div style="background-color: #E8F5E9; border-radius: 8px; padding: 15px; margin: 20px 0;">
+                <p style="margin: 0; font-weight: bold; color: #2E7D32;">📋 Next Steps:</p>
+                <ol style="margin: 10px 0; padding-left: 20px; color: #4A2F17;">
+                    <li>Log in to DoughNation using your email ({employee_email})</li>
+                    <li>Use the one-time password provided above</li>
+                    <li>You will be immediately prompted to create a new password</li>
+                    <li>Choose a strong, unique password for your account</li>
+                    <li>Begin managing {bakery.name} as the new owner</li>
+                </ol>
+            </div>
+            
+            <p>The bakery's contact person and email have been updated to your details. The previous owner's access has been removed from the system.</p>
+            
+            <p>If you have any questions or did not expect this transfer, please contact DoughNation support immediately.</p>
+            
+            <hr style="border: none; border-top: 1px solid #f2d4b5; margin: 30px 0;">
+            <p style="font-size: 12px; color: #7b5836;"><em>This is an emergency action performed by Super Admin: {current_admin.name}</em></p>
+            <p style="font-size: 12px; color: #7b5836;"><em>Transfer ID: {ownership_transfer.id} | Date: {now_ph().strftime("%Y-%m-%d %H:%M:%S")} PHT</em></p>
+        </div>
         """
     )
     
@@ -1147,18 +1221,37 @@ def create_ownership_transfer(
     try:
         send_email(
             to_email=old_email,
-            subject="Bakery Ownership Transfer Notice - DoughNation",
+            subject="⚠️ Bakery Ownership Transfer Notice - Access Removed - DoughNation",
             html_content=f"""
-            <h2>Ownership Transfer Notice</h2>
-            <p>Dear {old_contact_person},</p>
-            <p>This is to inform you that ownership of <strong>{bakery.name}</strong> has been transferred.</p>
-            <p><strong>Transfer Type:</strong> {transfer.transfer_type.capitalize()}</p>
-            <p><strong>New Owner:</strong> {employee_name} ({employee_email})</p>
-            <p><strong>Reason:</strong> {transfer.reason}</p>
-            {f'<p><strong>Duration:</strong> {transfer.duration_days} days (expires: {expires_at.strftime("%Y-%m-%d")})</p>' if expires_at else '<p><strong>Duration:</strong> Permanent</p>'}
-            <p>If you have questions or concerns about this transfer, please contact DoughNation support.</p>
-            <hr>
-            <p><small>This is an emergency action performed by Super Admin: {current_admin.name}</small></p>
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #DE7F21;">Ownership Transfer Notice</h2>
+                <p>Dear {old_contact_person},</p>
+                <p>This is to inform you that ownership of <strong>{bakery.name}</strong> has been transferred.</p>
+                
+                <div style="background-color: #FEF3E6; border: 2px solid #F0A955; border-radius: 8px; padding: 15px; margin: 20px 0;">
+                    <p style="margin: 0; color: #B45A0D; font-weight: bold;">⚠️ IMPORTANT NOTICE:</p>
+                    <ul style="margin: 10px 0; padding-left: 20px; color: #6b4b2b;">
+                        <li><strong>Your access to the bakery account has been removed</strong></li>
+                        <li>You can no longer log in using your previous credentials</li>
+                        <li>All bakery management has been transferred to the new owner</li>
+                        <li>Your data has been archived for audit purposes</li>
+                    </ul>
+                </div>
+                
+                <p><strong>Transfer Details:</strong></p>
+                <ul>
+                    <li><strong>Transfer Type:</strong> {transfer.transfer_type.capitalize()}</li>
+                    <li><strong>New Owner:</strong> {employee_name} ({employee_email})</li>
+                    <li><strong>Reason:</strong> {transfer.reason}</li>
+                    {f'<li><strong>Duration:</strong> {transfer.duration_days} days (expires: {expires_at.strftime("%Y-%m-%d")})</li>' if expires_at else '<li><strong>Duration:</strong> Permanent</li>'}
+                </ul>
+                
+                <p>If you have questions or concerns about this transfer, or if you believe this was done in error, please contact DoughNation support immediately.</p>
+                
+                <hr style="border: none; border-top: 1px solid #f2d4b5; margin: 30px 0;">
+                <p style="font-size: 12px; color: #7b5836;"><em>This is an emergency action performed by Super Admin: {current_admin.name}</em></p>
+                <p style="font-size: 12px; color: #7b5836;"><em>Transfer ID: {ownership_transfer.id} | Date: {now_ph().strftime("%Y-%m-%d %H:%M:%S")} PHT</em></p>
+            </div>
             """
         )
     except Exception as e:
@@ -1169,13 +1262,17 @@ def create_ownership_transfer(
         "transfer_id": ownership_transfer.id,
         "bakery_name": bakery.name,
         "previous_owner": old_contact_person,
+        "previous_owner_access_removed": True,
         "new_owner": employee_name,
         "new_contact_email": employee_email,
         "transfer_type": transfer.transfer_type,
         "is_temporary": transfer.is_temporary,
         "expires_at": expires_at.isoformat() if expires_at else None,
         "employee_role_updated": True,
-        "new_role": "Owner"
+        "new_role": "Owner",
+        "one_time_password_sent": True,
+        "password_change_required": True,
+        "old_employee_credentials_invalidated": True
     }
 
 

@@ -383,11 +383,27 @@ const EmergencyControlPanel = () => {
                   ).toLocaleString()}</p>`
                 : "<p><strong>Status:</strong> Permanent Transfer</p>"
             }
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-3">
+              <p class="text-sm font-semibold text-amber-800 mb-2">🔐 Security Actions Completed:</p>
+              <ul class="text-sm text-amber-700 space-y-1">
+                <li>✅ One-time password generated and sent to new owner</li>
+                <li>✅ Previous owner's access has been removed</li>
+                <li>✅ Old employee credentials have been invalidated</li>
+                <li>✅ Password change required on first login</li>
+              </ul>
+            </div>
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
+              <p class="text-sm font-semibold text-blue-800 mb-2">📧 Notifications Sent:</p>
+              <ul class="text-sm text-blue-700 space-y-1">
+                <li>• New owner received login credentials via email</li>
+                <li>• Previous owner notified of access removal</li>
+              </ul>
+            </div>
             <p class="text-sm text-gray-600 mt-4">Transfer ID: ${
               response.data.transfer_id
             }</p>
             <p class="text-sm text-amber-600 mt-2">⚠️ The bakery's contact person and email have been updated.</p>
-            <p class="text-sm text-green-600 mt-2">✅ The employee's role has been changed to \"Owner\".</p>
+            <p class="text-sm text-green-600 mt-2">✅ The employee's role has been changed to "Owner".</p>
           </div>
         `,
         icon: "success",

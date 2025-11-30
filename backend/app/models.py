@@ -54,6 +54,10 @@ class User(Base):
     # OTP fields for forgot password
     forgot_password_otp = Column(String, nullable=True)  # 6-digit OTP code
     forgot_password_otp_expires = Column(DateTime, nullable=True)  # OTP expiration time
+    
+    # One-time password tracking (for ownership transfers and emergency resets)
+    must_change_password = Column(Boolean, default=False)  # Forces password change on next login
+    temp_password_created_at = Column(DateTime, nullable=True)  # When the temporary password was set
 
      # Parent side of the relationship
     inventory_items = relationship("BakeryInventory", back_populates="bakery")
@@ -124,6 +128,10 @@ class Employee(Base):
     # OTP fields for forgot password
     forgot_password_otp = Column(String, nullable=True)  # 6-digit OTP code
     forgot_password_otp_expires = Column(DateTime, nullable=True)  # OTP expiration time
+    
+    # One-time password tracking (for ownership transfers)
+    must_change_password = Column(Boolean, default=False)  # Forces password change on next login
+    temp_password_created_at = Column(DateTime, nullable=True)  # When the temporary password was set
     
     # Relationships
     bakery = relationship("User", backref="employees")

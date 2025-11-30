@@ -306,6 +306,20 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
             using_default_password = True
             print(f"⚠️  SECURITY WARNING: Admin is using default password and must change it")
         
+        # 🔐 CHECK IF USER MUST CHANGE PASSWORD (One-Time Password)
+        must_change_password = False
+        if db_user.must_change_password:
+            must_change_password = True
+            print(f"⚠️  SECURITY NOTICE: User must change one-time password immediately")
+            log_system_event(
+                db=db,
+                event_type="one_time_password_login",
+                description=f"User logged in with one-time password: {db_user.email}",
+                severity="info",
+                user_id=db_user.id,
+                metadata={"email": db_user.email, "role": db_user.role, "temp_password_created_at": str(db_user.temp_password_created_at)}
+            )
+        
         # Generate token with type based on role
         token_data = {
             "sub": str(db_user.id),
@@ -314,7 +328,8 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
             "name": db_user.name,
             "contact_person": db_user.contact_person,  # Owner's name
             "is_verified": db_user.verified,
-            "using_default_password": using_default_password  # Flag for frontend
+            "using_default_password": using_default_password,  # Flag for frontend
+            "must_change_password": must_change_password  # Flag for one-time password
         }
         
         token = create_access_token(token_data)
@@ -531,6 +546,94 @@ def change_password(
         payload.new_password,
         payload.confirm_password
     )
+
+# 🔐 ONE-TIME PASSWORD CHANGE (Ownership Transfer)
+@router.put("/change-one-time-password", response_model=dict)
+def change_one_time_password(
+    payload: dict,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Change one-time password after ownership transfer or emergency reset.
+    This endpoint is used when must_change_password flag is True.
+    Does NOT require current password verification.
+    """
+    new_password = payload.get("new_password")
+    confirm_password = payload.get("confirm_password")
+    
+    if not new_password or not confirm_password:
+        raise HTTPException(
+            status_code=400,
+            detail="Both new_password and confirm_password are required"
+        )
+    
+    # Verify user must change password
+    if not current_user.must_change_password:
+        raise HTTPException(
+            status_code=403,
+            detail="This endpoint is only for one-time password changes"
+        )
+    
+    # Validate new passwords match
+    if new_password != confirm_password:
+        raise HTTPException(
+            status_code=400,
+            detail="New passwords do not match"
+        )
+    
+    # Validate password strength
+    if len(new_password) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 8 characters long"
+        )
+    
+    # Prevent using common default passwords
+    if new_password in ["admin1234", "Employee123!", "password123", "12345678"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot use common default passwords. Please choose a strong, unique password."
+        )
+    
+    # 🔐 PREVENT REUSING LAST 5 PASSWORDS
+    if crud.check_password_history(db, current_user.id, new_password, is_employee=False):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot reuse any of your last 5 passwords. Please choose a different password for security reasons."
+        )
+    
+    # Save old password to history before updating
+    crud.save_password_to_history(db, current_user.id, current_user.hashed_password, is_employee=False)
+    
+    # Hash and update password
+    hashed_password = pwd_context.hash(new_password)
+    current_user.hashed_password = hashed_password
+    current_user.must_change_password = False  # Clear the flag
+    current_user.temp_password_created_at = None  # Clear the timestamp
+    
+    db.commit()
+    db.refresh(current_user)
+    
+    # Log the password change
+    log_system_event(
+        db=db,
+        event_type="one_time_password_changed",
+        description=f"User {current_user.name} ({current_user.email}) successfully changed one-time password",
+        severity="info",
+        user_id=current_user.id,
+        metadata={
+            "email": current_user.email,
+            "role": current_user.role,
+            "forced_change": True,
+            "reason": "ownership_transfer_or_emergency_reset"
+        }
+    )
+    
+    return {
+        "message": "Password changed successfully. You can now access the system with your new password.",
+        "success": True
+    }
 
 # 🔐 ADMIN FORCE PASSWORD CHANGE (Security Enhancement)
 @router.put("/admin/force-change-password", response_model=dict)

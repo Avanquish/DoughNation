@@ -3,6 +3,7 @@ import shutil
 from datetime import datetime, date
 
 from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
+from app.timezone_utils import now_ph
 from sqlalchemy.orm import Session
 from sqlalchemy import func, true
 
@@ -10,7 +11,7 @@ from app.database import get_db
 from app.auth import get_current_user
 from app.models import User 
 from app.crud import update_user_badges
-
+from app.auth import get_bakery_id_from_auth, get_donor_name_from_auth
 
 from app import models, schemas, database, auth
 from app.routes.binventory_routes import check_threshold_and_create_donation
@@ -27,12 +28,12 @@ async def create_direct_donation(
     bakery_inventory_id: int = Form(...),
     charity_id: int = Form(...),
     quantity: int = Form(...),
-    donated_by: str = Form(...),  # ✅ Add this parameter
     db: Session = Depends(database.get_db),
     current_auth=Depends(auth.get_current_user_or_employee),
 ):
     # Extract bakery_id from either employee or bakery token
-    bakery_id = auth.get_bakery_id_from_auth(current_auth)
+    bakery_id = get_bakery_id_from_auth(current_auth)
+    donated_by = get_donor_name_from_auth(current_auth) 
     
     if not bakery_id:
         raise HTTPException(status_code=403, detail="Not authorized")
@@ -182,7 +183,7 @@ def update_direct_tracking(
             models.DonationRequest.donation_id == direct_donation_id
         ).update({
             "tracking_status": data.btracking_status,
-            "tracking_completed_at": datetime.utcnow()  # <-- FIX: also stamp request side
+            "tracking_completed_at": now_ph()  # <-- FIX: also stamp request side
         })
     else:
         db.query(models.DonationRequest).filter(
@@ -398,4 +399,4 @@ def get_recommended_charities(
         "recommended": [charity_data(c) for c in recommended],
         "rest": [charity_data(c) for c in rest],
         "all": [charity_data(c) for c in charities]  # Optional: full list
-    }
+    } 

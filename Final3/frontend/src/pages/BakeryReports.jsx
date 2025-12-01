@@ -88,12 +88,41 @@ export default function BakeryReports({ isViewOnly = false }) {
 
   // Get current date in Philippine timezone (YYYY-MM-DD format)
   const getPhilippineDate = () => {
-    const now = new Date();
-    const phTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+    const browserTime = new Date();
+    const phTime = new Date(browserTime.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
     const year = phTime.getFullYear();
     const month = String(phTime.getMonth() + 1).padStart(2, '0');
     const day = String(phTime.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const result = `${year}-${month}-${day}`;
+    
+    // Debug logging
+    console.log('=== PHILIPPINE DATE CHECK ===');
+    console.log('Browser Time:', browserTime.toString());
+    console.log('Browser Date:', browserTime.toISOString().split('T')[0]);
+    console.log('Philippine Time:', phTime.toString());
+    console.log('Philippine Date (YYYY-MM-DD):', result);
+    console.log('============================');
+    
+    return result;
+  };
+
+  // Get current month in Philippine timezone (YYYY-MM format)
+  const getPhilippineMonth = () => {
+    const browserTime = new Date();
+    const phTime = new Date(browserTime.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+    const year = phTime.getFullYear();
+    const month = String(phTime.getMonth() + 1).padStart(2, '0');
+    const result = `${year}-${month}`;
+    
+    // Debug logging
+    console.log('=== PHILIPPINE MONTH CHECK ===');
+    console.log('Browser Time:', browserTime.toString());
+    console.log('Browser Month:', browserTime.toISOString().slice(0, 7));
+    console.log('Philippine Time:', phTime.toString());
+    console.log('Philippine Month (YYYY-MM):', result);
+    console.log('==============================');
+    
+    return result;
   };
 
   // Helper: which type should be used for fetching/exports?
@@ -101,24 +130,23 @@ export default function BakeryReports({ isViewOnly = false }) {
     activeReport === "summary" ? activeSummary : activeReport;
 
   const handleMonthlyFilter = () => {
-    const effType = "monthly";
-    if (!selectedMonth) {
-      Swal.fire("Error", "Please select a month.", "error");
-      return;
-    }
+  const effType = "monthly";
+  if (!selectedMonth) {
+    Swal.fire("Error", "Please select a month.", "error");
+    return;
+  } 
 
-    // Validate future month
-    const today = new Date();
-    const currentMonth = today.toISOString().slice(0, 7); // Format: YYYY-MM
+  // Validate future month using Philippine time
+  const currentMonth = getPhilippineMonth();
 
-    if (selectedMonth > currentMonth) {
-      Swal.fire(
-        "Invalid Date",
-        "Selected month cannot be in the future.",
-        "error"
-      );
-      return;
-    }
+  if (selectedMonth > currentMonth) {
+    Swal.fire(
+      "Invalid Date",
+      "Selected month cannot be in the future.",
+      "error"
+    );
+    return;
+  }
 
     generateReport(effType, { month: selectedMonth }).then(() => {
       localStorage.setItem("lastReportType", effType);
@@ -136,8 +164,8 @@ export default function BakeryReports({ isViewOnly = false }) {
       return;
     }
 
-    // Validate future dates
-    const today = new Date().toISOString().split("T")[0];
+    // Validate future dates using Philippine time
+    const today = getPhilippineDate();
 
     if (weekStart > today) {
       Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
@@ -173,15 +201,15 @@ export default function BakeryReports({ isViewOnly = false }) {
     });
   };
 
-  const handleCustomFilter = () => {
-    const effType = "custom";
+const handleCustomFilter = () => {
+  const effType = "custom";
     if (!customStart || !customEnd) {
       Swal.fire("Error", "Please select both start and end dates.", "error");
       return;
     }
 
-    // Validate future dates
-    const today = new Date().toISOString().split("T")[0];
+    // Validate future dates using Philippine time
+    const today = getPhilippineDate();
     
     if (customStart > today) {
       Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
@@ -192,7 +220,7 @@ export default function BakeryReports({ isViewOnly = false }) {
       Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
       return;
     }
-    
+
     if (customStart > customEnd) {
       Swal.fire("Invalid Date Range", "End date must be after or equal to start date.", "error");
       return;
@@ -211,8 +239,8 @@ export default function BakeryReports({ isViewOnly = false }) {
 
   // Handlers for other report filters
   const handleDonationHistoryFilter = () => {
-    // Validate future dates
-    const today = new Date().toISOString().split("T")[0];
+    // Validate future dates using Philippine time
+    const today = getPhilippineDate();
 
     if (donationHistoryStart && donationHistoryStart > today) {
       Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
@@ -231,8 +259,8 @@ export default function BakeryReports({ isViewOnly = false }) {
   };
 
   const handleExpiryLossFilter = () => {
-    // Validate future dates
-    const today = new Date().toISOString().split("T")[0];
+  // Validate future dates using Philippine time
+    const today = getPhilippineDate();
 
     if (expiryLossStart && expiryLossStart > today) {
       Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
@@ -243,7 +271,6 @@ export default function BakeryReports({ isViewOnly = false }) {
       Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
       return;
     }
-
     generateReport("expiry_loss", {
       start_date: expiryLossStart,
       end_date: expiryLossEnd,
@@ -251,8 +278,8 @@ export default function BakeryReports({ isViewOnly = false }) {
   };
 
   const handleTopItemsFilter = () => {
-    // Validate future dates
-    const today = new Date().toISOString().split("T")[0];
+    // Validate future dates using Philippine time
+    const today = getPhilippineDate();
 
     if (topItemsStart && topItemsStart > today) {
       Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
@@ -271,8 +298,8 @@ export default function BakeryReports({ isViewOnly = false }) {
   };
 
   const handleCharityListFilter = () => {
-    // Validate future dates
-    const today = new Date().toISOString().split("T")[0];
+    // Validate future dates using Philippine time
+    const today = getPhilippineDate();
 
     if (charityListStart && charityListStart > today) {
       Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");

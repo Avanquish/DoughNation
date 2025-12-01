@@ -37,6 +37,12 @@ export default function BakeryReports() {
   const [selectedMonth, setSelectedMonth] = useState("");
   const [savedMonth, setSavedMonth] = useState(null);
 
+  // Custom period state
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const [savedCustomStart, setSavedCustomStart] = useState(null);
+  const [savedCustomEnd, setSavedCustomEnd] = useState(null);
+
   // Date filters for other reports
   const [donationHistoryStart, setDonationHistoryStart] = useState("");
   const [donationHistoryEnd, setDonationHistoryEnd] = useState("");
@@ -59,25 +65,72 @@ export default function BakeryReports() {
   const formatHeader = (h) =>
     h.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
-  const handleWeeklyFilter = () => {
-    const effType = "weekly";
-    if (!weekStart || !weekEnd) {
-      Swal.fire("Error", "Please select both start and end dates.", "error");
-      return;
-    }
+  // Get current date in Philippine timezone (YYYY-MM-DD format)
+  const getPhilippineDate = () => {
+  const browserTime = new Date();
+  const phTime = new Date(browserTime.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+  const year = phTime.getFullYear();
+  const month = String(phTime.getMonth() + 1).padStart(2, '0');
+  const day = String(phTime.getDate()).padStart(2, '0');
+  const result = `${year}-${month}-${day}`;
+  
+  // Debug logging
+  console.log('=== PHILIPPINE DATE CHECK ===');
+  console.log('Browser Time:', browserTime.toString());
+  console.log('Browser Date:', browserTime.toISOString().split('T')[0]);
+  console.log('Philippine Time:', phTime.toString());
+  console.log('Philippine Date (YYYY-MM-DD):', result);
+  console.log('============================');
+  
+  return result;
+};
 
-    // Validate future dates
-    const today = new Date().toISOString().split("T")[0];
+// Get current month in Philippine timezone (YYYY-MM format)
+const getPhilippineMonth = () => {
+  const browserTime = new Date();
+  const phTime = new Date(browserTime.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+  const year = phTime.getFullYear();
+  const month = String(phTime.getMonth() + 1).padStart(2, '0');
+  const result = `${year}-${month}`;
+  
+  // Debug logging
+  console.log('=== PHILIPPINE MONTH CHECK ===');
+  console.log('Browser Time:', browserTime.toString());
+  console.log('Browser Month:', browserTime.toISOString().slice(0, 7));
+  console.log('Philippine Time:', phTime.toString());
+  console.log('Philippine Month (YYYY-MM):', result);
+  console.log('==============================');
+  
+  return result;
+};
 
-    if (weekStart > today) {
-      Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
-      return;
-    }
+const handleWeeklyFilter = () => {
+  const effType = "weekly";
+  if (!weekStart || !weekEnd) {
+    Swal.fire("Error", "Please select both start and end dates.", "error");
+    return;
+  }
 
-    if (weekEnd > today) {
-      Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
-      return;
-    }
+  // Validate future dates using Philippine time
+  const today = getPhilippineDate();
+  
+  console.log('--- Weekly Filter Validation ---');
+  console.log('Selected Week Start:', weekStart);
+  console.log('Selected Week End:', weekEnd);
+  console.log('Current PH Date:', today);
+  console.log('Week Start is Future?', weekStart > today);
+  console.log('Week End is Future?', weekEnd > today);
+  console.log('--------------------------------');
+
+  if (weekStart > today) {
+    Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
+    return;
+  }
+
+  if (weekEnd > today) {
+    Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
+    return;
+  }
 
     const start = new Date(weekStart);
     const end = new Date(weekEnd);
@@ -103,24 +156,29 @@ export default function BakeryReports() {
   };
 
   const handleMonthlyFilter = () => {
-    const effType = "monthly";
-    if (!selectedMonth) {
-      Swal.fire("Error", "Please select a month.", "error");
-      return;
-    }
+  const effType = "monthly";
+  if (!selectedMonth) {
+    Swal.fire("Error", "Please select a month.", "error");
+    return;
+  }
 
-    // Validate future month
-    const today = new Date();
-    const currentMonth = today.toISOString().slice(0, 7); // Format: YYYY-MM
+  // Validate future month using Philippine time
+  const currentMonth = getPhilippineMonth();
+  
+  console.log('--- Monthly Filter Validation ---');
+  console.log('Selected Month:', selectedMonth);
+  console.log('Current PH Month:', currentMonth);
+  console.log('Is Future?', selectedMonth > currentMonth);
+  console.log('---------------------------------');
 
-    if (selectedMonth > currentMonth) {
-      Swal.fire(
-        "Invalid Date",
-        "Selected month cannot be in the future.",
-        "error"
-      );
-      return;
-    }
+  if (selectedMonth > currentMonth) {
+    Swal.fire(
+      "Invalid Date",
+      "Selected month cannot be in the future.",
+      "error"
+    );
+    return;
+  }
 
     generateReport(effType, { month: selectedMonth }).then(() => {
       localStorage.setItem("lastReportType", effType);
@@ -131,20 +189,71 @@ export default function BakeryReports() {
     });
   };
 
-  // Handlers for other report filters
-  const handleDonationHistoryFilter = () => {
-    // Validate future dates
-    const today = new Date().toISOString().split("T")[0];
+  const handleCustomFilter = () => {
+    const effType = "custom";
+    if (!customStart || !customEnd) {
+      Swal.fire("Error", "Please select both start and end dates.", "error");
+      return;
+    }
 
-    if (donationHistoryStart && donationHistoryStart > today) {
+    // Validate future dates using Philippine time
+    const today = getPhilippineDate();
+    
+    console.log('--- Custom Filter Validation ---');
+    console.log('Custom Start Date:', customStart);
+    console.log('Custom End Date:', customEnd);
+    console.log('Current PH Date:', today);
+    console.log('Start is Future?', customStart > today);
+    console.log('End is Future?', customEnd > today);
+    console.log('--------------------------------');
+    
+    if (customStart > today) {
       Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
       return;
     }
-
-    if (donationHistoryEnd && donationHistoryEnd > today) {
+    
+    if (customEnd > today) {
       Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
       return;
     }
+    
+    if (customStart > customEnd) {
+      Swal.fire("Invalid Date Range", "End date must be after or equal to start date.", "error");
+      return;
+    }
+
+    generateReport(effType, { start: customStart, end: customEnd }).then(() => {
+      localStorage.setItem("lastCustomStart", customStart);
+      localStorage.setItem("lastCustomEnd", customEnd);
+      setSavedCustomStart(customStart);
+      setSavedCustomEnd(customEnd);
+      setActiveReport("summary");
+      setActiveSummary(effType);
+    });
+  };
+
+  // Handlers for other report filters
+  const handleDonationHistoryFilter = () => {
+  // Validate future dates using Philippine time
+  const today = getPhilippineDate();
+  
+  console.log('--- Donation History Filter Validation ---');
+  console.log('Start Date:', donationHistoryStart);
+  console.log('End Date:', donationHistoryEnd);
+  console.log('Current PH Date:', today);
+  console.log('Start is Future?', donationHistoryStart && donationHistoryStart > today);
+  console.log('End is Future?', donationHistoryEnd && donationHistoryEnd > today);
+  console.log('------------------------------------------');
+
+  if (donationHistoryStart && donationHistoryStart > today) {
+    Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
+    return;
+  }
+
+  if (donationHistoryEnd && donationHistoryEnd > today) {
+    Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
+    return;
+  }
 
     generateReport("donation_history", {
       start_date: donationHistoryStart,
@@ -153,18 +262,26 @@ export default function BakeryReports() {
   };
 
   const handleBakeryListFilter = () => {
-    // Validate future dates
-    const today = new Date().toISOString().split("T")[0];
+  // Validate future dates using Philippine time
+  const today = getPhilippineDate();
+  
+  console.log('--- Bakery List Filter Validation ---');
+  console.log('Start Date:', bakeryListStart);
+  console.log('End Date:', bakeryListEnd);
+  console.log('Current PH Date:', today);
+  console.log('Start is Future?', bakeryListStart && bakeryListStart > today);
+  console.log('End is Future?', bakeryListEnd && bakeryListEnd > today);
+  console.log('-------------------------------------');
 
-    if (bakeryListStart && bakeryListStart > today) {
-      Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
-      return;
-    }
+  if (bakeryListStart && bakeryListStart > today) {
+    Swal.fire("Invalid Date", "Start date cannot be in the future.", "error");
+    return;
+  }
 
-    if (bakeryListEnd && bakeryListEnd > today) {
-      Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
-      return;
-    }
+  if (bakeryListEnd && bakeryListEnd > today) {
+    Swal.fire("Invalid Date", "End date cannot be in the future.", "error");
+    return;
+  }
 
     generateReport("bakery_list", {
       start_date: bakeryListStart,
@@ -219,7 +336,7 @@ export default function BakeryReports() {
 
   const generateReport = async (type, param = null) => {
     setLoading(true);
-    if (type !== "weekly" && type !== "monthly") {
+    if (type !== "weekly" && type !== "monthly" && type !== "custom") {
       setActiveReport(type);
     }
 
@@ -227,8 +344,8 @@ export default function BakeryReports() {
       const token = localStorage.getItem("token");
       let url = `${API_URL}/report/${type}`;
 
-      // Use unified summary endpoint for weekly/monthly
-      if (type === "weekly" || type === "monthly") {
+      // Use unified summary endpoint for weekly/monthly/custom
+      if (type === "weekly" || type === "monthly" || type === "custom") {
         url = `${API_URL}/report/summary?period=${type}`;
 
         if (type === "weekly" && param?.start && param?.end) {
@@ -236,6 +353,9 @@ export default function BakeryReports() {
         }
         if (type === "monthly" && param?.month) {
           url += `&month=${param.month}`;
+        }
+        if (type === "custom" && param?.start && param?.end) {
+          url += `&start_date=${param.start}&end_date=${param.end}`;
         }
       }
 
@@ -2066,6 +2186,18 @@ export default function BakeryReports() {
             setReportData(null);
             // Also clear localStorage to prevent stale data
             localStorage.removeItem("lastReportData");
+            
+            // Reset all input values when switching tabs
+            setWeekStart("");
+            setWeekEnd("");
+            setSelectedMonth("");
+            setCustomStart("");
+            setCustomEnd("");
+            setDonationHistoryStart("");
+            setDonationHistoryEnd("");
+            setBakeryListStart("");
+            setBakeryListEnd("");
+            
             // For all tabs, wait for user to generate report
           }}
         >
@@ -2114,25 +2246,25 @@ export default function BakeryReports() {
               <div className="mb-4 flex flex-wrap gap-4 items-end">
                 <div>
                   <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
-                    Start Date (Optional)
+                    Start Date 
                   </label>
                   <input
                     type="date"
                     value={donationHistoryStart}
                     onChange={(e) => setDonationHistoryStart(e.target.value)}
-                    max={new Date().toISOString().split("T")[0]}
+                    max={getPhilippineDate()}
                     className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
-                    End Date (Optional)
+                    End Date 
                   </label>
                   <input
                     type="date"
                     value={donationHistoryEnd}
                     onChange={(e) => setDonationHistoryEnd(e.target.value)}
-                    max={new Date().toISOString().split("T")[0]}
+                    max={getPhilippineDate()}
                     className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                   />
                 </div>
@@ -2197,25 +2329,25 @@ export default function BakeryReports() {
               <div className="mb-4 flex flex-wrap gap-4 items-end">
                 <div>
                   <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
-                    Start Date (Optional)
+                    Start Date
                   </label>
                   <input
                     type="date"
                     value={bakeryListStart}
                     onChange={(e) => setBakeryListStart(e.target.value)}
-                    max={new Date().toISOString().split("T")[0]}
+                    max={getPhilippineDate()}
                     className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-[#6b4b2b] mb-1">
-                    End Date (Optional)
+                    End Date
                   </label>
                   <input
                     type="date"
                     value={bakeryListEnd}
                     onChange={(e) => setBakeryListEnd(e.target.value)}
-                    max={new Date().toISOString().split("T")[0]}
+                    max={getPhilippineDate()}
                     className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                   />
                 </div>
@@ -2289,11 +2421,16 @@ export default function BakeryReports() {
                           setWeekStart("");
                           setWeekEnd("");
                           setSelectedMonth("");
+                          setCustomStart("");
+                          setCustomEnd("");
+                          // Clear report data to prevent showing old data
+                          setReportData(null);
                         }}
                         className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                       >
                         <option value="weekly">Weekly</option>
                         <option value="monthly">Monthly</option>
+                        <option value="custom">Custom</option>
                       </select>
                     </div>
 
@@ -2307,7 +2444,7 @@ export default function BakeryReports() {
                             type="date"
                             value={weekStart}
                             onChange={(e) => setWeekStart(e.target.value)}
-                            max={new Date().toISOString().split("T")[0]}
+                            max={getPhilippineDate()}
                             className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                           />
                         </div>
@@ -2319,7 +2456,7 @@ export default function BakeryReports() {
                             type="date"
                             value={weekEnd}
                             onChange={(e) => setWeekEnd(e.target.value)}
-                            max={new Date().toISOString().split("T")[0]}
+                            max={getPhilippineDate()}
                             className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                           />
                         </div>
@@ -2330,7 +2467,7 @@ export default function BakeryReports() {
                           Generate Report
                         </Button>
                       </>
-                    ) : (
+                    ) : activeSummary === "monthly" ? (
                       <>
                         <div>
                           <label className="block text-sm font-medium text-[#6b4b2b]">
@@ -2340,7 +2477,7 @@ export default function BakeryReports() {
                             type="month"
                             value={selectedMonth}
                             onChange={(e) => setSelectedMonth(e.target.value)}
-                            max={new Date().toISOString().slice(0, 7)}
+                            max={getPhilippineDate().slice(0, 7)}
                             className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                           />
                         </div>
@@ -2351,7 +2488,40 @@ export default function BakeryReports() {
                           Generate Report
                         </Button>
                       </>
-                    )}
+                    ) : activeSummary === "custom" ? (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-[#6b4b2b]">
+                            Start Date
+                          </label>
+                          <input
+                            type="date"
+                            value={customStart}
+                            onChange={(e) => setCustomStart(e.target.value)}
+                            max={getPhilippineDate()}
+                            className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-[#6b4b2b]">
+                            End Date
+                          </label>
+                          <input
+                            type="date"
+                            value={customEnd}
+                            onChange={(e) => setCustomEnd(e.target.value)}
+                            max={getPhilippineDate()}
+                            className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                          />
+                        </div>
+                        <Button
+                          onClick={handleCustomFilter}
+                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                        >
+                          Generate Report
+                        </Button>
+                      </>
+                    ) : null}
                   </div>
 
                   {loading ? (
@@ -2584,6 +2754,142 @@ export default function BakeryReports() {
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex justify-center">
                         <Card className="rounded-xl ring-1 ring-black/10 bg-white/80 shadow-md justify-center">
+                          <CardHeader className="p-4 bg-[#FFF3E6]">
+                            <CardTitle className="text-[#6b4b2b]">
+                              Donation Type
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-4">
+                            <ResponsiveContainer width="100%" height={280}>
+                              <PieChart>
+                                <Pie
+                                  data={[
+                                    {
+                                      name: "Direct",
+                                      value:
+                                        reportData.total_direct_donations || 0,
+                                    },
+                                    {
+                                      name: "Request",
+                                      value:
+                                        reportData.total_request_donations || 0,
+                                    },
+                                  ]}
+                                  dataKey="value"
+                                  nameKey="name"
+                                  cx="50%"
+                                  cy="50%"
+                                  outerRadius={80}
+                                  labelLine={false}
+                                  label={renderCustomizedLabel}
+                                >
+                                  {["#4CAF50", "#2196F3"].map((c, i) => (
+                                    <Cell key={i} fill={c} />
+                                  ))}
+                                </Pie>
+                                <Tooltip formatter={(v, n) => [`${v}`, n]} />
+                                <Legend verticalAlign="bottom" height={36} />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Custom Period Summary */}
+                  {activeSummary === "custom" && (
+                    <>
+                      <div className="max-h-96 overflow-y-auto rounded-xl ring-1 ring-black/10 bg-white/70 mb-6">
+                        <table className="min-w-full text-center">
+                          <thead className="bg-[#EADBC8] text-[#4A2F17]">
+                            <tr>
+                              {[
+                                "Start Date",
+                                "End Date",
+                                "Total Direct Donations",
+                                "Total Request Donations",
+                                "Total Received Quantity",
+                                "Total Transactions",
+                              ].map((h) => (
+                                <th key={h} className="px-4 py-2 font-semibold">
+                                  {h}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr className="odd:bg-white even:bg-white/60">
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.start_date || savedCustomStart}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.end_date || savedCustomEnd}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_direct_donations}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_request_donations}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_donations}
+                              </td>
+                              <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                {reportData.total_transactions}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="max-h-60 overflow-y-auto rounded-xl ring-1 ring-black/10 bg-white/70 mb-6">
+                        <h3 className="font-semibold text-[#6b4b2b] p-3">
+                          Top Received Items
+                        </h3>
+                        <table className="min-w-full text-center">
+                          <thead className="bg-[#EADBC8] text-[#4A2F17]">
+                            <tr>
+                              <th className="px-4 py-2 font-semibold">
+                                Product Name
+                              </th>
+                              <th className="px-4 py-2 font-semibold">
+                                Quantity
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {reportData.top_items &&
+                            reportData.top_items.length ? (
+                              reportData.top_items.map((item, idx) => (
+                                <tr
+                                  key={idx}
+                                  className="odd:bg-white even:bg-white/60"
+                                >
+                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                    {item.product_name}
+                                  </td>
+                                  <td className="px-4 py-2 border-t border-[#f2d4b5]">
+                                    {item.quantity}
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td
+                                  colSpan={2}
+                                  className="px-4 py-4 text-[#6b4b2b]/70 border-t border-[#f2d4b5]"
+                                >
+                                  No top items for this period.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Card className="rounded-xl ring-1 ring-black/10 bg-white/80 shadow-md">
                           <CardHeader className="p-4 bg-[#FFF3E6]">
                             <CardTitle className="text-[#6b4b2b]">
                               Donation Type

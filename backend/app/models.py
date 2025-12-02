@@ -137,6 +137,7 @@ class Employee(Base):
     bakery = relationship("User", backref="employees")
     inventory_items = relationship("BakeryInventory", back_populates="created_by_employee")
     donations = relationship("Donation", back_populates="created_by_employee")
+    password_history = relationship("EmployeePasswordHistory", back_populates="employee", passive_deletes=True)
 
 
 class Donation(Base):
@@ -356,11 +357,11 @@ class EmployeePasswordHistory(Base):
     __tablename__ = "employee_password_history"
     
     id = Column(Integer, primary_key=True, index=True)
-    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
+    employee_id = Column(Integer, ForeignKey("employees.id", ondelete="CASCADE"), nullable=False, index=True)
     hashed_password = Column(String, nullable=False)  # Historical password hash
     changed_at = Column(DateTime, default=now_ph, nullable=False)
     
-    employee = relationship("Employee", backref="password_history")
+    employee = relationship("Employee", back_populates="password_history", passive_deletes=True)
 
 class SystemEvent(Base):
     __tablename__ = "system_events"

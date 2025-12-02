@@ -356,13 +356,28 @@ def get_audit_logs(
     # Helper function to get user info by ID
     def get_user_info(user_id):
         if not user_id:
-            return {"name": "System", "type": "System"}
+            return {"name": "Unknown User", "type": "Unknown", "contact_person": None}
         user = db.query(models.User).filter(models.User.id == user_id).first()
         if not user:
-            return {"name": "Unknown", "type": "Unknown"}
+            return {"name": "Unknown User", "type": "Unknown", "contact_person": None}
         return {
             "name": user.name,  # Organization name (bakery/charity name)
-            "type": user.role   # Role: Admin, bakery, charity
+            "type": user.role,  # Role: Admin, bakery, charity
+            "contact_person": user.contact_person  # Owner's name
+        }
+    
+    # Helper function to get employee info by ID
+    def get_employee_info(employee_id):
+        if not employee_id:
+            return None
+        employee = db.query(models.Employee).filter(models.Employee.id == employee_id).first()
+        if not employee:
+            return None
+        return {
+            "employee_id": employee.employee_id,  # EMP-2-001 format
+            "name": employee.name,
+            "role": employee.role,
+            "email": employee.email
         }
     
     # Format response to match what frontend expects
@@ -371,8 +386,8 @@ def get_audit_logs(
         # Convert row to dict
         log_dict = dict(zip(column_names, log))
         
-        # Parse event_data JSON if it exists
-        event_data = log_dict.get("event_data")
+        # Parse event_metadata JSON if it exists (column name in system_events table)
+        event_data = log_dict.get("event_metadata") or log_dict.get("event_data")
         if event_data and isinstance(event_data, str):
             try:
                 event_data = json.loads(event_data)
@@ -384,23 +399,39 @@ def get_audit_logs(
         # Get actor information
         actor_info = get_user_info(log_dict.get("user_id"))
         
-        # Check if this was an employee action (has employee_name and employee_role in metadata)
+        # Check if this was an employee action (has employee_id in metadata)
+        employee_id_num = event_data.get("employee_id")
         employee_name = event_data.get("employee_name")
         employee_role = event_data.get("employee_role")
+        employee_id_formatted = None
+        
+        # If employee_id exists but no name/role in metadata, fetch from database
+        if employee_id_num and not (employee_name and employee_role):
+            employee_info = get_employee_info(employee_id_num)
+            if employee_info:
+                employee_id_formatted = employee_info["employee_id"]  # EMP-2-001
+                employee_name = employee_info["name"]
+                employee_role = employee_info["role"]
         
         # Build actor display name
-        # For employees: "TheBakeMac - Paul Morada (Employee)"
+        # For employees: "TheBakeMac - EMP-2-001 (Employee)"
         # For owners: "TheBakeMac - John Doe (Owner)" 
         # For admins/charities: Just the name
-        if employee_name and employee_role:
-            # Employee login or action
+        if employee_id_formatted and employee_role:
+            # Employee login or action - display EMP ID instead of name
+            actor_display_name = actor_info["name"]  # Organization name
+            actor_person = employee_id_formatted  # Display EMP-2-001 format
+            actor_person_role = employee_role
+        elif employee_name and employee_role:
+            # Fallback to name if EMP ID not available
             actor_display_name = actor_info["name"]  # Organization name
             actor_person = employee_name
             actor_person_role = employee_role
         elif actor_info["type"] in ["bakery", "charity"]:
             # Owner/main user login
             actor_display_name = actor_info["name"]  # Organization name
-            actor_person = event_data.get("name") or log_dict.get("description", "").split("User ")[1].split(" (")[0] if "User " in log_dict.get("description", "") else None
+            # Use contact_person from user info as the owner's name
+            actor_person = actor_info.get("contact_person") or event_data.get("name") or log_dict.get("description", "").split("User ")[1].split(" (")[0] if "User " in log_dict.get("description", "") else None
             actor_person_role = "Owner" if actor_info["type"] == "bakery" else "Representative"
         else:
             # Admin or system
@@ -1066,32 +1097,67 @@ def create_ownership_transfer(
         "old_contact_person": old_contact_person,
         "old_email": old_email,
         "archived_at": now_ph().isoformat(),
-        "reason": "Ownership transferred to employee"
+        "reason": "Ownership transferred to employee",
+        "is_temporary": transfer.is_temporary
     }
+    
+    # PERMANENT vs TEMPORARY handling
+    if transfer.is_temporary:
+        # TEMPORARY: Keep old owner as employee, change role to "Employee"
+        # Find if there's an employee record for the old owner
+        old_owner_as_employee = db.query(models.Employee).filter(
+            models.Employee.bakery_id == bakery.id,
+            models.Employee.email == old_email
+        ).first()
+        
+        if old_owner_as_employee:
+            # Update existing employee record
+            old_owner_as_employee.role = "Employee"
+            old_owner_as_employee.hashed_password = None  # Invalidate credentials
+        else:
+            # Create new employee record for old owner
+            new_employee = models.Employee(
+                bakery_id=bakery.id,
+                name=old_contact_person,
+                email=old_email,
+                role="Employee",
+                contact_number=bakery.contact_number,
+                hashed_password=None,  # No login access
+                is_manager=False,
+                verified=True
+            )
+            db.add(new_employee)
+        
+        old_owner_archived_data["converted_to_employee"] = True
+    else:
+        # PERMANENT: Delete old owner data completely from database
+        # Remove any employee records with the old owner's email
+        old_owner_employees = db.query(models.Employee).filter(
+            models.Employee.bakery_id == bakery.id,
+            models.Employee.email == old_email
+        ).all()
+        
+        for emp in old_owner_employees:
+            db.delete(emp)
+        
+        old_owner_archived_data["old_owner_deleted"] = True
     
     # The bakery record now represents the new owner
     # Old owner's access is completely removed as their email is no longer associated
-    
-    # Update employee record:
-    # - Change role to "Owner"
-    # - Invalidate old employee credentials (they'll use bakery login now)
-    # - Mark that password must be changed
-    employee.role = "Owner"
-    employee.hashed_password = None  # Invalidate old employee login
-    employee.must_change_password = False  # Reset this since they use bakery account now
-    
-    db.commit()
     
     # Calculate expiration for temporary transfers
     expires_at = None
     if transfer.is_temporary and transfer.duration_days:
         expires_at = now_ph() + timedelta(days=transfer.duration_days)
     
-    # Create ownership transfer record
+    # Create ownership transfer record BEFORE deleting employee
+    # Store the employee ID before deletion
+    transferred_employee_id = transfer.to_employee_id
+    
     ownership_transfer = admin_models.OwnershipTransfer(
         bakery_id=transfer.bakery_id,
         from_owner_id=bakery.id,
-        to_employee_id=transfer.to_employee_id,
+        to_employee_id=transferred_employee_id,
         reason=transfer.reason,
         transfer_type=transfer.transfer_type,
         authorized_by_admin_id=current_admin.id,
@@ -1102,10 +1168,8 @@ def create_ownership_transfer(
         status="active"
     )
     db.add(ownership_transfer)
-    db.commit()
-    db.refresh(ownership_transfer)
     
-    # Create emergency override record
+    # Create emergency override record BEFORE deleting employee
     override = admin_models.EmergencyOverride(
         action_type="ownership_transfer",
         reason=transfer.reason,
@@ -1115,7 +1179,7 @@ def create_ownership_transfer(
         target_user_name=bakery.name,
         old_value=f"Owner: {old_contact_person} ({old_email})",
         new_value=f"New Owner: {employee_name} ({employee_email})",
-        transferred_to_employee_id=transfer.to_employee_id,
+        transferred_to_employee_id=transferred_employee_id,
         status="executed",
         executed_at=now_ph(),
         event_data={
@@ -1131,7 +1195,18 @@ def create_ownership_transfer(
         }
     )
     db.add(override)
+    
+    # DELETE the promoted employee record completely
+    # First, manually delete password history (CASCADE will handle this at DB level, but we flush the session first)
+    db.query(models.EmployeePasswordHistory).filter(models.EmployeePasswordHistory.employee_id == employee.id).delete()
+    
+    # This allows the email to be reused for new employee registrations
+    # The promoted employee now uses the bakery account (users table) exclusively
+    db.delete(employee)
+    
+    # Commit everything together
     db.commit()
+    db.refresh(ownership_transfer)
     
     # Log audit event
     log_audit_event(
@@ -1142,7 +1217,7 @@ def create_ownership_transfer(
         target_id=bakery.id,
         target_type="Bakery",
         event_data={
-            "employee_id": transfer.to_employee_id,
+            "employee_id": transferred_employee_id,
             "employee_name": employee_name,
             "transfer_type": transfer.transfer_type,
             "is_temporary": transfer.is_temporary,

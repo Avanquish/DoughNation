@@ -69,7 +69,7 @@ const EmergencyControlPanel = () => {
   const [bakeryId, setBakeryId] = useState("");
   const [toEmployeeId, setToEmployeeId] = useState("");
   const [transferReason, setTransferReason] = useState("");
-  const [transferType, setTransferType] = useState("emergency");
+  const [transferType, setTransferType] = useState("temporary");
   const [isTemporary, setIsTemporary] = useState(true);
   const [durationDays, setDurationDays] = useState(30);
   const [transferring, setTransferring] = useState(false);
@@ -314,24 +314,37 @@ const EmergencyControlPanel = () => {
       return;
     }
 
+    // Find the selected employee to get their formatted ID
+    const selectedEmployee = employees.find(
+      (emp) => emp.id.toString() === toEmployeeId
+    );
+    const employeeDisplayId = selectedEmployee
+      ? selectedEmployee.employee_id || `EMP-${bakeryId}-${String(selectedEmployee.id).padStart(3, "0")}`
+      : toEmployeeId;
+
     const result = await Swal.fire({
       title: "Ownership Transfer",
       html: `
         <div class="text-left space-y-2">
           <p><strong>Bakery ID:</strong> ${bakeryId}</p>
-          <p><strong>New Owner (Employee ID):</strong> ${toEmployeeId}</p>
+          <p><strong>New Owner (Employee ID):</strong> ${employeeDisplayId}</p>
           <p><strong>Transfer Type:</strong> ${transferType}</p>
           <p><strong>Temporary:</strong> ${
             isTemporary ? `Yes (${durationDays} days)` : "No (Permanent)"
           }</p>
           <p><strong>Reason:</strong> ${transferReason}</p>
           <p class="text-red-600 font-semibold mt-4">⚠️ This will transfer bakery ownership!</p>
-          <p class="text-amber-700 text-sm">
-            • The bakery's Contact Person will be changed to the employee's name<br/>
-            • The bakery's email will be changed to the employee's email<br/>
-            • The employee's role will be changed to "Owner"<br/>
-            • The new owner will have full account access
-          </p>
+          <div class="bg-red-50 border-2 border-red-300 rounded-lg p-3 mt-3">
+            <p class="text-red-800 font-bold mb-2">⚠️ CRITICAL WARNING:</p>
+            <ul class="text-red-700 text-sm space-y-1">
+              <li>• Bakery's Contact Person → Employee's name</li>
+              <li>• Bakery's email → Employee's email</li>
+              <li>• Employee record will be DELETED (promoted to owner)</li>
+              ${isTemporary 
+                ? '<li class="text-amber-700">• <strong>TEMPORARY:</strong> Old owner will become "Employee" role</li>' 
+                : '<li class="text-red-900 font-bold">• <strong>PERMANENT:</strong> Old owner data will be DELETED from database</li>'}
+            </ul>
+          </div>
           <p class="text-gray-600 text-sm mt-2">Both parties will be notified via email.</p>
         </div>
       `,
@@ -388,8 +401,11 @@ const EmergencyControlPanel = () => {
               <ul class="text-sm text-amber-700 space-y-1">
                 <li>✅ One-time password generated and sent to new owner</li>
                 <li>✅ Previous owner's access has been removed</li>
-                <li>✅ Old employee credentials have been invalidated</li>
+                <li>✅ Promoted employee record has been deleted</li>
                 <li>✅ Password change required on first login</li>
+                ${isTemporary 
+                  ? '<li class="text-blue-700">✅ Previous owner converted to "Employee" role</li>' 
+                  : '<li class="text-red-700 font-bold">✅ Previous owner data DELETED from database (Permanent)</li>'}
               </ul>
             </div>
             <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
@@ -403,7 +419,7 @@ const EmergencyControlPanel = () => {
               response.data.transfer_id
             }</p>
             <p class="text-sm text-amber-600 mt-2">⚠️ The bakery's contact person and email have been updated.</p>
-            <p class="text-sm text-green-600 mt-2">✅ The employee's role has been changed to "Owner".</p>
+            <p class="text-sm text-green-600 mt-2">✅ The promoted employee has been removed from employee table.</p>
           </div>
         `,
         icon: "success",
@@ -412,7 +428,7 @@ const EmergencyControlPanel = () => {
       setBakeryId("");
       setToEmployeeId("");
       setTransferReason("");
-      setTransferType("emergency");
+      setTransferType("temporary");
       setIsTemporary(true);
       setDurationDays(30);
       setBakerySearchInput("");
@@ -455,6 +471,9 @@ const EmergencyControlPanel = () => {
   const showUserRecents =
     isUserSearchFocused && inputIsEmpty && recentResetUsers.length > 0;
 
+  // Show all users when clicked (no search input)
+  const showAllUsers = isUserSearchFocused && inputIsEmpty && recentResetUsers.length === 0;
+
   const handleSelectResetUser = (user) => {
     setResetUserId(user.id.toString());
 
@@ -488,6 +507,9 @@ const EmergencyControlPanel = () => {
   );
 
   const verifiedBakeriesCount = verifiedBakeries.length;
+
+  // Show all bakeries when clicked (no search input)
+  const showAllBakeries = isBakerySearchFocused && bakeryInputIsEmpty && recentTransferBakeries.length === 0;
 
   const handleSelectBakery = (bakery) => {
     setBakeryId(bakery.id.toString());
@@ -657,9 +679,57 @@ const EmergencyControlPanel = () => {
                                 </button>
                               ))}
                             </div>
+                          ) : showAllUsers ? (
+                            <div className="max-h-52 overflow-y-auto py-2 text-xs sm:text-sm">
+                              {/* Bakeries */}
+                              {bakeryUsers.length > 0 && (
+                                <>
+                                  <div className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#BF7327]/80">
+                                    Bakeries
+                                  </div>
+                                  {bakeryUsers.map((user) => (
+                                    <button
+                                      type="button"
+                                      key={user.id}
+                                      onClick={() => handleSelectResetUser(user)}
+                                      className="w-full text-left px-3 py-1.5 rounded-xl hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] transition"
+                                    >
+                                      <div className="flex flex-col">
+                                        <span className="font-medium text-[#4A2F17] line-clamp-1">
+                                          {user.name}
+                                        </span>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </>
+                              )}
+
+                              {/* Charities */}
+                              {charityUsers.length > 0 && (
+                                <>
+                                  <div className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-[#BF7327]/80">
+                                    Charities
+                                  </div>
+                                  {charityUsers.map((user) => (
+                                    <button
+                                      type="button"
+                                      key={user.id}
+                                      onClick={() => handleSelectResetUser(user)}
+                                      className="w-full text-left px-3 py-1.5 rounded-xl hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] transition"
+                                    >
+                                      <div className="flex flex-col">
+                                        <span className="font-medium text-[#4A2F17] line-clamp-1">
+                                          {user.name}
+                                        </span>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </>
+                              )}
+                            </div>
                           ) : (
                             <div className="py-6 text-center text-xs sm:text-sm text-gray-500">
-                              No recent searches yet
+                              No users available
                             </div>
                           )
                         ) : !hasAnyUserResults ? (
@@ -866,9 +936,37 @@ const EmergencyControlPanel = () => {
                             </div>
                           ) : bakeryInputIsEmpty ? (
                             recentTransferBakeries.length === 0 ? (
-                              <div className="py-6 text-center text-xs sm:text-sm text-gray-500">
-                                No recent searches yet
-                              </div>
+                              showAllBakeries ? (
+                                <div className="max-h-52 overflow-y-auto py-2 text-xs sm:text-sm">
+                                  <div className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#BF7327]/80">
+                                    All Bakeries
+                                  </div>
+                                  {verifiedBakeries.length === 0 ? (
+                                    <div className="py-6 text-center text-xs sm:text-sm text-gray-500">
+                                      No verified bakeries available
+                                    </div>
+                                  ) : (
+                                    verifiedBakeries.map((bakery) => (
+                                      <button
+                                        type="button"
+                                        key={bakery.id}
+                                        onClick={() => handleSelectBakery(bakery)}
+                                        className="w-full text-left px-3 py-1.5 rounded-xl hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] transition"
+                                      >
+                                        <div className="flex flex-col">
+                                          <span className="font-medium text-[#4A2F17] line-clamp-1">
+                                            {bakery.name}
+                                          </span>
+                                        </div>
+                                      </button>
+                                    ))
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="py-6 text-center text-xs sm:text-sm text-gray-500">
+                                  No bakeries available
+                                </div>
+                              )
                             ) : (
                               <div className="max-h-52 overflow-y-auto py-2 text-xs sm:text-sm">
                                 <div className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#BF7327]/80">
@@ -998,24 +1096,16 @@ const EmergencyControlPanel = () => {
                     </Label>
                     <Select
                       value={transferType}
-                      onValueChange={setTransferType}
+                      onValueChange={(value) => {
+                        setTransferType(value);
+                        // Auto-sync checkbox with transfer type
+                        setIsTemporary(value === "temporary");
+                      }}
                     >
                       <SelectTrigger className="h-10 rounded-full border-[#f2d4b5] bg-white/90 px-4 text-xs sm:text-sm shadow-sm focus:ring-[#DE7F21] focus-visible:ring-[#DE7F21]">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="z-50 max-h-64 overflow-y-auto rounded-2xl border-[#f2d4b5] bg-white shadow-lg text-xs sm:text-sm py-1">
-                        <SelectItem
-                          value="emergency"
-                          className="relative flex w-full select-none items-center rounded-lg pl-8 pr-3 py-2 text-xs sm:text-sm outline-none cursor-pointer text-[#4A2F17] hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] data-[state=checked]:bg-[#FFEFD9] data-[state=checked]:font-semibold"
-                        >
-                          Emergency
-                        </SelectItem>
-                        <SelectItem
-                          value="planned"
-                          className="relative flex w-full select-none items-center rounded-lg pl-8 pr-3 py-2 text-xs sm:text-sm outline-none cursor-pointer text-[#4A2F17] hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] data-[state=checked]:bg-[#FFEFD9] data-[state=checked]:font-semibold"
-                        >
-                          Planned
-                        </SelectItem>
                         <SelectItem
                           value="temporary"
                           className="relative flex w-full select-none items-center rounded-lg pl-8 pr-3 py-2 text-xs sm:text-sm outline-none cursor-pointer text-[#4A2F17] hover:bg-[#FFF6EC] focus:bg-[#FFEFD9] data-[state=checked]:bg-[#FFEFD9] data-[state=checked]:font-semibold"
@@ -1038,7 +1128,11 @@ const EmergencyControlPanel = () => {
                       <Checkbox
                         id="is-temporary"
                         checked={isTemporary}
-                        onCheckedChange={setIsTemporary}
+                        onCheckedChange={(checked) => {
+                          setIsTemporary(checked);
+                          // Auto-sync transfer type with checkbox
+                          setTransferType(checked ? "temporary" : "permanent");
+                        }}
                       />
                       <label
                         htmlFor="is-temporary"

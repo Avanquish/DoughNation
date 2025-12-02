@@ -134,6 +134,13 @@ const AuditLogViewer = () => {
       const response = await api.get(`/admin/audit-logs?${params.toString()}`);
       let filteredLogs = response.data.logs || [];
 
+      // Debug: Log first entry to see what data we're getting
+      if (filteredLogs.length > 0) {
+        console.log("Sample audit log entry:", filteredLogs[0]);
+        console.log("Actor person:", filteredLogs[0].actor_person);
+        console.log("Actor person role:", filteredLogs[0].actor_person_role);
+      }
+
       // Client-side filter for admin CRUD operations
       if (eventTypeFilter === "admin_crud") {
         const adminCrudTypes = [
@@ -360,7 +367,7 @@ const AuditLogViewer = () => {
         log.event_type || "",
         log.actor_person 
           ? `${log.actor_name} - ${log.actor_person} (${log.actor_person_role})`
-          : log.actor_name || "System",
+          : log.actor_name || "Unknown User",
         (log.severity || "").toUpperCase(),
         log.success ? "Success" : "Failed",
         // eslint-disable-next-line no-control-regex
@@ -802,12 +809,21 @@ const AuditLogViewer = () => {
                           </TableCell>
 
                           <TableCell className="align-top">
-                            <div className="text-xs sm:text-sm font-semibold text-[#4A2F17]">
-                              {log.actor_name || "System"}
-                            </div>
-                            {log.actor_person && (
-                              <div className="text-[10px] sm:text-[11px] text-[#8B6F47] font-medium">
-                                {log.actor_person} ({log.actor_person_role})
+                            {log.actor_person ? (
+                              <>
+                                <div className="text-xs sm:text-sm font-bold text-[#DE7F21]">
+                                  {log.actor_person}
+                                  {log.actor_person_role === "Owner" && (
+                                    <span className="ml-1 text-[10px] text-[#8B6F47]">(Owner)</span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] sm:text-[11px] text-[#8B6F47] font-medium">
+                                  {log.actor_person_role !== "Owner" && `${log.actor_person_role} - `}{log.actor_name}
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-xs sm:text-sm font-semibold text-[#4A2F17]">
+                                {log.actor_name || "Unknown User"}
                               </div>
                             )}
                             <div className="text-[10px] sm:text-[11px] text-gray-500">
@@ -982,15 +998,25 @@ const AuditLogViewer = () => {
                   <div className="text-[11px] font-semibold tracking-wide text-[#7b5836] uppercase">
                     Actor
                   </div>
-                  <div className="mt-1 text-xs sm:text-sm font-semibold text-[#4A2F17]">
-                    {selectedLog.actor_name || "System"}
-                  </div>
-                  {selectedLog.actor_person && (
-                    <div className="mt-1 text-xs sm:text-sm text-[#8B6F47] font-medium">
-                      {selectedLog.actor_person} ({selectedLog.actor_person_role})
+                  {selectedLog.actor_person ? (
+                    <>
+                      <div className="mt-1 text-xs sm:text-sm font-bold text-[#DE7F21]">
+                        {selectedLog.actor_person}
+                        {selectedLog.actor_person_role === "Owner" && (
+                          <span className="ml-1 text-[11px] text-[#8B6F47]">(Owner)</span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-[#8B6F47] font-medium">
+                        {selectedLog.actor_person_role !== "Owner" && `${selectedLog.actor_person_role} - `}
+                        {selectedLog.actor_name}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="mt-1 text-xs sm:text-sm font-semibold text-[#4A2F17]">
+                      {selectedLog.actor_name || "Unknown User"}
                     </div>
                   )}
-                  <div className="text-[11px] text-gray-500">
+                  <div className="text-[11px] text-gray-500 mt-1">
                     {selectedLog.actor_type}
                   </div>
                 </div>

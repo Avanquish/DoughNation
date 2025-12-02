@@ -242,7 +242,7 @@ class EmergencyOverride(Base):
     # Action-Specific Data
     old_value = Column(Text, nullable=True)  # Original value (email, owner, etc.)
     new_value = Column(Text, nullable=True)  # New value
-    transferred_to_employee_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
+    transferred_to_employee_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True)
     
     # Approval & Security
     requires_approval = Column(Boolean, default=True)
@@ -278,7 +278,7 @@ class OwnershipTransfer(Base):
     # Transfer Details
     bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # The bakery account
     from_owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # Original owner
-    to_employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False)  # New owner
+    to_employee_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True)  # New owner (nullable to preserve history after employee deletion)
     
     # Reason & Authorization
     reason = Column(Text, nullable=False)

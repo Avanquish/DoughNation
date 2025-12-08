@@ -1488,8 +1488,16 @@ def get_admin_dashboard_analytics(
         models.User.verified == True
     ).count()
     
-    # Donation statistics
-    total_donations = db.query(models.Donation).count()
+    # Donation statistics - count completed DonationRequests and DirectDonations
+    completed_donation_requests = db.query(models.DonationRequest).filter(
+        models.DonationRequest.tracking_status == "completed"
+    ).count()
+    
+    completed_direct_donations = db.query(models.DirectDonation).filter(
+        models.DirectDonation.btracking_status == "completed"
+    ).count()
+    
+    total_donations = completed_donation_requests + completed_direct_donations
     
     # Recent activity (last 7 days) - Philippines timezone
     week_ago = now_ph() - timedelta(days=7)

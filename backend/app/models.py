@@ -19,7 +19,7 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     profile_picture = Column(String, nullable=True)  # path to uploaded image
     proof_of_validity = Column(String, nullable=True)  # path to uploaded document
-    created_at = Column(Date, default=date.today)
+    created_at = Column(DateTime, default=now_ph)
     about = Column(Text, nullable=True)
 
     # Geofencing

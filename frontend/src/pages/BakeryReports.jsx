@@ -211,6 +211,16 @@ export default function BakeryReports({ isViewOnly = false }) {
 
   // Handlers for other report filters
   const handleDonationHistoryFilter = () => {
+    // Validate dates are selected
+    if (!donationHistoryStart || !donationHistoryEnd) {
+      Swal.fire({
+        icon: "warning",
+        title: "Select a Date First",
+        text: "Please select both start date and end date before generating the report.",
+      });
+      return;
+    }
+
     // Validate future dates using PH time
     const todayPH = getPhilippineDate();
     if (donationHistoryStart && donationHistoryStart > todayPH) {
@@ -229,6 +239,16 @@ export default function BakeryReports({ isViewOnly = false }) {
   };
 
   const handleExpiryLossFilter = () => {
+    // Validate dates are selected
+    if (!expiryLossStart || !expiryLossEnd) {
+      Swal.fire({
+        icon: "warning",
+        title: "Select a Date First",
+        text: "Please select both start date and end date before generating the report.",
+      });
+      return;
+    }
+
     // Validate future dates using PH time
     const todayPH = getPhilippineDate();
     if (expiryLossStart && expiryLossStart > todayPH) {
@@ -247,6 +267,16 @@ export default function BakeryReports({ isViewOnly = false }) {
   };
 
   const handleTopItemsFilter = () => {
+    // Validate dates are selected
+    if (!topItemsStart || !topItemsEnd) {
+      Swal.fire({
+        icon: "warning",
+        title: "Select a Date First",
+        text: "Please select both start date and end date before generating the report.",
+      });
+      return;
+    }
+
     // Validate future dates using PH time
     const todayPH = getPhilippineDate();
     if (topItemsStart && topItemsStart > todayPH) {
@@ -265,6 +295,16 @@ export default function BakeryReports({ isViewOnly = false }) {
   };
 
   const handleCharityListFilter = () => {
+    // Validate dates are selected
+    if (!charityListStart || !charityListEnd) {
+      Swal.fire({
+        icon: "warning",
+        title: "Select a Date First",
+        text: "Please select both start date and end date before generating the report.",
+      });
+      return;
+    }
+
     // Validate future dates using PH time
     const todayPH = getPhilippineDate();
     if (charityListStart && charityListStart > todayPH) {
@@ -2304,9 +2344,10 @@ export default function BakeryReports({ isViewOnly = false }) {
                   </div>
                   <Button
                     onClick={handleDonationHistoryFilter}
-                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                    disabled={loading}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Generate Report
+                    {loading ? "Generating..." : "Generate Report"}
                   </Button>
                 </div>
 
@@ -2385,9 +2426,10 @@ export default function BakeryReports({ isViewOnly = false }) {
                   </div>
                   <Button
                     onClick={handleExpiryLossFilter}
-                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                    disabled={loading}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Generate Report
+                    {loading ? "Generating..." : "Generate Report"}
                   </Button>
                 </div>
               
@@ -2466,9 +2508,10 @@ export default function BakeryReports({ isViewOnly = false }) {
                   </div>
                   <Button
                     onClick={handleTopItemsFilter}
-                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                    disabled={loading}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Generate Report
+                    {loading ? "Generating..." : "Generate Report"}
                   </Button>
                 </div>
 
@@ -2547,9 +2590,10 @@ export default function BakeryReports({ isViewOnly = false }) {
                   </div>
                   <Button
                     onClick={handleCharityListFilter}
-                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                    disabled={loading}
+                    className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Generate Report
+                    {loading ? "Generating..." : "Generate Report"}
                   </Button>
                 </div>
               
@@ -2657,9 +2701,10 @@ export default function BakeryReports({ isViewOnly = false }) {
                       </div>
                       <Button
                         onClick={handleWeeklyFilter}
-                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                        disabled={loading}
+                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Generate Report
+                        {loading ? "Generating..." : "Generate Report"}
                       </Button>
                     </>
                   ) : activeSummary === "monthly" ? (
@@ -2678,9 +2723,10 @@ export default function BakeryReports({ isViewOnly = false }) {
                       </div>
                       <Button
                         onClick={handleMonthlyFilter}
-                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                        disabled={loading}
+                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Generate Report
+                        {loading ? "Generating..." : "Generate Report"}
                       </Button>
                     </>
                   ) : activeSummary === "custom" ? (
@@ -2711,9 +2757,10 @@ export default function BakeryReports({ isViewOnly = false }) {
                       </div>
                       <Button
                         onClick={handleCustomFilter}
-                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                        disabled={loading}
+                        className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Generate Report
+                        {loading ? "Generating..." : "Generate Report"}
                       </Button>
                     </>
                   ) : null}

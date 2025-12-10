@@ -60,12 +60,16 @@ def manage_users_report(
 
     order_by = models.User.created_at.asc() if sort == "asc" else desc(models.User.created_at)
 
+    # Convert dates to Philippine timezone datetime ranges for proper comparison
+    start_datetime = get_day_start_ph(start_date)
+    end_datetime = get_day_end_ph(end_date)
+
     verified_users = (
         db.query(models.User)
         .filter(models.User.verified == True)
         .filter(models.User.role != "Admin")
-        .filter(models.User.created_at >= start_date)
-        .filter(models.User.created_at <= end_date)
+        .filter(models.User.created_at >= start_datetime)
+        .filter(models.User.created_at <= end_datetime)
         .order_by(order_by)
         .all()
     )

@@ -4,7 +4,7 @@ from sqlalchemy import func
 from app.database import get_db
 from app import database, models, auth
 from datetime import datetime, timedelta
-from app.timezone_utils import now_ph, today_ph
+from app.timezone_utils import now_ph, today_ph, PHILIPPINES_TZ
 
 router = APIRouter(
     prefix="/reports",
@@ -31,7 +31,6 @@ def donation_history(
     # Parse date filters if provided
     date_start = None
     date_end = None
-    from app.timezone_utils import PHILIPPINES_TZ
     if start_date:
         date_start = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=PHILIPPINES_TZ)
     if end_date:

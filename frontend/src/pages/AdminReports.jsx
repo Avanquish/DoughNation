@@ -165,14 +165,15 @@ export default function AdminReports() {
         SYSTEM REPORTS
       </p>
       <p style={{ margin: 0, fontSize: '12px', color: '#888' }}>
-        Generated: {new Date().toLocaleString('en-PH', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true
-        })}
+        Generated: {(() => {
+          const now = new Date();
+          const day = String(now.getDate()).padStart(2, '0');
+          const month = String(now.getMonth() + 1).padStart(2, '0');
+          const year = now.getFullYear();
+          const hours = String(now.getHours()).padStart(2, '0');
+          const minutes = String(now.getMinutes()).padStart(2, '0');
+          return `${day}/${month}/${year} ${hours}:${minutes}`;
+        })()}
       </p>
     </div>
   );
@@ -556,7 +557,16 @@ export default function AdminReports() {
       `"${donation.donor_name}"`,
       `"${donation.receiver_name}"`,
       `"${donation.quantity}"`,
-      `"${donation.completed_at ? new Date(donation.completed_at).toLocaleDateString('en-PH') : 'N/A'}"`
+      `"${donation.completed_at ? (() => {
+        const dateStr = donation.completed_at.split('T')[0];
+        const [year, month, day] = dateStr.split('-');
+        const date = new Date(year, month - 1, day);
+        return date.toLocaleDateString('en-PH', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      })() : 'N/A'}"`
     ].join(","));
 
     const csvContent = [headers.join(","), ...rows].join("\n");
@@ -736,15 +746,15 @@ export default function AdminReports() {
     donation.receiver_name,
     donation.quantity,
     donation.completed_at 
-      ? new Date(donation.completed_at).toLocaleString('en-PH', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-          timeZone: 'Asia/Manila'
-        })
+      ? (() => {
+          const dt = new Date(donation.completed_at);
+          const day = String(dt.getDate()).padStart(2, '0');
+          const month = String(dt.getMonth() + 1).padStart(2, '0');
+          const year = dt.getFullYear();
+          const hours = String(dt.getHours()).padStart(2, '0');
+          const minutes = String(dt.getMinutes()).padStart(2, '0');
+          return `${day}/${month}/${year} ${hours}:${minutes}`;
+        })()
       : 'N/A'
   ]);
 
@@ -785,14 +795,15 @@ export default function AdminReports() {
             ${getReportLabel(activeReport).toUpperCase()} REPORT
           </p>
           <p style="margin: 0; font-size: 12px; color: #888;">
-            Generated: ${new Date().toLocaleString('en-PH', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: true
-            })}
+            Generated: ${(() => {
+              const now = new Date();
+              const day = String(now.getDate()).padStart(2, '0');
+              const month = String(now.getMonth() + 1).padStart(2, '0');
+              const year = now.getFullYear();
+              const hours = String(now.getHours()).padStart(2, '0');
+              const minutes = String(now.getMinutes()).padStart(2, '0');
+              return `${day}/${month}/${year} ${hours}:${minutes}`;
+            })()}
           </p>
         </div>`
       : '';
@@ -822,16 +833,24 @@ export default function AdminReports() {
           </style>
         </head>
         <body>
-          ${adminImageHTML}
-          ${summaryHTML}
-          <table>
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th>Product</th>
-                <th>Donor</th>
-                <th>Receiver</th>
-                <th>Quantity</th>
+              ${donationData.map((donation) => `
+                <tr class="${donation.type === 'Request' ? 'request' : 'direct'}">
+                  <td>${donation.type}</td>
+                  <td>${donation.donation_name || 'N/A'}</td>
+                  <td>${donation.donor_name}</td>
+                  <td>${donation.receiver_name}</td>
+                  <td style="font-weight: bold;">${donation.quantity}</td>
+                  <td>${donation.completed_at ? (() => {
+                    const dt = new Date(donation.completed_at);
+                    const day = String(dt.getDate()).padStart(2, '0');
+                    const month = String(dt.getMonth() + 1).padStart(2, '0');
+                    const year = dt.getFullYear();
+                    const hours = String(dt.getHours()).padStart(2, '0');
+                    const minutes = String(dt.getMinutes()).padStart(2, '0');
+                    return `${day}/${month}/${year} ${hours}:${minutes}`;
+                  })() : 'N/A'}</td>
+                </tr>
+              `).join("")}ty</th>
                 <th>Completion Date</th>
               </tr>
             </thead>
@@ -843,7 +862,15 @@ export default function AdminReports() {
                   <td>${donation.donor_name}</td>
                   <td>${donation.receiver_name}</td>
                   <td style="font-weight: bold;">${donation.quantity}</td>
-                  <td>${donation.completed_at ? new Date(donation.completed_at).toLocaleDateString('en-PH') : 'N/A'}</td>
+                  <td>${donation.completed_at ? (() => {
+                    const dt = new Date(donation.completed_at);
+                    const day = String(dt.getDate()).padStart(2, '0');
+                    const month = String(dt.getMonth() + 1).padStart(2, '0');
+                    const year = dt.getFullYear();
+                    const hours = String(dt.getHours()).padStart(2, '0');
+                    const minutes = String(dt.getMinutes()).padStart(2, '0');
+                    return `${day}/${month}/${year} ${hours}:${minutes}`;
+                  })() : 'N/A'}</td>
                 </tr>
               `).join("")}
             </tbody>
@@ -1157,17 +1184,13 @@ export default function AdminReports() {
                   <td>${event.severity.toUpperCase()}</td>
                   <td className="px-4 py-3 text-xs whitespace-nowrap"> 
                   ${(() => {
-                    const date = new Date(event.timestamp);
-                    date.setHours(date.getHours() + 8);
-                    return date.toLocaleString("en-PH", {
-                      year: "numeric",
-                      month: "2-digit",
-                      day: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      second: "2-digit",
-                      hour12: true,
-                    });
+                    const dt = new Date(event.timestamp);
+                    const day = String(dt.getDate()).padStart(2, '0');
+                    const month = String(dt.getMonth() + 1).padStart(2, '0');
+                    const year = dt.getFullYear();
+                    const hours = String(dt.getHours()).padStart(2, '0');
+                    const minutes = String(dt.getMinutes()).padStart(2, '0');
+                    return `${day}/${month}/${year} ${hours}:${minutes}`;
                   })()}
                 </td>
                   <td>${event.user?.name || "System"}</td>
@@ -1249,17 +1272,13 @@ export default function AdminReports() {
                 </td>
                 <td className="px-4 py-3 text-xs whitespace-nowrap">
                   {(() => {
-                    const date = new Date(event.timestamp);
-                    date.setHours(date.getHours() + 8);
-                    return date.toLocaleString("en-PH", {
-                      year: "numeric",
-                      month: "2-digit",
-                      day: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      second: "2-digit",
-                      hour12: true,
-                    });
+                    const dt = new Date(event.timestamp);
+                    const day = String(dt.getDate()).padStart(2, '0');
+                    const month = String(dt.getMonth() + 1).padStart(2, '0');
+                    const year = dt.getFullYear();
+                    const hours = String(dt.getHours()).padStart(2, '0');
+                    const minutes = String(dt.getMinutes()).padStart(2, '0');
+                    return `${day}/${month}/${year} ${hours}:${minutes}`;
                   })()}
                 </td>
                 <td className="px-4 py-3">{event.user?.name || "System"}</td>
@@ -1380,15 +1399,15 @@ export default function AdminReports() {
               </td>
               <td className="px-4 py-3 text-xs whitespace-nowrap">
                 {donation.completed_at 
-                  ? new Date(donation.completed_at).toLocaleString('en-PH', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: true,
-                      timeZone: 'Asia/Manila'
-                    }) 
+                  ? (() => {
+                      const dt = new Date(donation.completed_at);
+                      const day = String(dt.getDate()).padStart(2, '0');
+                      const month = String(dt.getMonth() + 1).padStart(2, '0');
+                      const year = dt.getFullYear();
+                      const hours = String(dt.getHours()).padStart(2, '0');
+                      const minutes = String(dt.getMinutes()).padStart(2, '0');
+                      return `${day}/${month}/${year} ${hours}:${minutes}`;
+                    })()
                   : 'N/A'}
               </td>
             </tr>
@@ -1453,7 +1472,17 @@ export default function AdminReports() {
                     "N/A"
                   )}
                 </td>
-                <td className="px-4 py-2">{row.created_at}</td>
+                <td className="px-4 py-2">
+                  {(() => {
+                    const dt = new Date(row.created_at);
+                    const day = String(dt.getDate()).padStart(2, '0');
+                    const month = String(dt.getMonth() + 1).padStart(2, '0');
+                    const year = dt.getFullYear();
+                    const hours = String(dt.getHours()).padStart(2, '0');
+                    const minutes = String(dt.getMinutes()).padStart(2, '0');
+                    return `${day}/${month}/${year} ${hours}:${minutes}`;
+                  })()}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -1535,11 +1564,21 @@ export default function AdminReports() {
                           />
                         </div>
                         <Button
-                          onClick={() => generateReport("donation_list")}
+                          onClick={() => {
+                            if (!startDate || !endDate) {
+                              Swal.fire({
+                                icon: "warning",
+                                title: "Select a Date First",
+                                text: "Please select both start date and end date before generating the report.",
+                              });
+                              return;
+                            }
+                            generateReport("donation_list");
+                          }}
                           disabled={loading}
-                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          Generate Report
+                          {loading ? "Generating..." : "Generate Report"}
                         </Button>
                       </div>
 
@@ -1656,7 +1695,17 @@ export default function AdminReports() {
                         </div>
 
                         <Button
-                          onClick={fetchSystemEvents}
+                          onClick={() => {
+                            if (!startDate || !endDate) {
+                              Swal.fire({
+                                icon: "warning",
+                                title: "Select a Date First",
+                                text: "Please select both start date and end date before generating the report.",
+                              });
+                              return;
+                            }
+                            fetchSystemEvents();
+                          }}
                           disabled={loading}
                           className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-6 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 disabled:opacity-50 flex items-center gap-2"
                         >
@@ -1771,10 +1820,21 @@ export default function AdminReports() {
                           />
                         </div>
                         <Button
-                          onClick={() => generateReport(r.key)}
-                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                          onClick={() => {
+                            if (!startDate || !endDate) {
+                              Swal.fire({
+                                icon: "warning",
+                                title: "Select a Date First",
+                                text: "Please select both start date and end date before generating the report.",
+                              });
+                              return;
+                            }
+                            generateReport(r.key);
+                          }}
+                          disabled={loading}
+                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          Generate Report
+                          {loading ? "Generating..." : "Generate Report"}
                         </Button>
                       </div>
 

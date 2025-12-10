@@ -67,6 +67,7 @@ const AuditLogViewer = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
+  const [exporting, setExporting] = useState(false);
 
   // Filters
   const [eventTypeFilter, setEventTypeFilter] = useState("");
@@ -166,6 +167,7 @@ const AuditLogViewer = () => {
   const handleExport = async () => {
     // Fetch all logs matching the current filters (not limited by pagination)
     try {
+      setExporting(true);
       const params = new URLSearchParams();
 
       // Handle admin_crud as multiple event types (client-side filter)
@@ -435,7 +437,6 @@ const AuditLogViewer = () => {
         tableWidth: availableWidth,
         theme: "grid",
       });
-
       doc.save(
         `Audit_Log_Report_${new Date().toISOString().split("T")[0]}.pdf`
       );
@@ -447,6 +448,8 @@ const AuditLogViewer = () => {
     } catch (error) {
       console.error("Failed to export audit logs:", error);
       Swal.fire("Error", "Failed to export audit logs", "error");
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -729,11 +732,12 @@ const AuditLogViewer = () => {
                   </div>
                   <Button
                     onClick={handleExport}
-                    className={`${tones.pillPrimary} w-full sm:w-auto justify-center text-xs sm:text-sm`}
+                    disabled={exporting}
+                    className={`${tones.pillPrimary} w-full sm:w-auto justify-center text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     <Download className="w-4 h-4" />
-                    <span className="hidden sm:inline">Export Logs</span>
-                    <span className="sm:hidden">Export</span>
+                    <span className="hidden sm:inline">{exporting ? "Exporting..." : "Export Logs"}</span>
+                    <span className="sm:hidden">{exporting ? "Exporting..." : "Export"}</span>
                   </Button>
                 </div>
               </div>

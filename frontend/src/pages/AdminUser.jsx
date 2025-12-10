@@ -14,6 +14,7 @@ const AdminUser = () => {
   const [users, setUsers] = useState([]);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [loadingUserId, setLoadingUserId] = useState(null); // Track which user action is loading
 
   // ========= Proof viewer (UI only; no backend changes) =========
   const [proofOpen, setProofOpen] = useState(false);
@@ -71,8 +72,9 @@ const AdminUser = () => {
 
   // ✅ Approve user (unchanged backend)
   const handleVerify = async (id) => {
-    if (isVerifying) return;
+    if (isVerifying || loadingUserId) return;
     setIsVerifying(true);
+    setLoadingUserId(id);
     try {
       const token = localStorage.getItem("token");
       await axios.post(
@@ -101,11 +103,13 @@ const AdminUser = () => {
       Swal.fire("Error", "Failed to verify user.", "error");
     } finally {
       setIsVerifying(false);
+      setLoadingUserId(null);
     }
   };
 
   // ✅ Reject user - opens modal to get rejection reason
   const handleReject = (id) => {
+    if (loadingUserId) return; // Prevent opening modal if action in progress
     setRejectUserId(id);
     setRejectionReason("");
     setRejectModalOpen(true);
@@ -118,6 +122,7 @@ const AdminUser = () => {
       return;
     }
 
+    setLoadingUserId(rejectUserId);
     try {
       const token = localStorage.getItem("token");
       await axios.post(
@@ -137,6 +142,8 @@ const AdminUser = () => {
     } catch (e) {
       console.error("Error rejecting user:", e);
       Swal.fire("Error", "Failed to reject user.", "error");
+    } finally {
+      setLoadingUserId(null);
     }
   };
 
@@ -349,13 +356,13 @@ const AdminUser = () => {
                                 {isImage(url) ? (
                                   <button
                                     onClick={() => openProof(u)}
-                                    className="block"
+                                    className="block transition-all duration-200 hover:scale-105 active:scale-95"
                                     title="View proof"
                                   >
                                     <img
                                       src={url}
                                       alt="Proof"
-                                      className="h-14 w-20 object-cover rounded-md border border-[#f2e3cf] bg-white hover:ring-2 hover:ring-[#E49A52] transition"
+                                      className="h-14 w-20 object-cover rounded-md border border-[#f2e3cf] bg-white hover:ring-2 hover:ring-[#E49A52] transition shadow-sm hover:shadow-md"
                                     />
                                   </button>
                                 ) : (
@@ -363,7 +370,7 @@ const AdminUser = () => {
                                     size="sm"
                                     variant="secondary"
                                     onClick={() => openProof(u)}
-                                    className="rounded-full"
+                                    className="rounded-full transition-all duration-200 hover:scale-105 active:scale-95 shadow-sm hover:shadow-md"
                                   >
                                     View Proof
                                   </Button>
@@ -386,12 +393,12 @@ const AdminUser = () => {
                             <div className="flex gap-2 justify-center">
                               <Button
                                 size="sm"
-                                onClick={() => reviewed && handleVerify(u.id)}
-                                disabled={!reviewed}
-                                className={`rounded-full ${
-                                  reviewed
-                                    ? "bg-gradient-to-r from-[#22c55e] via-[#16a34a] to-[#15803d] text-white hover:brightness-105"
-                                    : "bg-gray-300 text-white"
+                                onClick={() => reviewed && !loadingUserId && handleVerify(u.id)}
+                                disabled={!reviewed || loadingUserId === u.id}
+                                className={`rounded-full transition-all duration-200 ${
+                                  reviewed && loadingUserId !== u.id
+                                    ? "bg-gradient-to-r from-[#22c55e] via-[#16a34a] to-[#15803d] text-white hover:brightness-105 hover:scale-105 active:scale-95 shadow-md hover:shadow-lg"
+                                    : "bg-gray-300 text-white cursor-not-allowed"
                                 }`}
                                 title={
                                   reviewed
@@ -399,13 +406,28 @@ const AdminUser = () => {
                                     : "View and mark the proof as reviewed first"
                                 }
                               >
-                                Approve
+                                {loadingUserId === u.id ? (
+                                  <span className="flex items-center gap-2">
+                                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                    </svg>
+                                    Approving...
+                                  </span>
+                                ) : (
+                                  "Approve"
+                                )}
                               </Button>
                               <Button
                                 size="sm"
                                 variant="secondary"
-                                onClick={() => handleReject(u.id)}
-                                className="rounded-full bg-gradient-to-r from-[#ef4444] via-[#dc2626] to-[#b91c1c] text-white hover:brightness-105"
+                                onClick={() => !loadingUserId && handleReject(u.id)}
+                                disabled={loadingUserId !== null}
+                                className={`rounded-full transition-all duration-200 ${
+                                  loadingUserId === null
+                                    ? "bg-gradient-to-r from-[#ef4444] via-[#dc2626] to-[#b91c1c] text-white hover:brightness-105 hover:scale-105 active:scale-95 shadow-md hover:shadow-lg"
+                                    : "bg-gray-300 text-white cursor-not-allowed"
+                                }`}
                               >
                                 Reject
                               </Button>
@@ -475,7 +497,7 @@ const AdminUser = () => {
                 size="sm"
                 onClick={() => canPrevPending && setPendingPage((p) => p - 1)}
                 disabled={!canPrevPending}
-                className="rounded-full px-4 py-1 text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-white border border-[#f2d4b5] text-[#6b4b2b]"
+                className="rounded-full px-4 py-1 text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-white border border-[#f2d4b5] text-[#6b4b2b] transition-all duration-200 hover:scale-105 active:scale-95"
               >
                 Previous
               </Button>
@@ -483,7 +505,7 @@ const AdminUser = () => {
                 size="sm"
                 onClick={() => canNextPending && setPendingPage((p) => p + 1)}
                 disabled={!canNextPending}
-                className="rounded-full px-4 py-1 text-xs sm:text-sm bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded-full px-4 py-1 text-xs sm:text-sm bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 active:scale-95"
               >
                 Next
               </Button>
@@ -574,7 +596,7 @@ const AdminUser = () => {
                 <Button
                   variant="secondary"
                   onClick={() => setProofOpen(false)}
-                  className="rounded-full px-4 py-2 text-xs sm:text-sm"
+                  className="rounded-full px-4 py-2 text-xs sm:text-sm transition-all duration-200 hover:scale-105 active:scale-95"
                 >
                   Close
                 </Button>
@@ -584,10 +606,10 @@ const AdminUser = () => {
                     markReviewed(proofFor.id);
                   }}
                   disabled={!ackChecked}
-                  className={`rounded-full px-4 py-2 text-xs sm:text-sm ${
+                  className={`rounded-full px-4 py-2 text-xs sm:text-sm transition-all duration-200 ${
                     ackChecked
-                      ? "bg-gradient-to-r from-[#22c55e] via-[#16a34a] to-[#15803d] text-white"
-                      : "bg-gray-300 text-white"
+                      ? "bg-gradient-to-r from-[#22c55e] via-[#16a34a] to-[#15803d] text-white hover:scale-105 active:scale-95 shadow-md hover:shadow-lg"
+                      : "bg-gray-300 text-white cursor-not-allowed"
                   }`}
                 >
                   Mark as reviewed
@@ -643,20 +665,30 @@ const AdminUser = () => {
                   setRejectUserId(null);
                   setRejectionReason("");
                 }}
-                className="rounded-full px-4 py-2 text-sm"
+                className="rounded-full px-4 py-2 text-sm transition-all duration-200 hover:scale-105 active:scale-95"
               >
                 Cancel
               </Button>
               <Button
                 onClick={confirmReject}
-                disabled={!rejectionReason.trim()}
-                className={`rounded-full px-4 py-2 text-sm ${
-                  rejectionReason.trim()
-                    ? "bg-gradient-to-r from-[#ef4444] via-[#dc2626] to-[#b91c1c] text-white hover:brightness-105"
+                disabled={!rejectionReason.trim() || loadingUserId !== null}
+                className={`rounded-full px-4 py-2 text-sm transition-all duration-200 ${
+                  rejectionReason.trim() && loadingUserId === null
+                    ? "bg-gradient-to-r from-[#ef4444] via-[#dc2626] to-[#b91c1c] text-white hover:brightness-105 hover:scale-105 active:scale-95 shadow-md hover:shadow-lg"
                     : "bg-gray-300 text-white cursor-not-allowed"
                 }`}
               >
-                Confirm Rejection
+                {loadingUserId === rejectUserId ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Rejecting...
+                  </span>
+                ) : (
+                  "Confirm Rejection"
+                )}
               </Button>
             </div>
           </div>

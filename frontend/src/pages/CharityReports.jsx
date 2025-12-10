@@ -186,6 +186,16 @@ export default function BakeryReports() {
 
   // Handlers for other report filters
   const handleDonationHistoryFilter = () => {
+    // Validate dates are selected
+    if (!donationHistoryStart || !donationHistoryEnd) {
+      Swal.fire({
+        icon: "warning",
+        title: "Select a Date First",
+        text: "Please select both start date and end date before generating the report.",
+      });
+      return;
+    }
+
     // Validate future dates using PH time
     const todayPH = getPhilippineDate();
     if (donationHistoryStart && donationHistoryStart > todayPH) {
@@ -204,6 +214,16 @@ export default function BakeryReports() {
   };
 
   const handleBakeryListFilter = () => {
+    // Validate dates are selected
+    if (!bakeryListStart || !bakeryListEnd) {
+      Swal.fire({
+        icon: "warning",
+        title: "Select a Date First",
+        text: "Please select both start date and end date before generating the report.",
+      });
+      return;
+    }
+
     // Validate future dates using PH time
     const todayPH = getPhilippineDate();
     if (bakeryListStart && bakeryListStart > todayPH) {
@@ -2202,9 +2222,10 @@ export default function BakeryReports() {
                 </div>
                 <Button
                   onClick={handleDonationHistoryFilter}
-                  className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                  disabled={loading}
+                  className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Generate Report
+                  {loading ? "Generating..." : "Generate Report"}
                 </Button>
               </div>
 
@@ -2285,9 +2306,10 @@ export default function BakeryReports() {
                 </div>
                 <Button
                   onClick={handleBakeryListFilter}
-                  className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                  disabled={loading}
+                  className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Generate Report
+                  {loading ? "Generating..." : "Generate Report"}
                 </Button>
               </div>
 
@@ -2394,9 +2416,10 @@ export default function BakeryReports() {
                         </div>
                         <Button
                           onClick={handleWeeklyFilter}
-                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                          disabled={loading}
+                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          Generate Report
+                          {loading ? "Generating..." : "Generate Report"}
                         </Button>
                       </>
                     ) : activeSummary === "monthly" ? (
@@ -2415,9 +2438,10 @@ export default function BakeryReports() {
                         </div>
                         <Button
                           onClick={handleMonthlyFilter}
-                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                          disabled={loading}
+                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          Generate Report
+                          {loading ? "Generating..." : "Generate Report"}
                         </Button>
                       </>
                     ) : activeSummary === "custom" ? (
@@ -2448,9 +2472,10 @@ export default function BakeryReports() {
                         </div>
                         <Button
                           onClick={handleCustomFilter}
-                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95"
+                          disabled={loading}
+                          className="rounded-full bg-gradient-to-r from-[#F6C17C] via-[#E49A52] to-[#BF7327] text-white px-5 py-2 shadow-md ring-1 ring-white/60 hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          Generate Report
+                          {loading ? "Generating..." : "Generate Report"}
                         </Button>
                       </>
                     ) : null}

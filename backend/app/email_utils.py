@@ -148,10 +148,19 @@ def send_account_verified_email(to_email: str, user_name: str, role: str) -> boo
                        padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
             .header h1 {{ color: white; margin: 0; }}
             .content {{ background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }}
+            .credentials-box {{ background: white; border: 2px solid #28a745; 
+                               padding: 20px; border-radius: 8px; margin: 20px 0; }}
+            .credential-item {{ margin: 15px 0; padding: 10px; background: #f8f9fa; 
+                               border-radius: 4px; }}
+            .credential-label {{ font-weight: bold; color: #28a745; }}
+            .credential-value {{ font-family: 'Courier New', monospace; font-size: 16px; 
+                                color: #333; margin-top: 5px; word-break: break-all; }}
             .button {{ display: inline-block; padding: 12px 30px; background: #28a745; 
                       color: white; text-decoration: none; border-radius: 5px; 
                       font-weight: bold; margin: 20px 0; }}
             .success-icon {{ font-size: 48px; text-align: center; margin: 20px 0; }}
+            .info-box {{ background: #e8f4fd; border-left: 4px solid #2196F3; 
+                       padding: 15px; margin: 20px 0; border-radius: 4px; }}
             .footer {{ text-align: center; margin-top: 20px; color: #666; font-size: 12px; }}
         </style>
     </head>
@@ -165,14 +174,31 @@ def send_account_verified_email(to_email: str, user_name: str, role: str) -> boo
                 <h2>Account Verified!</h2>
                 <p>Dear {user_name},</p>
                 <p>Great news! Your {role} account has been verified and approved by our admin team.</p>
-                <p>You can now log in and start using all the features of DoughNation:</p>
-                <ul>
-                    <li>{'Manage your bakery inventory and donations' if role == 'Bakery' else 'Browse available donations from bakeries'}</li>
-                    <li>{'Schedule and track donations to charities' if role == 'Bakery' else 'Request and receive donations'}</li>
-                    <li>View analytics and reports</li>
-                    <li>Connect with {'charities' if role == 'Bakery' else 'bakeries'} in your area</li>
-                </ul>
+                
+                <div class="credentials-box">
+                    <h3 style="margin-top: 0; color: #28a745;">🔐 Your Login Credentials</h3>
+                    <div class="credential-item">
+                        <div class="credential-label">Email Address:</div>
+                        <div class="credential-value">{to_email}</div>
+                    </div>
+                    <div class="credential-item">
+                        <div class="credential-label">Password:</div>
+                        <div class="credential-value">Use the password you created during registration</div>
+                    </div>
+                </div>
+                
+                <div class="info-box">
+                    <strong>📋 What You Can Do Now:</strong>
+                    <ul style="margin: 10px 0 0 0; padding-left: 20px;">
+                        <li>{'Manage your bakery inventory and donations' if role == 'Bakery' else 'Browse available donations from bakeries'}</li>
+                        <li>{'Schedule and track donations to charities' if role == 'Bakery' else 'Request and receive donations'}</li>
+                        <li>View analytics and reports</li>
+                        <li>Connect with {'charities' if role == 'Bakery' else 'bakeries'} in your area</li>
+                    </ul>
+                </div>
+                
                 <a href="{login_link}" class="button">Log In Now</a>
+                
                 <p>Thank you for joining DoughNation in our mission to reduce food waste and help those in need!</p>
             </div>
             <div class="footer">

@@ -31,12 +31,50 @@ const LocationSelector = ({ setLocation, setFormData }) => {
       const { lat, lng } = e.latlng;
       setLocation({ lat, lng });
       try {
+        // Enhanced reverse geocoding with more detailed address components
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`
+          `https://nominatim.openstreetmap.org/reverse?` +
+          `lat=${lat}&lon=${lng}` +
+          `&format=json` +
+          `&addressdetails=1` +
+          `&extratags=1` +
+          `&namedetails=1` +
+          `&zoom=18` + // Maximum zoom for most detailed results
+          `&accept-language=en`
         );
         const data = await res.json();
-        const address = data?.display_name || "Unknown location";
-        setFormData((prev) => ({ ...prev, address }));
+        
+        // Build detailed address from components
+        if (data && data.address) {
+          const addr = data.address;
+          const parts = [];
+          
+          // Add house number and street
+          if (addr.house_number) parts.push(addr.house_number);
+          if (addr.road || addr.street || addr.pedestrian) {
+            parts.push(addr.road || addr.street || addr.pedestrian);
+          }
+          
+          // Add barangay/neighborhood
+          const barangay = addr.suburb || addr.neighbourhood || addr.hamlet || addr.village;
+          if (barangay) parts.push(barangay);
+          
+          // Add city
+          const city = addr.city || addr.municipality || addr.town;
+          if (city) parts.push(city);
+          
+          // Add province
+          if (addr.state || addr.province) parts.push(addr.state || addr.province);
+          
+          // Add country
+          if (addr.country) parts.push(addr.country);
+          
+          const detailedAddress = parts.length > 0 ? parts.join(', ') : data.display_name;
+          setFormData((prev) => ({ ...prev, address: detailedAddress }));
+        } else {
+          const address = data?.display_name || "Unknown location";
+          setFormData((prev) => ({ ...prev, address }));
+        }
       } catch {
         setFormData((prev) => ({
           ...prev,
@@ -165,7 +203,7 @@ export default function Register() {
   const handleInputChange = (field, value) =>
     setFormData({ ...formData, [field]: value });
 
-  /** Search for address suggestions */
+  /** Search for address suggestions with enhanced accuracy */
   const searchAddress = async (query) => {
     if (!query || query.length < 3) {
       setAddressSuggestions([]);
@@ -175,14 +213,55 @@ export default function Register() {
 
     setIsSearching(true);
     try {
+      // Enhanced query with more detailed results including barangay level
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
-          query
-        )}&format=json&limit=5&countrycodes=ph&addressdetails=1`
+        `https://nominatim.openstreetmap.org/search?` +
+        `q=${encodeURIComponent(query)}` +
+        `&format=json` +
+        `&limit=10` + // Increased limit for more options
+        `&countrycodes=ph` +
+        `&addressdetails=1` +
+        `&dedupe=1` + // Remove duplicate results
+        `&extratags=1` + // Get additional tags
+        `&namedetails=1` + // Get name details
+        `&accept-language=en` // English results
       );
       const data = await res.json();
-      setAddressSuggestions(data);
-      setShowSuggestions(data.length > 0);
+      
+      // Filter and enhance results to prioritize more specific addresses
+      const enhancedResults = data
+        .filter(item => {
+          // Prioritize results with more detailed address components
+          const hasBarangay = item.address?.suburb || 
+                              item.address?.neighbourhood || 
+                              item.address?.hamlet ||
+                              item.address?.village;
+          const hasStreet = item.address?.road || 
+                           item.address?.street ||
+                           item.address?.pedestrian;
+          const hasCity = item.address?.city || 
+                         item.address?.municipality ||
+                         item.address?.town;
+          
+          // Return results that have at least city-level detail
+          return hasCity;
+        })
+        .sort((a, b) => {
+          // Sort by specificity - more detailed addresses first
+          const getSpecificity = (item) => {
+            let score = 0;
+            if (item.address?.house_number) score += 4;
+            if (item.address?.road || item.address?.street) score += 3;
+            if (item.address?.suburb || item.address?.neighbourhood) score += 2;
+            if (item.address?.city || item.address?.municipality) score += 1;
+            return score;
+          };
+          return getSpecificity(b) - getSpecificity(a);
+        })
+        .slice(0, 8); // Limit to top 8 most relevant results
+      
+      setAddressSuggestions(enhancedResults);
+      setShowSuggestions(enhancedResults.length > 0);
     } catch (error) {
       console.error("Address search error:", error);
       setAddressSuggestions([]);
@@ -207,13 +286,39 @@ export default function Register() {
     }, 500);
   };
 
-  /** Handle selecting an address suggestion */
+  /** Handle selecting an address suggestion with detailed formatting */
   const handleAddressSelect = (suggestion) => {
-    const address = suggestion.display_name;
+    // Build a more detailed address string including barangay
+    const addr = suggestion.address || {};
+    const parts = [];
+    
+    // Add house number and street/road
+    if (addr.house_number) parts.push(addr.house_number);
+    if (addr.road || addr.street || addr.pedestrian) {
+      parts.push(addr.road || addr.street || addr.pedestrian);
+    }
+    
+    // Add barangay/neighborhood/suburb
+    const barangay = addr.suburb || addr.neighbourhood || addr.hamlet || addr.village;
+    if (barangay) parts.push(barangay);
+    
+    // Add city/municipality
+    const city = addr.city || addr.municipality || addr.town;
+    if (city) parts.push(city);
+    
+    // Add province
+    if (addr.state || addr.province) parts.push(addr.state || addr.province);
+    
+    // Add country
+    if (addr.country) parts.push(addr.country);
+    
+    // Join all parts with comma and space
+    const detailedAddress = parts.length > 0 ? parts.join(', ') : suggestion.display_name;
+    
     const lat = parseFloat(suggestion.lat);
     const lng = parseFloat(suggestion.lon);
     
-    setFormData((prev) => ({ ...prev, address }));
+    setFormData((prev) => ({ ...prev, address: detailedAddress }));
     setLocation({ lat, lng });
     setMapCenter({ lat, lng });
     setShowSuggestions(false);
@@ -848,26 +953,52 @@ export default function Register() {
                   {/* Autocomplete dropdown - Absolutely positioned to overlap map */}
                   {showSuggestions && addressSuggestions.length > 0 && (
                     <div className="absolute w-full mt-1 bg-white border border-[#FFE1BE] rounded-xl shadow-lg max-h-60 overflow-y-auto z-[1000]">
-                      {addressSuggestions.map((suggestion, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => handleAddressSelect(suggestion)}
-                          className="w-full text-left px-4 py-3 hover:bg-[#FFF7EC] transition-colors border-b border-[#FFE1BE]/50 last:border-b-0 focus:outline-none focus:bg-[#FFF7EC]"
-                        >
-                          <div className="flex items-start gap-2">
-                            <MapPin className="h-4 w-4 text-[#C39053] mt-0.5 flex-shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm text-[#6c471d] font-medium truncate">
-                                {suggestion.address?.road || suggestion.address?.suburb || suggestion.display_name.split(',')[0]}
-                              </p>
-                              <p className="text-xs text-[#a47134]/80 truncate">
-                                {suggestion.display_name}
-                              </p>
+                      {addressSuggestions.map((suggestion, idx) => {
+                        const addr = suggestion.address || {};
+                        
+                        // Build primary display (street/barangay)
+                        const primary = [];
+                        if (addr.house_number) primary.push(addr.house_number);
+                        if (addr.road || addr.street) primary.push(addr.road || addr.street);
+                        const barangay = addr.suburb || addr.neighbourhood || addr.hamlet || addr.village;
+                        if (barangay) primary.push(barangay);
+                        const primaryText = primary.length > 0 ? primary.join(', ') : suggestion.display_name.split(',')[0];
+                        
+                        // Build secondary display (city, province)
+                        const secondary = [];
+                        const city = addr.city || addr.municipality || addr.town;
+                        if (city) secondary.push(city);
+                        if (addr.state || addr.province) secondary.push(addr.state || addr.province);
+                        const secondaryText = secondary.join(', ');
+                        
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handleAddressSelect(suggestion)}
+                            className="w-full text-left px-4 py-3 hover:bg-[#FFF7EC] transition-colors border-b border-[#FFE1BE]/50 last:border-b-0 focus:outline-none focus:bg-[#FFF7EC]"
+                          >
+                            <div className="flex items-start gap-2">
+                              <MapPin className="h-4 w-4 text-[#C39053] mt-0.5 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-[#6c471d] font-medium line-clamp-1">
+                                  {primaryText}
+                                </p>
+                                {secondaryText && (
+                                  <p className="text-xs text-[#a47134]/80 line-clamp-1 mt-0.5">
+                                    {secondaryText}
+                                  </p>
+                                )}
+                                {barangay && (
+                                  <p className="text-[10px] text-[#C39053] mt-0.5">
+                                    📍 Barangay: {barangay}
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        </button>
-                      ))}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

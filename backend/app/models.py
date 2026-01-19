@@ -10,7 +10,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    role = Column(String, nullable=False)  # Bakery, Charity, or Admin
+    role = Column(String, nullable=False)  # Donor, Charity, or Admin
     name = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)  # Now accepts any email (Gmail, etc.)
     contact_person = Column(String, nullable=False)
@@ -27,7 +27,7 @@ class User(Base):
     longitude = Column(Float, nullable=True)
     notification_radius_km = Column(Float, default=10)  # optional max radius
     
-    # Admin verification (Bakery/Charity accounts need admin approval)
+    # Admin verification (Donor/Charity accounts need admin approval)
     verified = Column(Boolean, default=False)
     
     # Account Status Management (Super Admin feature)
@@ -60,7 +60,7 @@ class User(Base):
     temp_password_created_at = Column(DateTime, nullable=True)  # When the temporary password was set
 
      # Parent side of the relationship
-    inventory_items = relationship("BakeryInventory", back_populates="bakery")
+    inventory_items = relationship("DonorInventory", back_populates="bakery")
 
     # Parent side of donations
     donations = relationship("Donation", back_populates="bakery")
@@ -78,25 +78,30 @@ class User(Base):
     events = relationship("SystemEvent", back_populates="user")
 
  
-class BakeryInventory(Base):
-    __tablename__ = "bakery_inventory"
+class DonorInventory(Base):
+    __tablename__ = "bakery_inventory"  # Keep table name for database compatibility
 
     id = Column(Integer, primary_key=True, index=True)
-    bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # Keep column name for database compatibility
     created_by_employee_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True)  # Track which employee created it
     product_id = Column(String, unique=True, index=True)
     name = Column(String, nullable=False)
     image = Column(String, nullable=True)
     quantity = Column(Integer, nullable=False)
     creation_date = Column(Date, nullable=False)
-    expiration_date = Column(Date, nullable=True)
+    expiration_date = Column(Date, nullable=True)  # Required for food, optional for non-food
     threshold = Column(Integer, nullable=False)
     uploaded = Column(String, nullable=False)
     description = Column(String, nullable=True)
     status = Column(String, nullable=False, default="available")
+    
+    # New fields for multi-type donations
+    donation_type = Column(String, nullable=False, default="Food")  # Food, Clothes, School Supplies, Other
+    category = Column(String, nullable=True)  # For non-food items: type/category
+    condition = Column(String, nullable=True)  # For non-food items: New, Like New, Good, Fair
 
 
-    bakery = relationship("User", back_populates="inventory_items")
+    bakery = relationship("User", back_populates="inventory_items")  # Keep relationship name for compatibility
     created_by_employee = relationship("Employee", back_populates="inventory_items")
     donations = relationship("Donation", back_populates="inventory_item", cascade="all, delete-orphan") 
     direct_donations = relationship("DirectDonation", back_populates="bakery_inventory", cascade="all, delete-orphan")
@@ -113,7 +118,7 @@ class Employee(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     employee_id = Column(String, unique=True, nullable=False, index=True)  # Unique Employee ID (e.g., EMP-5-001)
-    bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)  # Keep column name for database compatibility - refers to donor
     name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False, index=True)  # Employee's Gmail address
     role = Column(String, nullable=False)  # Manager, Employee
@@ -134,8 +139,8 @@ class Employee(Base):
     temp_password_created_at = Column(DateTime, nullable=True)  # When the temporary password was set
     
     # Relationships
-    bakery = relationship("User", backref="employees")
-    inventory_items = relationship("BakeryInventory", back_populates="created_by_employee")
+    bakery = relationship("User", backref="employees")  # Keep relationship name for compatibility - refers to donor
+    inventory_items = relationship("DonorInventory", back_populates="created_by_employee")
     donations = relationship("Donation", back_populates="created_by_employee")
     password_history = relationship("EmployeePasswordHistory", back_populates="employee", passive_deletes=True)
 
@@ -144,8 +149,8 @@ class Donation(Base):
     __tablename__ = "donations"
 
     id = Column(Integer, primary_key=True, index=True)
-    bakery_inventory_id = Column(Integer, ForeignKey("bakery_inventory.id", ondelete="CASCADE"), nullable=False)
-    bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    bakery_inventory_id = Column(Integer, ForeignKey("bakery_inventory.id", ondelete="CASCADE"), nullable=False)  # Keep column name for database compatibility
+    bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # Keep column name for database compatibility - refers to donor
     created_by_employee_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True)  # Track which employee created it
     name = Column(String, nullable=False)
     image = Column(String, nullable=True)
@@ -157,25 +162,25 @@ class Donation(Base):
     description = Column(String, nullable=True)
 
 
-    bakery = relationship("User", back_populates="donations")
+    bakery = relationship("User", back_populates="donations")  # Keep relationship name for compatibility - refers to donor
     created_by_employee = relationship("Employee", back_populates="donations")
-    inventory_item = relationship("BakeryInventory", back_populates="donations")
+    inventory_item = relationship("DonorInventory", back_populates="donations")
 
 class DonationRequest(Base):
     __tablename__ = "donation_requests"
 
     id = Column(Integer, primary_key=True, index=True)
     donation_id = Column(Integer, ForeignKey("donations.id", ondelete="CASCADE"))
-    bakery_inventory_id = Column(Integer, ForeignKey("bakery_inventory.id"))
+    bakery_inventory_id = Column(Integer, ForeignKey("bakery_inventory.id"))  # Keep column name for database compatibility
     charity_id = Column(Integer, ForeignKey("users.id"))
-    bakery_id = Column(Integer, ForeignKey("users.id"))
+    bakery_id = Column(Integer, ForeignKey("users.id"))  # Keep column name for database compatibility - refers to donor
     timestamp = Column(DateTime, default=now_ph)
     status = Column(String, default="pending") 
     tracking_status = Column(String, default="preparing")
     tracking_completed_at = Column(DateTime, nullable=True) 
     feedback_submitted = Column(Boolean, default=False) 
-    bakery_name = Column(String, nullable=True)
-    bakery_profile_picture = Column(String, nullable=True)
+    bakery_name = Column(String, nullable=True)  # Keep column name for database compatibility - refers to donor name
+    bakery_profile_picture = Column(String, nullable=True)  # Keep column name for database compatibility - refers to donor profile
     donation_name = Column(String, nullable=True)
     donation_image = Column(String, nullable=True)
     donation_quantity = Column(Integer, nullable=True)
@@ -183,10 +188,10 @@ class DonationRequest(Base):
     rdonated_by = Column(String, nullable=True)
 
     donation = relationship("Donation", backref="requests", passive_deletes=True)
-    inventory_item = relationship("BakeryInventory")
+    inventory_item = relationship("DonorInventory")  # Updated to use DonorInventory
 
     charity = relationship("User", foreign_keys=[charity_id])
-    bakery = relationship("User", foreign_keys=[bakery_id])
+    bakery = relationship("User", foreign_keys=[bakery_id])  # Keep relationship name for compatibility - refers to donor
 
 class DonationCardChecking(Base):
     __tablename__ = "donationscardchecking"
@@ -202,7 +207,7 @@ class DirectDonation(Base):
     __tablename__ = "direct_donations"
 
     id = Column(Integer, primary_key=True, index=True)
-    bakery_inventory_id = Column(Integer, ForeignKey("bakery_inventory.id"))
+    bakery_inventory_id = Column(Integer, ForeignKey("bakery_inventory.id"))  # Keep column name for database compatibility
     charity_id = Column(Integer, ForeignKey("users.id"))  # points to User (charity)
     name = Column(String, nullable=False)
     quantity = Column(Integer, nullable=False)
@@ -219,7 +224,7 @@ class DirectDonation(Base):
     created_at = Column(DateTime, default=now_ph)
 
     # Relationships
-    bakery_inventory = relationship("BakeryInventory")
+    bakery_inventory = relationship("DonorInventory")  # Updated to use DonorInventory
     charity = relationship("User") 
 
 class Message(Base):
@@ -260,7 +265,7 @@ class Feedback(Base):
     donation_request_id = Column(Integer, ForeignKey("donation_requests.id", ondelete="CASCADE"), nullable=True)
     direct_donation_id = Column(Integer, ForeignKey("direct_donations.id", ondelete="CASCADE"), nullable=True)
     charity_id = Column(Integer, ForeignKey("users.id"))
-    bakery_id = Column(Integer, ForeignKey("users.id"))
+    bakery_id = Column(Integer, ForeignKey("users.id"))  # Keep column name for database compatibility - refers to donor
     message = Column(String, nullable=False)
     rating = Column(Integer, nullable=True) 
     created_at = Column(DateTime, default=now_ph)
@@ -272,7 +277,7 @@ class Feedback(Base):
 
     # Add these relationships
     charity = relationship("User", foreign_keys=[charity_id])
-    bakery = relationship("User", foreign_keys=[bakery_id])
+    bakery = relationship("User", foreign_keys=[bakery_id])  # Keep relationship name for compatibility - refers to donor
 
 #--------Complaints------------
 class ComplaintStatus(str, enum.Enum):
@@ -387,4 +392,7 @@ class EmailVerification(Base):
     verified = Column(Boolean, default=False)  # Whether email has been verified
     verified_at = Column(DateTime, nullable=True)  # When verification was completed
     created_at = Column(DateTime, default=now_ph)
-    
+
+# Backward compatibility alias - allows existing code to use BakeryInventory
+# This must come after all class definitions
+BakeryInventory = DonorInventory    

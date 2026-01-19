@@ -21,7 +21,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Heart, Store, Building2, Eye, EyeOff, Lock } from "lucide-react";
 
 const ROLES = [
-  { value: "Bakery", label: "Bakery", icon: Store },
+  { value: "Donor", label: "Donor", icon: Store },
   { value: "Charity", label: "Charity", icon: Heart },
   { value: "Admin", label: "Admin", icon: Building2 },
 ];
@@ -33,7 +33,7 @@ const Login = () => {
 
   const [identifier, setIdentifier] = useState(""); // Changed from 'email' - now accepts email OR name
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("Bakery");
+  const [role, setRole] = useState("Donor");
   const [showPass, setShowPass] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
@@ -139,12 +139,12 @@ const Login = () => {
 
       const accountType = decoded.type; // "bakery", "charity", "admin", or "employee"
 
-      // ✅ VALIDATE: Employees can ONLY log in when slider is set to "Bakery"
-      if (accountType === "employee" && role !== "Bakery") {
+      // ✅ VALIDATE: Employees can ONLY log in when slider is set to "Donor"
+      if (accountType === "employee" && role !== "Donor") {
         Swal.fire({
           icon: "error",
           title: "Invalid Login Type",
-          text: "Employee login is only allowed when the login type is set to 'Bakery'. Please switch the slider to Bakery and try again.",
+          text: "Employee login is only allowed when the login type is set to 'Donor'. Please switch the slider to Donor and try again.",
           confirmButtonColor: "#A97142",
         });
         return; // Exit early - prevent login
@@ -154,12 +154,12 @@ const Login = () => {
       if (accountType === "employee") {
         // Employee login - use EmployeeAuthContext
 
-        // 🚫 CHECK IF BAKERY IS VERIFIED
+        // 🚫 CHECK IF DONOR IS VERIFIED
         if (!decoded.bakery_verified) {
           Swal.fire({
             icon: "warning",
-            title: "Bakery Not Verified",
-            text: "Your bakery account is pending admin verification. Please wait until the bakery is verified before accessing the system.",
+            title: "Donor Not Verified",
+            text: "Your donor account is pending admin verification. Please wait until the donor is verified before accessing the system.",
             confirmButtonColor: "#A97142",
           });
           return; // Exit early - prevent login
@@ -197,13 +197,13 @@ const Login = () => {
           showConfirmButton: false,
         });
       } else {
-        // Regular user login (Bakery/Charity/Admin)
+        // Regular user login (Donor/Charity/Admin)
         login(token); // Use existing auth context
 
         const userId = decoded.sub;
 
         // Role-based redirection
-        if (accountType === "bakery") {
+        if (accountType === "donor") {
           // 🔐 CHECK IF USER MUST CHANGE ONE-TIME PASSWORD (Ownership Transfer) - PRIORITY CHECK
           if (decoded.must_change_password) {
             Swal.fire({
@@ -233,12 +233,12 @@ const Login = () => {
             return;
           }
           
-          // 🚫 CHECK IF BAKERY IS VERIFIED
+          // 🚫 CHECK IF DONOR IS VERIFIED
           if (!decoded.is_verified) {
             Swal.fire({
               icon: "warning",
               title: "Account Not Verified",
-              text: "Your bakery account is pending admin verification. Please wait until an admin verifies your account before accessing the system.",
+              text: "Your donor account is pending admin verification. Please wait until an admin verifies your account before accessing the system.",
               confirmButtonColor: "#A97142",
             });
             // Clear the token since they can't access yet
@@ -575,7 +575,7 @@ const Login = () => {
                     id="identifier"
                     type="text"
                     placeholder={
-                      role === "Bakery"
+                      role === "Donor"
                         ? "Enter your Email or Employee ID"
                         : "Enter your Email"
                     }
@@ -685,8 +685,8 @@ const Login = () => {
                 className="mt-5 text-[#8f642a] max-w-[52ch]"
                 style={{ fontSize: "var(--text)" }}
               >
-                Sign in with your Gmail account (Bakery, Charity, or Admin) or
-                your bakery employee ID to manage inventory and donations.
+                Sign in with your Gmail account (Donor, Charity, or Admin) or
+                your employee ID to manage inventory and donations.
               </p>
 
               <ul
@@ -696,7 +696,7 @@ const Login = () => {
                 <li className="flex items-start gap-3">
                   <Store className="h-5 w-5 mt-0.5 text-[#ce893b]" />
                   <span>
-                    Bakery Owners & Employees — Track inventory, manage
+                    Donors & Employees — Track inventory, manage
                     donations, and connect with charities.
                   </span>
                 </li>

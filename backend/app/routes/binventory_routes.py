@@ -241,16 +241,28 @@ def add_inventory(
     image: UploadFile = File(None),
     quantity: int = Form(...),
     creation_date: str = Form(...),
-    expiration_date: str = Form(...),
+    expiration_date: str = Form(None),  # Optional for non-food items
     threshold: int = Form(...),  # Receive from frontend but recalculate
     uploaded: str = Form(...),
     description: str = Form(None),
     template_image: str = Form(None),
+    donation_type: str = Form("Food"),  # Food, Clothes, School Supplies, Other
+    category: str = Form(None),  # For non-food items
+    condition: str = Form(None),  # For non-food items
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(auth.ensure_verified_user)
 ):
-    if current_user.role.lower() != "bakery":
-        raise HTTPException(status_code=403, detail="Only bakeries can add inventory")
+    if current_user.role.lower() != "donor":
+        raise HTTPException(status_code=403, detail="Only donors can add inventory")
+    
+    # Validate donation type
+    valid_donation_types = ["Food", "Clothes", "School Supplies", "Other"]
+    if donation_type not in valid_donation_types:
+        raise HTTPException(status_code=400, detail=f"Invalid donation type. Must be one of: {', '.join(valid_donation_types)}")
+    
+    # Validate that food items have expiration date
+    if donation_type == "Food" and not expiration_date:
+        raise HTTPException(status_code=400, detail="Expiration date is required for food donations")
 
     # Handle image
     file_path = None
@@ -263,8 +275,9 @@ def add_inventory(
         file_path = template_image
 
     # ✅ RECALCULATE threshold based on CURRENT SERVER DATE (not creation_date)
+    # Only for food items with expiration date
     recalculated_threshold = 2  # Default
-    if expiration_date:
+    if donation_type == "Food" and expiration_date:
         try:
             # Get current server date
             from app.timezone_utils import today_ph
@@ -288,6 +301,9 @@ def add_inventory(
         except Exception as e:
             print(f"[Threshold] Error calculating: {e}")
             recalculated_threshold = 2
+    else:
+        # For non-food items, threshold can be 0 or user-defined
+        recalculated_threshold = threshold if threshold is not None else 0
 
     # Create inventory with RECALCULATED threshold
     new_item = crud.create_inventory(
@@ -300,27 +316,31 @@ def add_inventory(
         expiration_date=expiration_date,
         threshold=recalculated_threshold,  # ✅ Use recalculated value
         uploaded=uploaded,
-        description=description
+        description=description,
+        donation_type=donation_type,
+        category=category,
+        condition=condition
     )
 
-    # Save to CSV with recalculated threshold
-    try:
-        os.makedirs(CSV_DIR, exist_ok=True)
-        creation = datetime.strptime(creation_date, "%Y-%m-%d").date()
-        expiration = datetime.strptime(expiration_date, "%Y-%m-%d").date()
-        shelf_life_days = (expiration - creation).days
-        
-        csv_path = initialize_bakery_csv(current_user.id)
-        save_product_to_csv(
-            bakery_id=current_user.id,
-            product_name=name,
-            threshold=recalculated_threshold,  # ✅ Use recalculated value
-            shelf_life_days=shelf_life_days,
-            description=description or "",
-            image=file_path or ""
-        )
-    except Exception as e:
-        print(f"[CSV] Error: {e}")
+    # Save to CSV with recalculated threshold (only for food items)
+    if donation_type == "Food" and expiration_date:
+        try:
+            os.makedirs(CSV_DIR, exist_ok=True)
+            creation = datetime.strptime(creation_date, "%Y-%m-%d").date()
+            expiration = datetime.strptime(expiration_date, "%Y-%m-%d").date()
+            shelf_life_days = (expiration - creation).days
+            
+            csv_path = initialize_bakery_csv(current_user.id)
+            save_product_to_csv(
+                bakery_id=current_user.id,
+                product_name=name,
+                threshold=recalculated_threshold,  # ✅ Use recalculated value
+                shelf_life_days=shelf_life_days,
+                description=description or "",
+                image=file_path or ""
+            )
+        except Exception as e:
+            print(f"[CSV] Error: {e}")
 
     check_threshold_and_create_donation(db)
     check_inventory_status(db)

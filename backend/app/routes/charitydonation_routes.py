@@ -690,7 +690,7 @@ def get_accepted_donations(
 
     if current_user.role.lower() == "charity":
         query = query.filter(models.DonationRequest.charity_id == current_user.id)
-    elif current_user.role.lower() == "bakery":
+    elif current_user.role.lower() == "donor":
         query = query.filter(models.DonationRequest.bakery_id == current_user.id)
     else:
         raise HTTPException(status_code=403, detail="Invalid user role")

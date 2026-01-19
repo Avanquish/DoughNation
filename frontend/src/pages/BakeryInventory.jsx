@@ -125,6 +125,8 @@ export default function BakeryInventory({ isViewOnly = false }) {
   const [employees, setEmployees] = useState([]);
 
   const [showForm, setShowForm] = useState(false);
+  const [showFoodModal, setShowFoodModal] = useState(false);
+  const [showNonFoodModal, setShowNonFoodModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const debounceTimerRef = useRef(null);
@@ -150,8 +152,17 @@ export default function BakeryInventory({ isViewOnly = false }) {
     threshold: 0,
     uploaded: "", // Will be set from token
     template_image: "",
+    donation_type: "Food", // NEW: Food, Clothes, School Supplies, Other
+    category: "", // NEW: For non-food items
+    condition: "", // NEW: For non-food items
   });
   const [shelfLifeDays, setShelfLifeDays] = useState(null);
+  
+  // NEW: Donation type selection state
+  const [showDonationTypeSelector, setShowDonationTypeSelector] = useState(false);
+  const [selectedDonationType, setSelectedDonationType] = useState(null);
+  const [categoryOther, setCategoryOther] = useState(false);
+  const [customCategory, setCustomCategory] = useState("");
 
   const [showDirectDonation, setShowDirectDonation] = useState(false);
   const [directForm, setDirectForm] = useState(null);
@@ -754,7 +765,32 @@ export default function BakeryInventory({ isViewOnly = false }) {
       return; // Prevent double submission
     }
 
-    if (!form.creation_date) {
+    // Validate donation type specific fields
+    if (form.donation_type === "Food") {
+      if (!form.creation_date) {
+        Swal.fire({
+          title: "Error",
+          text: "Creation date is required for food items.",
+          icon: "error",
+          confirmButtonColor: "#A97142",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (!form.expiration_date) {
+        Swal.fire({
+          title: "Error",
+          text: "Expiration date is required for food items.",
+          icon: "error",
+          confirmButtonColor: "#A97142",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
+    if (!form.creation_date && form.donation_type === "Food") {
       Swal.fire({
         title: "Error",
         text: "Creation date is missing. Please refresh the page.",
@@ -777,9 +813,9 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
     setIsSubmitting(true);
 
-    // Calculate threshold days dynamically based on current date
+    // Calculate threshold days dynamically based on current date (Food items only)
     let thresholdDays = 2;
-    if (form.expiration_date && currentServerDate) {
+    if (form.donation_type === "Food" && form.expiration_date && currentServerDate) {
       const expDate = new Date(form.expiration_date);
       const [year, month, day] = currentServerDate.split("-").map(Number);
       const today = new Date(year, month - 1, day);
@@ -799,15 +835,33 @@ export default function BakeryInventory({ isViewOnly = false }) {
     const fd = new FormData();
     fd.append("name", form.item_name);
     fd.append("quantity", form.quantity);
-    // Ensure creation_date is in YYYY-MM-DD format
-    const creationDate = form.creation_date.includes("T")
-      ? form.creation_date.split("T")[0]
-      : form.creation_date;
-    fd.append("creation_date", creationDate);
-    fd.append("expiration_date", form.expiration_date);
-    fd.append("threshold", Math.max(0, thresholdDays)); // Store as integer days
+    
+    // For Food items, include creation_date, expiration_date, threshold
+    if (form.donation_type === "Food") {
+      // Ensure creation_date is in YYYY-MM-DD format
+      const creationDate = form.creation_date.includes("T")
+        ? form.creation_date.split("T")[0]
+        : form.creation_date;
+      fd.append("creation_date", creationDate);
+      fd.append("expiration_date", form.expiration_date);
+      fd.append("threshold", Math.max(0, thresholdDays)); // Store as integer days
+    } else {
+      // For non-food items, send empty strings for food-specific fields
+      fd.append("creation_date", "");
+      fd.append("expiration_date", "");
+      fd.append("threshold", "0");
+    }
+    
     fd.append("uploaded", form.uploaded);
     fd.append("description", form.description);
+    
+    // NEW: Append donation type fields
+    fd.append("donation_type", form.donation_type);
+    if (form.donation_type !== "Food") {
+      fd.append("category", form.category || "");
+      fd.append("condition", form.condition || "");
+    }
+    
     if (form.image_file) {
       fd.append("image", form.image_file);
     } else if (form.template_image) {
@@ -838,9 +892,13 @@ export default function BakeryInventory({ isViewOnly = false }) {
         threshold: 0,
         uploaded: uploaderName,
         template_image: "",
+        donation_type: "Food",
+        category: "",
+        condition: "",
       });
       setProductCodePreview(null);
       setShowForm(false);
+      setSelectedDonationType(null);
       await fetchInventory();
       window.dispatchEvent(new CustomEvent("inventory:changed"));
     } catch (error) {
@@ -1100,7 +1158,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
         {!isViewOnly && (
           <>
             <button
-              onClick={() => setShowForm(true)}
+              onClick={() => setShowDonationTypeSelector(true)}
               className={pillSolid}
               title="Add new product"
             >
@@ -1497,14 +1555,75 @@ export default function BakeryInventory({ isViewOnly = false }) {
         </div>
       )}
 
+      {/* --- Donation Type Selector Modal --- */}
+      {showDonationTypeSelector && (
+        <Overlay onClose={() => setShowDonationTypeSelector(false)}>
+          <div className="mx-auto bg-white rounded-2xl shadow-2xl ring-1 ring-black/10 overflow-hidden max-w-2xl w-full">
+            <div className={sectionHeader}>
+              <h2 className="text-xl font-semibold text-[#6b4b2b]">
+                What would you like to donate?
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">Select the type of donation you want to add</p>
+            </div>
+            <div className="p-6 grid grid-cols-2 gap-4">
+              {[
+                { 
+                  type: "Food", 
+                  icon: "🍞", 
+                  desc: "Baked goods & food items",
+                  color: "from-amber-50 to-orange-50 border-amber-200 hover:border-amber-400"
+                },
+                { 
+                  type: "Clothes", 
+                  icon: "👕", 
+                  desc: "Clothing & textiles",
+                  color: "from-blue-50 to-cyan-50 border-blue-200 hover:border-blue-400"
+                },
+                { 
+                  type: "School Supplies", 
+                  icon: "📚", 
+                  desc: "Educational materials",
+                  color: "from-green-50 to-emerald-50 border-green-200 hover:border-green-400"
+                },
+                { 
+                  type: "Other", 
+                  icon: "📦", 
+                  desc: "Other donation items",
+                  color: "from-purple-50 to-pink-50 border-purple-200 hover:border-purple-400"
+                }
+              ].map(({ type, icon, desc, color }) => (
+                <button
+                  key={type}
+                  onClick={() => {
+                    setSelectedDonationType(type);
+                    setForm(prev => ({ ...prev, donation_type: type }));
+                    setShowDonationTypeSelector(false);
+                    if (type === "Food") {
+                      setShowFoodModal(true);
+                    } else {
+                      setShowNonFoodModal(true);
+                    }
+                  }}
+                  className={`group relative p-6 text-center bg-gradient-to-br ${color} rounded-xl border-2 transition-all duration-200 shadow-sm hover:shadow-lg hover:scale-105`}
+                >
+                  <div className="text-5xl mb-3">{icon}</div>
+                  <div className="font-semibold text-[#6b4b2b] text-lg mb-1">{type}</div>
+                  <div className="text-xs text-gray-600">{desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </Overlay>
+      )}
+
       {/* --- Add Product Modal (sticky header + footer) --- */}
-      {showForm && (
-        <Overlay onClose={() => setShowForm(false)}>
+      {showFoodModal && (
+        <Overlay onClose={() => setShowFoodModal(false)}>
           <div className="mx-auto bg-white rounded-2xl shadow-2xl ring-1 ring-black/10 overflow-hidden max-h-[90vh] flex flex-col">
             {/* Top header */}
             <div className={sectionHeader}>
               <h2 className="text-xl font-semibold text-[#6b4b2b]">
-                Add Product
+                Add Food Donation 🍞
               </h2>
             </div>
 
@@ -1824,10 +1943,12 @@ export default function BakeryInventory({ isViewOnly = false }) {
                         disabled
                       />
                     </div>
-                    <div>
-                      <label htmlFor="prod_qty" className={labelTone}>
-                        Quantity
-                      </label>
+                    </div>
+
+                  <div>
+                    <label htmlFor="prod_qty" className={labelTone}>
+                      Quantity
+                    </label>
 
                       {/* stepper: - [input] + */}
                       <div className="flex items-center gap-3">
@@ -1905,7 +2026,6 @@ export default function BakeryInventory({ isViewOnly = false }) {
                         </button>
                       </div>
                     </div>
-                  </div>
 
                   <div>
                     <label htmlFor="prod_desc" className={labelTone}>
@@ -1951,7 +2071,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     if (debounceTimerRef.current) {
                       clearTimeout(debounceTimerRef.current);
                     }
-                    setShowForm(false);
+                    setShowFoodModal(false);
                     setTemplateInfo(null);
                     setProductCodePreview(null);
                     setShelfLifeDays(null);
@@ -1965,6 +2085,9 @@ export default function BakeryInventory({ isViewOnly = false }) {
                       threshold: 0,
                       uploaded: uploaderName,
                       template_image: "",
+                      donation_type: "Food",
+                      category: "",
+                      condition: "",
                     });
                     setTimeout(() => {
                       setIsFormClosing(false);
@@ -1980,6 +2103,359 @@ export default function BakeryInventory({ isViewOnly = false }) {
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? "Adding..." : "Add Product"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </Overlay>
+      )}
+
+      {/* --- Add Non-Food Donation Modal --- */}
+      {showNonFoodModal && (
+        <Overlay onClose={() => setShowNonFoodModal(false)}>
+          <div className="mx-auto bg-white rounded-2xl shadow-2xl ring-1 ring-black/10 overflow-hidden max-h-[90vh] flex flex-col">
+            {/* Top header */}
+            <div className={sectionHeader}>
+              <h2 className="text-xl font-semibold text-[#6b4b2b]">
+                Add {form.donation_type} Donation {
+                  form.donation_type === "Clothes" ? "👕" :
+                  form.donation_type === "School Supplies" ? "📚" : "📦"
+                }
+              </h2>
+            </div>
+
+            {/* Form: scrollable middle + sticky footer */}
+            <form
+              onSubmit={handleSubmit}
+              className="flex-1 flex flex-col min-h-0"
+            >
+              {/* Scrollable fields */}
+              <div className="flex-1 p-5 sm:p-6 overflow-y-auto">
+                <div className="grid gap-4">
+                  <div>
+                    <label htmlFor="nf_prod_name" className={labelTone}>
+                      Name
+                    </label>
+                    <input
+                      id="nf_prod_name"
+                      className={`${inputTone} rounded-2xl`}
+                      placeholder={`e.g., ${
+                        form.donation_type === "Clothes" ? "Winter Jacket" :
+                        form.donation_type === "School Supplies" ? "Notebooks Set" :
+                        "Miscellaneous Item"
+                      }`}
+                      value={form.item_name}
+                      onChange={(e) => {
+                        const newName = e.target.value;
+                        setForm({ ...form, item_name: newName });
+
+                        if (debounceTimerRef.current) {
+                          clearTimeout(debounceTimerRef.current);
+                        }
+
+                        if (newName.trim().length < 3) {
+                          setTemplateInfo(null);
+                          setProductCodePreview(null);
+                          setForm((prev) => ({
+                            ...prev,
+                            template_image: "",
+                          }));
+                          return;
+                        }
+
+                        debounceTimerRef.current = setTimeout(() => {
+                          fetchProductTemplate(newName);
+                          fetchProductCodePreview(newName);
+                        }, 800);
+                      }}
+                      required
+                    />
+                    {productCodePreview ? (
+                      <p className="mt-1 text-xs text-green-600">
+                        ✓ Next Product ID:{" "}
+                        <code className="font-semibold">
+                          {productCodePreview.next_product_id}
+                        </code>
+                        {!productCodePreview.is_mapped && (
+                          <span className="ml-1 text-amber-600" title="Auto-generated code">
+                            (auto)
+                          </span>
+                        )}
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-xs text-gray-500">
+                        Product ID will be generated automatically
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label htmlFor="nf_prod_image" className={labelTone}>
+                      Picture
+                    </label>
+                    <input
+                      id="nf_prod_image"
+                      type="file"
+                      accept="image/*"
+                      className={`${inputTone} rounded-2xl file:mr-2 file:rounded-full file:border-0 file:bg-[#FFEFD9] file:px-3 file:py-1 file:text-xs file:font-medium file:text-[#6b4b2b]`}
+                      onChange={(e) =>
+                        setForm({ ...form, image_file: e.target.files[0] })
+                      }
+                    />
+                    {form.template_image && !form.image_file && (
+                      <div className="mt-2">
+                        <p className="text-xs text-green-600 mb-2">
+                          ✓ Image will be auto-filled from template
+                        </p>
+                        <img
+                          src={`${API}/${form.template_image}`}
+                          alt="Template preview"
+                          className="h-20 w-20 object-cover rounded border border-green-200"
+                        />
+                      </div>
+                    )}
+                    {!form.template_image && !form.image_file && (
+                      <p className="mt-1 text-xs text-red-600">
+                        Product image is required
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="nf_prod_category" className={labelTone}>
+                        Category
+                      </label>
+                      <select
+                        id="nf_prod_category"
+                        className={`${inputTone} rounded-2xl`}
+                        value={categoryOther ? "Other" : form.category}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value === "Other") {
+                            setCategoryOther(true);
+                            setForm({ ...form, category: "" });
+                          } else {
+                            setCategoryOther(false);
+                            setCustomCategory("");
+                            setForm({ ...form, category: value });
+                          }
+                        }}
+                        required
+                      >
+                        <option value="">Select category</option>
+                        {form.donation_type === "Clothes" && (
+                          <>
+                            <option value="Shirts & Tops">Shirts & Tops</option>
+                            <option value="Pants & Bottoms">Pants & Bottoms</option>
+                            <option value="Dresses & Skirts">Dresses & Skirts</option>
+                            <option value="Outerwear & Jackets">Outerwear & Jackets</option>
+                            <option value="Shoes & Footwear">Shoes & Footwear</option>
+                            <option value="Accessories">Accessories</option>
+                            <option value="Undergarments">Undergarments</option>
+                            <option value="Baby & Kids Clothing">Baby & Kids Clothing</option>
+                          </>
+                        )}
+                        {form.donation_type === "School Supplies" && (
+                          <>
+                            <option value="Writing Materials">Writing Materials (Pens, Pencils)</option>
+                            <option value="Notebooks & Paper">Notebooks & Paper</option>
+                            <option value="Art Supplies">Art Supplies</option>
+                            <option value="Books & Reading Materials">Books & Reading Materials</option>
+                            <option value="Backpacks & Bags">Backpacks & Bags</option>
+                            <option value="Calculators & Tech">Calculators & Tech</option>
+                            <option value="School Uniforms">School Uniforms</option>
+                            <option value="Educational Toys">Educational Toys</option>
+                          </>
+                        )}
+                        {form.donation_type === "Other" && (
+                          <>
+                            <option value="Household Items">Household Items</option>
+                            <option value="Toys & Games">Toys & Games</option>
+                            <option value="Electronics">Electronics</option>
+                            <option value="Furniture">Furniture</option>
+                            <option value="Kitchenware">Kitchenware</option>
+                            <option value="Sports Equipment">Sports Equipment</option>
+                            <option value="Medical Supplies">Medical Supplies</option>
+                            <option value="Hygiene Products">Hygiene Products</option>
+                          </>
+                        )}
+                        <option value="Other">Other (Specify)</option>
+                      </select>
+                      {categoryOther && (
+                        <input
+                          type="text"
+                          className={`${inputTone} rounded-2xl mt-2`}
+                          placeholder="Enter custom category"
+                          value={customCategory}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setCustomCategory(value);
+                            setForm({ ...form, category: value });
+                          }}
+                          required
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <label htmlFor="nf_prod_condition" className={labelTone}>
+                        Condition
+                      </label>
+                      <select
+                        id="nf_prod_condition"
+                        className={`${inputTone} rounded-2xl`}
+                        value={form.condition}
+                        onChange={(e) => setForm({ ...form, condition: e.target.value })}
+                        required
+                      >
+                        <option value="">Select condition</option>
+                        <option value="New">New</option>
+                        <option value="Like New">Like New</option>
+                        <option value="Good">Good</option>
+                        <option value="Fair">Fair</option>
+                        <option value="Used">Used</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="nf_prod_qty" className={labelTone}>
+                      Quantity
+                    </label>
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        className="shrink-0 h-10 w-10 sm:h-11 sm:w-11 grid place-items-center rounded-2xl border border-[#f2d4b5] bg-white hover:bg-[#FFF6E9] transition shadow-sm"
+                        onClick={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            quantity: Math.max(1, Number(prev.quantity || 1) - 1),
+                          }))
+                        }
+                        aria-label="Decrease quantity"
+                      >
+                        <span className="text-lg leading-none text-[#6b4b2b]">−</span>
+                      </button>
+
+                      <input
+                        id="nf_prod_qty"
+                        type="number"
+                        min="1"
+                        className={`${inputTone} rounded-2xl text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                        value={form.quantity}
+                        onInput={(e) => {
+                          e.currentTarget.value = e.currentTarget.value.replace(/^0+(?=\d)/, "");
+                        }}
+                        onChange={(e) => {
+                          const value = e.target.value === "" ? "" : parseInt(e.target.value, 10);
+                          if (value === 0) {
+                            Swal.fire({
+                              title: "Invalid Quantity",
+                              text: "Quantity must be at least 1.",
+                              icon: "warning",
+                              confirmButtonColor: "#A97142",
+                              timer: 2500,
+                            });
+                            return;
+                          }
+                          setForm({ ...form, quantity: value });
+                        }}
+                        required
+                      />
+
+                      <button
+                        type="button"
+                        className="shrink-0 h-10 w-10 sm:h-11 sm:w-11 grid place-items-center rounded-2xl border border-[#f2d4b5] bg-white hover:bg-[#FFF6E9] transition shadow-sm"
+                        onClick={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            quantity: Number(prev.quantity || 1) + 1,
+                          }))
+                        }
+                        aria-label="Increase quantity"
+                      >
+                        <span className="text-lg leading-none text-[#6b4b2b]">＋</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="nf_prod_desc" className={labelTone}>
+                      Description
+                    </label>
+                    <textarea
+                      id="nf_prod_desc"
+                      className={`${inputTone} rounded-2xl min-h-[90px]`}
+                      placeholder="Add a short description"
+                      value={form.description}
+                      onChange={(e) =>
+                        setForm({ ...form, description: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="nf_prod_uploader" className={labelTone}>
+                      Uploaded By
+                    </label>
+                    <input
+                      id="nf_prod_uploader"
+                      type="text"
+                      className="w-full border-0 bg-transparent p-2 text-sm text-[#6b4b2b] cursor-not-allowed focus:ring-0 focus:border-0"
+                      value={form.uploaded}
+                      readOnly
+                      disabled
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Auto-filled from your login
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sticky footer buttons */}
+              <div className="p-5 sm:p-6 border-t bg-white flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsFormClosing(true);
+                    if (debounceTimerRef.current) {
+                      clearTimeout(debounceTimerRef.current);
+                    }
+                    setShowNonFoodModal(false);
+                    setTemplateInfo(null);
+                    setProductCodePreview(null);
+                    setCategoryOther(false);
+                    setCustomCategory("");
+                    setForm({
+                      item_name: "",
+                      quantity: 1,
+                      creation_date: "",
+                      expiration_date: "",
+                      description: "",
+                      image_file: null,
+                      threshold: 0,
+                      uploaded: uploaderName,
+                      template_image: "",
+                      donation_type: form.donation_type,
+                      category: "",
+                      condition: "",
+                    });
+                    setTimeout(() => {
+                      setIsFormClosing(false);
+                    }, 100);
+                  }}
+                  className={pillOutline}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className={pillSolid}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Adding..." : "Add Donation"}
                 </button>
               </div>
             </form>

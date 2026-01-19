@@ -68,7 +68,7 @@ def reject_user(user_id: int, body: RejectUserRequest, db: Session = Depends(dat
     rejection_reason = body.reason
     
     # Delete associated employees first (to avoid NOT NULL constraint violation)
-    if user.role == "Bakery":
+    if user.role == "Donor":
         db.query(models.Employee).filter(models.Employee.bakery_id == user_id).delete(synchronize_session=False)
     
     # Delete the user
@@ -158,7 +158,7 @@ def get_bakeries(db: Session = Depends(database.get_db), admin=Depends(get_curre
     Get all bakery users
     Requires admin authentication
     """
-    bakeries = db.query(models.User).filter(models.User.role == "Bakery").all()
+    bakeries = db.query(models.User).filter(models.User.role == "Donor").all()
     return bakeries
 
 @router.get("/charities")

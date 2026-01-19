@@ -130,7 +130,7 @@ def send_account_verified_email(to_email: str, user_name: str, role: str) -> boo
     Args:
         to_email: User's email address
         user_name: User's name
-        role: User's role (Bakery/Charity)
+        role: User's role (Donor/Charity)
         
     Returns:
         bool: True if sent successfully
@@ -190,7 +190,7 @@ def send_account_verified_email(to_email: str, user_name: str, role: str) -> boo
                 <div class="info-box">
                     <strong>📋 What You Can Do Now:</strong>
                     <ul style="margin: 10px 0 0 0; padding-left: 20px;">
-                        <li>{'Manage your bakery inventory and donations' if role == 'Bakery' else 'Browse available donations from bakeries'}</li>
+                        <li>{'Manage your donor inventory and donations' if role == 'Donor' else 'Browse available donations from donors'}</li>
                         <li>{'Schedule and track donations to charities' if role == 'Bakery' else 'Request and receive donations'}</li>
                         <li>View analytics and reports</li>
                         <li>Connect with {'charities' if role == 'Bakery' else 'bakeries'} in your area</li>

@@ -212,12 +212,12 @@ def create_user(
     print(f"   Role (db): {db_user.role}")
     print(f"   Role (variable): {role}")
     print(f"   Contact Person: {contact_person}")
-    print(f"   Role check: role.lower() == 'bakery' => {role.lower()} == 'bakery' => {role.lower() == 'bakery'}")
+    print(f"   Role check: role.lower() == 'donor' => {role.lower()} == 'donor' => {role.lower() == 'donor'}")
     
-    # 🆕 If bakery, automatically create contact person as first employee
-    if role.lower() == "bakery":
+    # 🆕 If donor, automatically create contact person as first employee
+    if role.lower() == "donor":
         try:
-            print(f"\n✅ ROLE CHECK PASSED - Creating first employee for bakery {db_user.id}: {contact_person}")
+            print(f"\n✅ ROLE CHECK PASSED - Creating first employee for donor {db_user.id}: {contact_person}")
             # Default password for first employee
             default_password = "Employee123!"
             hashed_emp_password = pwd_context.hash(default_password)
@@ -232,7 +232,7 @@ def create_user(
                 print(f"⚠️  Employee already exists: {existing_emp.name}")
                 return db_user
             
-            # Generate unique employee_id in format: EMP-{BAKERY_ID}-{SEQUENCE}
+            # Generate unique employee_id in format: EMP-{DONOR_ID}-{SEQUENCE}
             existing_count = db.query(models.Employee).filter(models.Employee.bakery_id == db_user.id).count()
             sequence = existing_count + 1
             employee_id = f"EMP-{db_user.id}-{sequence:03d}"  # Format: EMP-2-001
@@ -244,9 +244,9 @@ def create_user(
             
             first_employee = models.Employee(
                 employee_id=employee_id,  # Generated unique employee ID
-                bakery_id=db_user.id,
+                bakery_id=db_user.id,  # Keep column name for database compatibility - refers to donor
                 name=contact_person,
-                email=email,  # Use bakery owner's email for first employee
+                email=email,  # Use donor owner's email for first employee
                 role="Owner",
                 start_date=date.today(),  # ✅ Set start date to today
                 hashed_password=hashed_emp_password
@@ -262,7 +262,7 @@ def create_user(
             db.rollback()
             raise HTTPException(status_code=500, detail=f"Failed to create first employee: {str(e)}")
     else:
-        print(f"❌ ROLE CHECK FAILED - role.lower()={role.lower()}, not 'bakery', skipping employee creation")
+        print(f"❌ ROLE CHECK FAILED - role.lower()={role.lower()}, not 'donor', skipping employee creation")
     
     return db_user
 
@@ -285,7 +285,7 @@ def update_user_info(
         raise HTTPException(status_code=403, detail="Admin information cannot be edited")
 
     # VALIDATE contact_person if being changed (only for bakeries)
-    if contact_person is not None and contact_person != "" and user.role.lower() == "bakery":
+    if contact_person is not None and contact_person != "" and user.role.lower() == "donor":
         # Check if the new contact person exists as an employee
         employee = db.query(models.Employee).filter(
             models.Employee.bakery_id == user_id,
@@ -295,7 +295,7 @@ def update_user_info(
         if not employee:
             raise HTTPException(
                 status_code=400, 
-                detail=f"Employee '{contact_person}' not found in your bakery. Please add them as an employee first."
+                detail=f"Employee '{contact_person}' not found in your donor organization. Please add them as an employee first."
             )
         
         # Employee found, update contact person
@@ -304,7 +304,7 @@ def update_user_info(
     if name is not None and name != "": 
         user.name = name
     # Only update contact_person if not already handled above
-    if contact_person is not None and contact_person != "" and user.role.lower() != "bakery":
+    if contact_person is not None and contact_person != "" and user.role.lower() != "donor":
         user.contact_person = contact_person
     if contact_number is not None and contact_number != "":
         user.contact_number = contact_number
@@ -386,7 +386,7 @@ def seed_admin_user(db: Session):
     db.add(default_admin)
     db.commit()
     
-# ------------------ BAKERY INVENTORY ------------------
+# ------------------ DONOR INVENTORY ------------------
 def create_inventory(
     db: Session,
     bakery_id: int,
@@ -397,9 +397,21 @@ def create_inventory(
     expiration_date: str,
     threshold: int,
     uploaded: str,
-    description: str = None
+    description: str = None,
+    donation_type: str = "Food",
+    category: str = None,
+    condition: str = None
 ):
     import random
+
+    # Validate donation type
+    valid_donation_types = ["Food", "Clothes", "School Supplies", "Other"]
+    if donation_type not in valid_donation_types:
+        raise ValueError(f"Invalid donation type. Must be one of: {', '.join(valid_donation_types)}")
+    
+    # Validate that food items have expiration date
+    if donation_type == "Food" and not expiration_date:
+        raise ValueError("Expiration date is required for food donations")
 
     if isinstance(creation_date, str):
         server_creation_date = datetime.strptime(creation_date, "%Y-%m-%d").date()
@@ -429,7 +441,10 @@ def create_inventory(
         expiration_date=datetime.strptime(expiration_date, "%Y-%m-%d").date() if expiration_date else None,
         threshold=threshold,
         uploaded=uploaded,
-        description=description
+        description=description,
+        donation_type=donation_type,
+        category=category,
+        condition=condition
     )
     db.add(item)
     db.commit()
@@ -509,7 +524,7 @@ def delete_inventory(db: Session, inventory_id: int, bakery_id: int):
     db.delete(item)
     db.commit()
 
-# ------------------ BAKERY EMPLOYEE ------------------
+# ------------------ DONOR EMPLOYEE ------------------
 EMPLOYEE_UPLOAD_DIR = "uploads/employee_pictures"
 os.makedirs(EMPLOYEE_UPLOAD_DIR, exist_ok=True)
 
@@ -650,7 +665,7 @@ def list_donations(db: Session, bakery_id: int):
 
 
 # ------------------ Badges ------------------
-ALLOWED_BADGES = ["Bakery Star", "Community Champion", "Legendary Donor"]
+ALLOWED_BADGES = ["Donor Star", "Community Champion", "Legendary Donor"]
 
 def create_badge(db: Session, badge: schemas.BadgeCreate):
     if badge.name not in ALLOWED_BADGES:
@@ -666,7 +681,7 @@ def get_all_badges(db: Session):
     return db.query(models.Badge).filter(models.Badge.id.in_([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24]))
 
 def get_admin_badges(db: Session):
-    return db.query(models.Badge).filter(models.Badge.name.in_([" ", "Bakery Star", "Community Champion", "Legendary Donor"])).all()
+    return db.query(models.Badge).filter(models.Badge.name.in_([" ", "Donor Star", "Community Champion", "Legendary Donor"])).all()
 
 def get_badge_by_name(db: Session, name: str):
     return db.query(models.Badge).filter(models.Badge.name == name).first()
@@ -790,11 +805,11 @@ def seed_badges(db: Session):
         {"name": "World Hunger Day Hero", "category": "Special Event", "description": "Donated on World Hunger Day.", "icon_url": "uploads/badge_images/World Hunger Day Hero.png"},
 
         # Collaboration
-        {"name": "Team Player", "category": "Collaboration", "description": "Donated in collaboration with another bakery.", "icon_url": "uploads/badge_images/Team Player.png"},
+        {"name": "Team Player", "category": "Collaboration", "description": "Donated in collaboration with another donor.", "icon_url": "uploads/badge_images/Team Player.png"},
         {"name": "Charity Partner’s Favorite", "category": "Collaboration", "description": "Recognized by charity for consistent quality.", "icon_url": "uploads/badge_images/Charity Favorite.png"},
 
         # Top Recognition
-        {"name": "Bakery Star", "category": "Recognition", "description": "Top donator of the month.", "icon_url": "uploads/badge_images/Bakery Star.png"},
+        {"name": "Donor Star", "category": "Recognition", "description": "Top donator of the month.", "icon_url": "uploads/badge_images/Donor Star.png"},
         {"name": "Community Champion", "category": "Recognition", "description": "Top donator of the quarter.", "icon_url": "uploads/badge_images/Community Champion.png"},
         {"name": "Legendary Donor", "category": "Recognition", "description": "Long-term high-impact donator.", "icon_url": "uploads/badge_images/Legendary Donor.png"},
         
@@ -879,7 +894,7 @@ def update_user_badges(db: Session, user_id: int):
         return
 
     # ---------------- Fetch all donations ----------------
-    if user.role.lower() == "bakery":
+    if user.role.lower() == "donor":
         # For bakeries, get completed donations they've made
         donation_requests = (
             db.query(models.DonationRequest)

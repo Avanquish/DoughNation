@@ -144,7 +144,7 @@ export default function DashboardSearch({
             <input
               ref={inputRef}
               type="text"
-              placeholder="Search bakery or charity"
+              placeholder="Search donor or charity"
               value={query}
               onChange={onInputChange}
               onFocus={() => {

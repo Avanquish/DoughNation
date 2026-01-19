@@ -169,7 +169,7 @@ class SystemNotification(Base):
     
     # Targeting
     target_all = Column(Boolean, default=False)  # Broadcast to all users
-    target_role = Column(String, nullable=True)  # "Bakery" or "Charity" for role-specific
+    target_role = Column(String, nullable=True)  # "Donor" or "Charity" for role-specific
     target_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Specific user
     
     # Delivery
@@ -267,7 +267,7 @@ class EmergencyOverride(Base):
 
 class OwnershipTransfer(Base):
     """
-    Tracks ownership transfers from bakery owner to employees.
+    Tracks ownership transfers from donor owner to employees.
     Used for business continuity when owner is unavailable.
     """
     __tablename__ = "ownership_transfers"
@@ -276,7 +276,7 @@ class OwnershipTransfer(Base):
     created_at = Column(DateTime, default=now_ph, nullable=False)
     
     # Transfer Details
-    bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # The bakery account
+    bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # The donor account
     from_owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # Original owner
     to_employee_id = Column(Integer, ForeignKey("employees.id", ondelete="SET NULL"), nullable=True)  # New owner (nullable to preserve history after employee deletion)
     

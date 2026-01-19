@@ -132,7 +132,7 @@ const AdminDashboard = () => {
 
   // Data
   const [stats, setStats] = useState({
-    totalBakeries: 0,
+    totalDonors: 0,
     totalCharities: 0,
     totalUsers: 0,
     pendingUsersCount: 0,
@@ -171,7 +171,7 @@ const AdminDashboard = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
         setStats({
-          totalBakeries: res.data.totalBakeries,
+          totalDonors: res.data.totalBakeries,
           totalCharities: res.data.totalCharities,
           totalUsers: res.data.totalUsers - 1,
           pendingUsersCount: res.data.pendingUsers,
@@ -242,7 +242,7 @@ const AdminDashboard = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
         setStats({
-          totalBakeries: statsRes.data.totalBakeries,
+          totalDonors: statsRes.data.totalBakeries,
           totalCharities: statsRes.data.totalCharities,
           totalUsers: statsRes.data.totalUsers - 1,
           pendingUsersCount: statsRes.data.pendingUsers,
@@ -400,7 +400,7 @@ const AdminDashboard = () => {
   const statusText = useMemo(() => {
     const map = {
       dashboard: "Dashboard",
-      bakeries: "Bakeries",
+      bakeries: "Donors",
       charities: "Charities",
       users: "User Verification",
       reports: "Reports",
@@ -1168,24 +1168,6 @@ thead{ background:#EADBC8; color:#4A2F17; }
               </TabsTrigger>
 
               <TabsTrigger
-                value="bakeries"
-                title="Bakeries"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
-              >
-                <Microwave className="w-4 h-4" />
-                <span className="hidden sm:inline">Bakeries</span>
-              </TabsTrigger>
-
-              <TabsTrigger
-                value="charities"
-                title="Charities"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
-              >
-                <Store className="w-4 h-4" />
-                <span className="hidden sm:inline">Charities</span>
-              </TabsTrigger>
-
-              <TabsTrigger
                 value="track"
                 title="Donations"
                 className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
@@ -1267,46 +1249,64 @@ thead{ background:#EADBC8; color:#4A2F17; }
             </div>
           </TabsContent>
 
-          {/* Bakeries */}
-          <TabsContent value="bakeries" className="reveal px-2">
-            <div className="gwrap hover-lift">
-              <Card className="glass-card shadow-none">
-                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  <Bakery />
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
 
-          {/* Charities */}
-          <TabsContent value="charities" className="reveal px-2">
-            <div className="gwrap hover-lift">
-              <Card className="glass-card shadow-none">
-                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  <Charity />
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
 
-          {/* Users */}
+          {/* Users - with nested tabs */}
           <TabsContent value="users" className="reveal px-2">
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  {/* Section heading - User Verification */}
+                  {/* Section heading - User Management */}
                   <div className="mb-4 sm:mb-5">
                     <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
-                      User Verification
+                      User Management
                     </h2>
                     <p className="mt-1 text-sm text-[#7b5836]">
-                      Review and approve new user registrations and manage
-                      verification status.
+                      Manage user verification, donors, and charities.
                     </p>
                   </div>
 
                   <div className="border-t border-[#e3b57e]/40 pt-4 sm:pt-5">
-                    <AdminUser />
+                    {/* Nested tabs for User Verification, Bakeries, and Charities */}
+                    <Tabs defaultValue="verification">
+                      <div className="mb-4">
+                        <TabsList className="bg-[#fff7ec] border border-[#e3b57e]/30 p-1 rounded-lg">
+                          <TabsTrigger 
+                            value="verification"
+                            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:to-[#E49A52] data-[state=active]:text-white"
+                          >
+                            <Users className="w-4 h-4 mr-2" />
+                            User Verification
+                          </TabsTrigger>
+                          <TabsTrigger 
+                            value="bakeries"
+                            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:to-[#E49A52] data-[state=active]:text-white"
+                          >
+                            <Microwave className="w-4 h-4 mr-2" />
+                            Donors
+                          </TabsTrigger>
+                          <TabsTrigger 
+                            value="charities"
+                            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:to-[#E49A52] data-[state=active]:text-white"
+                          >
+                            <Store className="w-4 h-4 mr-2" />
+                            Charities
+                          </TabsTrigger>
+                        </TabsList>
+                      </div>
+
+                      <TabsContent value="verification">
+                        <AdminUser />
+                      </TabsContent>
+
+                      <TabsContent value="bakeries">
+                        <Bakery />
+                      </TabsContent>
+
+                      <TabsContent value="charities">
+                        <Charity />
+                      </TabsContent>
+                    </Tabs>
                   </div>
                 </CardContent>
               </Card>

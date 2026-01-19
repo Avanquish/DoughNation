@@ -22,11 +22,11 @@ else:
     print("\n❌ NO EMPLOYEES FOUND!")
     
     # Check bakeries
-    bakeries = db.query(User).filter(User.role == "Bakery").all()
+    bakeries = db.query(User).filter(User.role == "Donor").all()
     print(f"\n📦 Total Bakeries: {len(bakeries)}")
     
     for b in bakeries:
-        print(f"\n   Bakery ID: {b.id}")
+        print(f"\n   Donor ID: {b.id}")
         print(f"   Name: {b.name}")
         print(f"   Contact Person: '{b.contact_person}'")
 

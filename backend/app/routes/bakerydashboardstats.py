@@ -8,8 +8,8 @@ router = APIRouter()
 
 @router.get("/dashboard-stats")
 def get_dashboard_stats(db: Session = Depends(database.get_db), current_user=Depends(auth.get_current_user)):
-    # Ensure user is Bakery role
-    if current_user.role.lower() != "bakery":
+    # Ensure user is Donor role
+    if current_user.role.lower() != "donor":
         raise HTTPException(status_code=403, detail="Not authorized")
 
     bakery_id = current_user.id  # Use ID directly from DB

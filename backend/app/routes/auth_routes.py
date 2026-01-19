@@ -150,12 +150,12 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     """
     🔑 UNIFIED LOGIN SYSTEM
     
-    Supports both User (Bakery/Charity/Admin) and Employee accounts:
+    Supports both User (Donor/Charity/Admin) and Employee accounts:
     - Users log in with EMAIL + PASSWORD
     - Employees log in with NAME + PASSWORD (identifier field accepts name)
     
     Returns JWT with:
-    - type: "bakery" | "charity" | "admin" | "employee"
+    - type: "donor" | "charity" | "admin" | "employee"
     - role: user's specific role
     - appropriate ID fields
     
@@ -169,7 +169,7 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     
     identifier = user.email.strip()
     
-    # STEP 1: Try to find User account (Bakery/Charity/Admin) by EMAIL
+    # STEP 1: Try to find User account (Donor/Charity/Admin) by EMAIL
     db_user = db.query(models.User).filter(models.User.email == identifier).first()
     
     if db_user:
@@ -265,8 +265,8 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
             )
         
         if db_user.status == "Deactivated":
-            # Allow bakery and charity owners to reactivate by logging in
-            if db_user.role in ["Bakery", "Charity"]:
+            # Allow donor and charity owners to reactivate by logging in
+            if db_user.role in ["Donor", "Charity"]:
                 print(f"🔄 Auto-reactivating deactivated {db_user.role} account: {db_user.email}")
                 db_user.status = "Active"
                 db_user.deactivated_at = None
@@ -323,7 +323,7 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
         # Generate token with type based on role
         token_data = {
             "sub": str(db_user.id),
-            "type": db_user.role.lower(),  # "bakery", "charity", or "admin"
+            "type": db_user.role.lower(),  # "donor", "charity", or "admin"
             "role": db_user.role,
             "name": db_user.name,
             "contact_person": db_user.contact_person,  # Owner's name
@@ -1175,8 +1175,8 @@ def reset_employee_password(data: dict, db: Session = Depends(database.get_db)):
 
 @router.get("/debug/bakeries")
 def debug_bakeries(db: Session = Depends(database.get_db)):
-    """DEBUG ONLY - Show all bakeries and their contact persons"""
-    bakeries = db.query(models.User).filter(models.User.role == "Bakery").all()
+    """DEBUG ONLY - Show all donors and their contact persons"""
+    bakeries = db.query(models.User).filter(models.User.role == "Donor").all()
     return {
         "total": len(bakeries),
         "bakeries": [
@@ -1235,15 +1235,15 @@ def test_connection(db: Session = Depends(database.get_db)):
 
 @router.get("/employee-name/{bakery_id}")
 def migrate_employees(db: Session = Depends(database.get_db)):
-    """DEBUG/MIGRATION ONLY - Create employees for all bakeries that don't have any"""
+    """DEBUG/MIGRATION ONLY - Create employees for all donors that don't have any"""
     from app.auth import pwd_context
     from datetime import date
     
-    bakeries = db.query(models.User).filter(models.User.role == "Bakery").all()
+    bakeries = db.query(models.User).filter(models.User.role == "Donor").all()
     created_count = 0
     skipped_count = 0
     
-    print(f"\n🔄 MIGRATION: Processing {len(bakeries)} bakeries...")
+    print(f"\n🔄 MIGRATION: Processing {len(bakeries)} donors...")
     
     for bakery in bakeries:
         # Check if bakery already has employees
@@ -1720,10 +1720,10 @@ async def admin_manual_register(
     db.commit()
     db.refresh(new_user)
     
-    # 🆕 CREATE EMPLOYEE RECORD FOR BAKERIES (matching self-registration behavior)
-    if role == "Bakery":
+    # 🆕 CREATE EMPLOYEE RECORD FOR DONORS (matching self-registration behavior)
+    if role == "Donor":
         try:
-            # Generate unique employee_id (format: EMP-{bakery_id}-001)
+            # Generate unique employee_id (format: EMP-{donor_id}-001)
             employee_count = db.query(models.Employee).filter(
                 models.Employee.bakery_id == new_user.id
             ).count()
@@ -1747,7 +1747,7 @@ async def admin_manual_register(
             db.commit()
             db.refresh(new_employee)
             
-            print(f"✅ Created employee record for bakery: {new_employee.name} (ID: {new_employee.employee_id})")
+            print(f"✅ Created employee record for donor: {new_employee.name} (ID: {new_employee.employee_id})")
             
         except Exception as e:
             print(f"⚠️ Warning: Failed to create employee record: {str(e)}")
@@ -1769,7 +1769,7 @@ async def admin_manual_register(
         "name": new_user.name,
         "email": new_user.email,
         "verified": new_user.verified,
-        "employee_created": role == "Bakery"  # Indicate if employee was created
+        "employee_created": role == "Donor"  # Indicate if employee was created
     }
 
 
@@ -1951,10 +1951,10 @@ def deactivate_account(
     if not verify_password(password, current_user.hashed_password):
         raise HTTPException(status_code=401, detail="Incorrect password")
     
-    # Check if user is bakery and verify ownership
-    if current_user.role == "Bakery":
+    # Check if user is donor and verify ownership
+    if current_user.role == "Donor":
         # Get the employee token to check if they are the owner
-        # For bakery users, we need to verify they are the owner
+        # For donor users, we need to verify they are the owner
         owner_employee = db.query(models.Employee).filter(
             models.Employee.bakery_id == current_user.id,
             models.Employee.role == "Owner"
@@ -1963,7 +1963,7 @@ def deactivate_account(
         if not owner_employee:
             raise HTTPException(
                 status_code=403, 
-                detail="Only the bakery owner can deactivate the account"
+                detail="Only the donor owner can deactivate the account"
             )
         
         # If logged in as user (not employee), verify contact_person matches owner

@@ -505,7 +505,7 @@ def search_users(
     if target == "charities":
         q = q.filter(models.User.role == "Charity")
     elif target == "bakeries":
-        q = q.filter(models.User.role == "Bakery")
+        q = q.filter(models.User.role == "Donor")
 
     results = q.all()
     payload = [

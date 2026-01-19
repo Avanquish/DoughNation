@@ -102,14 +102,14 @@ const AnalyticsDashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Total Bakeries */}
+          {/* Total Donors */}
           <Card className="bg-gradient-to-br from-white to-[#FFF9F1] border-[#e8d8c2] shadow-sm hover:shadow-md hover:-translate-y-[2px] hover:scale-[1.02] transition-all duration-200 rounded-2xl">
             <CardHeader className="flex flex-row items-center justify-between pb-1.5 sm:pb-2">
               <CardTitle className="text-[10px] sm:text-xs font-semibold text-[#7b5836] flex items-center gap-2">
                 <span className="inline-flex items-center justify-center rounded-full bg-[#FFF0DA] p-1">
                   <Building2 className="w-4 h-4 text-[#BF7327]" />
                 </span>
-                Total Bakeries
+                Total Donors
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0.5 pb-2.5 sm:pb-3">
@@ -117,7 +117,7 @@ const AnalyticsDashboard = () => {
                 {users?.bakeries || 0}
               </div>
               <p className="text-[9px] sm:text-[11px] text-[#7b5836] mt-1">
-                Registered bakery accounts
+                Registered donor accounts
               </p>
             </CardContent>
           </Card>
@@ -246,7 +246,7 @@ const AnalyticsDashboard = () => {
                     <span className="inline-flex items-center justify-center rounded-full bg-[#FFF1DC] p-2">
                       <Building2 className="w-5 h-5 text-[#BF7327]" />
                     </span>
-                    <span className="font-medium text-[#3b2a18]">Bakeries</span>
+                    <span className="font-medium text-[#3b2a18]">Donors</span>
                   </div>
                   <span className="text-lg sm:text-2xl font-extrabold text-[#2a170a]">
                     {users?.bakeries || 0}

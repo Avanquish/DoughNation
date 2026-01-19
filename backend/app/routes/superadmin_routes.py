@@ -427,12 +427,12 @@ def get_audit_logs(
             actor_display_name = actor_info["name"]  # Organization name
             actor_person = employee_name
             actor_person_role = employee_role
-        elif actor_info["type"] in ["bakery", "charity"]:
+        elif actor_info["type"] in ["donor", "charity"]:
             # Owner/main user login
             actor_display_name = actor_info["name"]  # Organization name
             # Use contact_person from user info as the owner's name
             actor_person = actor_info.get("contact_person") or event_data.get("name") or log_dict.get("description", "").split("User ")[1].split(" (")[0] if "User " in log_dict.get("description", "") else None
-            actor_person_role = "Owner" if actor_info["type"] == "bakery" else "Representative"
+            actor_person_role = "Owner" if actor_info["type"] == "donor" else "Representative"
         else:
             # Admin or system
             actor_display_name = actor_info["name"]
@@ -1048,7 +1048,7 @@ def create_ownership_transfer(
     # Verify bakery exists
     bakery = db.query(models.User).filter(
         models.User.id == transfer.bakery_id,
-        models.User.role == "Bakery"
+        models.User.role == "Donor"
     ).first()
     
     if not bakery:
@@ -1480,7 +1480,7 @@ def get_admin_dashboard_analytics(
     ).count()
     
     total_bakeries = db.query(models.User).filter(
-        models.User.role == "Bakery",
+        models.User.role == "Donor",
         models.User.verified == True
     ).count()
     total_charities = db.query(models.User).filter(
@@ -1616,7 +1616,7 @@ def get_bakeries_for_emergency(
     require_super_admin(current_admin)
     
     bakeries = db.query(models.User).filter(
-        models.User.role == "Bakery"
+        models.User.role == "Donor"
     ).order_by(models.User.name).all()
     
     return {
@@ -1646,11 +1646,11 @@ def get_bakery_employees_for_emergency(
     # Verify bakery exists
     bakery = db.query(models.User).filter(
         models.User.id == bakery_id,
-        models.User.role == "Bakery"
+        models.User.role == "Donor"
     ).first()
     
     if not bakery:
-        raise HTTPException(status_code=404, detail="Bakery not found")
+        raise HTTPException(status_code=404, detail="Donor not found")
     
     # Get all employees for this bakery
     employees = db.query(models.Employee).filter(

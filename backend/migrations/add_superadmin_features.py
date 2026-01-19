@@ -8,7 +8,7 @@ New Tables:
 - system_notifications: Admin notification management
 - notification_receipts: Track notification delivery
 - emergency_overrides: Emergency admin actions
-- ownership_transfers: Bakery ownership transfers
+- ownership_transfers: Donor ownership transfers
 - user_status_history: Account status change history
 - system_analytics: Aggregated system metrics
 - notification_templates: Reusable notification templates

@@ -393,6 +393,20 @@ class EmailVerification(Base):
     verified_at = Column(DateTime, nullable=True)  # When verification was completed
     created_at = Column(DateTime, default=now_ph)
 
+class ThresholdNotification(Base):
+    """Track threshold notifications shown to users for products"""
+    __tablename__ = "threshold_notifications"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    bakery_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    product_id = Column(Integer, ForeignKey("bakery_inventory.id"), nullable=False, index=True)
+    shown_at = Column(DateTime, default=now_ph, nullable=False)
+    dismissed = Column(Boolean, default=False)  # User rejected/dismissed
+    donated = Column(Boolean, default=False)  # User donated the product
+    
+    bakery = relationship("User")
+    product = relationship("DonorInventory")
+
 # Backward compatibility alias - allows existing code to use BakeryInventory
 # This must come after all class definitions
 BakeryInventory = DonorInventory    

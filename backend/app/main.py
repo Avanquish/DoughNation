@@ -7,7 +7,7 @@ from app.routes import (auth_routes, admin_routes, binventory_routes,
                         bdonation_routes, bnotification, cnotification, messages, charitydonation_routes,
                         direct_donation, CFeedback, BFeedback, Compute_TOT_Donations, complaint_routes, BReportGene, 
                         AdminReportGene, geofence, badges, RecentDonations, DashboardSearch, leaderboards, CReportGene,
-                        Messages1, leaderboard, superadmin_reports, superadmin_routes
+                        Messages1, leaderboard, superadmin_reports, superadmin_routes, threshold_notifications
                         )
 from app.database import engine, SessionLocal
 from app import models, crud, database, admin_models
@@ -34,6 +34,7 @@ scheduler = BackgroundScheduler()
 origins = ["https://doughnationhq.cloud",
     "https://www.doughnationhq.cloud",
     "http://localhost:5173",
+    "http://localhost:5174",
     "http://localhost:3000"
     ]
 
@@ -73,6 +74,7 @@ app.include_router(CReportGene.router)
 app.include_router(Messages1.router)
 app.include_router(superadmin_reports.router)
 app.include_router(superadmin_routes.router)
+app.include_router(threshold_notifications.router)
 
 @app.on_event("startup")
 def seed_admin():

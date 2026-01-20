@@ -187,6 +187,12 @@ const Login = () => {
 
         // Clear any stored tab preference and navigate to bakery dashboard
         localStorage.setItem("bakery_active_tab", "dashboard");
+        
+        // 🎯 TRIGGER THRESHOLD ALERT CHECK for employees (on behalf of their bakery)
+        setTimeout(() => {
+          window.dispatchEvent(new Event("checkThresholdAlerts"));
+        }, 1000);
+        
         navigate(`/bakery-dashboard/${decoded.bakery_id}`);
 
         Swal.fire({
@@ -248,6 +254,12 @@ const Login = () => {
 
           // Clear any stored tab preference
           localStorage.setItem("bakery_active_tab", "dashboard");
+          
+          // 🎯 TRIGGER THRESHOLD ALERT CHECK for donors
+          setTimeout(() => {
+            window.dispatchEvent(new Event("checkThresholdAlerts"));
+          }, 1000);
+          
           navigate(`/bakery-dashboard/${userId}`);
         } else if (accountType === "charity") {
           // 🔐 CHECK IF USER MUST CHANGE ONE-TIME PASSWORD (Emergency Reset) - PRIORITY CHECK

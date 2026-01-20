@@ -898,6 +898,8 @@ export default function BakeryInventory({ isViewOnly = false }) {
       });
       setProductCodePreview(null);
       setShowForm(false);
+      setShowFoodModal(false);
+      setShowNonFoodModal(false);
       setSelectedDonationType(null);
       await fetchInventory();
       window.dispatchEvent(new CustomEvent("inventory:changed"));
@@ -1763,6 +1765,19 @@ export default function BakeryInventory({ isViewOnly = false }) {
                         onChange={(e) => {
                           const newCreationDate = e.target.value;
                           
+                          // Calculate threshold if both dates are available
+                          let newThreshold = form.threshold;
+                          if (form.expiration_date && newCreationDate) {
+                            const creation = new Date(newCreationDate);
+                            const expiration = new Date(form.expiration_date);
+                            const totalDays = Math.ceil(
+                              (expiration - creation) / (1000 * 60 * 60 * 24)
+                            );
+                            // Threshold = total days - 2 (donate 2 days before expiration)
+                            // But minimum threshold is 0
+                            newThreshold = Math.max(0, totalDays - 2);
+                          }
+                          
                           // If expiration date exists and creation date is being changed
                           if (form.expiration_date && newCreationDate) {
                             // Calculate current shelf life if not already set
@@ -1788,16 +1803,23 @@ export default function BakeryInventory({ isViewOnly = false }) {
                               const dd = String(newExpiration.getDate()).padStart(2, "0");
                               const newExpirationStr = `${yyyy}-${mm}-${dd}`;
                               
+                              // Recalculate threshold with new expiration
+                              const totalDaysNew = Math.ceil(
+                                (newExpiration - newCreation) / (1000 * 60 * 60 * 24)
+                              );
+                              newThreshold = Math.max(0, totalDaysNew - 2);
+                              
                               setForm({ 
                                 ...form, 
                                 creation_date: newCreationDate,
-                                expiration_date: newExpirationStr
+                                expiration_date: newExpirationStr,
+                                threshold: newThreshold
                               });
                               return;
                             }
                           }
                           
-                          setForm({ ...form, creation_date: newCreationDate });
+                          setForm({ ...form, creation_date: newCreationDate, threshold: newThreshold });
                         }}
                         required
                       />
@@ -1865,17 +1887,24 @@ export default function BakeryInventory({ isViewOnly = false }) {
                         value={form.expiration_date}
                         onChange={(e) => {
                           const newExpirationDate = e.target.value;
-                          setForm({ ...form, expiration_date: newExpirationDate });
                           
-                          // Update shelf life when expiration changes
+                          // Calculate threshold if both dates are available
+                          let newThreshold = form.threshold;
                           if (form.creation_date && newExpirationDate) {
                             const creation = new Date(form.creation_date);
                             const expiration = new Date(newExpirationDate);
-                            const shelfLife = Math.ceil(
+                            const totalDays = Math.ceil(
                               (expiration - creation) / (1000 * 60 * 60 * 24)
                             );
-                            setShelfLifeDays(shelfLife);
+                            // Threshold = total days - 2 (donate 2 days before expiration)
+                            // But minimum threshold is 0
+                            newThreshold = Math.max(0, totalDays - 2);
+                            
+                            // Update shelf life
+                            setShelfLifeDays(totalDays);
                           }
+                          
+                          setForm({ ...form, expiration_date: newExpirationDate, threshold: newThreshold });
                         }}
                         readOnly={!!templateInfo}
                         disabled={!!templateInfo}
@@ -2987,12 +3016,26 @@ export default function BakeryInventory({ isViewOnly = false }) {
                         ? selectedItem.creation_date.split("T")[0]
                         : ""
                     }
-                    onChange={(e) =>
-                      setSelectedItem({
+                    onChange={(e) => {
+                      const newCreationDate = e.target.value;
+                      const newSelectedItem = {
                         ...selectedItem,
-                        creation_date: e.target.value,
-                      })
-                    }
+                        creation_date: newCreationDate,
+                      };
+                      
+                      // Calculate threshold if both dates are available
+                      if (selectedItem.expiration_date && newCreationDate) {
+                        const creation = new Date(newCreationDate);
+                        const expiration = new Date(selectedItem.expiration_date);
+                        const totalDays = Math.ceil(
+                          (expiration - creation) / (1000 * 60 * 60 * 24)
+                        );
+                        // Threshold = total days - 2 (donate 2 days before expiration)
+                        newSelectedItem.threshold = Math.max(0, totalDays - 2);
+                      }
+                      
+                      setSelectedItem(newSelectedItem);
+                    }}
                     required
                   />
                   <p className="mt-1 text-xs text-gray-500">
@@ -3047,15 +3090,30 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     className={`${inputTone} rounded-2xl`}
                     value={selectedItem.expiration_date}
                     onChange={(e) => {
+                      const newExpirationDate = e.target.value;
+                      
                       // Clear templateInfo to enable threshold field
                       if (templateInfo?.locked) {
                         setTemplateInfo(null);
                       }
 
-                      setSelectedItem({
+                      const newSelectedItem = {
                         ...selectedItem,
-                        expiration_date: e.target.value,
-                      });
+                        expiration_date: newExpirationDate,
+                      };
+                      
+                      // Calculate threshold if both dates are available
+                      if (selectedItem.creation_date && newExpirationDate) {
+                        const creation = new Date(selectedItem.creation_date);
+                        const expiration = new Date(newExpirationDate);
+                        const totalDays = Math.ceil(
+                          (expiration - creation) / (1000 * 60 * 60 * 24)
+                        );
+                        // Threshold = total days - 2 (donate 2 days before expiration)
+                        newSelectedItem.threshold = Math.max(0, totalDays - 2);
+                      }
+                      
+                      setSelectedItem(newSelectedItem);
                     }}
                     required
                   />

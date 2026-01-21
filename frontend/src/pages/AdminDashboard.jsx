@@ -35,6 +35,9 @@ import AdminUser from "./AdminUser";
 import Leaderboards from "./Leaderboards";
 import Bakery from "./Bakery";
 import Charity from "./Charity";
+import AdminInventory from "./AdminInventory";
+import AdminDonations from "./AdminDonations";
+import AdminDonationStatus from "./AdminDonationStatus";
 
 import AuditLogViewer from "./AuditLogViewer";
 import NotificationCenter from "./NotificationCenter";
@@ -45,8 +48,32 @@ import { Link } from "react-router-dom";
 
 // Tab persistence
 const ADMIN_TAB_KEY = "admin_active_tab";
+
+// Hook for horizontal scroll with mouse wheel
+const useHorizontalScroll = () => {
+  const elRef = useRef(null);
+  
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el) return;
+    
+    const onWheel = (e) => {
+      if (e.deltaY === 0) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+  
+  return elRef;
+};
 const ADMIN_ALLOWED_TABS = [
   "dashboard",
+  "inventory",
+  "donations",
+  "donation-status",
   "users",
   "bakeries",
   "charities",
@@ -99,6 +126,8 @@ const columns = [
 const ADMIN_NOTIF_PAGE_SIZE = 10;
 
 const AdminDashboard = () => {
+  const scrollRef = useHorizontalScroll(); // Add horizontal scroll hook
+  
   const [name, setName] = useState("Admin");
   const [activeTab, setActiveTab] = useState(() => {
     try {
@@ -667,7 +696,17 @@ thead{ background:#EADBC8; color:#4A2F17; }
   flex-wrap: nowrap;
 }
 .tabs-scroll::-webkit-scrollbar{
-  display: none;
+  height: 6px;
+}
+.tabs-scroll::-webkit-scrollbar-track{
+  background: transparent;
+}
+.tabs-scroll::-webkit-scrollbar-thumb{
+  background: transparent;
+  border-radius: 3px;
+}
+.tabs-scroll:hover::-webkit-scrollbar-thumb{
+  background: #BF7326;
 }
 
 `}</style>
@@ -1145,23 +1184,50 @@ thead{ background:#EADBC8; color:#4A2F17; }
 
       {/* Controller */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="seg-wrap">
-          <div className="seg justify-center">
-            {/* UPDATED: TabsList now uses tabs-scroll for horizontal scrolling */}
-            <TabsList className="tabs-scroll flex items-center gap-1 bg-transparent p-0 border-0">
+        <div ref={scrollRef} className="seg-wrap tabs-scroll">
+          <div className="seg justify-start min-w-max">
+            {/* TabsList with horizontal scrolling */}
+            <TabsList className="flex items-center gap-1 bg-transparent p-2 border-0">
               <TabsTrigger
                 value="dashboard"
                 title="Dashboard"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full text-[#6b4b2b] hover:bg-amber-50"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full text-[#6b4b2b] hover:bg-amber-50 whitespace-nowrap"
               >
                 <LayoutDashboard className="w-4 h-4" />
                 <span className="hidden sm:inline">Dashboard</span>
               </TabsTrigger>
 
               <TabsTrigger
+                value="inventory"
+                title="Inventory"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm whitespace-nowrap"
+              >
+                <Store className="w-4 h-4" />
+                <span className="hidden sm:inline">Inventory</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="donations"
+                title="Send Donations"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm whitespace-nowrap"
+              >
+                <HandCoins className="w-4 h-4" />
+                <span className="hidden sm:inline">Send Donations</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="donation-status"
+                title="Donation Status"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm whitespace-nowrap"
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span className="hidden sm:inline">Donation Status</span>
+              </TabsTrigger>
+
+              <TabsTrigger
                 value="users"
                 title="Users"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm whitespace-nowrap"
               >
                 <Users className="w-4 h-4" />
                 <span className="hidden sm:inline">User Verification</span>
@@ -1170,7 +1236,7 @@ thead{ background:#EADBC8; color:#4A2F17; }
               <TabsTrigger
                 value="track"
                 title="Donations"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm whitespace-nowrap"
               >
                 <HandCoins className="w-4 h-4" />
                 <span className="hidden sm:inline">Donations</span>
@@ -1179,7 +1245,7 @@ thead{ background:#EADBC8; color:#4A2F17; }
               <TabsTrigger
                 value="reports"
                 title="Reports"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm whitespace-nowrap"
               >
                 <FileBarChart className="w-4 h-4" />
                 <span className="hidden sm:inline">Reports</span>
@@ -1188,7 +1254,7 @@ thead{ background:#EADBC8; color:#4A2F17; }
               <TabsTrigger
                 value="complaints"
                 title="User Concerns"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm whitespace-nowrap"
               >
                 <MessageSquareWarning className="w-4 h-4" />
                 <span className="hidden sm:inline">User Concerns</span>
@@ -1197,7 +1263,7 @@ thead{ background:#EADBC8; color:#4A2F17; }
               <TabsTrigger
                 value="audit-logs"
                 title="Audit Logs"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm text-purple-600 hover:bg-purple-50"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm text-purple-600 hover:bg-purple-50 whitespace-nowrap"
               >
                 <FileText className="w-4 h-4" />
                 <span className="hidden sm:inline">Audit Logs</span>
@@ -1206,7 +1272,7 @@ thead{ background:#EADBC8; color:#4A2F17; }
               <TabsTrigger
                 value="notifications"
                 title="Notifications"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm text-purple-600 hover:bg-purple-50"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm text-purple-600 hover:bg-purple-50 whitespace-nowrap"
               >
                 <Bell className="w-4 h-4" />
                 <span className="hidden sm:inline">System Notifs</span>
@@ -1215,7 +1281,7 @@ thead{ background:#EADBC8; color:#4A2F17; }
               <TabsTrigger
                 value="emergency"
                 title="Emergency"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm text-red-600 hover:bg-red-50"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm text-red-600 hover:bg-red-50 whitespace-nowrap"
               >
                 <AlertTriangle className="w-4 h-4" />
                 <span className="hidden sm:inline">Emergency</span>
@@ -1250,6 +1316,39 @@ thead{ background:#EADBC8; color:#4A2F17; }
           </TabsContent>
 
 
+
+          {/* Inventory Tab */}
+          <TabsContent value="inventory" className="reveal px-2">
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  <AdminInventory />
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Donations Tab */}
+          <TabsContent value="donations" className="reveal px-2">
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  <AdminDonations />
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Donation Status Tab */}
+          <TabsContent value="donation-status" className="reveal px-2">
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  <AdminDonationStatus />
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
 
           {/* Users - with nested tabs */}
           <TabsContent value="users" className="reveal px-2">

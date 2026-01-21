@@ -480,3 +480,26 @@ class AnalyticsResponse(BaseModel):
     donations: List[DonationItem]
     employees: List[EmployeeItem]
     badges: List[BadgeItem] 
+
+
+# ------------------ ADMIN INVENTORY ------------------
+class AdminInventoryCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    quantity: int
+    donation_type: str = "Food"
+    category: Optional[str] = None
+    expiration_date: Optional[date] = None
+
+class AdminInventoryUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    quantity: Optional[int] = None
+    donation_type: Optional[str] = None
+    category: Optional[str] = None
+    expiration_date: Optional[date] = None
+
+class AdminDonateRequest(BaseModel):
+    inventory_item_id: int
+    charity_id: int
+    quantity: int

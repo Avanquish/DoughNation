@@ -585,6 +585,12 @@ const AuditLogViewer = () => {
                         All Events
                       </SelectItem>
                       <SelectItem
+                        value="USER_REGISTRATION"
+                        className={selectItemClass}
+                      >
+                        User Registration
+                      </SelectItem>
+                      <SelectItem
                         value="login_success"
                         className={selectItemClass}
                       >

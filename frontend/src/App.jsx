@@ -18,10 +18,13 @@ import ForgotPassword from "./pages/ForgetPassword";
 import PrivacyTerms from "./pages/PrivacyTerms";
 import DataTableDemo from "./pages/DatatableSample";
 import ContactSupport from "./pages/ContactSupport";
+import SessionMonitor from "./components/SessionMonitor";
 
 function App() {
   return (
-        <Routes>
+        <>
+          <SessionMonitor />
+          <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/employee-change-password" element={<EmployeeProtectedRoute><EmployeeChangePassword /></EmployeeProtectedRoute>} />
@@ -48,7 +51,8 @@ function App() {
             <Route path="/admin-dashboard/:id" element={<AdminDashboard />} />
           </Route>
 
-          </Routes> 
+          </Routes>
+          </>
   )
 }
 

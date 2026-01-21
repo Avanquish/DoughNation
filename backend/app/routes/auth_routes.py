@@ -5,6 +5,7 @@ from datetime import date, datetime, timedelta
 from app import crud, auth, database, schemas, models
 from app.auth import create_access_token, get_current_user, verify_password
 from app.event_logger import log_system_event
+from app.login_security import check_login_block, record_failed_attempt, clear_login_attempts
 from passlib.context import CryptContext
 from app.timezone_utils import now_ph, to_ph_timezone
 import random
@@ -169,6 +170,13 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     
     identifier = user.email.strip()
     
+    # Check if login is currently blocked due to failed attempts
+    try:
+        check_login_block(db, identifier, "user")
+    except HTTPException as e:
+        # Re-raise with detailed message
+        raise e
+    
     # STEP 1: Try to find User account (Donor/Charity/Admin) by EMAIL
     db_user = db.query(models.User).filter(models.User.email == identifier).first()
     
@@ -222,6 +230,13 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
                 user_id=db_user.id,
                 metadata={"email": db_user.email, "role": db_user.role, "reason": "invalid_password"}
             )
+            
+            # Record failed attempt and potentially block account
+            try:
+                record_failed_attempt(db, identifier, "user")
+            except HTTPException:
+                # re-raise the block exception
+                raise
             
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
@@ -299,6 +314,9 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
         print(f"✅ User authenticated: {db_user.name} (Role: {db_user.role})")
         print(f"   Role validation: PASSED")
         print(f"{'='*80}\n")
+        
+        # Clear login attempts after successful authentication
+        clear_login_attempts(db, identifier, "user")
         
         # 🔐 CHECK IF ADMIN IS USING DEFAULT PASSWORD
         using_default_password = False
@@ -1367,6 +1385,13 @@ def employee_login(
         print(f"  Bakery ID: {credentials.bakery_id} (type: {type(credentials.bakery_id).__name__})")
         print(f"  Password: {'*' * len(credentials.password)} (len: {len(credentials.password)})")
         
+        # Check if employee login is currently blocked due to failed attempts
+        try:
+            check_login_block(db, credentials.name, "employee", credentials.bakery_id)
+        except HTTPException as e:
+            # Re-raise with detailed message
+            raise e
+        
         # Debug: Show ALL employees in database (across all bakeries)
         all_emps_in_db = db.query(models.Employee).all()
         print(f"\n📊 TOTAL EMPLOYEES IN DATABASE: {len(all_emps_in_db)}")
@@ -1452,6 +1477,13 @@ def employee_login(
                 metadata={"employee_name": employee.name, "bakery_id": credentials.bakery_id, "reason": "invalid_password"}
             )
             
+            # Record failed attempt and potentially block account
+            try:
+                record_failed_attempt(db, credentials.name, "employee", credentials.bakery_id)
+            except HTTPException:
+                # re-raise the block exception
+                raise
+            
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         # Create JWT token with employee data
@@ -1469,6 +1501,9 @@ def employee_login(
         # Fetch bakery name
         bakery = db.query(models.User).filter(models.User.id == employee.bakery_id).first()
         bakery_name = bakery.name if bakery else "Bakery"
+        
+        # Clear login attempts after successful authentication
+        clear_login_attempts(db, credentials.name, "employee", credentials.bakery_id)
         
         print(f"✅ LOGIN SUCCESSFUL for {employee.name}")
         print(f"{'='*80}\n")

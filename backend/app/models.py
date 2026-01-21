@@ -216,6 +216,7 @@ class DirectDonation(Base):
     expiration_date = Column(Date, nullable=True)
     description = Column(String, nullable=True)
     image = Column(String, nullable=True)
+    donation_type = Column(String, nullable=False, default="Food")  # Food, Clothes, School Supplies, Other
     btracking_status = Column(String, default="preparing")
     btracking_completed_at = Column(DateTime, nullable=True)
     feedback_submitted = Column(Boolean, default=False)
@@ -407,6 +408,64 @@ class ThresholdNotification(Base):
     bakery = relationship("User")
     product = relationship("DonorInventory")
 
+class AdminInventory(Base):
+    """Admin inventory - items received from donors"""
+    __tablename__ = "admin_inventory"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(String, unique=True, nullable=False, index=True)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    quantity = Column(Integer, nullable=False)
+    image = Column(String, nullable=True)
+    donation_type = Column(String, nullable=False, default="Food")
+    category = Column(String, nullable=True)
+    condition = Column(String, nullable=True)
+    source = Column(String, nullable=False)  # "donation" or "manual"
+    donated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    donation_request_id = Column(Integer, nullable=True)
+    received_date = Column(Date, nullable=False, default=date.today)
+    expiration_date = Column(Date, nullable=True)
+    created_at = Column(DateTime, default=now_ph)
+    updated_at = Column(DateTime, default=now_ph)
+
+class AdminDonationRequest(Base):
+    """Track donations from donors to admin (Scholars Of Sustenance)"""
+    __tablename__ = "admin_donation_requests"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    bakery_inventory_id = Column(Integer, ForeignKey("bakery_inventory.id"), nullable=True)  # Nullable for direct donations
+    donor_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    admin_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    donation_name = Column(String, nullable=False)
+    donation_image = Column(String, nullable=True)
+    donation_quantity = Column(Integer, nullable=False)
+    donation_expiration = Column(Date, nullable=True)
+    donation_type = Column(String, nullable=False, default="Food")
+    timestamp = Column(DateTime, default=now_ph)
+    status = Column(String, default="pending")  # pending, accepted, rejected
+    tracking_status = Column(String, default="preparing")  # preparing, in_transit, delivered
+    tracking_completed_at = Column(DateTime, nullable=True)
+    feedback_submitted = Column(Boolean, default=False)
+    donor_name = Column(String, nullable=True)
+    donor_profile_picture = Column(String, nullable=True)
+
+class LoginAttempt(Base):
+    """Track failed login attempts for account security"""
+    __tablename__ = "login_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    identifier = Column(String, nullable=False, index=True)  # email or employee name
+    login_type = Column(String, nullable=False)  # 'user' or 'employee'
+    bakery_id = Column(Integer, nullable=True)  # For employee logins only
+    failed_attempts = Column(Integer, default=0)
+    total_failed_attempts = Column(Integer, default=0)  # Cumulative failures across all blocks
+    block_level = Column(Integer, default=0)  # 0=no block, 1=5min, 2=10min, 3=30min, etc.
+    blocked_until = Column(DateTime, nullable=True)
+    last_attempt = Column(DateTime, default=now_ph)
+    created_at = Column(DateTime, default=now_ph)
+
 # Backward compatibility alias - allows existing code to use BakeryInventory
 # This must come after all class definitions
-BakeryInventory = DonorInventory    
+BakeryInventory = DonorInventory
+    

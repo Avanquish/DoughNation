@@ -17,6 +17,37 @@ export const ThresholdAlertProvider = ({ children }) => {
     return localStorage.getItem("token") || localStorage.getItem("employeeToken");
   };
 
+  // Check if user is Owner or Manager
+  const isOwnerOrManager = () => {
+    const employeeToken = localStorage.getItem("employeeToken");
+    const userToken = localStorage.getItem("token");
+    
+    // If employee token exists, check employee role
+    if (employeeToken) {
+      try {
+        const decoded = JSON.parse(atob(employeeToken.split(".")[1]));
+        const employeeRole = decoded.employee_role?.toLowerCase();
+        return employeeRole === "manager";
+      } catch (e) {
+        return false;
+      }
+    }
+    
+    // If user token exists, they are the owner (donor)
+    if (userToken) {
+      try {
+        const decoded = JSON.parse(atob(userToken.split(".")[1]));
+        const userRole = decoded.role?.toLowerCase();
+        // Owner is identified by having "donor" or "bakery" role
+        return userRole === "donor" || userRole === "bakery";
+      } catch (e) {
+        return false;
+      }
+    }
+    
+    return false;
+  };
+
   // Check for threshold alerts
   const checkThresholdAlerts = useCallback(async () => {
     const token = getToken();
@@ -25,6 +56,12 @@ export const ThresholdAlertProvider = ({ children }) => {
     
     if (!token || isChecking) {
       console.log("❌ Skipped check - No token or already checking");
+      return;
+    }
+
+    // Only check for Owner or Manager roles
+    if (!isOwnerOrManager()) {
+      console.log("❌ Skipped check - User is not Owner or Manager");
       return;
     }
 
@@ -96,16 +133,35 @@ export const ThresholdAlertProvider = ({ children }) => {
     if (!currentAlert) return;
 
     try {
-      // Record the action
+      const token = getToken();
+      
+      // Create donation to admin
+      const donationResponse = await axios.post(
+        `${API_URL}/donate-to-admin`,
+        {
+          inventory_item_id: currentAlert.id,
+          quantity: currentAlert.quantity,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      // Record the threshold action
       await recordAction(currentAlert.id, "donate");
 
       // Show success message
       await Swal.fire({
-        title: "Thank You!",
+        title: "Donation Created!",
         html: `
-          <p>Your decision to donate <strong>${currentAlert.name}</strong> is appreciated!</p>
+          <p>Your donation of <strong>${currentAlert.name}</strong> has been created successfully!</p>
           <p class="text-sm text-gray-600 mt-2">
-            Please proceed to create a donation for this product in your inventory.
+            You can track the donation status in the "Donation Status" tab.
+          </p>
+          <p class="text-sm text-green-600 mt-1 font-semibold">
+            Current Status: Preparing
           </p>
         `,
         icon: "success",
@@ -115,11 +171,15 @@ export const ThresholdAlertProvider = ({ children }) => {
 
       // Move to next alert
       moveToNextAlert();
+      
+      // Trigger refresh events for other components
+      window.dispatchEvent(new Event('refreshDonations'));
+      window.dispatchEvent(new Event('refreshInventory'));
     } catch (error) {
       console.error("Error handling donate:", error);
       Swal.fire({
         title: "Error",
-        text: "Failed to record your action. Please try again.",
+        text: error.response?.data?.detail || "Failed to create donation. Please try again.",
         icon: "error",
         confirmButtonColor: "#E49A52",
       });

@@ -73,6 +73,7 @@ async def create_direct_donation(
         expiration_date=inventory_item.expiration_date,
         description=inventory_item.description,
         image=inventory_item.image,
+        donation_type=inventory_item.donation_type,  # Include donation type from inventory
         btracking_status="preparing",
         donated_by=donated_by  # ✅ Store who created the donation
     )

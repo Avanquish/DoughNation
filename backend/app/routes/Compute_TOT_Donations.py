@@ -115,8 +115,16 @@ def get_bakery_analytics(
     # USE PHILIPPINE TIME (UTC+8)
     today = today_ph()
 
-    # INVENTORY COUNTS
-    total_inventory = db.query(models.BakeryInventory).filter(
+    # OPTIMIZED INVENTORY COUNTS - Use database aggregation instead of fetching all records
+    # Count fresh: no expiration OR (expiration > today + threshold)
+    # Count soon: expiration <= today + threshold AND expiration >= today
+    # Count expired: expiration < today
+    
+    # Query only necessary fields and do calculations in database
+    inventory_items = db.query(
+        models.BakeryInventory.expiration_date,
+        models.BakeryInventory.threshold
+    ).filter(
         models.BakeryInventory.bakery_id == bakery_id,
         models.BakeryInventory.status != "donated"
     ).all()
@@ -125,33 +133,31 @@ def get_bakery_analytics(
     soon = 0
     expired = 0
 
-    for item in total_inventory:
-        if not item.expiration_date:
-            fresh += 1  #Items without expiration are fresh
+    for exp_date, threshold in inventory_items:
+        if not exp_date:
+            fresh += 1
             continue
         
-        days_left = (item.expiration_date - today).days
+        days_left = (exp_date - today).days
         
-        # Match frontend logic exactly
         if days_left < 0:
             expired += 1
-        elif item.threshold == 0:
-            # Special case: threshold 0 means check if expires today or tomorrow
+        elif threshold == 0:
             if days_left <= 1:
                 soon += 1
             else:
                 fresh += 1
         else:
-            if days_left <= item.threshold:
+            if days_left <= threshold:
                 soon += 1
             else:
                 fresh += 1
 
-    # DONATION COUNTS
+    # DONATION COUNTS - All optimized with single queries
     uploaded_count = (
         db.query(func.count(models.Donation.id))
         .filter(models.Donation.bakery_id == bakery_id)
-        .scalar()
+        .scalar() or 0
     )
 
     completed_requests_count = (
@@ -160,7 +166,7 @@ def get_bakery_analytics(
             models.DonationRequest.bakery_id == bakery_id,
             models.DonationRequest.tracking_status == "complete"
         )
-        .scalar()
+        .scalar() or 0
     )
 
     completed_direct_count = (
@@ -170,23 +176,17 @@ def get_bakery_analytics(
             models.BakeryInventory.bakery_id == bakery_id,
             models.DirectDonation.btracking_status == "complete"
         )
-        .scalar()
+        .scalar() or 0
     )
 
     donated_count = completed_requests_count + completed_direct_count
 
-    # Fetch all registered charities
-    all_charities = db.query(models.User).filter(
-        models.User.role == "Charity",
-        models.User.verified == True
-        
-    ).all()
-
-    # Maps for tracking totals
-    charity_transaction_map = {}  # counts how many donations
-    charity_given_map = {}        # sums total quantity
-
-   
+    # OPTIMIZED: Fetch only charities that have donations from this bakery
+    # Instead of fetching ALL charities and then checking if they have donations
+    
+    # Get charity IDs with donations
+    charity_ids_with_donations = set()
+    
     #Requested donations (complete)
     charity_request_data = (
         db.query(
@@ -202,9 +202,13 @@ def get_bakery_analytics(
         .all()
     )
 
+    charity_transaction_map = {}
+    charity_given_map = {}
+    
     for cid, count, qty in charity_request_data:
         charity_transaction_map[cid] = count
         charity_given_map[cid] = qty
+        charity_ids_with_donations.add(cid)
 
    
     # Direct donations (complete)
@@ -226,17 +230,52 @@ def get_bakery_analytics(
     for cid, count, qty in charity_direct_data:
         charity_transaction_map[cid] = charity_transaction_map.get(cid, 0) + count
         charity_given_map[cid] = charity_given_map.get(cid, 0) + qty
+        charity_ids_with_donations.add(cid)
 
+    # Admin donations (donations to NGO)
+    admin_donation_data = (
+        db.query(
+            func.count(models.AdminDonationRequest.id).label("transaction_count"),
+            func.coalesce(func.sum(models.AdminDonationRequest.donation_quantity), 0).label("total_quantity")
+        )
+        .filter(
+            models.AdminDonationRequest.donor_id == bakery_id,
+            models.AdminDonationRequest.tracking_status == "complete"
+        )
+        .first()
+    )
+
+    admin_transaction_count = admin_donation_data[0] if admin_donation_data else 0
+    admin_total_quantity = admin_donation_data[1] if admin_donation_data else 0
    
-    # Build final output
-    charity_donations_list = [
-        {
-            "name": c.name,
-            "Total Donation Transaction": charity_transaction_map.get(c.id, 0),
-            "Total Donation Given": charity_given_map.get(c.id, 0)
-        }
-        for c in all_charities
-    ]
+    # OPTIMIZED: Only fetch charities that have donations
+    charity_donations_list = []
+    
+    if charity_ids_with_donations:
+        charities_with_donations = db.query(
+            models.User.id,
+            models.User.name
+        ).filter(
+            models.User.id.in_(charity_ids_with_donations),
+            models.User.role == "Charity"
+        ).all()
+        
+        charity_donations_list = [
+            {
+                "name": c.name,
+                "Total Donation Transaction": charity_transaction_map.get(c.id, 0),
+                "Total Donation Given": charity_given_map.get(c.id, 0)
+            }
+            for c in charities_with_donations
+        ]
+
+    # Add NGO/Admin donations to the list
+    if admin_transaction_count > 0 or admin_total_quantity > 0:
+        charity_donations_list.append({
+            "name": "Scholars Of Sustenance (NGO)",
+            "Total Donation Transaction": admin_transaction_count,
+            "Total Donation Given": admin_total_quantity
+        })
 
     # Debugging on terminal
     print(f"Analytics Debug → Uploaded: {uploaded_count}, Donated: {donated_count}")

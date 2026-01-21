@@ -125,6 +125,7 @@ const BakeryDashboard = () => {
     normal_total: 0,
     direct_total: 0,
   });
+  const [adminCompletedCount, setAdminCompletedCount] = useState(0);
   const [unlockedBadge, setUnlockedBadge] = useState(null);
 
   // Live data for cards
@@ -455,6 +456,40 @@ const BakeryDashboard = () => {
     fetchTotals();
     
     const interval = setInterval(fetchTotals, 1000);
+    return () => clearInterval(interval);
+  }, [isEmployeeMode]);
+
+  // Fetch admin donations with complete status
+  useEffect(() => {
+    const fetchAdminDonations = async () => {
+      try {
+        const token = isEmployeeMode
+          ? localStorage.getItem("employeeToken")
+          : localStorage.getItem("token");
+
+        const res = await fetch(`${API}/admin-donations`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+        
+        // Count only completed donations
+        const completedCount = (data || []).filter(d => {
+          const status = (d.tracking_status || "").toLowerCase();
+          return status === "complete" || status === "completed";
+        }).length;
+        
+        setAdminCompletedCount(completedCount);
+      } catch {
+        setAdminCompletedCount(0);
+      }
+    };
+
+    fetchAdminDonations();
+    
+    const interval = setInterval(fetchAdminDonations, 1000);
     return () => clearInterval(interval);
   }, [isEmployeeMode]);
 
@@ -1125,7 +1160,7 @@ const BakeryDashboard = () => {
                           className="text-3xl font-extrabold stat-value"
                           style={{ color: "#2b1a0b" }}
                         >
-                          {totals.grand_total.toLocaleString()}
+                          {(totals.grand_total + adminCompletedCount).toLocaleString()}
                         </p>
                       </div>
                       <div className="chip">

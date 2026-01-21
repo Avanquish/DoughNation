@@ -36,6 +36,10 @@ const Login = () => {
   const [role, setRole] = useState("Donor");
   const [showPass, setShowPass] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [blockedUntil, setBlockedUntil] = useState(null);
+  const [countdown, setCountdown] = useState(0);
+  const countdownInterval = useRef(null);
 
   // Parallax background
   const bgRef = useRef(null);
@@ -74,6 +78,44 @@ const Login = () => {
     return () => cancelAnimationFrame(rafRef.current);
   }, [enableParallax]);
 
+  // Countdown timer effect
+  useEffect(() => {
+    if (isBlocked && blockedUntil) {
+      const updateCountdown = () => {
+        const now = new Date().getTime();
+        const blockTime = new Date(blockedUntil).getTime();
+        const remaining = Math.max(0, Math.floor((blockTime - now) / 1000));
+        
+        setCountdown(remaining);
+        
+        if (remaining <= 0) {
+          setIsBlocked(false);
+          setBlockedUntil(null);
+          // Clear account-specific block from storage
+          if (identifier) {
+            const blockKey = `loginBlockedUntil_${identifier}`;
+            localStorage.removeItem(blockKey);
+          }
+          if (countdownInterval.current) {
+            clearInterval(countdownInterval.current);
+          }
+        }
+      };
+      
+      // Initial update
+      updateCountdown();
+      
+      // Update every second
+      countdownInterval.current = setInterval(updateCountdown, 1000);
+      
+      return () => {
+        if (countdownInterval.current) {
+          clearInterval(countdownInterval.current);
+        }
+      };
+    }
+  }, [isBlocked, blockedUntil, identifier]);
+
   const onMouseMove = (e) => {
     if (!enableParallax) return;
     const { innerWidth: w, innerHeight: h } = window;
@@ -83,6 +125,25 @@ const Login = () => {
     };
   };
   const onMouseLeave = () => (targetRef.current = { x: 0, y: 0 });
+
+  // Format countdown time
+  const formatCountdown = (seconds) => {
+    if (seconds >= 3600) {
+      // Hours
+      const hours = Math.floor(seconds / 3600);
+      const mins = Math.floor((seconds % 3600) / 60);
+      const secs = seconds % 60;
+      return `${hours}h ${mins}m ${secs}s`;
+    } else if (seconds >= 60) {
+      // Minutes
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}m ${secs}s`;
+    } else {
+      // Seconds only
+      return `${seconds}s`;
+    }
+  };
 
   // Tabs indicator
   const tabsListRef = useRef(null);
@@ -116,6 +177,44 @@ const Login = () => {
     const raf = requestAnimationFrame(measureIndicator);
     return () => cancelAnimationFrame(raf);
   }, [role]);
+
+  // Check for existing block on component mount or when identifier changes
+  useEffect(() => {
+    if (!identifier) {
+      // Clear block state if no identifier
+      setIsBlocked(false);
+      setBlockedUntil(null);
+      setCountdown(0);
+      return;
+    }
+    
+    const blockKey = `loginBlockedUntil_${identifier}`;
+    const storedBlockedUntil = localStorage.getItem(blockKey);
+    
+    if (storedBlockedUntil) {
+      const blockTime = new Date(storedBlockedUntil).getTime();
+      const now = new Date().getTime();
+      
+      if (blockTime > now) {
+        // Still blocked for this specific account
+        setIsBlocked(true);
+        setBlockedUntil(storedBlockedUntil);
+        const remaining = Math.floor((blockTime - now) / 1000);
+        setCountdown(remaining);
+      } else {
+        // Block expired, clear storage for this account
+        localStorage.removeItem(blockKey);
+        setIsBlocked(false);
+        setBlockedUntil(null);
+        setCountdown(0);
+      }
+    } else {
+      // No block for this account
+      setIsBlocked(false);
+      setBlockedUntil(null);
+      setCountdown(0);
+    }
+  }, [identifier]);
 
   // Handle unified login
   const handleLogin = async (e) => {
@@ -376,9 +475,46 @@ const Login = () => {
       console.error("Login error:", error);
 
       let errorMessage = "Login failed. Please check your credentials.";
+      let errorTitle = "Login Failed";
 
+      // Handle account blocked error (status 429)
+      if (error.response?.status === 429) {
+        const detail = error.response.data.detail;
+        
+        if (typeof detail === 'object') {
+          // Structured error response with blocking details
+          errorTitle = "Account Temporarily Blocked";
+          errorMessage = `${detail.message}\n\nYou will be able to try again in: ${detail.remaining_time}\n\nTotal failed attempts: ${detail.total_failures}`;
+          
+          // Set blocked state and start countdown
+          setIsBlocked(true);
+          setBlockedUntil(detail.blocked_until);
+          
+          // Save to localStorage with account-specific key
+          const blockKey = `loginBlockedUntil_${identifier}`;
+          localStorage.setItem(blockKey, detail.blocked_until);
+          
+          // Calculate initial countdown
+          const now = new Date().getTime();
+          const blockTime = new Date(detail.blocked_until).getTime();
+          const remaining = Math.max(0, Math.floor((blockTime - now) / 1000));
+          setCountdown(remaining);
+        } else {
+          errorTitle = "Too Many Attempts";
+          errorMessage = detail || "Too many failed login attempts. Please try again later.";
+        }
+        
+        Swal.fire({
+          icon: "warning",
+          title: errorTitle,
+          html: errorMessage.replace(/\n/g, '<br>'),
+          confirmButtonColor: "#d33",
+        });
+        return;
+      }
+      
       if (error.response?.status === 403) {
-        // Part-time employee blocked
+        // Part-time employee blocked or role mismatch
         errorMessage =
           error.response.data.detail ||
           "Access denied. Part-time employees cannot log in to the system.";
@@ -388,7 +524,7 @@ const Login = () => {
 
       Swal.fire({
         icon: "error",
-        title: "Login Failed",
+        title: errorTitle,
         text: errorMessage,
       });
     } finally {
@@ -650,11 +786,28 @@ const Login = () => {
                 <Button
                   type="submit"
                   className="login-btn h-11 md:h-12 w-full text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E]
-                             hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl"
-                  disabled={isLoggingIn}
+                             hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl
+                             disabled:opacity-50 disabled:cursor-not-allowed disabled:from-gray-400 disabled:to-gray-500"
+                  disabled={isLoggingIn || isBlocked}
                 >
-                  {isLoggingIn ? 'Signing In...' : `Sign In as ${role}`}
+                  {isBlocked
+                    ? `🔒 Blocked - Retry in ${formatCountdown(countdown)}`
+                    : isLoggingIn
+                    ? 'Signing In...'
+                    : `Sign In as ${role}`}
                 </Button>
+
+                {/* Blocked warning message */}
+                {isBlocked && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                    <p className="text-sm text-red-700 font-medium">
+                      ⚠️ Too many failed login attempts
+                    </p>
+                    <p className="text-xs text-red-600 mt-1">
+                      Your account is temporarily blocked for security. Please wait {formatCountdown(countdown)}.
+                    </p>
+                  </div>
+                )}
 
                 {/* Bottom links */}
                 <div className="text-center text-[13.5px] sm:text-[14px]">

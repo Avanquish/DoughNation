@@ -431,14 +431,21 @@ def update_inventory(
     template_image: str = Form(None),
     save_to_template: str = Form(None),
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(auth.ensure_verified_user)
+    current_auth = Depends(auth.get_current_user_or_employee)
 ):
-    if current_user.role.lower() != "bakery":
-        raise HTTPException(status_code=403, detail="Only bakeries can update inventory")
+    # Extract bakery_id based on auth type (User or Employee)
+    if isinstance(current_auth, dict):
+        # Employee login
+        bakery_id = current_auth["bakery_id"]
+    else:
+        # Bakery owner login (role can be "Donor" or "Bakery")
+        if current_auth.role.lower() not in ["bakery", "donor"]:
+            raise HTTPException(status_code=403, detail="Only bakeries/donors can update inventory")
+        bakery_id = current_auth.id
 
     old_item = db.query(models.BakeryInventory).filter(
         models.BakeryInventory.id == inventory_id,
-        models.BakeryInventory.bakery_id == current_user.id
+        models.BakeryInventory.bakery_id == bakery_id
     ).first()
     
     if not old_item:
@@ -480,7 +487,7 @@ def update_inventory(
     updated_item = crud.update_inventory(
         db=db,
         inventory_id=inventory_id,
-        bakery_id=current_user.id,
+        bakery_id=bakery_id,
         name=name,
         image=image_path,
         quantity=quantity,
@@ -499,7 +506,7 @@ def update_inventory(
         
         if save_to_template == "true":
             save_product_to_csv(
-                bakery_id=current_user.id,
+                bakery_id=bakery_id,
                 product_name=name,
                 threshold=recalculated_threshold,
                 shelf_life_days=shelf_life_days,
@@ -508,7 +515,7 @@ def update_inventory(
             )
         else:
             update_product_in_csv(
-                bakery_id=current_user.id,
+                bakery_id=bakery_id,
                 old_product_name=old_product_name,
                 new_product_name=name,
                 threshold=recalculated_threshold,

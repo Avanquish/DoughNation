@@ -205,6 +205,33 @@ def create_user(
     db.commit()
     db.refresh(db_user)
     
+    # Log the registration event to audit log
+    try:
+        from app.routes.superadmin_routes import create_audit_log
+        create_audit_log(
+            db=db,
+            event_type="USER_REGISTRATION",
+            event_category="account_management",
+            actor_id=db_user.id,
+            actor_name=db_user.name,
+            actor_type=db_user.role,
+            target_id=db_user.id,
+            target_name=db_user.name,
+            target_type="User",
+            description=f"New {db_user.role} account registered: {db_user.name} ({db_user.email})",
+            event_data={
+                "role": db_user.role,
+                "email": db_user.email,
+                "contact_person": contact_person,
+                "registration_type": "self_registration"
+            },
+            severity="info",
+            success=True
+        )
+    except Exception as e:
+        # Log error but don't fail registration if audit log fails
+        print(f"Failed to create audit log for registration: {e}")
+    
     print(f"\n🔍 DEBUG: User created")
     print(f"   ID: {db_user.id}")
     print(f"   Name: {db_user.name}")
@@ -413,8 +440,13 @@ def create_inventory(
     if donation_type == "Food" and not expiration_date:
         raise ValueError("Expiration date is required for food donations")
 
+    # Handle creation_date - use current date if empty (for non-food items)
     if isinstance(creation_date, str):
-        server_creation_date = datetime.strptime(creation_date, "%Y-%m-%d").date()
+        if creation_date.strip():  # If not empty
+            server_creation_date = datetime.strptime(creation_date, "%Y-%m-%d").date()
+        else:  # If empty, use current date
+            from app.timezone_utils import today_ph
+            server_creation_date = today_ph()
     else:
         server_creation_date = creation_date
 

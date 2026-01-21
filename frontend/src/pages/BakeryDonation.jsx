@@ -162,6 +162,9 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
   // pagination state
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
+  
+  // Filter state for Food/Non-Food tabs
+  const [activeTab, setActiveTab] = useState("Food");
 
   // Get the appropriate token (employee token takes priority if it exists)
   const token =
@@ -198,8 +201,15 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
   };
   const fetchDonations = async () => {
     try {
-      const res = await axios.get(`${API}/donations`, { headers });
-      setDonations(res.data || []);
+      // Fetch from inventory instead - these are items available for donation
+      const res = await axios.get(`${API}/inventory`, { headers });
+      const availableItems = (res.data || []).filter((it) => {
+        const s = String(it.status || "").toLowerCase();
+        const quantity = Number(it.quantity) || 0;
+        // Show items that are available for donation (not already donated or requested)
+        return s === "available" && quantity > 0;
+      });
+      setDonations(availableItems);
     } catch {
     } finally {
       setLoading(false);
@@ -341,7 +351,17 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
     };
   };
 
-  const sortedDonations = [...donations].sort((a, b) => {
+  // Filter by active tab first
+  const tabFilteredDonations = donations.filter(d => {
+    const donationType = d.donation_type || "Food"; // Default to Food if not set
+    if (activeTab === "Food") {
+      return donationType === "Food";
+    } else {
+      return donationType !== "Food"; // Non-Food includes Clothes, School Supplies, Other
+    }
+  });
+
+  const sortedDonations = [...tabFilteredDonations].sort((a, b) => {
     const da = daysUntil(a.expiration_date, currentServerDate);
     const db = daysUntil(b.expiration_date, currentServerDate);
     const ua = da !== null && da <= 2 ? 0 : 1;
@@ -378,7 +398,7 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
           className="text-3xl sm:text-3xl font-extrabold"
           style={{ color: "#6B4B2B" }}
         >
-          For Donations
+          Available Donations
         </h2>
         {!isViewOnly && (
           <button
@@ -388,6 +408,30 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
             Donate Now!
           </button>
         )}
+      </div>
+
+      {/* Tab buttons */}
+      <div className="flex items-center gap-2 mb-4 border-b border-[#f2d4b5] px-3 sm:px-0">
+        <button
+          onClick={() => { setActiveTab("Food"); setPage(1); }}
+          className={`px-6 py-3 font-semibold text-sm transition-all ${
+            activeTab === "Food"
+              ? "text-[#6b4b2b] border-b-2 border-[#E49A52] bg-[#FFF9F1]"
+              : "text-gray-500 hover:text-[#6b4b2b] hover:bg-[#FFF9F1]/50"
+          }`}
+        >
+          🍞 Food ({donations.filter(d => (d.donation_type || "Food") === "Food").length})
+        </button>
+        <button
+          onClick={() => { setActiveTab("Non-Food"); setPage(1); }}
+          className={`px-6 py-3 font-semibold text-sm transition-all ${
+            activeTab === "Non-Food"
+              ? "text-[#6b4b2b] border-b-2 border-[#E49A52] bg-[#FFF9F1]"
+              : "text-gray-500 hover:text-[#6b4b2b] hover:bg-[#FFF9F1]/50"
+          }`}
+        >
+          📦 Non-Food ({donations.filter(d => (d.donation_type || "Food") !== "Food").length})
+        </button>
       </div>
 
       {/* cards */}
@@ -565,6 +609,14 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                   );
                   return;
                 }
+                if (!form.charity_id) {
+                  Swal.fire(
+                    "Missing recipient",
+                    "Please select a recipient (Charity or Admin).",
+                    "error"
+                  );
+                  return;
+                }
                 const chosen = inventory.find(
                   (x) => Number(x.id) === parseInt(form.bakery_inventory_id, 10)
                 );
@@ -580,32 +632,51 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                   return;
                 }
                 try {
-                  const fd = new FormData();
-                  fd.append(
-                    "bakery_inventory_id",
-                    parseInt(form.bakery_inventory_id, 10)
-                  );
-                  fd.append("name", form.name);
-                  fd.append("quantity", form.quantity);
-                  fd.append("threshold", form.threshold);
-                  fd.append("creation_date", form.creation_date);
-                  if (form.expiration_date)
-                    fd.append("expiration_date", form.expiration_date);
-                  fd.append("description", form.description || "");
-                  fd.append("charity_id", parseInt(form.charity_id, 10));
-                  if (form.image_file) fd.append("image", form.image_file);
-
                   const donatedBy = getCurrentUserName();
-                  fd.append("donated_by", donatedBy);
+                  
+                  // Check if donating to Admin
+                  if (form.charity_id === "admin") {
+                    // Admin donation endpoint - send inventory item data
+                    const fd = new FormData();
+                    fd.append("inventory_item_id", form.bakery_inventory_id);
+                    fd.append("donation_quantity", form.quantity);
 
-                  await axios.post(`${API}/direct`, fd, {
-                    headers: {
-                      ...headers,
-                      "Content-Type": "multipart/form-data",
-                    },
-                  });
+                    await axios.post(`${API}/admin-donations`, fd, {
+                      headers: {
+                        ...headers,
+                        "Content-Type": "multipart/form-data",
+                      },
+                    });
 
-                  Swal.fire("Success", "Donation recorded!", "success");
+                    Swal.fire("Success", "Donation to Admin recorded and tracking started!", "success");
+                  } else {
+                    // Regular charity donation
+                    const fd = new FormData();
+                    fd.append(
+                      "bakery_inventory_id",
+                      parseInt(form.bakery_inventory_id, 10)
+                    );
+                    fd.append("name", form.name);
+                    fd.append("quantity", form.quantity);
+                    fd.append("threshold", form.threshold);
+                    fd.append("creation_date", form.creation_date);
+                    if (form.expiration_date)
+                      fd.append("expiration_date", form.expiration_date);
+                    fd.append("description", form.description || "");
+                    fd.append("charity_id", parseInt(form.charity_id, 10));
+                    if (form.image_file) fd.append("image", form.image_file);
+                    fd.append("donated_by", donatedBy);
+
+                    await axios.post(`${API}/direct`, fd, {
+                      headers: {
+                        ...headers,
+                        "Content-Type": "multipart/form-data",
+                      },
+                    });
+
+                    Swal.fire("Success", "Donation to charity recorded!", "success");
+                  }
+                  
                   setShowDonate(false);
                   setForm({
                     bakery_inventory_id: "",
@@ -620,6 +691,7 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                   });
                   fetchDonations();
                 } catch (err) {
+                  console.error("Donation error:", err);
                   Swal.fire("Error", "Could not save donation.", "error");
                 }
               }}
@@ -976,10 +1048,10 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                   </div>
                 </div>
 
-                {/* Charity */}
+                {/* Charity/Recipient */}
                 <div className="col-span-12">
                   <label className="block text-sm font-semibold text-[#6b4b2b] mb-1.5">
-                    Charity
+                    Recipient (Charity or Admin)
                   </label>
                   <div
                     className="relative"
@@ -998,6 +1070,18 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                     >
                       <span className="truncate text-[#3b2a18]">
                         {(() => {
+                          // Check if Admin is selected
+                          if (form.charity_id === "admin") {
+                            return (
+                              <span className="inline-flex items-center gap-2">
+                                <span className="truncate">Scholars Of Sustenance (Admin)</span>
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-[3px] text-[11px] font-semibold rounded-full bg-gradient-to-r from-[#E49A52] to-[#BF7327] text-white">
+                                  NGO
+                                </span>
+                              </span>
+                            );
+                          }
+                          
                           const all = [
                             ...(charities.recommended || []),
                             ...(charities.rest || []),
@@ -1005,7 +1089,7 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                           const c = all.find(
                             (x) => Number(x.id) === +form.charity_id
                           );
-                          if (!c) return "Select Charity";
+                          if (!c) return "Select Recipient";
                           return (
                             <span className="inline-flex items-center gap-2">
                               <span className="truncate">{c.name}</span>
@@ -1039,6 +1123,34 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                         className="absolute left-0 right-0 z-[120] mt-2 w-full rounded-2xl border border-[#f2e3cf] bg-white shadow-2xl overflow-hidden"
                       >
                         <div className="max-h-56 overflow-auto divide-y divide-[#f6ebdc]">
+                          {/* Admin Option */}
+                          <div className="py-2">
+                            <div className="px-4 pb-1 text-[11px] font-semibold text-[#8a5a25] uppercase tracking-wide">
+                              NGO Partner
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setForm((f) => ({
+                                  ...f,
+                                  charity_id: "admin",
+                                }));
+                                setOpenChar(false);
+                              }}
+                              className="w-full px-4 py-2.5 hover:bg-[#FFF6E9] focus:bg-[#FFF6E9] flex items-center justify-between"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="h-6 w-6 rounded-full bg-gradient-to-br from-[#E49A52] to-[#BF7327] grid place-items-center text-white font-bold text-xs">
+                                  S
+                                </div>
+                                <span className="truncate font-semibold">Scholars Of Sustenance (Admin)</span>
+                              </div>
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-[3px] text-[11px] font-semibold rounded-full bg-gradient-to-r from-[#E49A52] to-[#BF7327] text-white">
+                                NGO
+                              </span>
+                            </button>
+                          </div>
+                          
                           {charities.recommended?.length > 0 && (
                             <div className="py-2">
                               <div className="px-4 pb-1 text-[11px] font-semibold text-[#8a5a25] uppercase tracking-wide">

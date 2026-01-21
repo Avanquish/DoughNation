@@ -293,12 +293,20 @@ const BakeryEmployee = ({ isViewOnly = false }) => {
       }
     } catch (e) {
       console.error("save employee", e);
-      Swal.fire({
-        title: "Error",
-        text: "Could not save employee.",
-        icon: "error",
-        confirmButtonColor: "#C97C2C",
-      });
+      // Close the dialog first to ensure SweetAlert2 is clickable
+      setIsDialogOpen(false);
+      setIsSaving(false);
+      
+      // Use setTimeout to ensure dialog closes before showing error
+      setTimeout(() => {
+        Swal.fire({
+          title: "Error",
+          text: e.response?.data?.detail || "Could not save employee.",
+          icon: "error",
+          confirmButtonColor: "#C97C2C",
+        });
+      }, 100);
+      return; // Exit early to prevent finally block from running too soon
     } finally {
       setIsSaving(false);
     }

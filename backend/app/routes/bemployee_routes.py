@@ -44,9 +44,10 @@ def create_employee(
             raise HTTPException(status_code=403, detail="Only Manager employees can add employees")
         bakery_id = current_auth.get("bakery_id")
     else:
-        # Bakery owner token
-        if current_auth.role.lower() != "bakery":
-            raise HTTPException(status_code=403, detail="Only bakeries can add employees")
+        # Bakery owner token - accept both "donor" and "bakery" roles
+        user_role = current_auth.role.lower()
+        if user_role not in ["donor", "bakery"]:
+            raise HTTPException(status_code=403, detail="Only bakery owners can add employees")
         bakery_id = current_auth.id
     
     current_user = current_auth
@@ -169,9 +170,10 @@ def update_employee(
             raise HTTPException(status_code=403, detail="Only Manager employees can edit employees")
         bakery_id = current_auth.get("bakery_id")
     else:
-        # Bakery owner token
-        if current_auth.role.lower() != "bakery":
-            raise HTTPException(status_code=403, detail="Only bakeries can edit employees")
+        # Bakery owner token - accept both "donor" and "bakery" roles
+        user_role = current_auth.role.lower()
+        if user_role not in ["donor", "bakery"]:
+            raise HTTPException(status_code=403, detail="Only bakery owners can edit employees")
         bakery_id = current_auth.id
     
     current_user = current_auth
@@ -223,9 +225,10 @@ def delete_employee(
             raise HTTPException(status_code=403, detail="Only Manager employees can delete employees")
         bakery_id = current_auth.get("bakery_id")
     else:
-        # Bakery owner token
-        if current_auth.role.lower() != "bakery":
-            raise HTTPException(status_code=403, detail="Only bakeries can delete employees")
+        # Bakery owner token - accept both "donor" and "bakery" roles
+        user_role = current_auth.role.lower()
+        if user_role not in ["donor", "bakery"]:
+            raise HTTPException(status_code=403, detail="Only bakery owners can delete employees")
         bakery_id = current_auth.id
     
     current_user = current_auth
@@ -260,8 +263,9 @@ def reset_employee_password(
         # This is an employee token - deny access
         raise HTTPException(status_code=403, detail="Only bakery owners can reset employee passwords")
     
-    # Bakery owner token
-    if current_auth.role.lower() != "bakery":
+    # Bakery owner token - accept both "donor" and "bakery" roles
+    user_role = current_auth.role.lower()
+    if user_role not in ["donor", "bakery"]:
         raise HTTPException(status_code=403, detail="Only bakery owners can reset employee passwords")
     
     bakery_id = current_auth.id

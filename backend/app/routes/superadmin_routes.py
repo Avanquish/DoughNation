@@ -1499,6 +1499,21 @@ def get_admin_dashboard_analytics(
     
     total_donations = completed_donation_requests + completed_direct_donations
     
+    # Donations received from donors to admin (AdminDonationRequest)
+    donations_received = db.query(models.AdminDonationRequest).filter(
+        models.AdminDonationRequest.tracking_status.in_(["received", "complete"])
+    ).count()
+    
+    # Donations to charities from admin (DonationRequest where donor is admin)
+    # Get admin user IDs
+    admin_users = db.query(models.User.id).filter(models.User.role == "Admin").all()
+    admin_ids = [admin_id[0] for admin_id in admin_users]
+    
+    donations_to_charities = db.query(models.DonationRequest).filter(
+        models.DonationRequest.bakery_id.in_(admin_ids),
+        models.DonationRequest.tracking_status.in_(["received", "complete"])
+    ).count()
+    
     # Recent activity (last 7 days) - Philippines timezone
     week_ago = now_ph() - timedelta(days=7)
     new_users_week = db.query(models.User).filter(
@@ -1536,7 +1551,9 @@ def get_admin_dashboard_analytics(
             "new_this_week": new_users_week
         },
         "donations": {
-            "total": total_donations
+            "total": total_donations,
+            "received": donations_received,
+            "to_charities": donations_to_charities
         },
         "security": {
             "failed_logins_today": failed_logins_today,

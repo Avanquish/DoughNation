@@ -257,6 +257,13 @@ def get_current_user_or_employee(
                     detail="User not found"
                 )
             
+            # Check if user is verified
+            if not user.verified:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Account pending verification"
+                )
+            
             # Return user model for donor owners
             return user
     

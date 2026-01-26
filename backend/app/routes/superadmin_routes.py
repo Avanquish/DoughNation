@@ -1,7 +1,7 @@
 """
-Super Admin Routes
+Scholars Of Sustenance Routes
 ==================
-Comprehensive governance and management endpoints for Super Admin.
+Comprehensive governance and management endpoints for Scholars Of Sustenance.
 
 Features:
 1. User Account Control (Suspend, Ban, Deactivate, Reactivate)
@@ -29,7 +29,7 @@ import string
 from app import database, auth
 from app.timezone_utils import now_ph, today_ph, get_day_start_ph, get_day_end_ph
 
-router = APIRouter(prefix="/admin", tags=["Super Admin"]) 
+router = APIRouter(prefix="/admin", tags=["Scholars Of Sustenance"]) 
 
 # Admin-only check
 def check_admin(current_user: models.User = Depends(auth.get_current_user)):
@@ -138,9 +138,9 @@ def log_audit_event(
 
 
 def require_super_admin(current_user: models.User):
-    """Ensure the current user is a Super Admin"""
+    """Ensure the current user is Scholars Of Sustenance (Admin)"""
     if current_user.role.lower() != "admin":
-        raise HTTPException(status_code=403, detail="Super Admin access required")
+        raise HTTPException(status_code=403, detail="Scholars Of Sustenance access required")
     return current_user
 
 
@@ -155,7 +155,7 @@ def update_user_status(
 ):
     """
     Update user account status (Suspend, Ban, Deactivate, Reactivate).
-    Super Admin only.
+    Scholars Of Sustenance only.
     """
     require_super_admin(current_admin)
     
@@ -298,7 +298,7 @@ def get_audit_logs(
 ):
     """
     Comprehensive audit log viewer with filters.
-    Super Admin only.
+    Scholars Of Sustenance only.
     Queries from system_events table.
     """
     require_super_admin(current_admin)
@@ -794,7 +794,7 @@ def send_notification(
 ):
     """
     Send system notification (broadcast, role-targeted, or user-specific).
-    Super Admin only.
+    Scholars Of Sustenance only.
     """
     require_super_admin(current_admin)
     
@@ -919,7 +919,7 @@ def get_all_users(
 ):
     """
     Get all verified users (excluding Admins) for notification targeting.
-    Super Admin only.
+    Scholars Of Sustenance only.
     """
     require_super_admin(current_admin)
     
@@ -955,7 +955,7 @@ def emergency_password_reset(
 ):
     """
     Emergency password reset for user account recovery.
-    Super Admin only. Creates audit trail.
+    Scholars Of Sustenance only. Creates audit trail.
     """
     require_super_admin(current_admin)
     
@@ -1041,7 +1041,7 @@ def create_ownership_transfer(
     """
     Transfer bakery ownership from owner to employee.
     Used for business continuity in emergencies.
-    Super Admin only.
+    Scholars Of Sustenance only.
     """
     require_super_admin(current_admin)
     
@@ -1286,7 +1286,7 @@ def create_ownership_transfer(
             <p>If you have any questions or did not expect this transfer, please contact DoughNation support immediately.</p>
             
             <hr style="border: none; border-top: 1px solid #f2d4b5; margin: 30px 0;">
-            <p style="font-size: 12px; color: #7b5836;"><em>This is an emergency action performed by Super Admin: {current_admin.name}</em></p>
+            <p style="font-size: 12px; color: #7b5836;"><em>This is an emergency action performed by Scholars Of Sustenance: {current_admin.name}</em></p>
             <p style="font-size: 12px; color: #7b5836;"><em>Transfer ID: {ownership_transfer.id} | Date: {now_ph().strftime("%Y-%m-%d %H:%M:%S")} PHT</em></p>
         </div>
         """
@@ -1324,7 +1324,7 @@ def create_ownership_transfer(
                 <p>If you have questions or concerns about this transfer, or if you believe this was done in error, please contact DoughNation support immediately.</p>
                 
                 <hr style="border: none; border-top: 1px solid #f2d4b5; margin: 30px 0;">
-                <p style="font-size: 12px; color: #7b5836;"><em>This is an emergency action performed by Super Admin: {current_admin.name}</em></p>
+                <p style="font-size: 12px; color: #7b5836;"><em>This is an emergency action performed by Scholars Of Sustenance: {current_admin.name}</em></p>
                 <p style="font-size: 12px; color: #7b5836;"><em>Transfer ID: {ownership_transfer.id} | Date: {now_ph().strftime("%Y-%m-%d %H:%M:%S")} PHT</em></p>
             </div>
             """
@@ -1361,7 +1361,7 @@ def update_user_profile(
     current_admin: models.User = Depends(get_current_user)
 ):
     """
-    Edit user profile details (Super Admin can correct/update any field).
+    Edit user profile details (Scholars Of Sustenance can correct/update any field).
     """
     require_super_admin(current_admin)
     
@@ -1445,7 +1445,7 @@ def get_admin_dashboard_analytics(
     current_admin: models.User = Depends(get_current_user)
 ):
     """
-    Comprehensive system analytics for Super Admin dashboard.
+    Comprehensive system analytics for Scholars Of Sustenance dashboard.
     """
     require_super_admin(current_admin)
     

@@ -451,10 +451,13 @@ def get_active_chats(db: Session = Depends(get_db), current_user: models.User = 
 
         seen.add(peer_id)
 
+        # Use consistent naming with _normalize_name function
+        peer_display_name = _normalize_name(peer)
+
         chats.append({
             "peer": {
                 "id": peer.id,
-                "name": f"{peer.name} ({peer.role})" if peer.role in ["Bakery", "Charity"] else peer.name,
+                "name": peer_display_name,
                 "email": peer.email,
                 "profile_picture": peer.profile_picture,
                 "role": peer.role
@@ -483,8 +486,37 @@ def get_active_chats(db: Session = Depends(get_db), current_user: models.User = 
 
     return {"status": "ok", "chats": chats}
 
+# --- Get Admin User (for Donors and Charities to message Admin) ---
+@router.get("/messages/get_admin")
+def get_admin_user(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    """
+    Returns the admin user info so Donors and Charities can message the admin.
+    Only accessible by Donor and Charity roles.
+    """
+    if current_user.role not in ["Donor", "Charity"]:
+        raise HTTPException(status_code=403, detail="Only Donors and Charities can access admin contact")
+    
+    # Find the first admin user (you can adjust this logic if you have multiple admins)
+    admin = db.query(models.User).filter(models.User.role == "Admin").first()
+    
+    if not admin:
+        raise HTTPException(status_code=404, detail="Admin user not found")
+    
+    return {
+        "status": "ok",
+        "admin": {
+            "id": admin.id,
+            "name": "Scholars Of Sustenance",  # Display name for admin
+            "email": admin.email,
+            "profile_picture": admin.profile_picture,
+            "role": admin.role
+        }
+    }
+
 # --- Search users ---
 def _normalize_name(u):
+    if u.role == "Admin":
+        return "Scholars Of Sustenance"
     return f"{u.name} ({u.role})" if u.role in ["Bakery", "Charity"] else u.name
 
 @router.get("/users/search")
@@ -495,6 +527,55 @@ def search_users(
     current_user: models.User = Depends(get_current_user),
 ):
     user_id = current_user.id
+    
+    # Allow Donors and Charities to search for admin (Scholars Of Sustenance)
+    if current_user.role in ["Donor", "Charity"]:
+        # Search includes admin if any part of "Scholars Of Sustenance" matches the query
+        admin_display_name = "Scholars Of Sustenance"
+        query_lower = query.lower()
+        
+        # Check if query matches any part of the admin display name
+        admin_search = any(word.lower().startswith(query_lower) or query_lower in word.lower() 
+                          for word in admin_display_name.split())
+        
+        if admin_search:
+            # Include admin in search results
+            admin_user = db.query(models.User).filter(models.User.role == "Admin").first()
+            if admin_user:
+                admin_result = {
+                    "id": admin_user.id,
+                    "name": "Scholars Of Sustenance",
+                    "email": admin_user.email,
+                    "profile_picture": admin_user.profile_picture,
+                    "role": admin_user.role
+                }
+                
+                # Also get other matching users
+                q = db.query(models.User).filter(
+                    models.User.verified == True,
+                    models.User.role != "Admin",
+                    models.User.id != user_id,
+                    func.lower(models.User.name).like(f"%{query.lower()}%")
+                )
+                
+                if target == "charities":
+                    q = q.filter(models.User.role == "Charity")
+                elif target == "bakeries":
+                    q = q.filter(models.User.role == "Donor")
+                
+                results = q.all()
+                payload = [admin_result] + [
+                    {
+                        "id": u.id,
+                        "name": _normalize_name(u),
+                        "email": u.email,
+                        "profile_picture": u.profile_picture,
+                        "role": u.role
+                    } for u in results
+                ]
+                return {"status": "ok", "results": payload}
+    
+    # Default search (no admin)
     q = db.query(models.User).filter(
         models.User.verified == True,
         models.User.role != "Admin",

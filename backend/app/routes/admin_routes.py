@@ -32,6 +32,7 @@ def verify_user(user_id: int, db: Session = Depends(database.get_db), admin=Depe
     
     ✅ Sets user status to Active upon verification
     ✅ Sends email notification to user when account is verified
+    ✅ Sends welcome message from Scholars Of Sustenance (Admin)
     """
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
@@ -49,6 +50,62 @@ def verify_user(user_id: int, db: Session = Depends(database.get_db), admin=Depe
     except Exception as e:
         print(f"⚠️  Failed to send verification email: {str(e)}")
         # Don't fail the verification if email fails
+    
+    # ✅ NEW: Send welcome message from admin (Scholars Of Sustenance)
+    if user.role in ["Donor", "Charity"]:
+        try:
+            # Find admin user
+            admin_user = db.query(models.User).filter(models.User.role == "Admin").first()
+            if admin_user:
+                # Create welcome message based on role
+                if user.role == "Donor":
+                    welcome_message = (
+                        "🎉 Welcome to DoughNation, {}! 🍞\n\n"
+                        "We're thrilled to have you join our community of compassionate donors!\n\n"
+                        "Your commitment to reducing food waste and helping those in need is truly inspiring.\n\n"
+                        "Here at DoughNation, you can:\n\n"
+                        "✨ Share your excess baked goods with local charities\n\n"
+                        "✨ Track your donation impact and contributions\n\n"
+                        "✨ Connect directly with charitable organizations\n\n"
+                        "✨ Make a real difference in your community\n\n"
+                        "Thank you for being part of our mission to end hunger and reduce food waste.\n\n"
+                        "Together, we're creating a better, more sustainable future! 🌟\n\n"
+                        "If you have any questions or need assistance, feel free to reach out to us anytime.\n\n"
+                        "Happy Donating! 🤝\n\n"
+                        "- Scholars Of Sustenance Team"
+                    ).format(user.name)
+                else:  # Charity
+                    welcome_message = (
+                        "🎉 Welcome to DoughNation, {}! 🤲\n\n"
+                        "We're delighted to have you join our network of charitable organizations!\n\n"
+                        "Your dedication to serving those in need is truly commendable.\n\n"
+                        "Here at DoughNation, you can:\n\n"
+                        "✨ Access fresh donations from local bakeries and donors\n\n"
+                        "✨ Connect with generous donors in your community\n\n"
+                        "✨ Request and manage donations efficiently\n\n"
+                        "✨ Track your received donations and impact\n\n"
+                        "Thank you for being part of our mission to fight hunger and reduce food waste.\n\n"
+                        "Together, we're making a meaningful difference in people's lives! 🌟\n\n"
+                        "If you have any questions or need assistance, feel free to reach out to us anytime.\n\n"
+                        "Welcome aboard! 🤝\n\n"
+                        "- Scholars Of Sustenance Team"
+                    ).format(user.name)
+                
+                # Create message record
+                welcome_msg = models.Message(
+                    sender_id=admin_user.id,
+                    receiver_id=user.id,
+                    content=welcome_message,
+                    timestamp=now_ph(),
+                    is_read=False,
+                    is_card=False
+                )
+                db.add(welcome_msg)
+                db.commit()
+                print(f"✅ Welcome message sent to {user.name} (ID: {user.id})")
+        except Exception as e:
+            print(f"⚠️  Failed to send welcome message: {str(e)}")
+            # Don't fail the verification if message fails
     
     return {"message": f"User {user.name} verified successfully and notified via email"}
 
@@ -178,47 +235,6 @@ def delete_user(user_id: int, db: Session = Depends(database.get_db)):
     db.delete(user)
     db.commit()
     return {"message": "User deleted successfully"}
-
-@router.delete("/force-delete-user/{user_id}")
-def force_delete_user(user_id: int, db: Session = Depends(database.get_db), admin=Depends(get_current_admin)):
-    """
-    Force delete a user account (admin only)
-    This will delete the user and all related data (employees, inventory, donations, etc.)
-    """
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    user_name = user.name
-    user_role = user.role
-    
-    try:
-        # Delete related employees if bakery
-        if user_role == "Bakery":
-            employees = db.query(models.Employee).filter(models.Employee.bakery_id == user_id).all()
-            for emp in employees:
-                db.delete(emp)
-        
-        # Delete related donations
-        donations = db.query(models.Donation).filter(
-            (models.Donation.bakery_id == user_id) | (models.Donation.charity_id == user_id)
-        ).all()
-        for donation in donations:
-            db.delete(donation)
-        
-        # Delete the user
-        db.delete(user)
-        db.commit()
-        
-        return {
-            "message": f"{user_role} '{user_name}' and all related data forcefully deleted",
-            "user_id": user_id,
-            "user_name": user_name,
-            "user_role": user_role
-        }
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to delete user: {str(e)}")
 
 @router.get("/complaints")
 def get_pending_complaints(

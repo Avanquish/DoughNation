@@ -19,6 +19,7 @@ import {
   Users,
   HandCoins,
   MessageSquareWarning,
+  MessageSquareText,
   FileBarChart,
   Microwave,
   Store,
@@ -43,6 +44,7 @@ import AuditLogViewer from "./AuditLogViewer";
 import NotificationCenter from "./NotificationCenter";
 import EmergencyControlPanel from "./EmergencyControlPanel";
 import AnalyticsDashboard from "./AnalyticsDashboard";
+import Messages1 from "./Messages1";
 
 import { Link } from "react-router-dom";
 
@@ -129,6 +131,7 @@ const AdminDashboard = () => {
   const scrollRef = useHorizontalScroll(); // Add horizontal scroll hook
   
   const [name, setName] = useState("Admin");
+  const [currentUser, setCurrentUser] = useState(null);
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -186,6 +189,15 @@ const AdminDashboard = () => {
     try {
       const decoded = JSON.parse(atob(token.split(".")[1]));
       setName(decoded.name || "Admin");
+      
+      // Set currentUser for Messages1 component
+      setCurrentUser({
+        id: decoded.sub,
+        name: decoded.name || "Admin",
+        email: decoded.email || "",
+        role: "Admin",
+        token: token
+      });
     } catch (err) {
       console.error("Error fetching admin dashboard stats:", err);
     }
@@ -801,6 +813,9 @@ thead{ background:#EADBC8; color:#4A2F17; }
 
             <nav className="items-center gap-5" style={{ fontSize: 15 }}>
               <div className="pt-1 flex items-center gap-3 relative">
+                {/* Messages Component for Admin */}
+                {currentUser && <Messages1 currentUser={currentUser} />}
+                
                 <button
                   ref={bellRef}
                   className="icon-btn relative inline-flex h-[42px] w-[42px] items-center justify-center rounded-full
@@ -1197,6 +1212,15 @@ thead{ background:#EADBC8; color:#4A2F17; }
                 <span className="hidden sm:inline">Dashboard</span>
               </TabsTrigger>
 
+                            <TabsTrigger
+                value="users"
+                title="Users"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm whitespace-nowrap"
+              >
+                <Users className="w-4 h-4" />
+                <span className="hidden sm:inline">User Verification</span>
+              </TabsTrigger>
+
               <TabsTrigger
                 value="inventory"
                 title="Inventory"
@@ -1222,15 +1246,6 @@ thead{ background:#EADBC8; color:#4A2F17; }
               >
                 <BarChart3 className="w-4 h-4" />
                 <span className="hidden sm:inline">Donation Status</span>
-              </TabsTrigger>
-
-              <TabsTrigger
-                value="users"
-                title="Users"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm whitespace-nowrap"
-              >
-                <Users className="w-4 h-4" />
-                <span className="hidden sm:inline">User Verification</span>
               </TabsTrigger>
 
               <TabsTrigger

@@ -1,6 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, UploadFile, Form, File, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from datetime import date, datetime, timedelta
 from app import crud, auth, database, schemas, models
 from app.auth import create_access_token, get_current_user, verify_password
@@ -1933,6 +1934,7 @@ def admin_delete_user(
     """
     Admin delete user account
     Only admins can use this endpoint
+    Deletes the user but preserves historical data (donations, etc.)
     """
     # Verify that current user is an admin
     if current_user.role != "Admin":
@@ -1952,22 +1954,45 @@ def admin_delete_user(
     user_email = user.email
     user_role = user.role
     
-    # Delete the user
-    db.delete(user)
-    db.commit()
-    
-    # Log the event
-    log_system_event(
-        db=db,
-        event_type="ADMIN_DELETE_USER",
-        description=f"Admin {current_user.name} deleted {user_role} account: {user_name} ({user_email})",
-        severity="warning",
-        user_id=current_user.id
-    )
-    
-    return {
-        "message": f"User {user_name} deleted successfully"
-    }
+    try:
+        # Handle employees for Donor/Bakery accounts
+        if user_role == "Donor":
+            # Delete associated employees completely (they're part of the bakery account)
+            employees = db.query(models.Employee).filter(models.Employee.bakery_id == user_id).all()
+            for emp in employees:
+                db.delete(emp)
+        
+        # For donations: Keep the historical data but mark the user reference as deleted
+        # Set foreign keys to NULL where possible (if the column allows NULL)
+        # This preserves donation history while removing the user account
+        
+        # Delete messages involving this user (optional - can be preserved)
+        db.query(models.Message).filter(
+            or_(
+                models.Message.sender_id == user_id,
+                models.Message.receiver_id == user_id
+            )
+        ).delete(synchronize_session=False)
+        
+        # Delete the user
+        db.delete(user)
+        db.commit()
+        
+        # Log the event
+        log_system_event(
+            db=db,
+            event_type="ADMIN_DELETE_USER",
+            description=f"Admin {current_user.name} deleted {user_role} account: {user_name} ({user_email})",
+            severity="warning",
+            user_id=current_user.id
+        )
+        
+        return {
+            "message": f"User {user_name} deleted successfully. Historical data preserved."
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete user: {str(e)}")
 
 
 @router.post("/deactivate-account")

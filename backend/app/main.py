@@ -8,7 +8,7 @@ from app.routes import (auth_routes, admin_routes, binventory_routes,
                         direct_donation, CFeedback, BFeedback, Compute_TOT_Donations, complaint_routes, BReportGene, 
                         AdminReportGene, geofence, badges, RecentDonations, DashboardSearch, leaderboards, CReportGene,
                         Messages1, leaderboard, superadmin_reports, superadmin_routes, threshold_notifications,
-                        admin_inventory_routes, admin_donation_routes
+                        admin_inventory_routes, admin_donation_routes, food_safety_routes
                         )
 from app.database import engine, SessionLocal
 from app import models, crud, database, admin_models
@@ -78,6 +78,7 @@ app.include_router(superadmin_routes.router)
 app.include_router(threshold_notifications.router)
 app.include_router(admin_inventory_routes.router)
 app.include_router(admin_donation_routes.router)
+app.include_router(food_safety_routes.router)
 
 @app.on_event("startup")
 def seed_admin():

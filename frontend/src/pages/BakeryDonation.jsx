@@ -157,7 +157,10 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
     description: "",
     charity_id: "",
     image_file: null,
+    food_category: "",
   });
+  
+  const [foodCategories, setFoodCategories] = useState([]);
 
   // pagination state
   const [page, setPage] = useState(1);
@@ -171,7 +174,7 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
     localStorage.getItem("employeeToken") || localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
 
-  // Fetch server date on mount
+  // Fetch server date and food categories on mount
   useEffect(() => {
     const fetchServerDate = async () => {
       try {
@@ -186,8 +189,32 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
         setCurrentServerDate(`${yyyy}-${mm}-${dd}`);
       }
     };
+    
+    const fetchFoodCategories = async () => {
+      try {
+        const res = await axios.get(`${API}/food-safety/categories`, { headers });
+        console.log("Food categories loaded:", res.data.categories);
+        setFoodCategories(res.data.categories || []);
+      } catch (err) {
+        console.error("Failed to fetch food categories:", err);
+        // Set default categories if API fails
+        setFoodCategories([
+          { value: "canned_goods", label: "Canned Goods", grace_period_days: 60 },
+          { value: "bread", label: "Bread & Baked Goods", grace_period_days: 7 },
+          { value: "dry_goods", label: "Dry Goods", grace_period_days: 30 },
+          { value: "frozen_foods", label: "Frozen Foods", grace_period_days: 14 },
+          { value: "dairy", label: "Dairy Products", grace_period_days: 3 },
+          { value: "fresh_produce", label: "Fresh Produce", grace_period_days: 2 },
+          { value: "condiments", label: "Condiments & Sauces", grace_period_days: 45 },
+          { value: "beverages", label: "Beverages", grace_period_days: 30 },
+          { value: "packaged_snacks", label: "Packaged Snacks", grace_period_days: 21 },
+          { value: "other", label: "Other", grace_period_days: 14 }
+        ]);
+      }
+    };
 
     fetchServerDate();
+    fetchFoodCategories();
     const interval = setInterval(fetchServerDate, 60 * 60 * 1000); // Refresh every hour
     return () => clearInterval(interval);
   }, []);
@@ -636,12 +663,13 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                   
                   // Check if donating to Admin
                   if (form.charity_id === "admin") {
-                    // Admin donation endpoint - send inventory item data
+                    // Admin donation endpoint - send inventory item data with food category
                     const fd = new FormData();
                     fd.append("inventory_item_id", form.bakery_inventory_id);
                     fd.append("donation_quantity", form.quantity);
+                    fd.append("food_category", form.food_category || "other");
 
-                    await axios.post(`${API}/admin-donations`, fd, {
+                    await axios.post(`${API}/admin/admin-donations`, fd, {
                       headers: {
                         ...headers,
                         "Content-Type": "multipart/form-data",
@@ -688,6 +716,7 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                     description: "",
                     charity_id: "",
                     image_file: null,
+                    food_category: "",
                   });
                   fetchDonations();
                 } catch (err) {
@@ -1230,6 +1259,39 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                     )}
                   </div>
                 </div>
+                
+                {/* Food Category (only for Admin donations) */}
+                {form.charity_id === "admin" && (
+                  <div className="col-span-12">
+                    <label className="block text-sm font-semibold text-[#6b4b2b] mb-1.5">
+                      Food Category
+                      <span className="ml-2 text-xs text-[#8a5a25] font-normal">
+                        (determines grace period after expiration)
+                      </span>
+                    </label>
+                    <select
+                      className="w-full rounded-2xl border border-[#f2d4b5] bg-white/95 px-4 py-3.5 text-[15px] text-[#3b2a18] outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52] transition"
+                      value={form.food_category}
+                      onChange={(e) =>
+                        setForm({ ...form, food_category: e.target.value })
+                      }
+                    >
+                      <option value="" disabled hidden>Select Food Category</option>
+                      {foodCategories.length > 0 ? (
+                        foodCategories.map((cat) => (
+                          <option key={cat.value} value={cat.value}>
+                            {cat.label}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="other">Loading categories...</option>
+                      )}
+                    </select>
+                    <p className="mt-1.5 text-[11px] text-[#7b5836]">
+                      Select the food category to calculate safe donation deadline
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* RIGHT column – preview */}

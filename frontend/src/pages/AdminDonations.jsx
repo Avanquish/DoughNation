@@ -108,13 +108,39 @@ const AdminDonations = () => {
     }
   };
 
-  // Filter and pagination
+  // Filter and pagination with sorting by donation deadline urgency
   const availableInventory = inventory.filter((item) => item.quantity > 0);
   
-  const totalPages = Math.max(1, Math.ceil(availableInventory.length / PAGE_SIZE));
+  // Sort by donation deadline urgency (nearest deadline first)
+  const sortedInventory = [...availableInventory].sort((a, b) => {
+    // Items with donation_deadline come first
+    if (!a.donation_deadline && b.donation_deadline) return 1;
+    if (a.donation_deadline && !b.donation_deadline) return -1;
+    if (!a.donation_deadline && !b.donation_deadline) return 0;
+    
+    // Both have deadline - sort by urgency (nearest first)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const deadlineA = new Date(a.donation_deadline);
+    deadlineA.setHours(0, 0, 0, 0);
+    const daysLeftA = Math.ceil((deadlineA - today) / (1000 * 60 * 60 * 24));
+    
+    const deadlineB = new Date(b.donation_deadline);
+    deadlineB.setHours(0, 0, 0, 0);
+    const daysLeftB = Math.ceil((deadlineB - today) / (1000 * 60 * 60 * 24));
+    
+    // Expired items first (most urgent), then by days left ascending
+    if (daysLeftA < 0 && daysLeftB >= 0) return -1;
+    if (daysLeftA >= 0 && daysLeftB < 0) return 1;
+    
+    return daysLeftA - daysLeftB;
+  });
+  
+  const totalPages = Math.max(1, Math.ceil(sortedInventory.length / PAGE_SIZE));
   const safePage = Math.max(1, Math.min(page, totalPages));
   const startIndex = (safePage - 1) * PAGE_SIZE;
-  const paginatedItems = availableInventory.slice(startIndex, startIndex + PAGE_SIZE);
+  const paginatedItems = sortedInventory.slice(startIndex, startIndex + PAGE_SIZE);
   const canPrev = safePage > 1;
   const canNext = safePage < totalPages;
 
@@ -177,10 +203,41 @@ const AdminDonations = () => {
                         <Package className="w-8 h-8" style={{ color: "#b88a5a" }} />
                       </div>
                     )}
-                    <div className="absolute top-3 right-3 text-[11px] font-bold inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-green-50 border-green-200 text-green-700">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                      Available
-                    </div>
+                    {/* Urgency Badge - replacing Available badge */}
+                    {item.donation_deadline ? (() => {
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      const deadline = new Date(item.donation_deadline);
+                      deadline.setHours(0, 0, 0, 0);
+                      const daysLeft = Math.ceil((deadline - today) / (1000 * 60 * 60 * 24));
+                      
+                      let badgeClass, icon, label;
+                      
+                      if (daysLeft < 0) {
+                        badgeClass = "bg-red-50 border-red-300 text-red-700";
+                        icon = "⚠";
+                        label = "URGENT";
+                      } else if (daysLeft <= 3) {
+                        badgeClass = "bg-amber-50 border-amber-300 text-amber-700";
+                        icon = "⏰";
+                        label = `${daysLeft}d left`;
+                      } else {
+                        badgeClass = "bg-green-50 border-green-200 text-green-700";
+                        icon = "✓";
+                        label = `${daysLeft}d left`;
+                      }
+                      
+                      return (
+                        <div className={`absolute top-3 right-3 text-[11px] font-bold inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${badgeClass}`}>
+                          {icon} {label}
+                        </div>
+                      );
+                    })() : (
+                      <div className="absolute top-3 right-3 text-[11px] font-bold inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-green-50 border-green-200 text-green-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                        Available
+                      </div>
+                    )}
                   </div>
 
                   <div className="p-4">
@@ -204,6 +261,22 @@ const AdminDonations = () => {
                         <span>Source:</span>
                         <span className="font-semibold capitalize">{item.source || "N/A"}</span>
                       </div>
+                      {item.food_category && (
+                        <div className="flex items-center justify-between">
+                          <span>Category:</span>
+                          <span className="font-semibold capitalize">
+                            {item.food_category.replace(/_/g, ' ')}
+                          </span>
+                        </div>
+                      )}
+                      {item.donation_deadline && (
+                        <div className="flex items-center justify-between">
+                          <span>Deadline:</span>
+                          <span className="font-semibold text-amber-600">
+                            {new Date(item.donation_deadline).toLocaleDateString()}
+                          </span>
+                        </div>
+                      )}
                       {item.expiration_date && (
                         <div className="flex items-center justify-between">
                           <span>Expires:</span>
@@ -319,17 +392,66 @@ const AdminDonations = () => {
                 <label className="block text-sm font-semibold text-[#4A2F17] mb-2">
                   Donation Quantity *
                 </label>
-                <input
-                  type="number"
-                  min="1"
-                  max={selectedItem.quantity}
-                  value={donationForm.quantity}
-                  onChange={(e) =>
-                    setDonationForm({ ...donationForm, quantity: e.target.value })
-                  }
-                  placeholder="Enter quantity"
-                  className="w-full px-4 py-2 border-2 border-[#f2e3cf] rounded-lg focus:outline-none focus:border-[#BF7326]"
-                />
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min="1"
+                    max={selectedItem.quantity}
+                    value={donationForm.quantity}
+                    onChange={(e) => {
+                      const rawValue = e.target.value;
+                      
+                      // Allow empty string (for backspacing/deleting)
+                      if (rawValue === "") {
+                        setDonationForm({ ...donationForm, quantity: "" });
+                        return;
+                      }
+
+                      const value = parseInt(rawValue, 10);
+
+                      // Validate the value
+                      if (isNaN(value) || value <= 0) {
+                        setDonationForm({ ...donationForm, quantity: "" });
+                        return;
+                      }
+
+                      // Clamp to max available quantity
+                      const maxQ = selectedItem.quantity;
+                      setDonationForm({
+                        ...donationForm,
+                        quantity: Math.min(maxQ, Math.max(1, value)),
+                      });
+                    }}
+                    onBlur={(e) => {
+                      // On blur, if empty or invalid, set to 1
+                      if (e.target.value === "" || Number(e.target.value) < 1) {
+                        setDonationForm({ ...donationForm, quantity: 1 });
+                      }
+                    }}
+                    onInput={(e) => {
+                      // Remove leading zeros
+                      e.currentTarget.value = e.currentTarget.value.replace(/^0+(?=\d)/, "");
+                    }}
+                    placeholder="Enter quantity"
+                    className="flex-1 px-4 py-2 border-2 border-[#f2e3cf] rounded-lg focus:outline-none focus:border-[#BF7326] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDonationForm({
+                        ...donationForm,
+                        quantity: selectedItem.quantity,
+                      })
+                    }
+                    className="shrink-0 px-4 py-2 bg-[#E49A52] text-white rounded-lg hover:bg-[#BF7326] font-semibold text-sm transition"
+                    title="Set to maximum available"
+                  >
+                    MAX
+                  </button>
+                </div>
+                <p className="mt-1.5 text-xs text-[#7b5836]">
+                  Available: {selectedItem.quantity}
+                </p>
               </div>
 
               {/* Action Buttons */}

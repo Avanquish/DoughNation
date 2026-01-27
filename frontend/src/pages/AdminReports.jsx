@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -36,6 +36,12 @@ export default function AdminReports() {
   const [severity, setSeverity] = useState("");
   const [donationData, setDonationData] = useState([]);
   const [donationSummary, setDonationSummary] = useState(null);
+  const [donorFilter, setDonorFilter] = useState("");
+  const [receiverFilter, setReceiverFilter] = useState("");
+  
+  // Filter options for dropdowns
+  const [availableDonors, setAvailableDonors] = useState([]);
+  const [availableRecipients, setAvailableRecipients] = useState([]);
 
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
   const normalizePath = (path) => path.replace(/\\/g, "/");
@@ -76,6 +82,16 @@ export default function AdminReports() {
     "downtime",
   ];
 
+  // Fetch filter options when dates change for donation_list
+  useEffect(() => {
+    const loadFilters = async () => {
+      if (startDate && endDate && activeReport === "donation_list") {
+        await fetchFilterOptions();
+      }
+    };
+    loadFilters();
+  }, [startDate, endDate, activeReport]);
+
   // Severity colors
   const severityColors = {
     info: "bg-blue-100 text-blue-800 border-blue-300",
@@ -88,15 +104,43 @@ export default function AdminReports() {
     return found ? found.label : key.replace(/_/g, " ");
   };
 
+  // Fetch filter options for donation list
+  const fetchFilterOptions = async () => {
+    if (!startDate || !endDate) return;
+    
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${API_URL}/reports/donation_filters`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { start_date: startDate, end_date: endDate },
+      });
+      
+      console.log("Filter options received:", res.data); // Debug log
+      setAvailableDonors(res.data.donors || []);
+      setAvailableRecipients(res.data.recipients || []);
+    } catch (err) {
+      console.error("Failed to fetch filter options:", err);
+      console.error("Error details:", err.response?.data);
+    }
+  };
+
   // Generate report
   const generateReport = async (type) => {
     setLoading(true);
     setActiveReport(type);
     try {
       const token = localStorage.getItem("token");
+      const params = { start_date: startDate, end_date: endDate };
+      
+      // Add donor and receiver filters only if they have values and are not empty string
+      if (type === "donation_list") {
+        if (donorFilter && donorFilter !== "") params.donor_filter = donorFilter;
+        if (receiverFilter && receiverFilter !== "") params.receiver_filter = receiverFilter;
+      }
+      
       const res = await axios.get(`${API_URL}/reports/${type}`, {
         headers: { Authorization: `Bearer ${token}` },
-        params: { start_date: startDate, end_date: endDate },
+        params: params,
       });
 
       if (type === "donation_list") {
@@ -557,16 +601,15 @@ export default function AdminReports() {
       `"${donation.donor_name}"`,
       `"${donation.receiver_name}"`,
       `"${donation.quantity}"`,
-      `"${donation.completed_at ? (() => {
-        const dateStr = donation.completed_at.split('T')[0];
-        const [year, month, day] = dateStr.split('-');
-        const date = new Date(year, month - 1, day);
-        return date.toLocaleDateString('en-PH', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric'
-        });
-      })() : 'N/A'}"`
+      `"${donation.completed_at ? new Date(donation.completed_at).toLocaleString('en-PH', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      }) : 'N/A'}"`
     ].join(","));
 
     const csvContent = [headers.join(","), ...rows].join("\n");
@@ -746,15 +789,15 @@ export default function AdminReports() {
     donation.receiver_name,
     donation.quantity,
     donation.completed_at 
-      ? (() => {
-          const dt = new Date(donation.completed_at);
-          const day = String(dt.getDate()).padStart(2, '0');
-          const month = String(dt.getMonth() + 1).padStart(2, '0');
-          const year = dt.getFullYear();
-          const hours = String(dt.getHours()).padStart(2, '0');
-          const minutes = String(dt.getMinutes()).padStart(2, '0');
-          return `${day}/${month}/${year} ${hours}:${minutes}`;
-        })()
+      ? new Date(donation.completed_at).toLocaleString('en-PH', {
+          timeZone: 'Asia/Manila',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        })
       : 'N/A'
   ]);
 
@@ -840,15 +883,15 @@ export default function AdminReports() {
                   <td>${donation.donor_name}</td>
                   <td>${donation.receiver_name}</td>
                   <td style="font-weight: bold;">${donation.quantity}</td>
-                  <td>${donation.completed_at ? (() => {
-                    const dt = new Date(donation.completed_at);
-                    const day = String(dt.getDate()).padStart(2, '0');
-                    const month = String(dt.getMonth() + 1).padStart(2, '0');
-                    const year = dt.getFullYear();
-                    const hours = String(dt.getHours()).padStart(2, '0');
-                    const minutes = String(dt.getMinutes()).padStart(2, '0');
-                    return `${day}/${month}/${year} ${hours}:${minutes}`;
-                  })() : 'N/A'}</td>
+                  <td>${donation.completed_at ? new Date(donation.completed_at).toLocaleString('en-PH', {
+                    timeZone: 'Asia/Manila',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                  }) : 'N/A'}</td>
                 </tr>
               `).join("")}ty</th>
                 <th>Completion Date</th>
@@ -862,15 +905,15 @@ export default function AdminReports() {
                   <td>${donation.donor_name}</td>
                   <td>${donation.receiver_name}</td>
                   <td style="font-weight: bold;">${donation.quantity}</td>
-                  <td>${donation.completed_at ? (() => {
-                    const dt = new Date(donation.completed_at);
-                    const day = String(dt.getDate()).padStart(2, '0');
-                    const month = String(dt.getMonth() + 1).padStart(2, '0');
-                    const year = dt.getFullYear();
-                    const hours = String(dt.getHours()).padStart(2, '0');
-                    const minutes = String(dt.getMinutes()).padStart(2, '0');
-                    return `${day}/${month}/${year} ${hours}:${minutes}`;
-                  })() : 'N/A'}</td>
+                  <td>${donation.completed_at ? new Date(donation.completed_at).toLocaleString('en-PH', {
+                    timeZone: 'Asia/Manila',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                  }) : 'N/A'}</td>
                 </tr>
               `).join("")}
             </tbody>
@@ -1399,15 +1442,15 @@ export default function AdminReports() {
               </td>
               <td className="px-4 py-3 text-xs whitespace-nowrap">
                 {donation.completed_at 
-                  ? (() => {
-                      const dt = new Date(donation.completed_at);
-                      const day = String(dt.getDate()).padStart(2, '0');
-                      const month = String(dt.getMonth() + 1).padStart(2, '0');
-                      const year = dt.getFullYear();
-                      const hours = String(dt.getHours()).padStart(2, '0');
-                      const minutes = String(dt.getMinutes()).padStart(2, '0');
-                      return `${day}/${month}/${year} ${hours}:${minutes}`;
-                    })()
+                  ? new Date(donation.completed_at).toLocaleString('en-PH', {
+                      timeZone: 'Asia/Manila',
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true
+                    })
                   : 'N/A'}
               </td>
             </tr>
@@ -1562,6 +1605,50 @@ export default function AdminReports() {
                             onChange={(e) => setEndDate(e.target.value)}
                             className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
                           />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-[#6b4b2b]">
+                            Donor (Optional)
+                          </label>
+                          <select
+                            value={donorFilter}
+                            onChange={(e) => setDonorFilter(e.target.value)}
+                            className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                            disabled={!startDate || !endDate}
+                          >
+                            <option value="">All Donors</option>
+                            {availableDonors.length === 0 && startDate && endDate ? (
+                              <option disabled>Loading donors...</option>
+                            ) : (
+                              availableDonors.map((donor) => (
+                                <option key={donor} value={donor}>
+                                  {donor}
+                                </option>
+                              ))
+                            )}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-[#6b4b2b]">
+                            Recipient (Optional)
+                          </label>
+                          <select
+                            value={receiverFilter}
+                            onChange={(e) => setReceiverFilter(e.target.value)}
+                            className="w-[220px] rounded-md border border-[#f2d4b5] bg-white/95 px-3 py-2 text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#E49A52] focus:border-[#E49A52]"
+                            disabled={!startDate || !endDate}
+                          >
+                            <option value="">All Recipients</option>
+                            {availableRecipients.length === 0 && startDate && endDate ? (
+                              <option disabled>Loading recipients...</option>
+                            ) : (
+                              availableRecipients.map((recipient) => (
+                                <option key={recipient} value={recipient}>
+                                  {recipient}
+                                </option>
+                              ))
+                            )}
+                          </select>
                         </div>
                         <Button
                           onClick={() => {

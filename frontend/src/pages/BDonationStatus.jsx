@@ -413,7 +413,7 @@ const BDonationStatus = () => {
     let body;
     
     if (isAdminDonation) {
-      endpoint = `${API}/admin-donations/${donationId}/tracking`;
+      endpoint = `${API}/admin/admin-donations/${donationId}/tracking`;
       body = { tracking_status: nextStatus };
     } else if (isDirect) {
       endpoint = `${API}/direct/tracking/${donationId}`;
@@ -426,7 +426,7 @@ const BDonationStatus = () => {
     setIsUpdatingTracking(true);
     try {
       const res = await fetch(endpoint, {
-        method: isDirect || isAdminDonation ? "PUT" : "POST",
+        method: isAdminDonation ? "PUT" : "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -538,7 +538,8 @@ const BDonationStatus = () => {
         (async () => {
           try {
             console.log('🔍 Fetching admin donations...');
-            const resp = await fetch(`${API}/admin-donations`, {
+            // Updated endpoint with /admin prefix
+            const resp = await fetch(`${API}/admin/admin-donations`, {
               headers: { Authorization: `Bearer ${token}` },
             });
             const data = await resp.json();
@@ -554,6 +555,7 @@ const BDonationStatus = () => {
               tracking_status: (d.tracking_status || "preparing").toLowerCase(),
               recipient_name: "Scholars Of Sustenance",
               charity_name: "Scholars Of Sustenance",
+              admin_profile_picture: d.admin_profile_picture,
               isDonationToAdmin: true,
             }));
             
@@ -890,7 +892,16 @@ const BDonationStatus = () => {
                   <div className="flex items-center gap-2">
                     {d.isDonationToAdmin ? (
                       <>
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#E49A52] to-[#BF7327] grid place-items-center text-white font-bold text-xs">
+                        <img 
+                          src={`${API}/uploads/profile_pictures/admin_profile.png`}
+                          alt="Scholars Of Sustenance"
+                          className="w-7 h-7 rounded-full object-cover border border-[#f2e3cf]"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling.style.display = 'grid';
+                          }}
+                        />
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#E49A52] to-[#BF7327] place-items-center text-white font-bold text-xs hidden">
                           S
                         </div>
                         <span className="text-sm font-bold text-[#4A2F17] line-clamp-1">

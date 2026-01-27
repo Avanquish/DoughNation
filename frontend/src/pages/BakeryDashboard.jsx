@@ -467,7 +467,7 @@ const BakeryDashboard = () => {
           ? localStorage.getItem("employeeToken")
           : localStorage.getItem("token");
 
-        const res = await fetch(`${API}/admin-donations`, {
+        const res = await fetch(`${API}/admin/admin-donations`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 

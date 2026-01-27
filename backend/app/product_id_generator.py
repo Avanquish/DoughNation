@@ -274,6 +274,51 @@ def get_next_sequence_number(db: Session, product_code: str, bakery_id: int) -> 
     return max_sequence + 1
 
 
+def get_next_sequence_number_admin(db: Session, product_code: str) -> int:
+    """
+    Get the next sequence number for a product code in admin inventory.
+    
+    Checks the database for existing product IDs with the same code
+    and returns the next sequential number.
+    
+    Args:
+        db: Database session
+        product_code: 3-letter product code (e.g., "APP")
+        
+    Returns:
+        Next sequence number (starts at 1 if no existing items)
+        
+    Examples:
+        If APP-1, APP-2, APP-3 exist -> returns 4
+        If no APP items exist -> returns 1
+    """
+    # Query all product IDs in admin inventory that start with the product code
+    pattern = f"{product_code}-%"
+    
+    existing_items = db.query(models.AdminInventory.product_id).filter(
+        models.AdminInventory.product_id.like(pattern)
+    ).all()
+    
+    if not existing_items:
+        return 1
+    
+    # Extract sequence numbers from product IDs
+    max_sequence = 0
+    for item in existing_items:
+        product_id = item[0]
+        if product_id and '-' in product_id:
+            try:
+                # Extract the number after the dash
+                sequence_str = product_id.split('-')[1]
+                sequence = int(sequence_str)
+                max_sequence = max(max_sequence, sequence)
+            except (ValueError, IndexError):
+                # Skip malformed product IDs
+                continue
+    
+    return max_sequence + 1
+
+
 def generate_product_id(db: Session, product_name: str, bakery_id: int) -> str:
     """
     Generate a unique Product ID for a bakery inventory item.
@@ -300,6 +345,38 @@ def generate_product_id(db: Session, product_name: str, bakery_id: int) -> str:
     
     # Get the next sequence number
     sequence = get_next_sequence_number(db, product_code, bakery_id)
+    
+    # Combine into final product ID (5-digit format with leading zeros)
+    product_id = f"{product_code}-{sequence:05d}"
+    
+    return product_id
+
+
+def generate_admin_product_id(db: Session, product_name: str) -> str:
+    """
+    Generate a unique Product ID for admin inventory item.
+    
+    Format: <PRODUCT_CODE>-<SEQUENCE>
+    - Product code is a unique 3-letter identifier for the product type
+    - Sequence is a global counter across all admin inventory items
+    
+    Args:
+        db: Database session (required to check existing IDs)
+        product_name: Name of the product
+        
+    Returns:
+        Unique product ID string
+        
+    Examples:
+        generate_admin_product_id(db, "Apple Pie") -> "APP-00001"
+        generate_admin_product_id(db, "Apple Pie") -> "APP-00002"
+        generate_admin_product_id(db, "Banana Bread") -> "BNB-00001"
+    """
+    # Get the product code
+    product_code = get_product_code(product_name)
+    
+    # Get the next sequence number for admin inventory
+    sequence = get_next_sequence_number_admin(db, product_code)
     
     # Combine into final product ID (5-digit format with leading zeros)
     product_id = f"{product_code}-{sequence:05d}"

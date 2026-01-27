@@ -219,7 +219,7 @@ class DirectDonationBase(BaseModel):
     creation_date: date
     expiration_date: Optional[date] = None
     description: Optional[str] = None
-    bakery_inventory_id: int
+    bakery_inventory_id: Optional[int] = None  # Optional for admin donations
     charity_id: int
     image: Optional[str] = None
 

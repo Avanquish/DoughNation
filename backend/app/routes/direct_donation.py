@@ -156,14 +156,29 @@ def update_direct_tracking(
     # Extract bakery_id from either employee or bakery token
     bakery_id = auth.get_bakery_id_from_auth(current_auth)
     
-    if not bakery_id:
+    # Check if user is admin
+    is_admin = False
+    admin_name = None
+    if hasattr(current_auth, 'role') and current_auth.role == "Admin":
+        is_admin = True
+        admin_name = current_auth.name
+    
+    if not bakery_id and not is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    # Fetch donation
-    donation = db.query(models.DirectDonation).join(models.BakeryInventory).filter(
-        models.DirectDonation.id == direct_donation_id,
-        models.BakeryInventory.bakery_id == bakery_id  # ownership check
-    ).first()
+    # Fetch donation based on whether it's admin or bakery
+    if is_admin:
+        # Admin donations: check by donated_by field
+        donation = db.query(models.DirectDonation).filter(
+            models.DirectDonation.id == direct_donation_id,
+            models.DirectDonation.donated_by == admin_name
+        ).first()
+    else:
+        # Bakery donations: check by bakery_inventory ownership
+        donation = db.query(models.DirectDonation).join(models.BakeryInventory).filter(
+            models.DirectDonation.id == direct_donation_id,
+            models.BakeryInventory.bakery_id == bakery_id  # ownership check
+        ).first()
 
     if not donation:
         raise HTTPException(status_code=404, detail="Direct donation not found")
@@ -178,25 +193,28 @@ def update_direct_tracking(
     db.commit()
     db.refresh(donation)
 
-    # Update all related donation_requests
-    if data.btracking_status.lower() == "complete":
-        db.query(models.DonationRequest).filter(
-            models.DonationRequest.donation_id == direct_donation_id
-        ).update({
-            "tracking_status": data.btracking_status,
-            "tracking_completed_at": now_ph()  # <-- FIX: also stamp request side
-        })
-    else:
-        db.query(models.DonationRequest).filter(
-            models.DonationRequest.donation_id == direct_donation_id
-        ).update({
-            "tracking_status": data.btracking_status
-        })
+    # Update all related donation_requests (only for bakery donations)
+    if bakery_id:
+        if data.btracking_status.lower() == "complete":
+            db.query(models.DonationRequest).filter(
+                models.DonationRequest.donation_id == direct_donation_id
+            ).update({
+                "tracking_status": data.btracking_status,
+                "tracking_completed_at": now_ph()  # <-- FIX: also stamp request side
+            })
+        else:
+            db.query(models.DonationRequest).filter(
+                models.DonationRequest.donation_id == direct_donation_id
+            ).update({
+                "tracking_status": data.btracking_status
+            })
 
-    db.commit()
+        db.commit()
     
     if data.btracking_status.lower() == "complete":
-        update_user_badges(db, bakery_id)
+        user_id = bakery_id if bakery_id else None
+        if user_id:
+            update_user_badges(db, user_id)
 
     return donation
 

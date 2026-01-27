@@ -420,6 +420,8 @@ class AdminInventory(Base):
     image = Column(String, nullable=True)
     donation_type = Column(String, nullable=False, default="Food")
     category = Column(String, nullable=True)
+    food_category = Column(String(50), default="other", nullable=True)  # Food safety category
+    donation_deadline = Column(Date, nullable=True)  # Expiration + grace period
     condition = Column(String, nullable=True)
     source = Column(String, nullable=False)  # "donation" or "manual"
     donated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -442,6 +444,8 @@ class AdminDonationRequest(Base):
     donation_quantity = Column(Integer, nullable=False)
     donation_expiration = Column(Date, nullable=True)
     donation_type = Column(String, nullable=False, default="Food")
+    food_category = Column(String(50), default="other", nullable=True)  # Food safety category
+    donation_deadline = Column(Date, nullable=True)  # Expiration + grace period
     timestamp = Column(DateTime, default=now_ph)
     status = Column(String, default="pending")  # pending, accepted, rejected
     tracking_status = Column(String, default="preparing")  # preparing, in_transit, delivered

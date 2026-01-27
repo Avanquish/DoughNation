@@ -374,9 +374,11 @@ const AdminInventory = () => {
               <th className="p-3">Product</th>
               <th className="p-3">Quantity</th>
               <th className="p-3">Type</th>
+              <th className="p-3">Food Category</th>
               <th className="p-3">Source</th>
               <th className="p-3">Received Date</th>
               <th className="p-3">Expiration</th>
+              <th className="p-3">Donation Deadline</th>
               <th className="p-3">Description</th>
               <th className="p-3">Actions</th>
             </tr>
@@ -384,7 +386,7 @@ const AdminInventory = () => {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={10} className="p-8 text-center text-gray-500">
+                <td colSpan={12} className="p-8 text-center text-gray-500">
                   Loading...
                 </td>
               </tr>
@@ -427,6 +429,15 @@ const AdminInventory = () => {
                     </span>
                   </td>
                   <td className="p-3">{item.donation_type || "—"}</td>
+                  <td className="p-3">
+                    {item.food_category ? (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-[#E9F9EF] border border-[#c7ecd5] text-[#2b7a3f] capitalize">
+                        {item.food_category.replace(/_/g, ' ')}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td className="p-3 capitalize">{item.source || "donor"}</td>
                   <td className="p-3">
                     {item.received_date
@@ -438,6 +449,41 @@ const AdminInventory = () => {
                       <span className="text-red-600 font-medium">
                         {new Date(item.expiration_date).toLocaleDateString()}
                       </span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="p-3">
+                    {item.donation_deadline ? (
+                      (() => {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const deadline = new Date(item.donation_deadline);
+                        deadline.setHours(0, 0, 0, 0);
+                        const daysLeft = Math.ceil((deadline - today) / (1000 * 60 * 60 * 24));
+                        
+                        let badgeClass = "bg-[#E9F9EF] border-[#c7ecd5] text-[#2b7a3f]";
+                        let icon = "✓";
+                        
+                        if (daysLeft < 0) {
+                          badgeClass = "bg-[#fff1f0] border-[#ffdede] text-[#c92a2a]";
+                          icon = "✗";
+                        } else if (daysLeft <= 3) {
+                          badgeClass = "bg-[#fff8e6] border-[#ffe7bf] text-[#8a5a25]";
+                          icon = "⚠";
+                        }
+                        
+                        return (
+                          <div className="flex flex-col gap-1">
+                            <span className="font-medium text-[#4A2F17]">
+                              {new Date(item.donation_deadline).toLocaleDateString()}
+                            </span>
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${badgeClass}`}>
+                              {icon} {daysLeft < 0 ? 'Expired' : daysLeft === 0 ? 'Today' : daysLeft === 1 ? '1 day left' : `${daysLeft} days left`}
+                            </span>
+                          </div>
+                        );
+                      })()
                     ) : (
                       "—"
                     )}
@@ -465,7 +511,7 @@ const AdminInventory = () => {
               ))
             ) : (
               <tr>
-                <td colSpan={10}>
+                <td colSpan={12}>
                   <div className="h-40 grid place-items-center">
                     <div className="inline-flex items-center rounded-2xl border border-[#eadfce] bg-[#FFF9F1] px-5 py-3 shadow-sm text-sm text-[#7b5836]">
                       {query || statusFilter !== "all"

@@ -543,7 +543,15 @@ export default function NotificationBell() {
                                     <>
                                       <span>•</span>
                                       <span>
-                                        {new Date(notif.sent_at).toLocaleString()}
+                                        {new Date(notif.sent_at).toLocaleString('en-PH', {
+                                          timeZone: 'Asia/Manila',
+                                          year: 'numeric',
+                                          month: '2-digit',
+                                          day: '2-digit',
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                          hour12: true
+                                        })}
                                       </span>
                                     </>
                                   )}

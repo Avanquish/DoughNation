@@ -36,6 +36,8 @@ def get_admin_inventory(
             "image": item.image,
             "donation_type": item.donation_type,
             "category": item.category,
+            "food_category": item.food_category,
+            "donation_deadline": item.donation_deadline,
             "condition": item.condition,
             "source": item.source,
             "donated_by": item.donated_by,
@@ -177,61 +179,7 @@ def delete_inventory_item(
     return {"message": "Item deleted successfully"}
 
 
-@router.post("/donate")
-def donate_to_charity(
-    donation: schemas.AdminDonateRequest,
-    db: Session = Depends(database.get_db),
-    current_user: dict = Depends(auth.get_current_admin)
-):
-    """Admin donates from inventory to charity"""
-    # Get inventory item
-    item = db.query(models.AdminInventory).filter(
-        models.AdminInventory.id == donation.inventory_item_id
-    ).first()
-    
-    if not item:
-        raise HTTPException(status_code=404, detail="Inventory item not found")
-    
-    if item.quantity < donation.quantity:
-        raise HTTPException(status_code=400, detail="Insufficient quantity")
-    
-    # Get charity
-    charity = db.query(models.User).filter(
-        models.User.id == donation.charity_id,
-        models.User.role == "charity"
-    ).first()
-    
-    if not charity:
-        raise HTTPException(status_code=404, detail="Charity not found")
-    
-    # Create donation request
-    donation_request = models.DonationRequest(
-        bakery_id=current_user.id,  # Admin ID as donor
-        charity_id=charity.id,
-        donation_name=item.name,
-        donation_image=item.image,
-        donation_quantity=donation.quantity,
-        donation_expiration=item.expiration_date,
-        donation_type=item.donation_type,
-        status="accepted",
-        tracking_status="preparing",
-        bakery_name="Scholars Of Sustenance",
-        bakery_profile_picture=current_user.profile_picture
-    )
-    
-    db.add(donation_request)
-    
-    # Update inventory quantity
-    item.quantity -= donation.quantity
-    if item.quantity == 0:
-        db.delete(item)
-    
-    db.commit()
-    
-    return {
-        "message": "Donation sent to charity successfully",
-        "donation_id": donation_request.id
-    }
+# Donation endpoint moved to admin_donation_routes.py to avoid route conflicts
 
 
 @router.get("/outgoing-donations")
@@ -240,12 +188,20 @@ def get_outgoing_donations(
     current_user: dict = Depends(auth.get_current_admin)
 ):
     """Get all donations sent by admin to charities"""
-    donations = db.query(models.DonationRequest).filter(
+    # Get donations from DonationRequest table (old approach)
+    donation_requests = db.query(models.DonationRequest).filter(
         models.DonationRequest.bakery_id == current_user.id
     ).order_by(models.DonationRequest.timestamp.desc()).all()
     
+    # Get donations from DirectDonation table (new approach for admin donations)
+    direct_donations = db.query(models.DirectDonation).filter(
+        models.DirectDonation.donated_by == current_user.name
+    ).order_by(models.DirectDonation.created_at.desc()).all()
+    
     result = []
-    for donation in donations:
+    
+    # Process DonationRequest records
+    for donation in donation_requests:
         charity = db.query(models.User).filter(
             models.User.id == donation.charity_id
         ).first()
@@ -262,7 +218,33 @@ def get_outgoing_donations(
             "timestamp": donation.timestamp,
             "charity_id": donation.charity_id,
             "charity_name": charity.name if charity else None,
-            "charity_profile_picture": charity.profile_picture if charity else None
+            "charity_profile_picture": charity.profile_picture if charity else None,
+            "source": "donation_request"
         })
+    
+    # Process DirectDonation records
+    for donation in direct_donations:
+        charity = db.query(models.User).filter(
+            models.User.id == donation.charity_id
+        ).first()
+        
+        result.append({
+            "id": donation.id,
+            "donation_name": donation.name,
+            "donation_image": donation.image,
+            "donation_quantity": donation.quantity,
+            "donation_expiration": donation.expiration_date,
+            "donation_type": donation.donation_type,
+            "tracking_status": donation.btracking_status,
+            "status": "accepted",  # Direct donations are auto-accepted
+            "timestamp": donation.created_at,
+            "charity_id": donation.charity_id,
+            "charity_name": charity.name if charity else None,
+            "charity_profile_picture": charity.profile_picture if charity else None,
+            "source": "direct_donation"
+        })
+    
+    # Sort combined results by timestamp descending
+    result.sort(key=lambda x: x["timestamp"], reverse=True)
     
     return result

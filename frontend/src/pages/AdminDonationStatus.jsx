@@ -106,7 +106,7 @@ export default function AdminDonationStatus() {
       const token = localStorage.getItem("access_token") || localStorage.getItem("token");
 
       // Fetch incoming donations (from donors)
-      const incomingRes = await axios.get(`${API}/admin-donations`, {
+      const incomingRes = await axios.get(`${API}/admin/admin-donations`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setIncomingDonations(incomingRes.data || []);
@@ -122,39 +122,30 @@ export default function AdminDonationStatus() {
   };
 
   const handleUpdateIncomingStatus = async (donationId, currentStatus) => {
-    // Admin can only update from "in_transit" → "received" or "received" → "complete"
-    if (currentStatus !== "in_transit" && currentStatus !== "received") return;
+    // Admin can only update from "in_transit" → "complete" (automatically received)
+    if (currentStatus !== "in_transit") return;
 
-    const nextStatus = currentStatus === "in_transit" ? "received" : "complete";
+    const nextStatus = "complete"; // Skip "received", go directly to "complete"
 
     try {
       const token = localStorage.getItem("access_token") || localStorage.getItem("token");
       await axios.put(
-        `${API}/admin-donations/${donationId}/tracking`,
+        `${API}/admin/admin-donations/${donationId}/tracking`,
         { tracking_status: nextStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (nextStatus === "received") {
-        Swal.fire({
-          title: "Item Received!",
-          html: `
-            <p>Tracking status updated to <strong>${nextStatus.replace("_", " ")}</strong></p>
-            <p class="text-sm text-green-600 mt-2 font-semibold">
-              ✓ Item has been added to your inventory
-            </p>
-          `,
-          icon: "success",
-          confirmButtonColor: "#BF7326",
-        });
-      } else {
-        Swal.fire({
-          title: "Status Updated!",
-          text: `Tracking status updated to ${nextStatus.replace("_", " ")}`,
-          icon: "success",
-          confirmButtonColor: "#BF7326",
-        });
-      }
+      Swal.fire({
+        title: "Donation Complete!",
+        html: `
+          <p>Item has been <strong>received and completed</strong></p>
+          <p class="text-sm text-green-600 mt-2 font-semibold">
+            ✓ Item has been added to your inventory
+          </p>
+        `,
+        icon: "success",
+        confirmButtonColor: "#BF7326",
+      });
 
       fetchDonations();
     } catch (error) {
@@ -167,18 +158,31 @@ export default function AdminDonationStatus() {
     }
   };
 
-  const handleUpdateOutgoingStatus = async (donationId, currentStatus) => {
-    const statusOrder = ["preparing", "ready_for_pickup", "in_transit", "received", "complete"];
+  const handleUpdateOutgoingStatus = async (donationId, currentStatus, source) => {
+    const statusOrder = ["preparing", "ready_for_pickup", "in_transit"];
     const currentIndex = statusOrder.indexOf(currentStatus);
+    
+    // Admin can only update up to "in_transit", after that charity takes over
     if (currentIndex === -1 || currentIndex === statusOrder.length - 1) return;
 
     const nextStatus = statusOrder[currentIndex + 1];
 
     try {
       const token = localStorage.getItem("access_token") || localStorage.getItem("token");
+      
+      // Use different endpoint based on source
+      const endpoint = source === "direct_donation" 
+        ? `${API}/direct/tracking/${donationId}`
+        : `${API}/donation/tracking/${donationId}`;
+      
+      // Use correct field name based on source
+      const payload = source === "direct_donation"
+        ? { btracking_status: nextStatus }
+        : { tracking_status: nextStatus };
+      
       await axios.post(
-        `${API}/donation/tracking/${donationId}`,
-        { tracking_status: nextStatus },
+        endpoint,
+        payload,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -193,7 +197,7 @@ export default function AdminDonationStatus() {
     } catch (error) {
       Swal.fire({
         title: "Error",
-        text: "Failed to update status",
+        text: error.response?.data?.detail || "Failed to update status",
         icon: "error",
         confirmButtonColor: "#BF7326",
       });
@@ -220,8 +224,74 @@ export default function AdminDonationStatus() {
     });
   };
 
-  const filteredIncoming = filterDonations(incomingDonations, searchIncoming);
-  const filteredOutgoing = filterDonations(outgoingDonations, searchOutgoing);
+  // Sort outgoing donations: active statuses first, completed last
+  const sortOutgoingDonations = (list) => {
+    const statusOrder = {
+      preparing: 1,
+      ready_for_pickup: 2,
+      in_transit: 3,
+      received: 4,
+      complete: 5,
+      completed: 5
+    };
+    
+    const sorted = [...list].sort((a, b) => {
+      const statusA = (a.tracking_status || "").toLowerCase();
+      const statusB = (b.tracking_status || "").toLowerCase();
+      const orderA = statusOrder[statusA] || 999;
+      const orderB = statusOrder[statusB] || 999;
+      
+      if (orderA !== orderB) return orderA - orderB;
+      
+      // If same status, sort by date (newest first)
+      const dateA = new Date(a.timestamp || a.created_at);
+      const dateB = new Date(b.timestamp || b.created_at);
+      return dateB - dateA;
+    });
+    
+    console.log("Sorted outgoing donations:", sorted.map(d => ({ 
+      name: d.donation_name || d.name, 
+      status: d.tracking_status 
+    })));
+    
+    return sorted;
+  };
+
+  // Sort incoming donations: active statuses first, completed last
+  const sortIncomingDonations = (list) => {
+    const statusOrder = {
+      preparing: 1,
+      ready_for_pickup: 2,
+      in_transit: 3,
+      received: 4,
+      complete: 5,
+      completed: 5
+    };
+    
+    const sorted = [...list].sort((a, b) => {
+      const statusA = (a.tracking_status || "").toLowerCase();
+      const statusB = (b.tracking_status || "").toLowerCase();
+      const orderA = statusOrder[statusA] || 999;
+      const orderB = statusOrder[statusB] || 999;
+      
+      if (orderA !== orderB) return orderA - orderB;
+      
+      // If same status, sort by date (newest first)
+      const dateA = new Date(a.timestamp || a.created_at);
+      const dateB = new Date(b.timestamp || b.created_at);
+      return dateB - dateA;
+    });
+    
+    console.log("Sorted incoming donations:", sorted.map(d => ({ 
+      name: d.donation_name || d.name, 
+      status: d.tracking_status 
+    })));
+    
+    return sorted;
+  };
+
+  const filteredIncoming = sortIncomingDonations(filterDonations(incomingDonations, searchIncoming));
+  const filteredOutgoing = sortOutgoingDonations(filterDonations(outgoingDonations, searchOutgoing));
 
   const incomingTotalPages = Math.max(1, Math.ceil(filteredIncoming.length / PAGE_SIZE));
   const outgoingTotalPages = Math.max(1, Math.ceil(filteredOutgoing.length / PAGE_SIZE));
@@ -398,7 +468,7 @@ export default function AdminDonationStatus() {
                               </div>
                             )}
                             <div className="absolute top-3 right-3">
-                              <span className={`badge border ${getStatusBadge(donation.tracking_status)}`}>
+                              <span className={`badge border ${getStatusBadge(donation.tracking_status)} whitespace-nowrap max-w-[140px] text-center`}>
                                 {donation.tracking_status?.replace("_", " ").toUpperCase()}
                               </span>
                             </div>
@@ -583,15 +653,10 @@ export default function AdminDonationStatus() {
                 <>
                   <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                     {outgoingPageDonations.map((donation) => {
-                      const statusOrder = [
-                        "preparing",
-                        "ready_for_pickup",
-                        "in_transit",
-                        "received",
-                        "complete",
-                      ];
-                      const currentIndex = statusOrder.indexOf(donation.tracking_status);
-                      const canUpdate = currentIndex !== -1 && currentIndex < statusOrder.length - 1;
+                      // Admin can only update up to "in_transit"
+                      const statusOrder = ["preparing", "ready_for_pickup", "in_transit"];
+                      const currentStatus = donation.tracking_status;
+                      const canUpdate = statusOrder.includes(currentStatus) && currentStatus !== "in_transit";
 
                       return (
                         <div
@@ -618,7 +683,7 @@ export default function AdminDonationStatus() {
 
                             {/* Status pill */}
                             <div
-                              className={`absolute top-3 right-3 text-[11px] font-bold inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${getStatusBadge(donation.tracking_status)}`}
+                              className={`absolute top-3 right-3 text-[11px] font-bold inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${getStatusBadge(donation.tracking_status)} whitespace-nowrap max-w-[140px] text-center`}
                             >
                               {donation.tracking_status?.replace("_", " ").toUpperCase()}
                             </div>
@@ -692,14 +757,16 @@ export default function AdminDonationStatus() {
                                            ring-1 ring-white/60 shadow-[0_10px_26px_rgba(201,124,44,.18)] text-sm"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleUpdateOutgoingStatus(donation.id, donation.tracking_status);
+                                    handleUpdateOutgoingStatus(donation.id, donation.tracking_status, donation.source);
                                   }}
                                 >
                                   Update Status
                                 </button>
                               ) : (
-                                <div className="text-center py-1.5 px-3 bg-[#e9ffe9] border border-[#c7f3c7] rounded-full text-xs font-semibold text-[#1c7c1c]">
-                                  Complete
+                                <div className="text-center py-1.5 px-3 bg-[#FFF6E9] border border-[#f3ddc0] rounded-full text-xs font-semibold text-[#8a5a25]">
+                                  {donation.tracking_status === "in_transit" ? "In Transit - Charity Updates Next" : 
+                                   donation.tracking_status === "received" ? "Received by Charity" :
+                                   donation.tracking_status === "complete" ? "Complete" : "Tracking"}
                                 </div>
                               )}
                             </div>
@@ -779,7 +846,7 @@ export default function AdminDonationStatus() {
               
               {/* Status badge in modal */}
               <div className="absolute top-4 left-4">
-                <span className={`badge border ${getStatusBadge(selectedDonation.tracking_status)}`}>
+                <span className={`badge border ${getStatusBadge(selectedDonation.tracking_status)} whitespace-nowrap`}>
                   {selectedDonation.tracking_status?.replace("_", " ").toUpperCase()}
                 </span>
               </div>

@@ -2,11 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime
 from pydantic import BaseModel
-from app import models, database
+from app import models, database, schemas
 from app.timezone_utils import now_ph
-from app.auth import get_current_admin  # Only allow admins
+from app.auth import get_current_admin, get_current_user, pwd_context  # Only allow admins
 from app.email_utils import send_account_verified_email, send_email  # ✅ NEW: Import email function
 from app import admin_models  # Import admin models for SystemNotification
+from app.event_logger import log_system_event
+from app.crud import check_password_history, save_password_to_history
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -362,3 +364,86 @@ def get_donation_notifications(
         }
         for n in notifications
     ]
+
+@router.put("/change-password")
+def admin_change_password(
+    payload: schemas.ChangePassword,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Change password for admin users.
+    Requires current password verification.
+    """
+    # Verify user is admin
+    if current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Only admin users can use this endpoint")
+    
+    # Validate passwords match
+    if payload.new_password != payload.confirm_password:
+        raise HTTPException(status_code=400, detail="New passwords do not match")
+    
+    # Verify current password
+    if not pwd_context.verify(payload.current_password, current_user.hashed_password):
+        log_system_event(
+            db=db,
+            event_type="failed_password_change",
+            description=f"Admin {current_user.name} failed password change - incorrect current password",
+            severity="warning",
+            user_id=current_user.id,
+            metadata={"email": current_user.email}
+        )
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    
+    # Validate password strength
+    if len(payload.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
+    
+    if not any(c.isupper() for c in payload.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one uppercase letter")
+    
+    if not any(c.islower() for c in payload.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one lowercase letter")
+    
+    if not any(c.isdigit() for c in payload.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one number")
+    
+    if not any(c in '!@#$%^&*(),.?":{}|<>' for c in payload.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one special character")
+    
+    # Prevent using same password
+    if payload.current_password == payload.new_password:
+        raise HTTPException(status_code=400, detail="New password must be different from current password")
+    
+    # Check password history
+    if check_password_history(db, current_user.id, payload.new_password, is_employee=False):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot reuse any of your last 5 passwords. Please choose a different password for security reasons."
+        )
+    
+    # Save old password to history
+    save_password_to_history(db, current_user.id, current_user.hashed_password, is_employee=False)
+    
+    # Hash and update password
+    hashed_password = pwd_context.hash(payload.new_password)
+    current_user.hashed_password = hashed_password
+    current_user.using_default_password = False
+    
+    db.commit()
+    db.refresh(current_user)
+    
+    # Log successful password change
+    log_system_event(
+        db=db,
+        event_type="admin_password_changed",
+        description=f"Admin {current_user.name} successfully changed password",
+        severity="info",
+        user_id=current_user.id,
+        metadata={"email": current_user.email}
+    )
+    
+    return {
+        "message": "Password changed successfully",
+        "success": True
+    }

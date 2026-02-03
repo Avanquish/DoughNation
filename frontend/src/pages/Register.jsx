@@ -106,7 +106,7 @@ export default function Register() {
   /** Form fields (unchanged logic) */
   const [formData, setFormData] = useState({
     name: "",
-    role: "bakery",
+    role: "donor",
     email: "",
     contact_person: "",
     contact_number: "",
@@ -188,10 +188,6 @@ export default function Register() {
   /** Map-selected location */
   const [location, setLocation] = useState(null);
   const [mapCenter, setMapCenter] = useState(null);
-
-  /** Email availability */
-  const [emailAvailable, setEmailAvailable] = useState(true);
-  const [emailChecking, setEmailChecking] = useState(false);
 
   /** OTP verification states */
   const [otpSent, setOtpSent] = useState(false);
@@ -337,21 +333,6 @@ export default function Register() {
     );
   };
 
-  const checkEmailAvailability = async (email) => {
-    if (!email || !email.includes("@")) return;
-    setEmailChecking(true);
-    try {
-      const res = await axios.get("https://api.doughnationhq.cloud/check-email", {
-        params: { email },
-      });
-      setEmailAvailable(res.data.available);
-    } catch {
-      setEmailAvailable(true);
-    } finally {
-      setEmailChecking(false);
-    }
-  };
-
   /** Send OTP to email */
   const sendOtp = async () => {
     const { email } = formData;
@@ -363,15 +344,6 @@ export default function Register() {
         icon: "error",
         title: "Invalid Email",
         text: "Please use a Gmail address (@gmail.com) to register.",
-        confirmButtonColor: "#A97142",
-      });
-    }
-
-    if (!emailAvailable) {
-      return Swal.fire({
-        icon: "error",
-        title: "Email Already Taken",
-        text: "This email is already registered. Please use a different email.",
         confirmButtonColor: "#A97142",
       });
     }
@@ -503,13 +475,6 @@ export default function Register() {
         icon: "error",
         title: "Passwords do not match",
         text: "Please ensure both passwords match.",
-      });
-    }
-    if (!emailAvailable) {
-      return Swal.fire({
-        icon: "error",
-        title: "Email Already Used",
-        text: "Please use a different email address.",
       });
     }
 
@@ -729,7 +694,7 @@ export default function Register() {
                     }}
                   />
                   {[
-                    { value: "bakery", label: "Bakery", icon: Store },
+                    { value: "donor", label: "Donor", icon: Store },
                     { value: "charity", label: "Charity", icon: Heart },
                   ].map((r, i) => {
                     const Icon = r.icon;
@@ -749,10 +714,10 @@ export default function Register() {
                   })}
                 </TabsList>
 
-                <TabsContent value="bakery" className="space-y-4 mt-4">
+                <TabsContent value="donor" className="space-y-4 mt-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="name" className="text-[#8f642a]">
-                      Bakery Name
+                      Donor Name
                     </Label>
                     <Input
                       id="name"
@@ -807,7 +772,7 @@ export default function Register() {
                     <Button
                       type="button"
                       onClick={sendOtp}
-                      disabled={!formData.email || !emailAvailable || otpSending || emailChecking}
+                      disabled={!formData.email || otpSending}
                       className="whitespace-nowrap text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E] hover:from-[#E3B57E] hover:to-[#C39053] disabled:opacity-50"
                       style={{ height: "clamp(44px, 5.5svh, 52px)" }}
                     >
@@ -826,16 +791,6 @@ export default function Register() {
                 <p className="text-xs text-[#a47134]/80">
                   Please use a Gmail address (@gmail.com)
                 </p>
-                {!emailAvailable && (
-                  <p className="text-red-500 text-sm">
-                    This email is already taken.
-                  </p>
-                )}
-                {emailChecking && (
-                  <p className="text-sm text-gray-500 italic">
-                    Checking email availability...
-                  </p>
-                )}
               </div>
 
               {/* OTP Verification */}
@@ -1213,13 +1168,13 @@ export default function Register() {
               {/* Required files */}
               <div className="space-y-1.5">
                 <Label className="text-[#8f642a]">
-                  {formData.role === "bakery"
+                  {formData.role === "donor"
                     ? "Profile Picture"
                     : "Profile Picture"}
                 </Label>
                 <p className="text-xs text-[#a47134]/80">
-                  {formData.role === "bakery"
-                    ? "Upload your bakery profile picture (e.g., logo, storefront, or best-selling product)."
+                  {formData.role === "donor"
+                    ? "Upload your profile picture (e.g., logo, storefront, or best-selling product)."
                     : "Upload your charity profile picture (e.g., logo, team photo, or outreach activity)."}
                 </p>
                 <Input
@@ -1257,7 +1212,6 @@ export default function Register() {
                 className="w-full text-[15px] sm:text-[16px] text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E] hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl transition-transform duration-150 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ height: "clamp(44px, 5.5svh, 52px)" }}
                 disabled={
-                  !emailAvailable ||
                   !otpVerified ||
                   isSubmitting ||
                   !isPasswordValid() ||

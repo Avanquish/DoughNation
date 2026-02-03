@@ -21,7 +21,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Heart, Store, Building2, Eye, EyeOff, Lock } from "lucide-react";
 
 const ROLES = [
-  { value: "Bakery", label: "Bakery", icon: Store },
+  { value: "Donor", label: "Donor", icon: Store },
   { value: "Charity", label: "Charity", icon: Heart },
   { value: "Admin", label: "Admin", icon: Building2 },
 ];
@@ -33,9 +33,13 @@ const Login = () => {
 
   const [identifier, setIdentifier] = useState(""); // Changed from 'email' - now accepts email OR name
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("Bakery");
+  const [role, setRole] = useState("Donor");
   const [showPass, setShowPass] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [blockedUntil, setBlockedUntil] = useState(null);
+  const [countdown, setCountdown] = useState(0);
+  const countdownInterval = useRef(null);
 
   // Parallax background
   const bgRef = useRef(null);
@@ -74,6 +78,44 @@ const Login = () => {
     return () => cancelAnimationFrame(rafRef.current);
   }, [enableParallax]);
 
+  // Countdown timer effect
+  useEffect(() => {
+    if (isBlocked && blockedUntil) {
+      const updateCountdown = () => {
+        const now = new Date().getTime();
+        const blockTime = new Date(blockedUntil).getTime();
+        const remaining = Math.max(0, Math.floor((blockTime - now) / 1000));
+        
+        setCountdown(remaining);
+        
+        if (remaining <= 0) {
+          setIsBlocked(false);
+          setBlockedUntil(null);
+          // Clear account-specific block from storage
+          if (identifier) {
+            const blockKey = `loginBlockedUntil_${identifier}`;
+            localStorage.removeItem(blockKey);
+          }
+          if (countdownInterval.current) {
+            clearInterval(countdownInterval.current);
+          }
+        }
+      };
+      
+      // Initial update
+      updateCountdown();
+      
+      // Update every second
+      countdownInterval.current = setInterval(updateCountdown, 1000);
+      
+      return () => {
+        if (countdownInterval.current) {
+          clearInterval(countdownInterval.current);
+        }
+      };
+    }
+  }, [isBlocked, blockedUntil, identifier]);
+
   const onMouseMove = (e) => {
     if (!enableParallax) return;
     const { innerWidth: w, innerHeight: h } = window;
@@ -83,6 +125,25 @@ const Login = () => {
     };
   };
   const onMouseLeave = () => (targetRef.current = { x: 0, y: 0 });
+
+  // Format countdown time
+  const formatCountdown = (seconds) => {
+    if (seconds >= 3600) {
+      // Hours
+      const hours = Math.floor(seconds / 3600);
+      const mins = Math.floor((seconds % 3600) / 60);
+      const secs = seconds % 60;
+      return `${hours}h ${mins}m ${secs}s`;
+    } else if (seconds >= 60) {
+      // Minutes
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}m ${secs}s`;
+    } else {
+      // Seconds only
+      return `${seconds}s`;
+    }
+  };
 
   // Tabs indicator
   const tabsListRef = useRef(null);
@@ -117,6 +178,44 @@ const Login = () => {
     return () => cancelAnimationFrame(raf);
   }, [role]);
 
+  // Check for existing block on component mount or when identifier changes
+  useEffect(() => {
+    if (!identifier) {
+      // Clear block state if no identifier
+      setIsBlocked(false);
+      setBlockedUntil(null);
+      setCountdown(0);
+      return;
+    }
+    
+    const blockKey = `loginBlockedUntil_${identifier}`;
+    const storedBlockedUntil = localStorage.getItem(blockKey);
+    
+    if (storedBlockedUntil) {
+      const blockTime = new Date(storedBlockedUntil).getTime();
+      const now = new Date().getTime();
+      
+      if (blockTime > now) {
+        // Still blocked for this specific account
+        setIsBlocked(true);
+        setBlockedUntil(storedBlockedUntil);
+        const remaining = Math.floor((blockTime - now) / 1000);
+        setCountdown(remaining);
+      } else {
+        // Block expired, clear storage for this account
+        localStorage.removeItem(blockKey);
+        setIsBlocked(false);
+        setBlockedUntil(null);
+        setCountdown(0);
+      }
+    } else {
+      // No block for this account
+      setIsBlocked(false);
+      setBlockedUntil(null);
+      setCountdown(0);
+    }
+  }, [identifier]);
+
   // Handle unified login
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -139,12 +238,12 @@ const Login = () => {
 
       const accountType = decoded.type; // "bakery", "charity", "admin", or "employee"
 
-      // ✅ VALIDATE: Employees can ONLY log in when slider is set to "Bakery"
-      if (accountType === "employee" && role !== "Bakery") {
+      // ✅ VALIDATE: Employees can ONLY log in when slider is set to "Donor"
+      if (accountType === "employee" && role !== "Donor") {
         Swal.fire({
           icon: "error",
           title: "Invalid Login Type",
-          text: "Employee login is only allowed when the login type is set to 'Bakery'. Please switch the slider to Bakery and try again.",
+          text: "Employee login is only allowed when the login type is set to 'Donor'. Please switch the slider to Donor and try again.",
           confirmButtonColor: "#A97142",
         });
         return; // Exit early - prevent login
@@ -154,12 +253,12 @@ const Login = () => {
       if (accountType === "employee") {
         // Employee login - use EmployeeAuthContext
 
-        // 🚫 CHECK IF BAKERY IS VERIFIED
+        // 🚫 CHECK IF DONOR IS VERIFIED
         if (!decoded.bakery_verified) {
           Swal.fire({
             icon: "warning",
-            title: "Bakery Not Verified",
-            text: "Your bakery account is pending admin verification. Please wait until the bakery is verified before accessing the system.",
+            title: "Donor Not Verified",
+            text: "Your donor account is pending admin verification. Please wait until the donor is verified before accessing the system.",
             confirmButtonColor: "#A97142",
           });
           return; // Exit early - prevent login
@@ -187,6 +286,12 @@ const Login = () => {
 
         // Clear any stored tab preference and navigate to bakery dashboard
         localStorage.setItem("bakery_active_tab", "dashboard");
+        
+        // 🎯 TRIGGER THRESHOLD ALERT CHECK for employees (on behalf of their bakery)
+        setTimeout(() => {
+          window.dispatchEvent(new Event("checkThresholdAlerts"));
+        }, 1000);
+        
         navigate(`/bakery-dashboard/${decoded.bakery_id}`);
 
         Swal.fire({
@@ -197,13 +302,13 @@ const Login = () => {
           showConfirmButton: false,
         });
       } else {
-        // Regular user login (Bakery/Charity/Admin)
+        // Regular user login (Donor/Charity/Admin)
         login(token); // Use existing auth context
 
         const userId = decoded.sub;
 
         // Role-based redirection
-        if (accountType === "bakery") {
+        if (accountType === "donor") {
           // 🔐 CHECK IF USER MUST CHANGE ONE-TIME PASSWORD (Ownership Transfer) - PRIORITY CHECK
           if (decoded.must_change_password) {
             Swal.fire({
@@ -233,12 +338,12 @@ const Login = () => {
             return;
           }
           
-          // 🚫 CHECK IF BAKERY IS VERIFIED
+          // 🚫 CHECK IF DONOR IS VERIFIED
           if (!decoded.is_verified) {
             Swal.fire({
               icon: "warning",
               title: "Account Not Verified",
-              text: "Your bakery account is pending admin verification. Please wait until an admin verifies your account before accessing the system.",
+              text: "Your donor account is pending admin verification. Please wait until an admin verifies your account before accessing the system.",
               confirmButtonColor: "#A97142",
             });
             // Clear the token since they can't access yet
@@ -248,6 +353,12 @@ const Login = () => {
 
           // Clear any stored tab preference
           localStorage.setItem("bakery_active_tab", "dashboard");
+          
+          // 🎯 TRIGGER THRESHOLD ALERT CHECK for donors
+          setTimeout(() => {
+            window.dispatchEvent(new Event("checkThresholdAlerts"));
+          }, 1000);
+          
           navigate(`/bakery-dashboard/${userId}`);
         } else if (accountType === "charity") {
           // 🔐 CHECK IF USER MUST CHANGE ONE-TIME PASSWORD (Emergency Reset) - PRIORITY CHECK
@@ -364,9 +475,46 @@ const Login = () => {
       console.error("Login error:", error);
 
       let errorMessage = "Login failed. Please check your credentials.";
+      let errorTitle = "Login Failed";
 
+      // Handle account blocked error (status 429)
+      if (error.response?.status === 429) {
+        const detail = error.response.data.detail;
+        
+        if (typeof detail === 'object') {
+          // Structured error response with blocking details
+          errorTitle = "Account Temporarily Blocked";
+          errorMessage = `${detail.message}\n\nYou will be able to try again in: ${detail.remaining_time}\n\nTotal failed attempts: ${detail.total_failures}`;
+          
+          // Set blocked state and start countdown
+          setIsBlocked(true);
+          setBlockedUntil(detail.blocked_until);
+          
+          // Save to localStorage with account-specific key
+          const blockKey = `loginBlockedUntil_${identifier}`;
+          localStorage.setItem(blockKey, detail.blocked_until);
+          
+          // Calculate initial countdown
+          const now = new Date().getTime();
+          const blockTime = new Date(detail.blocked_until).getTime();
+          const remaining = Math.max(0, Math.floor((blockTime - now) / 1000));
+          setCountdown(remaining);
+        } else {
+          errorTitle = "Too Many Attempts";
+          errorMessage = detail || "Too many failed login attempts. Please try again later.";
+        }
+        
+        Swal.fire({
+          icon: "warning",
+          title: errorTitle,
+          html: errorMessage.replace(/\n/g, '<br>'),
+          confirmButtonColor: "#d33",
+        });
+        return;
+      }
+      
       if (error.response?.status === 403) {
-        // Part-time employee blocked
+        // Part-time employee blocked or role mismatch
         errorMessage =
           error.response.data.detail ||
           "Access denied. Part-time employees cannot log in to the system.";
@@ -376,7 +524,7 @@ const Login = () => {
 
       Swal.fire({
         icon: "error",
-        title: "Login Failed",
+        title: errorTitle,
         text: errorMessage,
       });
     } finally {
@@ -575,7 +723,7 @@ const Login = () => {
                     id="identifier"
                     type="text"
                     placeholder={
-                      role === "Bakery"
+                      role === "Donor"
                         ? "Enter your Email or Employee ID"
                         : "Enter your Email"
                     }
@@ -638,11 +786,28 @@ const Login = () => {
                 <Button
                   type="submit"
                   className="login-btn h-11 md:h-12 w-full text-[#FFE1BE] bg-gradient-to-r from-[#C39053] to-[#E3B57E]
-                             hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl"
-                  disabled={isLoggingIn}
+                             hover:from-[#E3B57E] hover:to-[#C39053] border border-[#FFE1BE]/60 shadow-md rounded-xl
+                             disabled:opacity-50 disabled:cursor-not-allowed disabled:from-gray-400 disabled:to-gray-500"
+                  disabled={isLoggingIn || isBlocked}
                 >
-                  {isLoggingIn ? 'Signing In...' : `Sign In as ${role}`}
+                  {isBlocked
+                    ? `🔒 Blocked - Retry in ${formatCountdown(countdown)}`
+                    : isLoggingIn
+                    ? 'Signing In...'
+                    : `Sign In as ${role}`}
                 </Button>
+
+                {/* Blocked warning message */}
+                {isBlocked && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                    <p className="text-sm text-red-700 font-medium">
+                      ⚠️ Too many failed login attempts
+                    </p>
+                    <p className="text-xs text-red-600 mt-1">
+                      Your account is temporarily blocked for security. Please wait {formatCountdown(countdown)}.
+                    </p>
+                  </div>
+                )}
 
                 {/* Bottom links */}
                 <div className="text-center text-[13.5px] sm:text-[14px]">
@@ -685,8 +850,8 @@ const Login = () => {
                 className="mt-5 text-[#8f642a] max-w-[52ch]"
                 style={{ fontSize: "var(--text)" }}
               >
-                Sign in with your Gmail account (Bakery, Charity, or Admin) or
-                your bakery employee ID to manage inventory and donations.
+                Sign in with your Gmail account (Donor, Charity, or Admin) or
+                your employee ID to manage inventory and donations.
               </p>
 
               <ul
@@ -696,7 +861,7 @@ const Login = () => {
                 <li className="flex items-start gap-3">
                   <Store className="h-5 w-5 mt-0.5 text-[#ce893b]" />
                   <span>
-                    Bakery Owners & Employees — Track inventory, manage
+                    Donors & Employees — Track inventory, manage
                     donations, and connect with charities.
                   </span>
                 </li>

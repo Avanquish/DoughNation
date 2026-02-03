@@ -162,7 +162,6 @@ export default function DataTable({
   onCreate,
   onUpdate,
   onDelete,
-  onForceDelete,
   entityType = "Item",
 }) {
   const [sorting, setSorting] = React.useState([]);
@@ -869,27 +868,13 @@ export default function DataTable({
                 <Trash2 className="w-4 h-4 mr-2" />
                 Delete
               </DropdownMenuItem>
-
-              {onForceDelete && (
-                <DropdownMenuItem
-                  onSelect={(e) => e.preventDefault()}
-                  onClick={() => {
-                    setOpenMenuForRow(null);
-                    onForceDelete(row.original.id, row.original.name);
-                  }}
-                  className="group rounded-lg px-3 py-2 text-white bg-red-600 hover:bg-red-700 focus:bg-red-700 cursor-pointer font-semibold"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Force Delete
-                </DropdownMenuItem>
-              )}
             </DropdownMenuContent>
           </DropdownMenu>
         ),
       },
     ];
     return baseColumns;
-  }, [columns, onDelete, onForceDelete, handleEdit, handleView, openMenuForRow]);
+  }, [columns, onDelete, handleEdit, handleView, openMenuForRow]);
 
   const table = useReactTable({
     data,

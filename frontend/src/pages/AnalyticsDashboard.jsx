@@ -102,14 +102,14 @@ const AnalyticsDashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Total Bakeries */}
+          {/* Total Donors */}
           <Card className="bg-gradient-to-br from-white to-[#FFF9F1] border-[#e8d8c2] shadow-sm hover:shadow-md hover:-translate-y-[2px] hover:scale-[1.02] transition-all duration-200 rounded-2xl">
             <CardHeader className="flex flex-row items-center justify-between pb-1.5 sm:pb-2">
               <CardTitle className="text-[10px] sm:text-xs font-semibold text-[#7b5836] flex items-center gap-2">
                 <span className="inline-flex items-center justify-center rounded-full bg-[#FFF0DA] p-1">
                   <Building2 className="w-4 h-4 text-[#BF7327]" />
                 </span>
-                Total Bakeries
+                Total Donors
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0.5 pb-2.5 sm:pb-3">
@@ -117,7 +117,7 @@ const AnalyticsDashboard = () => {
                 {users?.bakeries || 0}
               </div>
               <p className="text-[9px] sm:text-[11px] text-[#7b5836] mt-1">
-                Registered bakery accounts
+                Registered donor accounts
               </p>
             </CardContent>
           </Card>
@@ -228,6 +228,48 @@ const AnalyticsDashboard = () => {
           </Card>
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-4 mb-3 sm:mb-5">
+          {/* Donations Received from Donors */}
+          <Card className="bg-gradient-to-br from-white to-[#F1F8FF] border-[#d0e3f5] shadow-sm hover:shadow-md hover:-translate-y-[2px] hover:scale-[1.02] transition-all duration-200 rounded-2xl">
+            <CardHeader className="flex flex-row items-center justify-between pb-1.5 sm:pb-2">
+              <CardTitle className="text-[10px] sm:text-xs font-semibold text-[#2d5a7b] flex items-center gap-2">
+                <span className="inline-flex items-center justify-center rounded-full bg-blue-50 p-1">
+                  <TrendingUp className="w-4 h-4 text-[#3b82f6]" />
+                </span>
+                Donations Received
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0.5 pb-2.5 sm:pb-3">
+              <div className="text-xl sm:text-2xl font-extrabold text-[#1e40af]">
+                {donations?.received || 0}
+              </div>
+              <p className="text-[9px] sm:text-[11px] text-[#475569] mt-1">
+                From donors to admin inventory
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Donations to Charities */}
+          <Card className="bg-gradient-to-br from-white to-[#F0FDF4] border-[#d0ead8] shadow-sm hover:shadow-md hover:-translate-y-[2px] hover:scale-[1.02] transition-all duration-200 rounded-2xl">
+            <CardHeader className="flex flex-row items-center justify-between pb-1.5 sm:pb-2">
+              <CardTitle className="text-[10px] sm:text-xs font-semibold text-[#2f5e3f] flex items-center gap-2">
+                <span className="inline-flex items-center justify-center rounded-full bg-green-50 p-1">
+                  <HelpingHand className="w-4 h-4 text-[#10b981]" />
+                </span>
+                Donations to Charities
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0.5 pb-2.5 sm:pb-3">
+              <div className="text-xl sm:text-2xl font-extrabold text-[#059669]">
+                {donations?.to_charities || 0}
+              </div>
+              <p className="text-[9px] sm:text-[11px] text-[#475569] mt-1">
+                From admin to charity organizations
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-5">
           {/* User Distribution */}
           <Card className="bg-white/95 border-[#e8d8c2] shadow-sm rounded-2xl hover:shadow-md hover:-translate-y-[2px] hover:scale-[1.02] transition-all duration-200">
@@ -246,7 +288,7 @@ const AnalyticsDashboard = () => {
                     <span className="inline-flex items-center justify-center rounded-full bg-[#FFF1DC] p-2">
                       <Building2 className="w-5 h-5 text-[#BF7327]" />
                     </span>
-                    <span className="font-medium text-[#3b2a18]">Bakeries</span>
+                    <span className="font-medium text-[#3b2a18]">Donors</span>
                   </div>
                   <span className="text-lg sm:text-2xl font-extrabold text-[#2a170a]">
                     {users?.bakeries || 0}
@@ -322,14 +364,6 @@ const AnalyticsDashboard = () => {
             </CardHeader>
             <CardContent className="pt-1 pb-3">
               <div className="space-y-3.5 sm:space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-[#7b5836] flex items-center gap-2">
-                    Total Donations
-                  </span>
-                  <span className="text-lg sm:text-xl font-extrabold text-[#2a170a]">
-                    {donations?.total || 0}
-                  </span>
-                </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-[#7b5836]">
                     Total Audit Events

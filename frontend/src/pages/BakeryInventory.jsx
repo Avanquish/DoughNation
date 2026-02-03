@@ -125,6 +125,8 @@ export default function BakeryInventory({ isViewOnly = false }) {
   const [employees, setEmployees] = useState([]);
 
   const [showForm, setShowForm] = useState(false);
+  const [showFoodModal, setShowFoodModal] = useState(false);
+  const [showNonFoodModal, setShowNonFoodModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const debounceTimerRef = useRef(null);
@@ -137,8 +139,6 @@ export default function BakeryInventory({ isViewOnly = false }) {
   const [currentServerDate, setCurrentServerDate] = useState(null);
   const [isNameModified, setIsNameModified] = useState(false);
   const [originalName, setOriginalName] = useState("");
-  const [templateInfo, setTemplateInfo] = useState(null);
-  const [productCodePreview, setProductCodePreview] = useState(null);
 
   const [form, setForm] = useState({
     item_name: "",
@@ -149,9 +149,17 @@ export default function BakeryInventory({ isViewOnly = false }) {
     image_file: null,
     threshold: 0,
     uploaded: "", // Will be set from token
-    template_image: "",
+    donation_type: "Food", // NEW: Food, Clothes, School Supplies, Other
+    category: "", // NEW: For non-food items
+    condition: "", // NEW: For non-food items
   });
   const [shelfLifeDays, setShelfLifeDays] = useState(null);
+  
+  // NEW: Donation type selection state
+  const [showDonationTypeSelector, setShowDonationTypeSelector] = useState(false);
+  const [selectedDonationType, setSelectedDonationType] = useState(null);
+  const [categoryOther, setCategoryOther] = useState(false);
+  const [customCategory, setCustomCategory] = useState("");
 
   const [showDirectDonation, setShowDirectDonation] = useState(false);
   const [directForm, setDirectForm] = useState(null);
@@ -160,6 +168,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
   // Filters
   const [query, setQuery] = useState("");
   const [combinedFilter, setCombinedFilter] = useState("all"); // Combined filter for all statuses
+  const [activeTab, setActiveTab] = useState("Food"); // Food or Non-Food
 
   // Selection (bulk)
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -262,195 +271,9 @@ export default function BakeryInventory({ isViewOnly = false }) {
     }
   }, [showForm]);
 
-  // Fetch product code preview from backend
-  const fetchProductCodePreview = async (productName) => {
-    if (!productName.trim() || productName.trim().length < 3) {
-      setProductCodePreview(null);
-      return;
-    }
 
-    try {
-      const res = await axios.get(`${API}/inventory/product-code-preview`, {
-        params: { name: productName },
-        headers,
-      });
-      setProductCodePreview(res.data);
-    } catch (error) {
-      console.error("Error fetching product code preview:", error);
-      setProductCodePreview(null);
-    }
-  };
 
-  // Auto Fill Threshold and expiration date if product found on csv or database
-  const fetchProductTemplate = async (productName, isEditMode = false) => {
-    if (isFormClosing) {
-      return;
-    }
 
-    if (!productName.trim()) {
-      if (isEditMode && selectedItem?.creation_date) {
-        let creationDateStr;
-
-        if (isNameModified) {
-          // Name was changed - use current server date
-          const serverTimeRes = await axios.get(`${API}/server-time`, {
-            headers,
-          });
-          creationDateStr = serverTimeRes.data.date;
-        } else {
-          // Name not changed - use original creation date
-          creationDateStr = selectedItem.creation_date.split("T")[0];
-        }
-
-        const [year, month, day] = creationDateStr.split("-").map(Number);
-        const creationUTC = new Date(Date.UTC(year, month - 1, day));
-
-        // NOTE: res.data is not defined here anymore in your original logic.
-        // This branch is effectively unreachable with the current backend flow.
-        // Kept for structure but does nothing now.
-      } else {
-        setTemplateInfo(null);
-      }
-      return;
-    }
-
-    try {
-      const normalizedName = productName
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, "");
-
-      const res = await axios.get(
-        `${API}/inventory/template/${encodeURIComponent(normalizedName)}`,
-        { headers }
-      );
-
-      if (res.data.exists) {
-        let expirationStr;
-
-        if (isEditMode && selectedItem?.creation_date) {
-          // For EDIT mode: ALWAYS use the ORIGINAL creation date (never change it)
-          const creationDateStr = selectedItem.creation_date.split("T")[0];
-          const [year, month, day] = creationDateStr.split("-").map(Number);
-          const creationUTC = new Date(Date.UTC(year, month - 1, day));
-
-          const expirationUTC = new Date(creationUTC);
-          expirationUTC.setUTCDate(
-            expirationUTC.getUTCDate() + res.data.shelf_life_days
-          );
-
-          const expYear = expirationUTC.getUTCFullYear();
-          const expMonth = String(expirationUTC.getUTCMonth() + 1).padStart(
-            2,
-            "0"
-          );
-          const expDay = String(expirationUTC.getUTCDate()).padStart(2, "0");
-          expirationStr = `${expYear}-${expMonth}-${expDay}`;
-        } else {
-          // For ADD mode: Use server's current date
-          const serverTimeRes = await axios.get(`${API}/server-time`, {
-            headers,
-          });
-          const todayStr = serverTimeRes.data.date;
-
-          const [year, month, day] = todayStr.split("-").map(Number);
-          const todayUTC = new Date(Date.UTC(year, month - 1, day));
-
-          const expirationUTC = new Date(todayUTC);
-          expirationUTC.setUTCDate(
-            expirationUTC.getUTCDate() + res.data.shelf_life_days
-          );
-
-          const expYear = expirationUTC.getUTCFullYear();
-          const expMonth = String(expirationUTC.getUTCMonth() + 1).padStart(
-            2,
-            "0"
-          );
-          const expDay = String(expirationUTC.getUTCDate()).padStart(2, "0");
-          expirationStr = `${expYear}-${expMonth}-${expDay}`;
-        }
-
-        if (isEditMode) {
-          setTemplateInfo(res.data);
-          setSelectedItem((prev) => ({
-            ...prev,
-            threshold: res.data.threshold,
-            expiration_date: expirationStr,
-            description: res.data.description || prev.description,
-            template_image: res.data.image || "",
-          }));
-        } else {
-          // Update form for Add mode
-          setTemplateInfo(res.data);
-          setForm((prev) => ({
-            ...prev,
-            threshold: res.data.threshold,
-            expiration_date: expirationStr,
-            description: res.data.description || prev.description,
-            template_image: res.data.image || "",
-          }));
-        }
-
-        // Toast
-        const Toast = Swal.mixin({
-          toast: true,
-          position: "top-end",
-          showConfirmButton: false,
-          timer: 2000,
-          timerProgressBar: true,
-        });
-
-        const source = res.data.source === "csv" ? "CSV" : "Database";
-        Toast.fire({
-          icon: "success",
-          title: `Product found (${source})`,
-          text: `${res.data.product_name} - ${res.data.shelf_life_days} days`,
-        });
-      } else {
-        // Product not found - clear template info but preserve template_image if it exists
-        setTemplateInfo(null);
-
-        if (!isEditMode) {
-          setForm((prev) => ({
-            ...prev,
-            threshold: 0,
-            expiration_date: "",
-            description: "",
-            // Don't clear template_image here - it might be set from a previous template fetch
-          }));
-        }
-
-        // Toast
-        const Toast = Swal.mixin({
-          toast: true,
-          position: "top-end",
-          showConfirmButton: false,
-          timer: 1500,
-        });
-
-        Toast.fire({
-          icon: "info",
-          title: isEditMode ? "No template found" : "New product",
-          text: isEditMode
-            ? "Fields enabled for manual entry"
-            : "Please enter details manually",
-        });
-      }
-    } catch (err) {
-      console.error("Template fetch failed:", err);
-      setTemplateInfo(null);
-
-      if (!isEditMode) {
-        setForm((prev) => ({
-          ...prev,
-          threshold: 0,
-          expiration_date: "",
-          description: "",
-          // Don't clear template_image here - preserve it if already set
-        }));
-      }
-    }
-  };
 
   // Decode token to get user name on mount
   useEffect(() => {
@@ -571,10 +394,17 @@ export default function BakeryInventory({ isViewOnly = false }) {
     };
   }, [inventory]);
 
-  // Status counts
+  // Status counts (filtered by active tab)
   const combinedCounts = useMemo(() => {
+    // Filter inventory by active tab first
+    const tabFilteredInventory = inventory.filter(it => 
+      activeTab === "Food" 
+        ? it.donation_type === "Food" 
+        : it.donation_type !== "Food" // Non-Food includes Clothes, School Supplies, Other
+    );
+    
     const counts = {
-      all: inventory.length,
+      all: tabFilteredInventory.length,
       fresh: 0,
       soon: 0,
       expired: 0,
@@ -584,7 +414,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
       unavailable: 0,
     };
 
-    for (const it of inventory) {
+    for (const it of tabFilteredInventory) {
       const st = statusOf(it);
       const donationStatus =
         currentServerDate && st === "expired"
@@ -602,12 +432,17 @@ export default function BakeryInventory({ isViewOnly = false }) {
     }
 
     return counts;
-  }, [inventory, currentServerDate]);
+  }, [inventory, currentServerDate, activeTab]);
 
   // Filtered list
   const filteredInventory = useMemo(() => {
     const q = query.trim().toLowerCase();
     const filtered = inventory.filter((it) => {
+      // Filter by active tab (Food or Non-Food)
+      const tabMatch = activeTab === "Food" 
+        ? it.donation_type === "Food" 
+        : it.donation_type !== "Food"; // Non-Food includes Clothes, School Supplies, Other
+      if (!tabMatch) return false;
       // FRONTEND VALIDATION: Hide donated products after 7 days
       if (currentServerDate && it.status && it.status.toLowerCase() === "donated") {
         // Check if we can find a completion date (this is a fallback check)
@@ -713,12 +548,12 @@ export default function BakeryInventory({ isViewOnly = false }) {
       // If same status, maintain original order (by id)
       return a.id - b.id;
     });
-  }, [inventory, query, combinedFilter, currentServerDate]);
+  }, [inventory, query, combinedFilter, currentServerDate, activeTab]);
 
   // Reset page when filters or data change
   useEffect(() => {
     setPage(1);
-  }, [query, combinedFilter, inventory.length]);
+  }, [query, combinedFilter, inventory.length, activeTab]);
 
   // Pagination derived values
   const totalPages =
@@ -754,7 +589,32 @@ export default function BakeryInventory({ isViewOnly = false }) {
       return; // Prevent double submission
     }
 
-    if (!form.creation_date) {
+    // Validate donation type specific fields
+    if (form.donation_type === "Food") {
+      if (!form.creation_date) {
+        Swal.fire({
+          title: "Error",
+          text: "Creation date is required for food items.",
+          icon: "error",
+          confirmButtonColor: "#A97142",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (!form.expiration_date) {
+        Swal.fire({
+          title: "Error",
+          text: "Expiration date is required for food items.",
+          icon: "error",
+          confirmButtonColor: "#A97142",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
+    if (!form.creation_date && form.donation_type === "Food") {
       Swal.fire({
         title: "Error",
         text: "Creation date is missing. Please refresh the page.",
@@ -764,8 +624,8 @@ export default function BakeryInventory({ isViewOnly = false }) {
       return;
     }
 
-    // Validate that either an image file or template image exists
-    if (!form.image_file && !form.template_image) {
+    // Validate that an image file exists
+    if (!form.image_file) {
       Swal.fire({
         title: "Image Required",
         text: "Please upload a product image.",
@@ -777,9 +637,9 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
     setIsSubmitting(true);
 
-    // Calculate threshold days dynamically based on current date
+    // Calculate threshold days dynamically based on current date (Food items only)
     let thresholdDays = 2;
-    if (form.expiration_date && currentServerDate) {
+    if (form.donation_type === "Food" && form.expiration_date && currentServerDate) {
       const expDate = new Date(form.expiration_date);
       const [year, month, day] = currentServerDate.split("-").map(Number);
       const today = new Date(year, month - 1, day);
@@ -799,19 +659,35 @@ export default function BakeryInventory({ isViewOnly = false }) {
     const fd = new FormData();
     fd.append("name", form.item_name);
     fd.append("quantity", form.quantity);
-    // Ensure creation_date is in YYYY-MM-DD format
-    const creationDate = form.creation_date.includes("T")
-      ? form.creation_date.split("T")[0]
-      : form.creation_date;
-    fd.append("creation_date", creationDate);
-    fd.append("expiration_date", form.expiration_date);
-    fd.append("threshold", Math.max(0, thresholdDays)); // Store as integer days
+    
+    // For Food items, include creation_date, expiration_date, threshold
+    if (form.donation_type === "Food") {
+      // Ensure creation_date is in YYYY-MM-DD format
+      const creationDate = form.creation_date.includes("T")
+        ? form.creation_date.split("T")[0]
+        : form.creation_date;
+      fd.append("creation_date", creationDate);
+      fd.append("expiration_date", form.expiration_date);
+      fd.append("threshold", Math.max(0, thresholdDays)); // Store as integer days
+    } else {
+      // For non-food items, send empty strings for food-specific fields
+      fd.append("creation_date", "");
+      fd.append("expiration_date", "");
+      fd.append("threshold", "0");
+    }
+    
     fd.append("uploaded", form.uploaded);
     fd.append("description", form.description);
+    
+    // NEW: Append donation type fields
+    fd.append("donation_type", form.donation_type);
+    if (form.donation_type !== "Food") {
+      fd.append("category", form.category || "");
+      fd.append("condition", form.condition || "");
+    }
+    
     if (form.image_file) {
       fd.append("image", form.image_file);
-    } else if (form.template_image) {
-      fd.append("template_image", form.template_image);
     }
 
     try {
@@ -837,10 +713,14 @@ export default function BakeryInventory({ isViewOnly = false }) {
         image_file: null,
         threshold: 0,
         uploaded: uploaderName,
-        template_image: "",
+        donation_type: "Food",
+        category: "",
+        condition: "",
       });
-      setProductCodePreview(null);
       setShowForm(false);
+      setShowFoodModal(false);
+      setShowNonFoodModal(false);
+      setSelectedDonationType(null);
       await fetchInventory();
       window.dispatchEvent(new CustomEvent("inventory:changed"));
     } catch (error) {
@@ -902,10 +782,9 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
     if (!selectedItem || isUpdating) return; // Prevent double-click
 
-    // Validate that either an image file, template image, or existing image exists
+    // Validate that either an image file or existing image exists
     if (
       !selectedItem.image_file &&
-      !selectedItem.template_image &&
       !selectedItem.image
     ) {
       Swal.fire({
@@ -961,8 +840,6 @@ export default function BakeryInventory({ isViewOnly = false }) {
     fd.append("description", selectedItem.description || "");
     if (selectedItem.image_file) {
       fd.append("image", selectedItem.image_file);
-    } else if (selectedItem.template_image) {
-      fd.append("template_image", selectedItem.template_image);
     }
 
     try {
@@ -1092,6 +969,30 @@ export default function BakeryInventory({ isViewOnly = false }) {
         </div>
       </div>
 
+      {/* Tabs for Food/Non-Food */}
+      <div className="flex items-center gap-2 mb-4 border-b border-[#f2d4b5]">
+        <button
+          onClick={() => setActiveTab("Food")}
+          className={`px-6 py-3 font-semibold text-sm transition-all ${
+            activeTab === "Food"
+              ? "text-[#6b4b2b] border-b-2 border-[#E49A52] bg-[#FFF9F1]"
+              : "text-gray-500 hover:text-[#6b4b2b] hover:bg-[#FFF9F1]/50"
+          }`}
+        >
+          🍞 Food Items ({inventory.filter(it => it.donation_type === "Food").length})
+        </button>
+        <button
+          onClick={() => setActiveTab("Non-Food")}
+          className={`px-6 py-3 font-semibold text-sm transition-all ${
+            activeTab === "Non-Food"
+              ? "text-[#6b4b2b] border-b-2 border-[#E49A52] bg-[#FFF9F1]"
+              : "text-gray-500 hover:text-[#6b4b2b] hover:bg-[#FFF9F1]/50"
+          }`}
+        >
+          📦 Non-Food Items ({inventory.filter(it => it.donation_type !== "Food").length})
+        </button>
+      </div>
+
       {/* Bulk actions */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <span className="text-sm text-[#6b4b2b]">
@@ -1100,7 +1001,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
         {!isViewOnly && (
           <>
             <button
-              onClick={() => setShowForm(true)}
+              onClick={() => setShowDonationTypeSelector(true)}
               className={pillSolid}
               title="Add new product"
             >
@@ -1340,12 +1241,14 @@ export default function BakeryInventory({ isViewOnly = false }) {
                 )}
               </th>
               <th className="p-3">Product ID</th>
-              <th className="p-3">Product</th>
+              <th className="p-3">{activeTab === "Food" ? "Product" : "Item Name"}</th>
               <th className="p-3">Image</th>
               <th className="p-3">Qty</th>
-              <th className="p-3">Creation Date</th>
-              <th className="p-3">Consume Before</th>
-              <th className="p-3">Date of Donation</th>
+              {activeTab === "Food" && <th className="p-3">Creation Date</th>}
+              {activeTab === "Food" && <th className="p-3">Consume Before</th>}
+              {activeTab === "Food" && <th className="p-3">Date of Donation</th>}
+              {activeTab === "Non-Food" && <th className="p-3">Category</th>}
+              {activeTab === "Non-Food" && <th className="p-3">Condition</th>}
               <th className="p-3">Uploaded By</th>
               <th className="p-3">Description</th>
               <th className="p-3">Donation Status</th>
@@ -1406,9 +1309,9 @@ export default function BakeryInventory({ isViewOnly = false }) {
                       )}
                     </td>
                     <td className="p-3">{item.quantity}</td>
-                    <td className="p-3">{formatDate(item.creation_date)}</td>
-                    <td className="p-3">{formatDate(item.expiration_date)}</td>
-                    <td className="p-3">
+                    {activeTab === "Food" && <td className="p-3">{formatDate(item.creation_date)}</td>}
+                    {activeTab === "Food" && <td className="p-3">{formatDate(item.expiration_date)}</td>}
+                    {activeTab === "Food" && <td className="p-3">
                       {(() => {
                         if (!item.expiration_date || !item.threshold)
                           return "N/A";
@@ -1421,7 +1324,9 @@ export default function BakeryInventory({ isViewOnly = false }) {
 
                         return formatDate(thresholdDate.toISOString());
                       })()}
-                    </td>
+                    </td>}
+                    {activeTab === "Non-Food" && <td className="p-3">{item.category || "—"}</td>}
+                    {activeTab === "Non-Food" && <td className="p-3">{item.condition || "—"}</td>}
                     <td className="p-3">{item.uploaded || "System"}</td>
                     <td className="p-3">{item.description}</td>
 
@@ -1440,7 +1345,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
               })
             ) : (
               <tr>
-                <td colSpan={11}>
+                <td colSpan={activeTab === "Food" ? 11 : 9}>
                   <div className="h-40 grid place-items-center">
                     <div className="inline-flex items-center rounded-2xl border border-[#eadfce] bg-[#FFF9F1] px-5 py-3 shadow-sm text-sm text-[#7b5836]">
                       {query || combinedFilter !== "all"
@@ -1466,10 +1371,9 @@ export default function BakeryInventory({ isViewOnly = false }) {
               {filteredInventory.length}
               {" | "}
               Total Quantity:{" "}
-              {filteredInventory.reduce(
-                (sum, item) => sum + Number(item.quantity || 0),
-                0
-              )}
+              {filteredInventory
+                .filter(item => !item.status || item.status.toLowerCase() === "available")
+                .reduce((sum, item) => sum + Number(item.quantity || 0), 0)}
             </strong>
           </span>
 
@@ -1497,14 +1401,75 @@ export default function BakeryInventory({ isViewOnly = false }) {
         </div>
       )}
 
+      {/* --- Donation Type Selector Modal --- */}
+      {showDonationTypeSelector && (
+        <Overlay onClose={() => setShowDonationTypeSelector(false)}>
+          <div className="mx-auto bg-white rounded-2xl shadow-2xl ring-1 ring-black/10 overflow-hidden max-w-2xl w-full">
+            <div className={sectionHeader}>
+              <h2 className="text-xl font-semibold text-[#6b4b2b]">
+                What would you like to donate?
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">Select the type of donation you want to add</p>
+            </div>
+            <div className="p-6 grid grid-cols-2 gap-4">
+              {[
+                { 
+                  type: "Food", 
+                  icon: "🍞", 
+                  desc: "Baked goods & food items",
+                  color: "from-amber-50 to-orange-50 border-amber-200 hover:border-amber-400"
+                },
+                { 
+                  type: "Clothes", 
+                  icon: "👕", 
+                  desc: "Clothing & textiles",
+                  color: "from-blue-50 to-cyan-50 border-blue-200 hover:border-blue-400"
+                },
+                { 
+                  type: "School Supplies", 
+                  icon: "📚", 
+                  desc: "Educational materials",
+                  color: "from-green-50 to-emerald-50 border-green-200 hover:border-green-400"
+                },
+                { 
+                  type: "Other", 
+                  icon: "📦", 
+                  desc: "Other donation items",
+                  color: "from-purple-50 to-pink-50 border-purple-200 hover:border-purple-400"
+                }
+              ].map(({ type, icon, desc, color }) => (
+                <button
+                  key={type}
+                  onClick={() => {
+                    setSelectedDonationType(type);
+                    setForm(prev => ({ ...prev, donation_type: type }));
+                    setShowDonationTypeSelector(false);
+                    if (type === "Food") {
+                      setShowFoodModal(true);
+                    } else {
+                      setShowNonFoodModal(true);
+                    }
+                  }}
+                  className={`group relative p-6 text-center bg-gradient-to-br ${color} rounded-xl border-2 transition-all duration-200 shadow-sm hover:shadow-lg hover:scale-105`}
+                >
+                  <div className="text-5xl mb-3">{icon}</div>
+                  <div className="font-semibold text-[#6b4b2b] text-lg mb-1">{type}</div>
+                  <div className="text-xs text-gray-600">{desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </Overlay>
+      )}
+
       {/* --- Add Product Modal (sticky header + footer) --- */}
-      {showForm && (
-        <Overlay onClose={() => setShowForm(false)}>
+      {showFoodModal && (
+        <Overlay onClose={() => setShowFoodModal(false)}>
           <div className="mx-auto bg-white rounded-2xl shadow-2xl ring-1 ring-black/10 overflow-hidden max-h-[90vh] flex flex-col">
             {/* Top header */}
             <div className={sectionHeader}>
               <h2 className="text-xl font-semibold text-[#6b4b2b]">
-                Add Product
+                Add Food Donation 🍞
               </h2>
             </div>
 
@@ -1526,54 +1491,13 @@ export default function BakeryInventory({ isViewOnly = false }) {
                       placeholder="e.g., Pandesal"
                       value={form.item_name}
                       onChange={(e) => {
-                        const newName = e.target.value;
-                        setForm({ ...form, item_name: newName });
-
-                        // Clear previous timer
-                        if (debounceTimerRef.current) {
-                          clearTimeout(debounceTimerRef.current);
-                        }
-
-                        // Clear template and preview if name is too short
-                        if (newName.trim().length < 3) {
-                          setTemplateInfo(null);
-                          setProductCodePreview(null);
-                          // Clear template_image only if name is very short (less than 3 chars)
-                          setForm((prev) => ({
-                            ...prev,
-                            template_image: "",
-                          }));
-                          return;
-                        }
-
-                        // Set new timer - only fetch after user stops typing for 800ms
-                        debounceTimerRef.current = setTimeout(() => {
-                          fetchProductTemplate(newName);
-                          fetchProductCodePreview(newName);
-                        }, 800); // Wait 800ms after user stops typing
+                        setForm({ ...form, item_name: e.target.value });
                       }}
                       required
                     />
-                    {productCodePreview ? (
-                      <p className="mt-1 text-xs text-green-600">
-                        ✓ Next Product ID:{" "}
-                        <code className="font-semibold">
-                          {productCodePreview.next_product_id}
-                        </code>
-                        {!productCodePreview.is_mapped && (
-                          <span
-                            className="ml-1 text-amber-600"
-                            title="Auto-generated code"
-                          >
-                            (auto)
-                          </span>
-                        )}
-                      </p>
-                    ) : (
-                      <p className="mt-1 text-xs text-gray-500">
-                        Product ID will be generated automatically
-                      </p>
-                    )}
+                    <p className="mt-1 text-xs text-gray-500">
+                      Product ID will be generated automatically
+                    </p>
                   </div>
 
                   <div>
@@ -1589,19 +1513,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                         setForm({ ...form, image_file: e.target.files[0] })
                       }
                     />
-                    {form.template_image && !form.image_file && (
-                      <div className="mt-2">
-                        <p className="text-xs text-green-600 mb-2">
-                          ✓ Image will be auto-filled from template
-                        </p>
-                        <img
-                          src={`${API}/${form.template_image}`}
-                          alt="Template preview"
-                          className="h-20 w-20 object-cover rounded border border-green-200"
-                        />
-                      </div>
-                    )}
-                    {!form.template_image && !form.image_file && (
+                    {!form.image_file && (
                       <p className="mt-1 text-xs text-red-600">
                         Product image is required
                       </p>
@@ -1644,6 +1556,19 @@ export default function BakeryInventory({ isViewOnly = false }) {
                         onChange={(e) => {
                           const newCreationDate = e.target.value;
                           
+                          // Calculate threshold if both dates are available
+                          let newThreshold = form.threshold;
+                          if (form.expiration_date && newCreationDate) {
+                            const creation = new Date(newCreationDate);
+                            const expiration = new Date(form.expiration_date);
+                            const totalDays = Math.ceil(
+                              (expiration - creation) / (1000 * 60 * 60 * 24)
+                            );
+                            // Threshold = total days - 2 (donate 2 days before expiration)
+                            // But minimum threshold is 0
+                            newThreshold = Math.max(0, totalDays - 2);
+                          }
+                          
                           // If expiration date exists and creation date is being changed
                           if (form.expiration_date && newCreationDate) {
                             // Calculate current shelf life if not already set
@@ -1669,16 +1594,23 @@ export default function BakeryInventory({ isViewOnly = false }) {
                               const dd = String(newExpiration.getDate()).padStart(2, "0");
                               const newExpirationStr = `${yyyy}-${mm}-${dd}`;
                               
+                              // Recalculate threshold with new expiration
+                              const totalDaysNew = Math.ceil(
+                                (newExpiration - newCreation) / (1000 * 60 * 60 * 24)
+                              );
+                              newThreshold = Math.max(0, totalDaysNew - 2);
+                              
                               setForm({ 
                                 ...form, 
                                 creation_date: newCreationDate,
-                                expiration_date: newExpirationStr
+                                expiration_date: newExpirationStr,
+                                threshold: newThreshold
                               });
                               return;
                             }
                           }
                           
-                          setForm({ ...form, creation_date: newCreationDate });
+                          setForm({ ...form, creation_date: newCreationDate, threshold: newThreshold });
                         }}
                         required
                       />
@@ -1740,26 +1672,29 @@ export default function BakeryInventory({ isViewOnly = false }) {
                               })()
                             : ""
                         }
-                        className={`${inputTone} rounded-2xl ${
-                          templateInfo ? "bg-gray-100 cursor-not-allowed" : ""
-                        }`}
+                        className={`${inputTone} rounded-2xl`}
                         value={form.expiration_date}
                         onChange={(e) => {
                           const newExpirationDate = e.target.value;
-                          setForm({ ...form, expiration_date: newExpirationDate });
                           
-                          // Update shelf life when expiration changes
+                          // Calculate threshold if both dates are available
+                          let newThreshold = form.threshold;
                           if (form.creation_date && newExpirationDate) {
                             const creation = new Date(form.creation_date);
                             const expiration = new Date(newExpirationDate);
-                            const shelfLife = Math.ceil(
+                            const totalDays = Math.ceil(
                               (expiration - creation) / (1000 * 60 * 60 * 24)
                             );
-                            setShelfLifeDays(shelfLife);
+                            // Threshold = total days - 2 (donate 2 days before expiration)
+                            // But minimum threshold is 0
+                            newThreshold = Math.max(0, totalDays - 2);
+                            
+                            // Update shelf life
+                            setShelfLifeDays(totalDays);
                           }
+                          
+                          setForm({ ...form, expiration_date: newExpirationDate, threshold: newThreshold });
                         }}
-                        readOnly={!!templateInfo}
-                        disabled={!!templateInfo}
                         required
                       />
                       <p className="mt-1 text-xs text-gray-500">
@@ -1824,10 +1759,12 @@ export default function BakeryInventory({ isViewOnly = false }) {
                         disabled
                       />
                     </div>
-                    <div>
-                      <label htmlFor="prod_qty" className={labelTone}>
-                        Quantity
-                      </label>
+                    </div>
+
+                  <div>
+                    <label htmlFor="prod_qty" className={labelTone}>
+                      Quantity
+                    </label>
 
                       {/* stepper: - [input] + */}
                       <div className="flex items-center gap-3">
@@ -1905,7 +1842,6 @@ export default function BakeryInventory({ isViewOnly = false }) {
                         </button>
                       </div>
                     </div>
-                  </div>
 
                   <div>
                     <label htmlFor="prod_desc" className={labelTone}>
@@ -1951,9 +1887,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     if (debounceTimerRef.current) {
                       clearTimeout(debounceTimerRef.current);
                     }
-                    setShowForm(false);
-                    setTemplateInfo(null);
-                    setProductCodePreview(null);
+                    setShowFoodModal(false);
                     setShelfLifeDays(null);
                     setForm({
                       item_name: "",
@@ -1964,7 +1898,9 @@ export default function BakeryInventory({ isViewOnly = false }) {
                       image_file: null,
                       threshold: 0,
                       uploaded: uploaderName,
-                      template_image: "",
+                      donation_type: "Food",
+                      category: "",
+                      condition: "",
                     });
                     setTimeout(() => {
                       setIsFormClosing(false);
@@ -1980,6 +1916,310 @@ export default function BakeryInventory({ isViewOnly = false }) {
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? "Adding..." : "Add Product"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </Overlay>
+      )}
+
+      {/* --- Add Non-Food Donation Modal --- */}
+      {showNonFoodModal && (
+        <Overlay onClose={() => setShowNonFoodModal(false)}>
+          <div className="mx-auto bg-white rounded-2xl shadow-2xl ring-1 ring-black/10 overflow-hidden max-h-[90vh] flex flex-col">
+            {/* Top header */}
+            <div className={sectionHeader}>
+              <h2 className="text-xl font-semibold text-[#6b4b2b]">
+                Add {form.donation_type} Donation {
+                  form.donation_type === "Clothes" ? "👕" :
+                  form.donation_type === "School Supplies" ? "📚" : "📦"
+                }
+              </h2>
+            </div>
+
+            {/* Form: scrollable middle + sticky footer */}
+            <form
+              onSubmit={handleSubmit}
+              className="flex-1 flex flex-col min-h-0"
+            >
+              {/* Scrollable fields */}
+              <div className="flex-1 p-5 sm:p-6 overflow-y-auto">
+                <div className="grid gap-4">
+                  <div>
+                    <label htmlFor="nf_prod_name" className={labelTone}>
+                      Name
+                    </label>
+                    <input
+                      id="nf_prod_name"
+                      className={`${inputTone} rounded-2xl`}
+                      placeholder={`e.g., ${
+                        form.donation_type === "Clothes" ? "Winter Jacket" :
+                        form.donation_type === "School Supplies" ? "Notebooks Set" :
+                        "Miscellaneous Item"
+                      }`}
+                      value={form.item_name}
+                      onChange={(e) => {
+                        setForm({ ...form, item_name: e.target.value });
+                      }}
+                      required
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Product ID will be generated automatically
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="nf_prod_image" className={labelTone}>
+                      Picture
+                    </label>
+                    <input
+                      id="nf_prod_image"
+                      type="file"
+                      accept="image/*"
+                      className={`${inputTone} rounded-2xl file:mr-2 file:rounded-full file:border-0 file:bg-[#FFEFD9] file:px-3 file:py-1 file:text-xs file:font-medium file:text-[#6b4b2b]`}
+                      onChange={(e) =>
+                        setForm({ ...form, image_file: e.target.files[0] })
+                      }
+                    />
+                    {!form.image_file && (
+                      <p className="mt-1 text-xs text-red-600">
+                        Product image is required
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="nf_prod_category" className={labelTone}>
+                        Category
+                      </label>
+                      <select
+                        id="nf_prod_category"
+                        className={`${inputTone} rounded-2xl`}
+                        value={categoryOther ? "Other" : form.category}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value === "Other") {
+                            setCategoryOther(true);
+                            setForm({ ...form, category: "" });
+                          } else {
+                            setCategoryOther(false);
+                            setCustomCategory("");
+                            setForm({ ...form, category: value });
+                          }
+                        }}
+                        required
+                      >
+                        <option value="">Select category</option>
+                        {form.donation_type === "Clothes" && (
+                          <>
+                            <option value="Shirts & Tops">Shirts & Tops</option>
+                            <option value="Pants & Bottoms">Pants & Bottoms</option>
+                            <option value="Dresses & Skirts">Dresses & Skirts</option>
+                            <option value="Outerwear & Jackets">Outerwear & Jackets</option>
+                            <option value="Shoes & Footwear">Shoes & Footwear</option>
+                            <option value="Accessories">Accessories</option>
+                            <option value="Undergarments">Undergarments</option>
+                            <option value="Baby & Kids Clothing">Baby & Kids Clothing</option>
+                          </>
+                        )}
+                        {form.donation_type === "School Supplies" && (
+                          <>
+                            <option value="Writing Materials">Writing Materials (Pens, Pencils)</option>
+                            <option value="Notebooks & Paper">Notebooks & Paper</option>
+                            <option value="Art Supplies">Art Supplies</option>
+                            <option value="Books & Reading Materials">Books & Reading Materials</option>
+                            <option value="Backpacks & Bags">Backpacks & Bags</option>
+                            <option value="Calculators & Tech">Calculators & Tech</option>
+                            <option value="School Uniforms">School Uniforms</option>
+                            <option value="Educational Toys">Educational Toys</option>
+                          </>
+                        )}
+                        {form.donation_type === "Other" && (
+                          <>
+                            <option value="Household Items">Household Items</option>
+                            <option value="Toys & Games">Toys & Games</option>
+                            <option value="Electronics">Electronics</option>
+                            <option value="Furniture">Furniture</option>
+                            <option value="Kitchenware">Kitchenware</option>
+                            <option value="Sports Equipment">Sports Equipment</option>
+                            <option value="Medical Supplies">Medical Supplies</option>
+                            <option value="Hygiene Products">Hygiene Products</option>
+                          </>
+                        )}
+                        <option value="Other">Other (Specify)</option>
+                      </select>
+                      {categoryOther && (
+                        <input
+                          type="text"
+                          className={`${inputTone} rounded-2xl mt-2`}
+                          placeholder="Enter custom category"
+                          value={customCategory}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setCustomCategory(value);
+                            setForm({ ...form, category: value });
+                          }}
+                          required
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <label htmlFor="nf_prod_condition" className={labelTone}>
+                        Condition
+                      </label>
+                      <select
+                        id="nf_prod_condition"
+                        className={`${inputTone} rounded-2xl`}
+                        value={form.condition}
+                        onChange={(e) => setForm({ ...form, condition: e.target.value })}
+                        required
+                      >
+                        <option value="">Select condition</option>
+                        <option value="New">New</option>
+                        <option value="Like New">Like New</option>
+                        <option value="Good">Good</option>
+                        <option value="Fair">Fair</option>
+                        <option value="Used">Used</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="nf_prod_qty" className={labelTone}>
+                      Quantity
+                    </label>
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        className="shrink-0 h-10 w-10 sm:h-11 sm:w-11 grid place-items-center rounded-2xl border border-[#f2d4b5] bg-white hover:bg-[#FFF6E9] transition shadow-sm"
+                        onClick={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            quantity: Math.max(1, Number(prev.quantity || 1) - 1),
+                          }))
+                        }
+                        aria-label="Decrease quantity"
+                      >
+                        <span className="text-lg leading-none text-[#6b4b2b]">−</span>
+                      </button>
+
+                      <input
+                        id="nf_prod_qty"
+                        type="number"
+                        min="1"
+                        className={`${inputTone} rounded-2xl text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                        value={form.quantity}
+                        onInput={(e) => {
+                          e.currentTarget.value = e.currentTarget.value.replace(/^0+(?=\d)/, "");
+                        }}
+                        onChange={(e) => {
+                          const value = e.target.value === "" ? "" : parseInt(e.target.value, 10);
+                          if (value === 0) {
+                            Swal.fire({
+                              title: "Invalid Quantity",
+                              text: "Quantity must be at least 1.",
+                              icon: "warning",
+                              confirmButtonColor: "#A97142",
+                              timer: 2500,
+                            });
+                            return;
+                          }
+                          setForm({ ...form, quantity: value });
+                        }}
+                        required
+                      />
+
+                      <button
+                        type="button"
+                        className="shrink-0 h-10 w-10 sm:h-11 sm:w-11 grid place-items-center rounded-2xl border border-[#f2d4b5] bg-white hover:bg-[#FFF6E9] transition shadow-sm"
+                        onClick={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            quantity: Number(prev.quantity || 1) + 1,
+                          }))
+                        }
+                        aria-label="Increase quantity"
+                      >
+                        <span className="text-lg leading-none text-[#6b4b2b]">＋</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="nf_prod_desc" className={labelTone}>
+                      Description
+                    </label>
+                    <textarea
+                      id="nf_prod_desc"
+                      className={`${inputTone} rounded-2xl min-h-[90px]`}
+                      placeholder="Add a short description"
+                      value={form.description}
+                      onChange={(e) =>
+                        setForm({ ...form, description: e.target.value })
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="nf_prod_uploader" className={labelTone}>
+                      Uploaded By
+                    </label>
+                    <input
+                      id="nf_prod_uploader"
+                      type="text"
+                      className="w-full border-0 bg-transparent p-2 text-sm text-[#6b4b2b] cursor-not-allowed focus:ring-0 focus:border-0"
+                      value={form.uploaded}
+                      readOnly
+                      disabled
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Auto-filled from your login
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sticky footer buttons */}
+              <div className="p-5 sm:p-6 border-t bg-white flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsFormClosing(true);
+                    if (debounceTimerRef.current) {
+                      clearTimeout(debounceTimerRef.current);
+                    }
+                    setShowNonFoodModal(false);
+                    setCategoryOther(false);
+                    setCustomCategory("");
+                    setForm({
+                      item_name: "",
+                      quantity: 1,
+                      creation_date: "",
+                      expiration_date: "",
+                      description: "",
+                      image_file: null,
+                      threshold: 0,
+                      uploaded: uploaderName,
+                      donation_type: form.donation_type,
+                      category: "",
+                      condition: "",
+                    });
+                    setTimeout(() => {
+                      setIsFormClosing(false);
+                    }, 100);
+                  }}
+                  className={pillOutline}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className={pillSolid}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Adding..." : "Add Donation"}
                 </button>
               </div>
             </form>
@@ -2289,17 +2529,8 @@ export default function BakeryInventory({ isViewOnly = false }) {
                           threshold: originalItem.threshold,
                           description: originalItem.description,
                         });
-                        setTemplateInfo(null); // Clear template lock
                       }
                       return;
-                    }
-
-                    // Only fetch template if name was actually changed
-                    if (nameChanged) {
-                      // Set new timer - fetch after user stops typing for 800ms
-                      editDebounceTimerRef.current = setTimeout(() => {
-                        fetchProductTemplate(newName, true); // Pass true for edit mode
-                      }, 800);
                     }
                   }}
                   required
@@ -2327,20 +2558,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     ✓ Current image: {selectedItem.image.split("/").pop()}
                   </p>
                 )}
-                {selectedItem.template_image && !selectedItem.image_file && (
-                  <div className="mt-2">
-                    <p className="text-xs text-green-600 mb-2">
-                      ✓ Template image available
-                    </p>
-                    <img
-                      src={`${API}/${selectedItem.template_image}`}
-                      alt="Template preview"
-                      className="h-20 w-20 object-cover rounded border border-green-200"
-                    />
-                  </div>
-                )}
                 {!selectedItem.image &&
-                  !selectedItem.template_image &&
                   !selectedItem.image_file && (
                     <p className="mt-1 text-xs text-red-600">
                       Product image is required
@@ -2511,12 +2729,26 @@ export default function BakeryInventory({ isViewOnly = false }) {
                         ? selectedItem.creation_date.split("T")[0]
                         : ""
                     }
-                    onChange={(e) =>
-                      setSelectedItem({
+                    onChange={(e) => {
+                      const newCreationDate = e.target.value;
+                      const newSelectedItem = {
                         ...selectedItem,
-                        creation_date: e.target.value,
-                      })
-                    }
+                        creation_date: newCreationDate,
+                      };
+                      
+                      // Calculate threshold if both dates are available
+                      if (selectedItem.expiration_date && newCreationDate) {
+                        const creation = new Date(newCreationDate);
+                        const expiration = new Date(selectedItem.expiration_date);
+                        const totalDays = Math.ceil(
+                          (expiration - creation) / (1000 * 60 * 60 * 24)
+                        );
+                        // Threshold = total days - 2 (donate 2 days before expiration)
+                        newSelectedItem.threshold = Math.max(0, totalDays - 2);
+                      }
+                      
+                      setSelectedItem(newSelectedItem);
+                    }}
                     required
                   />
                   <p className="mt-1 text-xs text-gray-500">
@@ -2571,15 +2803,25 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     className={`${inputTone} rounded-2xl`}
                     value={selectedItem.expiration_date}
                     onChange={(e) => {
-                      // Clear templateInfo to enable threshold field
-                      if (templateInfo?.locked) {
-                        setTemplateInfo(null);
-                      }
+                      const newExpirationDate = e.target.value;
 
-                      setSelectedItem({
+                      const newSelectedItem = {
                         ...selectedItem,
-                        expiration_date: e.target.value,
-                      });
+                        expiration_date: newExpirationDate,
+                      };
+                      
+                      // Calculate threshold if both dates are available
+                      if (selectedItem.creation_date && newExpirationDate) {
+                        const creation = new Date(selectedItem.creation_date);
+                        const expiration = new Date(newExpirationDate);
+                        const totalDays = Math.ceil(
+                          (expiration - creation) / (1000 * 60 * 60 * 24)
+                        );
+                        // Threshold = total days - 2 (donate 2 days before expiration)
+                        newSelectedItem.threshold = Math.max(0, totalDays - 2);
+                      }
+                      
+                      setSelectedItem(newSelectedItem);
                     }}
                     required
                   />
@@ -2636,8 +2878,7 @@ export default function BakeryInventory({ isViewOnly = false }) {
                     clearTimeout(editDebounceTimerRef.current);
                   }
 
-                  // Clear template info and reset flags
-                  setTemplateInfo(null);
+                  // Reset flags
                   setIsNameModified(false);
                   setOriginalName("");
 

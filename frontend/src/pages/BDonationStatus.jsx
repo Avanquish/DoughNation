@@ -10,7 +10,6 @@ const statusOrder = [
   "preparing",
   "ready_for_pickup",
   "in_transit",
-  "received",
   "complete",
 ];
 
@@ -112,23 +111,27 @@ const isComplete = (d) => {
 };
 
 const bucketize4 = (list = []) => {
-  const pending = [];
   const preparing = [];
-  const complete = [];
+  const ready_for_pickup = [];
+  const in_transit = [];
+  const receivedComplete = [];
+  
   list.forEach((d) => {
     const raw = (d.tracking_status || d.status || "").toLowerCase();
+    const normalized = raw === "pending" ? "preparing" : raw;
 
-    if (isComplete(d)) {
-      complete.push(d);
-      return;
+    if (normalized === "completed" || normalized === "complete" || normalized === "received") {
+      receivedComplete.push(d);
+    } else if (normalized === "in_transit") {
+      in_transit.push(d);
+    } else if (normalized === "ready_for_pickup") {
+      ready_for_pickup.push(d);
+    } else {
+      preparing.push(d);
     }
-    if (raw === "pending") {
-      pending.push(d);
-      return;
-    }
-    preparing.push(d);
   });
-  return { pending, preparing, complete };
+  
+  return { preparing, ready_for_pickup, in_transit, receivedComplete };
 };
 
 const prioritySort = (list = []) => {
@@ -269,6 +272,7 @@ const StatusPill = ({ status }) => (
 const BDonationStatus = () => {
   const [receivedDonations, setReceivedDonations] = useState([]);
   const [directDonations, setDirectDonations] = useState([]);
+  const [adminDonations, setAdminDonations] = useState([]); // Donations to admin
   const [currentUser, setCurrentUser] = useState(null);
   const [highlightedId, setHighlightedId] = useState(null);
   const [selectedDonation, setSelectedDonation] = useState(null);
@@ -387,7 +391,8 @@ const BDonationStatus = () => {
   const handleUpdateTracking = async (
     donationId,
     currentStatus,
-    isDirect = false
+    isDirect = false,
+    isAdminDonation = false
   ) => {
     if (isUpdatingTracking) return;
 
@@ -404,17 +409,24 @@ const BDonationStatus = () => {
     const nextStatus = nextStatusMap[currentStatus];
     if (!nextStatus) return;
 
-    const endpoint = isDirect
-      ? `${API}/direct/tracking/${donationId}`
-      : `${API}/donation/tracking/${donationId}`;
+    let endpoint;
+    let body;
+    
+    if (isAdminDonation) {
+      endpoint = `${API}/admin/admin-donations/${donationId}/tracking`;
+      body = { tracking_status: nextStatus };
+    } else if (isDirect) {
+      endpoint = `${API}/direct/tracking/${donationId}`;
+      body = { btracking_status: nextStatus };
+    } else {
+      endpoint = `${API}/donation/tracking/${donationId}`;
+      body = { tracking_status: nextStatus };
+    }
 
     setIsUpdatingTracking(true);
     try {
-      const body = isDirect
-        ? { btracking_status: nextStatus }
-        : { tracking_status: nextStatus };
       const res = await fetch(endpoint, {
-        method: "POST",
+        method: isAdminDonation ? "PUT" : "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -423,7 +435,13 @@ const BDonationStatus = () => {
       });
 
       if (res.ok) {
-        if (isDirect) {
+        if (isAdminDonation) {
+          setAdminDonations((prev) =>
+            prev.map((d) =>
+              d.id === donationId ? { ...d, tracking_status: nextStatus } : d
+            )
+          );
+        } else if (isDirect) {
           setDirectDonations((prev) =>
             prev.map((d) =>
               d.id === donationId ? { ...d, tracking_status: nextStatus } : d
@@ -457,7 +475,7 @@ const BDonationStatus = () => {
       const token =
         localStorage.getItem("employeeToken") || localStorage.getItem("token");
 
-      if (currentUser.role === "charity" || currentUser.role === "bakery") {
+      if (currentUser.role === "charity" || currentUser.role === "bakery" || currentUser.role === "donor") {
         const url =
           currentUser.role === "charity"
             ? `${API}/donation/received`
@@ -465,9 +483,12 @@ const BDonationStatus = () => {
         fetch(url, { headers: { Authorization: `Bearer ${token}` } })
           .then((res) => res.json())
           .then((data) => {
+            console.log('📋 Requested donations raw data:', data);
             const accepted = (data || []).filter((d) => d.status === "accepted");
             const pending = (data || []).filter((d) => d.status === "pending");
 
+            console.log('✅ Accepted:', accepted.length, 'Pending:', pending.length);
+            
             setAcceptedNorm(
               accepted.map((d) => ({
                 ...d,
@@ -490,7 +511,7 @@ const BDonationStatus = () => {
           );
       }
 
-      if (currentUser.role === "bakery") {
+      if (currentUser.role === "bakery" || currentUser.role === "donor") {
         (async () => {
           try {
             const resp = await fetch(`${API}/direct/bakery`, {
@@ -510,6 +531,38 @@ const BDonationStatus = () => {
             );
           } catch (e) {
             console.error("Failed to fetch direct donations:", e);
+          }
+        })();
+        
+        // Fetch donations to admin (Scholars Of Sustenance)
+        (async () => {
+          try {
+            console.log('🔍 Fetching admin donations...');
+            // Updated endpoint with /admin prefix
+            const resp = await fetch(`${API}/admin/admin-donations`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const data = await resp.json();
+            console.log('📦 Admin donations response:', data);
+            
+            const mappedData = (data || []).map((d) => ({
+              ...d,
+              // Map API fields to Card component expected fields
+              name: d.donation_name || d.name,
+              image: d.donation_image || d.image,
+              quantity: d.donation_quantity || d.quantity,
+              expiration_date: d.donation_expiration || d.expiration_date,
+              tracking_status: (d.tracking_status || "preparing").toLowerCase(),
+              recipient_name: "Scholars Of Sustenance",
+              charity_name: "Scholars Of Sustenance",
+              admin_profile_picture: d.admin_profile_picture,
+              isDonationToAdmin: true,
+            }));
+            
+            console.log('✅ Mapped admin donations:', mappedData);
+            setAdminDonations(mappedData);
+          } catch (e) {
+            console.error("Failed to fetch admin donations:", e);
           }
         })();
       }
@@ -837,20 +890,45 @@ const BDonationStatus = () => {
                     Donation For:
                   </p>
                   <div className="flex items-center gap-2">
-                    {d.charity_profile_picture ? (
-                      <img
-                        src={`${API}/${d.charity_profile_picture}`}
-                        alt={d.charity_name || "Charity"}
-                        className="w-7 h-7 rounded-full object-cover"
-                      />
+                    {d.isDonationToAdmin ? (
+                      <>
+                        <img 
+                          src={`${API}/uploads/profile_pictures/admin_profile.png`}
+                          alt="Scholars Of Sustenance"
+                          className="w-7 h-7 rounded-full object-cover border border-[#f2e3cf]"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling.style.display = 'grid';
+                          }}
+                        />
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#E49A52] to-[#BF7327] place-items-center text-white font-bold text-xs hidden">
+                          S
+                        </div>
+                        <span className="text-sm font-bold text-[#4A2F17] line-clamp-1">
+                          Scholars Of Sustenance
+                        </span>
+                      </>
+                    ) : d.charity_profile_picture ? (
+                      <>
+                        <img
+                          src={`${API}/${d.charity_profile_picture}`}
+                          alt={d.charity_name || "Charity"}
+                          className="w-7 h-7 rounded-full object-cover"
+                        />
+                        <span className="text-sm font-medium text-[#4A2F17] line-clamp-1">
+                          {d.charity_name || "—"}
+                        </span>
+                      </>
                     ) : (
-                      <div className="w-7 h-7 rounded-full bg-gray-300 grid place-items-center text-gray-600">
-                        ?
-                      </div>
+                      <>
+                        <div className="w-7 h-7 rounded-full bg-gray-300 grid place-items-center text-gray-600">
+                          ?
+                        </div>
+                        <span className="text-sm font-medium text-[#4A2F17] line-clamp-1">
+                          {d.charity_name || "—"}
+                        </span>
+                      </>
                     )}
-                    <span className="text-sm font-medium text-[#4A2F17] line-clamp-1">
-                      {d.charity_name || "—"}
-                    </span>
                   </div>
                 </>
               )}
@@ -1080,6 +1158,11 @@ const BDonationStatus = () => {
     () => directDonations.filter(matchesDir),
     [directDonations, qDirApplied]
   );
+  
+  const adminFiltered = React.useMemo(
+    () => adminDonations.filter(matchesReq),
+    [adminDonations, qReqApplied]
+  );
 
   const onlyReqActive = qReqApplied && !qDirApplied;
   const onlyDirActive = qDirApplied && !qReqApplied;
@@ -1107,6 +1190,9 @@ const BDonationStatus = () => {
       {/* Requested */}
       {showRequested && (
         <Section title="Requested Donations" count={receivedFiltered.length}>
+          {console.log('📊 Requested section - receivedDonations:', receivedDonations)}
+          {console.log('📊 Requested section - receivedFiltered:', receivedFiltered)}
+          {console.log('📊 Requested section - currentUser:', currentUser)}
           <div className="mb-3 flex justify-end">
             <SearchBar
               value={qReqApplied}
@@ -1117,27 +1203,12 @@ const BDonationStatus = () => {
 
           {receivedFiltered.length > 0 ? (
             (() => {
-              const { pending, preparing, complete } = bucketize4(
+              const { preparing, ready_for_pickup, in_transit, receivedComplete } = bucketize4(
                 sortByStatus(receivedFiltered)
               );
               return (
-                <div className="grid gap-4 md:grid-cols-3">
-                  {/* Pending column with pagination */}
-                  <ScrollColumn
-                    title={`Pending (${pending.length})`}
-                    items={prioritySort(pending)}
-                    emptyText="No pending items."
-                    renderItem={(d) => (
-                      <Card
-                        compact
-                        key={`req-p-${d.id}`}
-                        d={d}
-                        onClick={() => setSelectedDonation(d)}
-                      />
-                    )}
-                  />
-
-                  {/* Preparing column with pagination */}
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+                  {/* Preparing */}
                   <ScrollColumn
                     title={`Preparing (${preparing.length})`}
                     items={prioritySort(preparing)}
@@ -1152,15 +1223,45 @@ const BDonationStatus = () => {
                     )}
                   />
 
-                  {/* Complete column with pagination */}
+                  {/* Ready for Pickup */}
                   <ScrollColumn
-                    title={`Complete (${complete.length})`}
-                    items={prioritySort(complete)}
-                    emptyText="No completed items."
+                    title={`Ready for Pickup (${ready_for_pickup.length})`}
+                    items={prioritySort(ready_for_pickup)}
+                    emptyText="No items ready."
                     renderItem={(d) => (
                       <Card
                         compact
-                        key={`req-c-${d.id}`}
+                        key={`req-ready-${d.id}`}
+                        d={d}
+                        onClick={() => setSelectedDonation(d)}
+                      />
+                    )}
+                  />
+
+                  {/* In Transit */}
+                  <ScrollColumn
+                    title={`In Transit (${in_transit.length})`}
+                    items={prioritySort(in_transit)}
+                    emptyText="No items in transit."
+                    renderItem={(d) => (
+                      <Card
+                        compact
+                        key={`req-transit-${d.id}`}
+                        d={d}
+                        onClick={() => setSelectedDonation(d)}
+                      />
+                    )}
+                  />
+
+                  {/* Received/Complete */}
+                  <ScrollColumn
+                    title={`Received/Complete (${receivedComplete.length})`}
+                    items={prioritySort(receivedComplete)}
+                    emptyText="No received items."
+                    renderItem={(d) => (
+                      <Card
+                        compact
+                        key={`req-complete-${d.id}`}
                         d={d}
                         onClick={() => setSelectedDonation(d)}
                       />
@@ -1209,33 +1310,66 @@ const BDonationStatus = () => {
 
           {directFiltered.length > 0 ? (
             (() => {
-              const { preparing, complete } = bucketize4(
+              const { preparing, ready_for_pickup, in_transit, receivedComplete } = bucketize4(
                 sortByStatus(directFiltered)
               );
 
               return (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Direct - Preparing with pagination */}
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+                  {/* Preparing */}
                   <ScrollColumn
                     title={`Preparing (${preparing.length})`}
                     items={prioritySort(preparing)}
                     emptyText="No preparing items."
                     renderItem={(d) => (
                       <Card
+                        compact
                         key={`dir-prep-${d.id}`}
                         d={d}
                         onClick={() => setSelectedDonation(d)}
                       />
                     )}
                   />
-                  {/* Direct - Complete with pagination */}
+
+                  {/* Ready for Pickup */}
                   <ScrollColumn
-                    title={`Complete (${complete.length})`}
-                    items={prioritySort(complete)}
-                    emptyText="No completed items."
+                    title={`Ready for Pickup (${ready_for_pickup.length})`}
+                    items={prioritySort(ready_for_pickup)}
+                    emptyText="No items ready."
                     renderItem={(d) => (
                       <Card
-                        key={`dir-c-${d.id}`}
+                        compact
+                        key={`dir-ready-${d.id}`}
+                        d={d}
+                        onClick={() => setSelectedDonation(d)}
+                      />
+                    )}
+                  />
+
+                  {/* In Transit */}
+                  <ScrollColumn
+                    title={`In Transit (${in_transit.length})`}
+                    items={prioritySort(in_transit)}
+                    emptyText="No items in transit."
+                    renderItem={(d) => (
+                      <Card
+                        compact
+                        key={`dir-transit-${d.id}`}
+                        d={d}
+                        onClick={() => setSelectedDonation(d)}
+                      />
+                    )}
+                  />
+
+                  {/* Received/Complete */}
+                  <ScrollColumn
+                    title={`Received/Complete (${receivedComplete.length})`}
+                    items={prioritySort(receivedComplete)}
+                    emptyText="No received items."
+                    renderItem={(d) => (
+                      <Card
+                        compact
+                        key={`dir-complete-${d.id}`}
                         d={d}
                         onClick={() => setSelectedDonation(d)}
                       />
@@ -1265,6 +1399,117 @@ const BDonationStatus = () => {
       "
               >
                 No direct donations yet.
+              </p>
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* NGO Donation (Donations to Admin - Scholars Of Sustenance) */}
+      {currentUser?.role === "donor" && (
+        <Section title="NGO Donation" count={adminDonations.length}>
+          {console.log('🎯 NGO Section - adminDonations:', adminDonations)}
+          {console.log('🎯 NGO Section - adminFiltered:', adminFiltered)}
+          {console.log('🎯 NGO Section - currentUser:', currentUser)}
+          <div className="mb-3 flex justify-end">
+            <SearchBar
+              value={qReqApplied}
+              onSearch={(term) => setQReqApplied(term)}
+              onClear={() => setQReqApplied("")}
+            />
+          </div>
+
+          {adminFiltered.length > 0 ? (
+            (() => {
+              const { preparing, ready_for_pickup, in_transit, receivedComplete } = bucketize4(
+                sortByStatus(adminFiltered)
+              );
+
+              return (
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+                  {/* Preparing */}
+                  <ScrollColumn
+                    title={`Preparing (${preparing.length})`}
+                    items={prioritySort(preparing)}
+                    emptyText="No preparing items."
+                    renderItem={(d) => (
+                      <Card
+                        compact
+                        key={`ngo-prep-${d.id}`}
+                        d={d}
+                        onClick={() => setSelectedDonation(d)}
+                      />
+                    )}
+                  />
+
+                  {/* Ready for Pickup */}
+                  <ScrollColumn
+                    title={`Ready for Pickup (${ready_for_pickup.length})`}
+                    items={prioritySort(ready_for_pickup)}
+                    emptyText="No items ready."
+                    renderItem={(d) => (
+                      <Card
+                        compact
+                        key={`ngo-ready-${d.id}`}
+                        d={d}
+                        onClick={() => setSelectedDonation(d)}
+                      />
+                    )}
+                  />
+
+                  {/* In Transit */}
+                  <ScrollColumn
+                    title={`In Transit (${in_transit.length})`}
+                    items={prioritySort(in_transit)}
+                    emptyText="No in transit items."
+                    renderItem={(d) => (
+                      <Card
+                        compact
+                        key={`ngo-transit-${d.id}`}
+                        d={d}
+                        onClick={() => setSelectedDonation(d)}
+                      />
+                    )}
+                  />
+
+                  {/* Received/Complete */}
+                  <ScrollColumn
+                    title={`Received/Complete (${receivedComplete.length})`}
+                    items={prioritySort(receivedComplete)}
+                    emptyText="No received items."
+                    renderItem={(d) => (
+                      <Card
+                        compact
+                        key={`ngo-complete-${d.id}`}
+                        d={d}
+                        onClick={() => setSelectedDonation(d)}
+                      />
+                    )}
+                  />
+                </div>
+              );
+            })()
+          ) : (
+            <div
+              className="
+      mt-2
+      rounded-3xl
+      border border-[#eadfce]
+      bg-gradient-to-br from-[#FFF9F1] via-[#FFF7ED] to-[#FFEFD9]
+      shadow-[0_2px_8px_rgba(93,64,28,0.06)]
+      h-48 sm:h-56
+      flex items-center justify-center
+    "
+            >
+              <p
+                className="
+        text-sm text-[#7b5836]
+        bg-white/70 border border-[#f2e3cf]
+        rounded-2xl px-4 py-6
+        text-center
+      "
+              >
+                No NGO donations yet. Donate items via threshold alerts to Scholars Of Sustenance.
               </p>
             </div>
           )}
@@ -1389,7 +1634,8 @@ const BDonationStatus = () => {
                     handleUpdateTracking(
                       selectedDonation.id,
                       selectedDonation.tracking_status,
-                      selectedDonation.btracking_status !== undefined
+                      selectedDonation.btracking_status !== undefined,
+                      selectedDonation.isDonationToAdmin === true
                     )
                   }
                   className="mt-6 w-full rounded-full px-5 py-3 font-semibold text-white

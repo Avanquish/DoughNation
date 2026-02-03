@@ -239,7 +239,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
                 if target == "charities":
                     q = q.filter(models.User.role == "Charity")
                 elif target == "bakeries":
-                    q = q.filter(models.User.role == "Bakery")
+                    q = q.filter(models.User.role == "Donor")
                 elif target in ["users", "all"]:
                     pass  # keep both charities + bakeries
 

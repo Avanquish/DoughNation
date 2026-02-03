@@ -1,10 +1,12 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, UploadFile, Form, File, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from datetime import date, datetime, timedelta
 from app import crud, auth, database, schemas, models
 from app.auth import create_access_token, get_current_user, verify_password
 from app.event_logger import log_system_event
+from app.login_security import check_login_block, record_failed_attempt, clear_login_attempts
 from passlib.context import CryptContext
 from app.timezone_utils import now_ph, to_ph_timezone
 import random
@@ -150,12 +152,12 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     """
     🔑 UNIFIED LOGIN SYSTEM
     
-    Supports both User (Bakery/Charity/Admin) and Employee accounts:
+    Supports both User (Donor/Charity/Admin) and Employee accounts:
     - Users log in with EMAIL + PASSWORD
     - Employees log in with NAME + PASSWORD (identifier field accepts name)
     
     Returns JWT with:
-    - type: "bakery" | "charity" | "admin" | "employee"
+    - type: "donor" | "charity" | "admin" | "employee"
     - role: user's specific role
     - appropriate ID fields
     
@@ -169,7 +171,14 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
     
     identifier = user.email.strip()
     
-    # STEP 1: Try to find User account (Bakery/Charity/Admin) by EMAIL
+    # Check if login is currently blocked due to failed attempts
+    try:
+        check_login_block(db, identifier, "user")
+    except HTTPException as e:
+        # Re-raise with detailed message
+        raise e
+    
+    # STEP 1: Try to find User account (Donor/Charity/Admin) by EMAIL
     db_user = db.query(models.User).filter(models.User.email == identifier).first()
     
     if db_user:
@@ -223,6 +232,13 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
                 metadata={"email": db_user.email, "role": db_user.role, "reason": "invalid_password"}
             )
             
+            # Record failed attempt and potentially block account
+            try:
+                record_failed_attempt(db, identifier, "user")
+            except HTTPException:
+                # re-raise the block exception
+                raise
+            
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
         # Check account status
@@ -265,8 +281,8 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
             )
         
         if db_user.status == "Deactivated":
-            # Allow bakery and charity owners to reactivate by logging in
-            if db_user.role in ["Bakery", "Charity"]:
+            # Allow donor and charity owners to reactivate by logging in
+            if db_user.role in ["Donor", "Charity"]:
                 print(f"🔄 Auto-reactivating deactivated {db_user.role} account: {db_user.email}")
                 db_user.status = "Active"
                 db_user.deactivated_at = None
@@ -300,6 +316,9 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
         print(f"   Role validation: PASSED")
         print(f"{'='*80}\n")
         
+        # Clear login attempts after successful authentication
+        clear_login_attempts(db, identifier, "user")
+        
         # 🔐 CHECK IF ADMIN IS USING DEFAULT PASSWORD
         using_default_password = False
         if db_user.role == "Admin" and db_user.using_default_password:
@@ -323,7 +342,7 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
         # Generate token with type based on role
         token_data = {
             "sub": str(db_user.id),
-            "type": db_user.role.lower(),  # "bakery", "charity", or "admin"
+            "type": db_user.role.lower(),  # "donor", "charity", or "admin"
             "role": db_user.role,
             "name": db_user.name,
             "contact_person": db_user.contact_person,  # Owner's name
@@ -1175,8 +1194,8 @@ def reset_employee_password(data: dict, db: Session = Depends(database.get_db)):
 
 @router.get("/debug/bakeries")
 def debug_bakeries(db: Session = Depends(database.get_db)):
-    """DEBUG ONLY - Show all bakeries and their contact persons"""
-    bakeries = db.query(models.User).filter(models.User.role == "Bakery").all()
+    """DEBUG ONLY - Show all donors and their contact persons"""
+    bakeries = db.query(models.User).filter(models.User.role == "Donor").all()
     return {
         "total": len(bakeries),
         "bakeries": [
@@ -1235,15 +1254,15 @@ def test_connection(db: Session = Depends(database.get_db)):
 
 @router.get("/employee-name/{bakery_id}")
 def migrate_employees(db: Session = Depends(database.get_db)):
-    """DEBUG/MIGRATION ONLY - Create employees for all bakeries that don't have any"""
+    """DEBUG/MIGRATION ONLY - Create employees for all donors that don't have any"""
     from app.auth import pwd_context
     from datetime import date
     
-    bakeries = db.query(models.User).filter(models.User.role == "Bakery").all()
+    bakeries = db.query(models.User).filter(models.User.role == "Donor").all()
     created_count = 0
     skipped_count = 0
     
-    print(f"\n🔄 MIGRATION: Processing {len(bakeries)} bakeries...")
+    print(f"\n🔄 MIGRATION: Processing {len(bakeries)} donors...")
     
     for bakery in bakeries:
         # Check if bakery already has employees
@@ -1367,6 +1386,13 @@ def employee_login(
         print(f"  Bakery ID: {credentials.bakery_id} (type: {type(credentials.bakery_id).__name__})")
         print(f"  Password: {'*' * len(credentials.password)} (len: {len(credentials.password)})")
         
+        # Check if employee login is currently blocked due to failed attempts
+        try:
+            check_login_block(db, credentials.name, "employee", credentials.bakery_id)
+        except HTTPException as e:
+            # Re-raise with detailed message
+            raise e
+        
         # Debug: Show ALL employees in database (across all bakeries)
         all_emps_in_db = db.query(models.Employee).all()
         print(f"\n📊 TOTAL EMPLOYEES IN DATABASE: {len(all_emps_in_db)}")
@@ -1452,6 +1478,13 @@ def employee_login(
                 metadata={"employee_name": employee.name, "bakery_id": credentials.bakery_id, "reason": "invalid_password"}
             )
             
+            # Record failed attempt and potentially block account
+            try:
+                record_failed_attempt(db, credentials.name, "employee", credentials.bakery_id)
+            except HTTPException:
+                # re-raise the block exception
+                raise
+            
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         # Create JWT token with employee data
@@ -1469,6 +1502,9 @@ def employee_login(
         # Fetch bakery name
         bakery = db.query(models.User).filter(models.User.id == employee.bakery_id).first()
         bakery_name = bakery.name if bakery else "Bakery"
+        
+        # Clear login attempts after successful authentication
+        clear_login_attempts(db, credentials.name, "employee", credentials.bakery_id)
         
         print(f"✅ LOGIN SUCCESSFUL for {employee.name}")
         print(f"{'='*80}\n")
@@ -1720,10 +1756,10 @@ async def admin_manual_register(
     db.commit()
     db.refresh(new_user)
     
-    # 🆕 CREATE EMPLOYEE RECORD FOR BAKERIES (matching self-registration behavior)
-    if role == "Bakery":
+    # 🆕 CREATE EMPLOYEE RECORD FOR DONORS (matching self-registration behavior)
+    if role == "Donor":
         try:
-            # Generate unique employee_id (format: EMP-{bakery_id}-001)
+            # Generate unique employee_id (format: EMP-{donor_id}-001)
             employee_count = db.query(models.Employee).filter(
                 models.Employee.bakery_id == new_user.id
             ).count()
@@ -1747,7 +1783,7 @@ async def admin_manual_register(
             db.commit()
             db.refresh(new_employee)
             
-            print(f"✅ Created employee record for bakery: {new_employee.name} (ID: {new_employee.employee_id})")
+            print(f"✅ Created employee record for donor: {new_employee.name} (ID: {new_employee.employee_id})")
             
         except Exception as e:
             print(f"⚠️ Warning: Failed to create employee record: {str(e)}")
@@ -1769,7 +1805,7 @@ async def admin_manual_register(
         "name": new_user.name,
         "email": new_user.email,
         "verified": new_user.verified,
-        "employee_created": role == "Bakery"  # Indicate if employee was created
+        "employee_created": role == "Donor"  # Indicate if employee was created
     }
 
 
@@ -1898,6 +1934,7 @@ def admin_delete_user(
     """
     Admin delete user account
     Only admins can use this endpoint
+    Deletes the user but preserves historical data (donations, etc.)
     """
     # Verify that current user is an admin
     if current_user.role != "Admin":
@@ -1917,22 +1954,45 @@ def admin_delete_user(
     user_email = user.email
     user_role = user.role
     
-    # Delete the user
-    db.delete(user)
-    db.commit()
-    
-    # Log the event
-    log_system_event(
-        db=db,
-        event_type="ADMIN_DELETE_USER",
-        description=f"Admin {current_user.name} deleted {user_role} account: {user_name} ({user_email})",
-        severity="warning",
-        user_id=current_user.id
-    )
-    
-    return {
-        "message": f"User {user_name} deleted successfully"
-    }
+    try:
+        # Handle employees for Donor/Bakery accounts
+        if user_role == "Donor":
+            # Delete associated employees completely (they're part of the bakery account)
+            employees = db.query(models.Employee).filter(models.Employee.bakery_id == user_id).all()
+            for emp in employees:
+                db.delete(emp)
+        
+        # For donations: Keep the historical data but mark the user reference as deleted
+        # Set foreign keys to NULL where possible (if the column allows NULL)
+        # This preserves donation history while removing the user account
+        
+        # Delete messages involving this user (optional - can be preserved)
+        db.query(models.Message).filter(
+            or_(
+                models.Message.sender_id == user_id,
+                models.Message.receiver_id == user_id
+            )
+        ).delete(synchronize_session=False)
+        
+        # Delete the user
+        db.delete(user)
+        db.commit()
+        
+        # Log the event
+        log_system_event(
+            db=db,
+            event_type="ADMIN_DELETE_USER",
+            description=f"Admin {current_user.name} deleted {user_role} account: {user_name} ({user_email})",
+            severity="warning",
+            user_id=current_user.id
+        )
+        
+        return {
+            "message": f"User {user_name} deleted successfully. Historical data preserved."
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete user: {str(e)}")
 
 
 @router.post("/deactivate-account")
@@ -1951,10 +2011,10 @@ def deactivate_account(
     if not verify_password(password, current_user.hashed_password):
         raise HTTPException(status_code=401, detail="Incorrect password")
     
-    # Check if user is bakery and verify ownership
-    if current_user.role == "Bakery":
+    # Check if user is donor and verify ownership
+    if current_user.role == "Donor":
         # Get the employee token to check if they are the owner
-        # For bakery users, we need to verify they are the owner
+        # For donor users, we need to verify they are the owner
         owner_employee = db.query(models.Employee).filter(
             models.Employee.bakery_id == current_user.id,
             models.Employee.role == "Owner"
@@ -1963,7 +2023,7 @@ def deactivate_account(
         if not owner_employee:
             raise HTTPException(
                 status_code=403, 
-                detail="Only the bakery owner can deactivate the account"
+                detail="Only the donor owner can deactivate the account"
             )
         
         # If logged in as user (not employee), verify contact_person matches owner

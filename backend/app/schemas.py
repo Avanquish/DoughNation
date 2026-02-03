@@ -6,7 +6,7 @@ from enum import Enum
 
 # ------------------ USER MANAGEMENT  ------------------
 class UserCreate(BaseModel):
-    role: str  # Bakery or Charity
+    role: str  # Donor or Charity
     name: str
     email: EmailStr
     contact_person: str
@@ -33,7 +33,7 @@ class UserOut(BaseModel):
 class UserLogin(BaseModel):
     email: str  # Changed from EmailStr to str - now accepts both email and employee name
     password: str
-    role: str | None = None  # Optional role for validation (Bakery, Charity, Admin)
+    role: str | None = None  # Optional role for validation (Donor, Charity, Admin)
 
 class Token(BaseModel):
     access_token: str
@@ -57,16 +57,19 @@ class ResetPassword(BaseModel):
     confirm_password: str
 
 
-# ------------------ BAKERY INVENTORY ------------------
+# ------------------ DONOR INVENTORY ------------------
 class BakeryInventoryBase(BaseModel):
     name: str
     description: Optional[str] = None
     quantity: int
     creation_date: date
-    expiration_date: Optional[date] = None
+    expiration_date: Optional[date] = None  # Required for food, optional for non-food
     threshold: int
     uploaded: str 
     status: Optional[str] = "available"
+    donation_type: str = "Food"  # Food, Clothes, School Supplies, Other
+    category: Optional[str] = None  # For non-food items
+    condition: Optional[str] = None  # For non-food items: New, Like New, Good, Fair
 
 class BakeryInventoryCreate(BakeryInventoryBase):
     image: Optional[str] = None  # Can be uploaded as file in FastAPI
@@ -216,7 +219,7 @@ class DirectDonationBase(BaseModel):
     creation_date: date
     expiration_date: Optional[date] = None
     description: Optional[str] = None
-    bakery_inventory_id: int
+    bakery_inventory_id: Optional[int] = None  # Optional for admin donations
     charity_id: int
     image: Optional[str] = None
 
@@ -477,3 +480,26 @@ class AnalyticsResponse(BaseModel):
     donations: List[DonationItem]
     employees: List[EmployeeItem]
     badges: List[BadgeItem] 
+
+
+# ------------------ ADMIN INVENTORY ------------------
+class AdminInventoryCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    quantity: int
+    donation_type: str = "Food"
+    category: Optional[str] = None
+    expiration_date: Optional[date] = None
+
+class AdminInventoryUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    quantity: Optional[int] = None
+    donation_type: Optional[str] = None
+    category: Optional[str] = None
+    expiration_date: Optional[date] = None
+
+class AdminDonateRequest(BaseModel):
+    inventory_item_id: int
+    charity_id: int
+    quantity: int

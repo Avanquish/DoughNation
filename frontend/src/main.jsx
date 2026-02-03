@@ -5,13 +5,16 @@ import App from './App.jsx'
 import './index.css'
 import { AuthProvider } from "./context/AuthContext.jsx";
 import { EmployeeAuthProvider } from "./context/EmployeeAuthContext.jsx";
+import { ThresholdAlertProvider } from "./context/ThresholdAlertContext.jsx";
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
         <EmployeeAuthProvider>
-          <App />
+          <ThresholdAlertProvider>
+            <App />
+          </ThresholdAlertProvider>
         </EmployeeAuthProvider>
       </AuthProvider>
     </BrowserRouter>

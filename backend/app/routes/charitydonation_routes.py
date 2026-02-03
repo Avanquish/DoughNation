@@ -484,7 +484,9 @@ def mark_received(
     ).first()
     if not request_obj:
         raise HTTPException(status_code=404, detail="Donation request not found")
-
+    # Prevent status regression: don't allow changing from complete back to received
+    if request_obj.tracking_status == "complete":
+        raise HTTPException(status_code=400, detail="Donation already completed")
     if request_obj.tracking_status != "in_transit":
         raise HTTPException(status_code=400, detail="Donation not ready to be received")
 
@@ -565,12 +567,28 @@ def get_my_direct_donations(
 
     result = []
     for d in donations:
-        bakery_inventory = db.query(models.BakeryInventory).filter(
-            models.BakeryInventory.id == d.bakery_inventory_id
-        ).first()
-        bakery = db.query(models.User).filter(
-            models.User.id == bakery_inventory.bakery_id
-        ).first() if bakery_inventory else None
+        # Check if this is an admin donation (no bakery_inventory_id)
+        if d.bakery_inventory_id is None:
+            # This is an admin donation
+            bakery_name = "Scholars Of Sustenance"
+            bakery_profile_picture = None
+            # Try to get admin user profile picture
+            admin_user = db.query(models.User).filter(
+                models.User.role == "Admin"
+            ).first()
+            if admin_user:
+                bakery_profile_picture = admin_user.profile_picture
+        else:
+            # Regular bakery donation
+            bakery_inventory = db.query(models.BakeryInventory).filter(
+                models.BakeryInventory.id == d.bakery_inventory_id
+            ).first()
+            bakery = db.query(models.User).filter(
+                models.User.id == bakery_inventory.bakery_id
+            ).first() if bakery_inventory else None
+            
+            bakery_name = bakery.name if bakery else "Unknown bakery"
+            bakery_profile_picture = bakery.profile_picture if bakery else None
 
         result.append({
             "id": d.id,
@@ -587,8 +605,8 @@ def get_my_direct_donations(
             "btracking_status": d.btracking_status,
             "btracking_completed_at": d.btracking_completed_at.isoformat() if d.btracking_completed_at else None,
             "feedback_submitted": d.feedback_submitted or False,
-            "bakery_name": bakery.name if bakery else "Unknown bakery",
-            "bakery_profile_picture": bakery.profile_picture if bakery else None
+            "bakery_name": bakery_name,
+            "bakery_profile_picture": bakery_profile_picture
         })
 
     return result
@@ -607,6 +625,10 @@ def mark_direct_received(
 
     if not donation:
         raise HTTPException(status_code=404, detail="Direct donation not found")
+
+    # Prevent status regression: don't allow changing from complete back to received
+    if donation.btracking_status == "complete":
+        raise HTTPException(status_code=400, detail="Donation already completed")
 
     if donation.btracking_status not in ["in_transit", "preparing"]:
         raise HTTPException(status_code=400, detail="Donation not ready to be received")
@@ -635,13 +657,14 @@ async def submit_direct_feedback(
     if not donation:
         raise HTTPException(status_code=404, detail="Direct donation not found")
 
-    if not donation.bakery_inventory:
-        raise HTTPException(status_code=400, detail="Direct donation is missing bakery inventory")
+    # Determine if this is a bakery or admin donation
+    is_admin_donation = donation.bakery_inventory_id is None
+    bakery_id = None if is_admin_donation else donation.bakery_inventory.bakery_id
 
     feedback = models.Feedback(
         direct_donation_id=donation.id,
         charity_id=current_user.id,
-        bakery_id=donation.bakery_inventory.bakery_id,
+        bakery_id=bakery_id,
         message=message,
         rating=rating,
         product_name=donation.name,
@@ -674,7 +697,9 @@ async def submit_direct_feedback(
     db.commit()
     db.refresh(donation)
 
-    update_user_badges(db, donation.bakery_inventory.bakery_id)
+    # Only update bakery badges if this is a bakery donation
+    if bakery_id:
+        update_user_badges(db, bakery_id)
 
     return {"message": "Feedback submitted successfully"}
 
@@ -682,18 +707,31 @@ async def submit_direct_feedback(
 @router.get("/donation/accepted")
 def get_accepted_donations(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(ensure_verified_user)
+    current_auth = Depends(auth.get_current_user_or_employee)
 ):
     query = db.query(models.DonationRequest).filter(
         models.DonationRequest.status.in_(["accepted"])
     )
 
-    if current_user.role.lower() == "charity":
-        query = query.filter(models.DonationRequest.charity_id == current_user.id)
-    elif current_user.role.lower() == "bakery":
-        query = query.filter(models.DonationRequest.bakery_id == current_user.id)
+    # Check if it's a User with role attribute
+    if hasattr(current_auth, 'role'):
+        user_role = current_auth.role.lower()
+        
+        if user_role == "charity":
+            query = query.filter(models.DonationRequest.charity_id == current_auth.id)
+        elif user_role in ["donor", "bakery"]:
+            query = query.filter(models.DonationRequest.bakery_id == current_auth.id)
+        elif user_role == "admin":
+            # Admin can see all accepted donations
+            pass
+        else:
+            raise HTTPException(status_code=403, detail=f"Invalid user role: {user_role}")
     else:
-        raise HTTPException(status_code=403, detail="Invalid user role")
+        # It's an Employee - get bakery_id
+        bakery_id = auth.get_bakery_id_from_auth(current_auth)
+        if not bakery_id:
+            raise HTTPException(status_code=403, detail="Not authorized - no bakery_id")
+        query = query.filter(models.DonationRequest.bakery_id == bakery_id)
 
     requests = query.all()
 

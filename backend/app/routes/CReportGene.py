@@ -51,7 +51,7 @@ def donation_history(
                 "completed_at": d.tracking_completed_at.strftime("%m-%d-%Y") if d.tracking_completed_at else None,
                 "product_name": d.donation_name or (d.inventory_item.name if d.inventory_item else "Unknown"),
                 "quantity": d.donation_quantity or 0,
-                "bakery_name": target_user.name,  # ✅ the bakery itself (sender)
+                "donor_name": target_user.name,
             })
 
         for d in direct_donations:
@@ -61,7 +61,7 @@ def donation_history(
                 "completed_at": d.btracking_completed_at.strftime("%m-%d-%Y") if d.btracking_completed_at else None,
                 "product_name": d.name,
                 "quantity": d.quantity,
-                "bakery_name": target_user.name,  # ✅ consistent key
+                "donor_name": target_user.name,
             })
 
     elif target_user.role == "Charity":
@@ -85,18 +85,23 @@ def donation_history(
                 "completed_at": d.tracking_completed_at.strftime("%m-%d-%Y") if d.tracking_completed_at else None,
                 "product_name": d.donation_name or (d.inventory_item.name if d.inventory_item else "Unknown"),
                 "quantity": d.donation_quantity or 0,
-                "bakery_name": d.bakery.name if d.bakery else "Unknown",  # ✅ now shows bakery donor
+                "donor_name": d.bakery.name if d.bakery else "Unknown",
             })
 
         for d in direct_donations:
-            bakery_name = getattr(getattr(d.bakery_inventory, "bakery", None), "name", "Unknown")
+            # Check if it's an admin donation (no bakery_inventory means it's from admin)
+            if d.bakery_inventory is None:
+                donor_name = "Scholars Of Sustenance"
+            else:
+                donor_name = getattr(getattr(d.bakery_inventory, "bakery", None), "name", "Unknown")
+            
             results.append({
                 "id": d.id,
                 "type": "direct",
                 "completed_at": d.btracking_completed_at.strftime("%m-%d-%Y") if d.btracking_completed_at else None,
                 "product_name": d.name,
                 "quantity": d.quantity,
-                "bakery_name": bakery_name,  # ✅ same naming
+                "donor_name": donor_name,
             })
 
     # Sort by most recent first
@@ -142,7 +147,7 @@ def bakery_list_report(
         bakeries[bid]["request_count"] += 1
         bakeries[bid]["request_qty"] += req.donation_quantity or 0
 
-    # Direct donations
+    # Direct donations from bakeries/donors
     direct_donations = (
         db.query(models.DirectDonation)
         .join(models.BakeryInventory, models.DirectDonation.bakery_inventory_id == models.BakeryInventory.id)
@@ -164,6 +169,27 @@ def bakery_list_report(
         bakeries[bid]["bakery_profile"] = bakery.profile_picture
         bakeries[bid]["direct_count"] += 1
         bakeries[bid]["direct_qty"] += d.quantity or 0
+
+    # Admin donations to this charity (where bakery_inventory_id is None)
+    admin_donations = (
+        db.query(models.DirectDonation)
+        .filter(
+            models.DirectDonation.charity_id == current_user.id,
+            models.DirectDonation.bakery_inventory_id == None,
+            models.DirectDonation.btracking_status == "complete"
+        )
+        .all()
+    )
+
+    # Use a special ID for admin (e.g., "admin")
+    if admin_donations:
+        admin_id = "admin"
+        bakeries[admin_id]["bakery_name"] = "Scholars Of Sustenance"
+        bakeries[admin_id]["bakery_profile"] = None  # Admin has no profile picture
+        bakeries[admin_id]["direct_count"] = len(admin_donations)
+        bakeries[admin_id]["request_count"] = 0
+        bakeries[admin_id]["direct_qty"] = sum(d.quantity or 0 for d in admin_donations)
+        bakeries[admin_id]["request_qty"] = 0
 
     # Totals per bakery
     for b in bakeries.values():

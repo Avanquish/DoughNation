@@ -5,7 +5,7 @@ from typing import List, Optional
 from datetime import datetime, date
 
 from app.database import get_db
-from app.models import User, Donation, DonationRequest, DirectDonation, BakeryInventory
+from app.models import User, Donation, DonationRequest, DirectDonation, BakeryInventory, AdminDonationRequest
 from app.auth import get_current_user
 
 router = APIRouter(prefix="/leaderboard", tags=["Leaderboard"])
@@ -43,16 +43,16 @@ def get_leaderboard_summary(
     - rank: Position in leaderboard based on total quantity
     """
     
-    # Get all verified bakeries only
+    # Get all verified donors (bakeries) only
     bakeries = db.query(User).filter(
-        User.role.ilike("bakery"),
+        User.role.ilike("Donor"),
         User.verified == True
     ).all()
     
     leaderboard_data = []
     
     for bakery in bakeries:
-        # Count completed donation requests
+        # Count completed donation requests (to charities)
         request_donations = db.query(
             func.count(DonationRequest.id).label('count'),
             func.sum(DonationRequest.donation_quantity).label('quantity'),
@@ -62,7 +62,7 @@ def get_leaderboard_summary(
             DonationRequest.tracking_status.ilike('complete')
         ).first()
         
-        # Count completed direct donations
+        # Count completed direct donations (to charities)
         direct_donations = db.query(
             func.count(DirectDonation.id).label('count'),
             func.sum(DirectDonation.quantity).label('quantity'),
@@ -75,9 +75,19 @@ def get_leaderboard_summary(
             DirectDonation.btracking_status.ilike('complete')
         ).first()
         
+        # Count completed donations to admin
+        admin_donations = db.query(
+            func.count(AdminDonationRequest.id).label('count'),
+            func.sum(AdminDonationRequest.donation_quantity).label('quantity'),
+            func.max(AdminDonationRequest.timestamp).label('latest_date')
+        ).filter(
+            AdminDonationRequest.donor_id == bakery.id,
+            AdminDonationRequest.tracking_status.ilike('complete')
+        ).first()
+        
         # Aggregate totals
-        total_donations = (request_donations.count or 0) + (direct_donations.count or 0)
-        total_quantity = (request_donations.quantity or 0) + (direct_donations.quantity or 0)
+        total_donations = (request_donations.count or 0) + (direct_donations.count or 0) + (admin_donations.count or 0)
+        total_quantity = (request_donations.quantity or 0) + (direct_donations.quantity or 0) + (admin_donations.quantity or 0)
         
         # Get latest donation date
         dates = []
@@ -92,6 +102,12 @@ def get_leaderboard_summary(
                 dates.append(direct_donations.latest_date.date())
             elif isinstance(direct_donations.latest_date, date):
                 dates.append(direct_donations.latest_date)
+        
+        if admin_donations.latest_date:
+            if isinstance(admin_donations.latest_date, datetime):
+                dates.append(admin_donations.latest_date.date())
+            elif isinstance(admin_donations.latest_date, date):
+                dates.append(admin_donations.latest_date)
         
         latest_donation_date = max(dates) if dates else None
         
@@ -139,7 +155,7 @@ def get_charity_leaderboard(
     
     # Get all verified charities only
     charities = db.query(User).filter(
-        User.role.ilike("charity"),
+        User.role.ilike("Charity"),
         User.verified == True
     ).all()
     
@@ -250,15 +266,15 @@ def get_leaderboard_stats(
     - total_items_donated: Overall donated items
     """
     
-    # Count verified bakeries only
+    # Count verified donors (bakeries) only
     total_bakeries = db.query(User).filter(
-        User.role.ilike("bakery"),
+        User.role.ilike("Donor"),
         User.verified == True
     ).count()
     
-    # Get verified bakery IDs
+    # Get verified donor (bakery) IDs
     verified_bakery_ids = [b.id for b in db.query(User.id).filter(
-        User.role.ilike("bakery"),
+        User.role.ilike("Donor"),
         User.verified == True
     ).all()]
     
@@ -276,18 +292,23 @@ def get_leaderboard_stats(
         BakeryInventory.bakery_id.in_(verified_bakery_ids)
     ).distinct().all()
     
-    active_bakery_ids = set([b[0] for b in active_bakeries_request] + [b[0] for b in active_bakeries_direct])
+    active_bakeries_admin = db.query(AdminDonationRequest.donor_id).filter(
+        AdminDonationRequest.tracking_status.ilike('complete'),
+        AdminDonationRequest.donor_id.in_(verified_bakery_ids)
+    ).distinct().all()
+    
+    active_bakery_ids = set([b[0] for b in active_bakeries_request] + [b[0] for b in active_bakeries_direct] + [b[0] for b in active_bakeries_admin])
     active_bakeries = len(active_bakery_ids)
     
     # Count verified charities only
     total_charities = db.query(User).filter(
-        User.role.ilike("charity"),
+        User.role.ilike("Charity"),
         User.verified == True
     ).count()
     
     # Get verified charity IDs
     verified_charity_ids = [c.id for c in db.query(User.id).filter(
-        User.role.ilike("charity"),
+        User.role.ilike("Charity"),
         User.verified == True
     ).all()]
     
@@ -321,7 +342,13 @@ def get_leaderboard_stats(
         DirectDonation.charity_id.in_(verified_charity_ids)
     ).count()
     
-    total_donations_completed = completed_requests + completed_direct
+    # Count completed admin donations
+    completed_admin = db.query(AdminDonationRequest).filter(
+        AdminDonationRequest.tracking_status.ilike('complete'),
+        AdminDonationRequest.donor_id.in_(verified_bakery_ids)
+    ).count()
+    
+    total_donations_completed = completed_requests + completed_direct + completed_admin
     
     # Sum total items donated (from verified users only)
     total_request_quantity = db.query(
@@ -343,7 +370,14 @@ def get_leaderboard_stats(
         DirectDonation.charity_id.in_(verified_charity_ids)
     ).scalar() or 0
     
-    total_items_donated = int(total_request_quantity) + int(total_direct_quantity)
+    total_admin_quantity = db.query(
+        func.sum(AdminDonationRequest.donation_quantity)
+    ).filter(
+        AdminDonationRequest.tracking_status.ilike('complete'),
+        AdminDonationRequest.donor_id.in_(verified_bakery_ids)
+    ).scalar() or 0
+    
+    total_items_donated = int(total_request_quantity) + int(total_direct_quantity) + int(total_admin_quantity)
     
     return {
         "total_bakeries": total_bakeries,

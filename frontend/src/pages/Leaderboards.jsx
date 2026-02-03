@@ -40,12 +40,16 @@ const Leaderboards = () => {
       axios.get(`${API}/leaderboard/stats`, { headers }),
     ])
       .then(([bakeryRes, charityRes, statsRes]) => {
+        console.log("Bakery leaderboard data:", bakeryRes.data);
+        console.log("Charity leaderboard data:", charityRes.data);
+        console.log("Stats data:", statsRes.data);
         setBakeryLeaderboard(bakeryRes.data);
         setCharityLeaderboard(charityRes.data);
         setStats(statsRes.data);
         setLoading(false);
       })
       .catch((err) => {
+        console.error("Leaderboard fetch error:", err);
         Swal.fire(
           "Error",
           err.response?.data?.detail || "Failed to load leaderboard data",
@@ -122,7 +126,7 @@ const Leaderboards = () => {
                 Rank
               </th>
               <th className="px-4 py-3 text-left font-semibold">
-                {type === "bakery" ? "Bakery" : "Charity"}
+                {type === "bakery" ? "Donor" : "Charity"}
               </th>
               <th className="px-4 py-3 text-right font-semibold w-[120px]">
                 Count
@@ -206,7 +210,7 @@ const Leaderboards = () => {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold text-[#6b4b2b] flex items-center gap-2">
                 <Building2 className="w-4 h-4" />
-                Bakeries
+                Donors
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -270,7 +274,7 @@ const Leaderboards = () => {
                   className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:to-[#E49A52] data-[state=active]:text-white rounded-lg px-6"
                 >
                   <Building2 className="w-4 h-4 mr-2" />
-                  Bakeries
+                  Donors
                 </TabsTrigger>
                 <TabsTrigger
                   value="charities"

@@ -371,6 +371,7 @@ export default function Messages({ currentUser: currentUserProp }) {
   const [, setLoading] = useState(false);
   const [inventoryStatuses, setInventoryStatuses] = useState(new Map());
   const [cancelledDonationIds, setCancelledDonationIds] = useState(new Set());
+  const [adminUser, setAdminUser] = useState(null);
   const prevMessageCountRef = useRef(0);
 
   /* Refs */
@@ -480,6 +481,26 @@ export default function Messages({ currentUser: currentUserProp }) {
       setRemovedProducts(removed);
     } catch (err) {
       console.error("Error fetching accepted donations:", err);
+    }
+  };
+
+  const fetchAdminUser = async () => {
+    try {
+      // Only fetch admin for Donor and Charity users
+      if (!currentUser || !['Donor', 'Charity'].includes(currentUser.role)) {
+        return;
+      }
+      
+      const opts = makeAuthOpts();
+      if (!opts.headers?.Authorization) return;
+      
+      const res = await axios.get(`${API_URL}/messages/get_admin`, opts);
+      if (res.data?.admin) {
+        setAdminUser(res.data.admin);
+        console.log("Admin user fetched for messaging:", res.data.admin);
+      }
+    } catch (err) {
+      console.debug("fetchAdminUser failed:", err?.message || err);
     }
   };
 
@@ -1307,20 +1328,61 @@ export default function Messages({ currentUser: currentUserProp }) {
   }, [messages, selectedUser, currentUser]);
 
   const allUsers = useMemo(() => {
+    let finalList = [];
+    
+    // ALWAYS add admin user at the TOP for Donors and Charities (FIRST, before any other contacts)
+    if (adminUser && currentUser?.role && ['Donor', 'Charity'].includes(currentUser.role)) {
+      finalList.push({
+        ...adminUser,
+        last_message: null,
+        unread: 0,
+        isAdmin: true  // Flag to identify admin for styling
+      });
+    }
+
+    // Then add other users (from search or active chats)
     const base = search.trim()
       ? searchResults || []
       : Array.from(activeChats.values() || []);
 
-    // sort by last message timestamp DESC so recent chats are first
-    const getTs = (u) => {
-      const sum = summaries.get(Number(u.id));
-      const last = sum?.last || u.last_message;
-      if (!last?.timestamp) return 0;
-      return new Date(last.timestamp).getTime() || 0;
-    };
+    // Add non-admin users (filter out admin if it's already in base to avoid duplicates)
+    for (const u of base) {
+      if (!adminUser || Number(u.id) !== Number(adminUser.id)) {
+        finalList.push(u);
+      } else {
+        // If admin is in base, update its properties but keep it at top
+        finalList[0] = {
+          ...finalList[0],
+          ...u,
+          isAdmin: true,
+          last_message: u.last_message || finalList[0].last_message,
+          unread: u.unread || finalList[0].unread
+        };
+      }
+    }
 
-    return [...base].sort((a, b) => getTs(b) - getTs(a));
-  }, [search, searchResults, activeChats, summaries]);
+    // Sort non-admin users by last message timestamp DESC
+    const adminContact = finalList[0]?.isAdmin ? finalList.shift() : null;
+    
+    finalList.sort((a, b) => {
+      const sumA = summaries.get(Number(a.id));
+      const sumB = summaries.get(Number(b.id));
+      const lastA = sumA?.last || a.last_message;
+      const lastB = sumB?.last || b.last_message;
+      
+      const tsA = lastA?.timestamp ? new Date(lastA.timestamp).getTime() : 0;
+      const tsB = lastB?.timestamp ? new Date(lastB.timestamp).getTime() : 0;
+      
+      return tsB - tsA;
+    });
+    
+    // Put admin back at the top
+    if (adminContact) {
+      finalList.unshift(adminContact);
+    }
+
+    return finalList;
+  }, [search, searchResults, activeChats, summaries, adminUser, currentUser?.role]);
 
   const totalChatPages = Math.max(
     1,
@@ -1553,6 +1615,7 @@ export default function Messages({ currentUser: currentUserProp }) {
   useEffect(() => {
     if (!currentUser) return;
 
+    fetchAdminUser();
     fetchActiveChats();
 
     if (pollRef.current.activeChats) clearInterval(pollRef.current.activeChats);
@@ -1634,7 +1697,10 @@ export default function Messages({ currentUser: currentUserProp }) {
       .then(() => window.dispatchEvent(new Event("refresh_notifications")))
       .catch((e) => console.error("notif clear", e));
 
-    fetchHistoryForPeer(selectedUser.id);
+    fetchHistoryForPeer(selectedUser.id).then(() => {
+      // Refresh active chats after fetching history to update unread counts
+      fetchActiveChats();
+    });
   }, [selectedUser, currentUser]);
 
   useEffect(() => {
@@ -1643,6 +1709,19 @@ export default function Messages({ currentUser: currentUserProp }) {
 
   useEffect(() => {
     if (!selectedUser?.id || !currentUser?.id) return;
+    
+    // Immediately clear unread count in activeChats for the selected user
+    setActiveChats((prev) => {
+      const next = new Map(prev);
+      const peerId = Number(selectedUser.id);
+      const chat = next.get(peerId);
+      if (chat && chat.unread > 0) {
+        next.set(peerId, { ...chat, unread: 0 });
+      }
+      return next;
+    });
+    
+    // Mark messages as read locally
     setMessages((prev) => {
       let changed = false;
       const me = Number(currentUser.id);
@@ -1834,7 +1913,7 @@ export default function Messages({ currentUser: currentUserProp }) {
           <div className="chatlist-layer" ref={dropdownRef}>
             <div className="chatlist-dropdown">
               <div className="cl-head">
-                <div className="cl-title">Chats</div>
+                <div className="cl-title">Messages</div>
                 <button
                   type="button"
                   className="cl-close-btn"
@@ -2073,11 +2152,32 @@ export default function Messages({ currentUser: currentUserProp }) {
                           setOpenDock(true);
                           setOpenList(false);
                         }}
+                        style={u.isAdmin ? {
+                          background: 'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)',
+                          borderLeft: '4px solid #4caf50',
+                          borderRadius: '8px'
+                        } : {}}
                       >
                         {avatar}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-6">
-                            <div className="name truncate">
+                            <div className="name truncate" style={u.isAdmin ? { 
+                              color: '#2e7d32', 
+                              fontWeight: '800',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            } : {}}>
+                              {u.isAdmin && (
+                                <span style={{
+                                  display: 'inline-block',
+                                  width: '8px',
+                                  height: '8px',
+                                  borderRadius: '50%',
+                                  background: '#4caf50',
+                                  boxShadow: '0 0 0 2px rgba(76, 175, 80, 0.2)'
+                                }} />
+                              )}
                               {u.name || u.email || `Conversation #${u.id}`}
                             </div>
                             {last?.timestamp && (
@@ -2087,13 +2187,16 @@ export default function Messages({ currentUser: currentUserProp }) {
                             )}
                           </div>
                           <div className="flex items-center gap-6">
-                            <div className="snippet truncate">{snippet}</div>
+                            <div className="snippet truncate" style={u.isAdmin ? {
+                              color: '#388e3c',
+                              fontWeight: '600'
+                            } : {}}>{snippet}</div>
                             {unread > 0 && <span className="dot" />}
                           </div>
                         </div>
                         <ChevronRight
                           className="w-4 h-4"
-                          style={{ color: "#8b6b48" }}
+                          style={{ color: u.isAdmin ? "#2e7d32" : "#8b6b48" }}
                         />
                       </div>
                     );

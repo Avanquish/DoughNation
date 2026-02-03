@@ -15,7 +15,7 @@ def get_badges(db: Session = Depends(get_db)):
 # ---------------- Get All Bakery Users ----------------
 @router.get("/bakery-users")
 def get_bakery_users(db: Session = Depends(get_db)):
-    return db.query(models.User).filter(models.User.role == "Bakery").all()
+    return db.query(models.User).filter(models.User.role == "Donor").all()
 
 # ---------------- Get Admin Badges ----------------
 @router.get("/admin-badge", response_model=List[schemas.BadgeResponse])

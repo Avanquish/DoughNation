@@ -19,6 +19,7 @@ import {
   Users,
   HandCoins,
   MessageSquareWarning,
+  MessageSquareText,
   FileBarChart,
   Microwave,
   Store,
@@ -26,6 +27,7 @@ import {
   BarChart3,
   FileText,
   AlertTriangle,
+  Trophy,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import axios from "../api/axios";
@@ -35,18 +37,46 @@ import AdminUser from "./AdminUser";
 import Leaderboards from "./Leaderboards";
 import Bakery from "./Bakery";
 import Charity from "./Charity";
+import AdminInventory from "./AdminInventory";
+import AdminDonations from "./AdminDonations";
+import AdminDonationStatus from "./AdminDonationStatus";
 
 import AuditLogViewer from "./AuditLogViewer";
 import NotificationCenter from "./NotificationCenter";
 import EmergencyControlPanel from "./EmergencyControlPanel";
 import AnalyticsDashboard from "./AnalyticsDashboard";
+import Messages1 from "./Messages1";
 
 import { Link } from "react-router-dom";
 
 // Tab persistence
 const ADMIN_TAB_KEY = "admin_active_tab";
+
+// Hook for horizontal scroll with mouse wheel
+const useHorizontalScroll = () => {
+  const elRef = useRef(null);
+  
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el) return;
+    
+    const onWheel = (e) => {
+      if (e.deltaY === 0) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+  
+  return elRef;
+};
 const ADMIN_ALLOWED_TABS = [
   "dashboard",
+  "inventory",
+  "donations",
+  "donation-status",
   "users",
   "bakeries",
   "charities",
@@ -99,7 +129,10 @@ const columns = [
 const ADMIN_NOTIF_PAGE_SIZE = 10;
 
 const AdminDashboard = () => {
+  const scrollRef = useHorizontalScroll(); // Add horizontal scroll hook
+  
   const [name, setName] = useState("Admin");
+  const [currentUser, setCurrentUser] = useState(null);
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -132,7 +165,7 @@ const AdminDashboard = () => {
 
   // Data
   const [stats, setStats] = useState({
-    totalBakeries: 0,
+    totalDonors: 0,
     totalCharities: 0,
     totalUsers: 0,
     pendingUsersCount: 0,
@@ -141,11 +174,12 @@ const AdminDashboard = () => {
   const [feedbacks, setFeedbacks] = useState([]);
   const [complaints, setComplaints] = useState([]);
   const [contactSupportNotifs, setContactSupportNotifs] = useState([]);
+  const [donationNotifs, setDonationNotifs] = useState([]);
 
   // Notifications
   const [notifOpen, setNotifOpen] = useState(false);
   const [readNotifs, setReadNotifs] = useState(new Set());
-  const [notifTab, setNotifTab] = useState("verifications"); // "verifications" | "complaints" (user concerns) | "reports"
+  const [notifTab, setNotifTab] = useState("verifications"); // "verifications" | "complaints" (user concerns) | "reports" | "donations"
   const dropdownRef = useRef(null);
   const bellRef = useRef(null);
 
@@ -157,6 +191,15 @@ const AdminDashboard = () => {
     try {
       const decoded = JSON.parse(atob(token.split(".")[1]));
       setName(decoded.name || "Admin");
+      
+      // Set currentUser for Messages1 component
+      setCurrentUser({
+        id: decoded.sub,
+        name: decoded.name || "Admin",
+        email: decoded.email || "",
+        role: "Admin",
+        token: token
+      });
     } catch (err) {
       console.error("Error fetching admin dashboard stats:", err);
     }
@@ -171,7 +214,7 @@ const AdminDashboard = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
         setStats({
-          totalBakeries: res.data.totalBakeries,
+          totalDonors: res.data.totalBakeries,
           totalCharities: res.data.totalCharities,
           totalUsers: res.data.totalUsers - 1,
           pendingUsersCount: res.data.pendingUsers,
@@ -237,12 +280,18 @@ const AdminDashboard = () => {
         });
         setContactSupportNotifs(contactSupportRes.data || []);
 
+        // Fetch donation notifications
+        const donationRes = await axios.get("/admin/donation-notifications", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setDonationNotifs(donationRes.data || []);
+
         // Update stats
         const statsRes = await axios.get("/admin-dashboard-stats", {
           headers: { Authorization: `Bearer ${token}` },
         });
         setStats({
-          totalBakeries: statsRes.data.totalBakeries,
+          totalDonors: statsRes.data.totalBakeries,
           totalCharities: statsRes.data.totalCharities,
           totalUsers: statsRes.data.totalUsers - 1,
           pendingUsersCount: statsRes.data.pendingUsers,
@@ -352,13 +401,20 @@ const AdminDashboard = () => {
       title: cs.title || "Contact Support Request",
       subtitle: (cs.message || "").toString().slice(0, 120),
     }));
-    return [...reg, ...fbs, ...complaintsNotifs, ...contactSupportItems]
+    const donationItems = donationNotifs.map((dn) => ({
+      kind: "donation",
+      id: `dn-${dn.id}`,
+      at: dn.created_at || null,
+      title: dn.title || "New Donation",
+      subtitle: (dn.message || "").toString().slice(0, 120),
+    }));
+    return [...reg, ...fbs, ...complaintsNotifs, ...contactSupportItems, ...donationItems]
       .sort((a, b) => (a.at && b.at ? new Date(b.at) - new Date(a.at) : 0))
       .map((n) => ({
         ...n,
         isRead: readNotifs.has(n.id),
       }));
-  }, [pendingUsers, feedbacks, complaints, contactSupportNotifs, readNotifs]);
+  }, [pendingUsers, feedbacks, complaints, contactSupportNotifs, donationNotifs, readNotifs]);
 
   // Action: mark as read
   const markAsRead = async (notifId) => {
@@ -400,7 +456,7 @@ const AdminDashboard = () => {
   const statusText = useMemo(() => {
     const map = {
       dashboard: "Dashboard",
-      bakeries: "Bakeries",
+      bakeries: "Donors",
       charities: "Charities",
       users: "User Verification",
       reports: "Reports",
@@ -417,16 +473,19 @@ const AdminDashboard = () => {
   const complaintsList = notifications.filter((n) => n.kind === "complaint");
   const reportsList = notifications.filter((n) => n.kind === "feedback");
   const contactSupportList = notifications.filter((n) => n.kind === "contact_support");
+  const donationsList = notifications.filter((n) => n.kind === "donation");
 
   const unreadVerifications = verificationList.filter((n) => !n.isRead).length;
   const unreadComplaints = complaintsList.filter((n) => !n.isRead).length;
   const unreadContactSupport = contactSupportList.filter((n) => !n.isRead).length;
+  const unreadDonations = donationsList.filter((n) => !n.isRead).length;
 
   // === ADMIN NOTIF PAGINATION STATE (UI ONLY) ===
-  // separate page state for Verifications & User Concerns & Contact Support
+  // separate page state for Verifications & User Concerns & Contact Support & Donations
   const [verificationPage, setVerificationPage] = useState(1);
   const [complaintsPage, setComplaintsPage] = useState(1);
   const [contactSupportPage, setContactSupportPage] = useState(1);
+  const [donationsPage, setDonationsPage] = useState(1);
 
   const verificationTotalPages = Math.max(
     1,
@@ -439,6 +498,10 @@ const AdminDashboard = () => {
   const contactSupportTotalPages = Math.max(
     1,
     Math.ceil(contactSupportList.length / ADMIN_NOTIF_PAGE_SIZE) || 1
+  );
+  const donationsTotalPages = Math.max(
+    1,
+    Math.ceil(donationsList.length / ADMIN_NOTIF_PAGE_SIZE) || 1
   );
 
   const pagedVerificationList = useMemo(
@@ -468,6 +531,15 @@ const AdminDashboard = () => {
     [contactSupportList, contactSupportPage]
   );
 
+  const pagedDonationsList = useMemo(
+    () =>
+      donationsList.slice(
+        (donationsPage - 1) * ADMIN_NOTIF_PAGE_SIZE,
+        donationsPage * ADMIN_NOTIF_PAGE_SIZE
+      ),
+    [donationsList, donationsPage]
+  );
+
   // reset to first page whenever list length changes
   useEffect(() => {
     setVerificationPage(1);
@@ -480,6 +552,10 @@ const AdminDashboard = () => {
   useEffect(() => {
     setContactSupportPage(1);
   }, [contactSupportList.length]);
+
+  useEffect(() => {
+    setDonationsPage(1);
+  }, [donationsList.length]);
 
   const [showTop, setShowTop] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -667,7 +743,17 @@ thead{ background:#EADBC8; color:#4A2F17; }
   flex-wrap: nowrap;
 }
 .tabs-scroll::-webkit-scrollbar{
-  display: none;
+  height: 6px;
+}
+.tabs-scroll::-webkit-scrollbar-track{
+  background: transparent;
+}
+.tabs-scroll::-webkit-scrollbar-thumb{
+  background: transparent;
+  border-radius: 3px;
+}
+.tabs-scroll:hover::-webkit-scrollbar-thumb{
+  background: #BF7326;
 }
 
 `}</style>
@@ -762,6 +848,9 @@ thead{ background:#EADBC8; color:#4A2F17; }
 
             <nav className="items-center gap-5" style={{ fontSize: 15 }}>
               <div className="pt-1 flex items-center gap-3 relative">
+                {/* Messages Component for Admin */}
+                {currentUser && <Messages1 currentUser={currentUser} />}
+                
                 <button
                   ref={bellRef}
                   className="icon-btn relative inline-flex h-[42px] w-[42px] items-center justify-center rounded-full
@@ -796,8 +885,8 @@ thead{ background:#EADBC8; color:#4A2F17; }
                   >
                     <div className="gwrap rounded-2xl shadow-xl">
                       <div className="glass-card rounded-[14px] overflow-hidden">
-                        {/* Tabs header */}
-                        <div className="flex items-center">
+                        {/* Tabs header - 2x2 grid */}
+                        <div className="grid grid-cols-2 gap-0">
                           {[
                             {
                               key: "verifications",
@@ -814,11 +903,16 @@ thead{ background:#EADBC8; color:#4A2F17; }
                               label: "Contact Support",
                               count: unreadContactSupport,
                             },
+                            {
+                              key: "donations",
+                              label: "Donations",
+                              count: unreadDonations,
+                            },
                           ].map((t) => (
                             <button
                               key={t.key}
                               onClick={() => setNotifTab(t.key)}
-                              className={`flex-1 py-2.5 text-sm font-bold transition-colors ${
+                              className={`py-2.5 text-sm font-bold transition-colors ${
                                 notifTab === t.key
                                   ? "text-white"
                                   : "text-[#6b4b2b] hover:text-[#4f371f]"
@@ -998,6 +1092,56 @@ thead{ background:#EADBC8; color:#4A2F17; }
                               )}
                             </div>
                           )}
+
+                          {/* === DONATIONS LIST (with pagination) === */}
+                          {notifTab === "donations" && (
+                            <div>
+                              {donationsList.length === 0 ? (
+                                <div className="p-4 text-sm text-gray-500">
+                                  No donation notifications
+                                </div>
+                              ) : (
+                                pagedDonationsList.map((n) => (
+                                  <button
+                                    key={n.id}
+                                    onClick={() => {
+                                      markAsRead(n.id);
+                                      setNotifOpen(false);
+                                      setActiveTab("donation-status");
+                                    }}
+                                    className={`w-full p-3 focus:outline-none transition-colors flex items-center ${
+                                      n.isRead
+                                        ? "bg-white hover:bg-[#fff6ec]"
+                                        : "bg-[rgba(255,246,236,1)]"
+                                    }`}
+                                  >
+                                    <UnreadCircle read={n.isRead} />
+                                    <div className="text-left flex-1">
+                                      <p
+                                        className={`text-[13px] ${
+                                          n.isRead
+                                            ? "text-[#6b4b2b]"
+                                            : "text-[#4f371f] font-semibold"
+                                        }`}
+                                      >
+                                        {n.title}
+                                      </p>
+                                      {n.subtitle && (
+                                        <p className="text-[12px] text-[#6b4b2b]">
+                                          {n.subtitle}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <span className="text-[10px] text-muted-foreground shrink-0">
+                                      {n.at
+                                        ? new Date(n.at).toLocaleDateString()
+                                        : ""}
+                                    </span>
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         {/* === PAGINATION FOOTER FOR ADMIN NOTIFS (UI ONLY) === */}
@@ -1107,6 +1251,41 @@ thead{ background:#EADBC8; color:#4A2F17; }
                             </div>
                           )}
 
+                        {notifTab === "donations" &&
+                          donationsList.length > 0 && (
+                            <div className="px-3 pt-2 pb-2 bg-white border-t border-[rgba(0,0,0,0.04)] text-[#8a5a25]">
+                              <div className="text-center text-[11px] mb-1">
+                                Page {donationsPage} of {donationsTotalPages}
+                              </div>
+                              <div className="flex items-center justify-between gap-2 text-[12px]">
+                                <button
+                                  onClick={() =>
+                                    setDonationsPage((p) =>
+                                      p > 1 ? p - 1 : p
+                                    )
+                                  }
+                                  disabled={donationsPage === 1}
+                                  className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
+                                >
+                                  Prev
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    setDonationsPage((p) =>
+                                      p < donationsTotalPages ? p + 1 : p
+                                    )
+                                  }
+                                  disabled={
+                                    donationsPage >= donationsTotalPages
+                                  }
+                                  className="px-3 py-1 rounded-full border border-[#f2d4b5] bg-[#fffaf3] font-semibold disabled:opacity-40 disabled:cursor-default"
+                                >
+                                  Next
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
                         {/* Footer tip (unchanged text, same idea as bakery tip) */}
                         <div className="px-3 py-2 text-[11px] text-[#8a5a25] bg-white/70">
                           Tip: Click a notification to jump to its section.
@@ -1145,59 +1324,68 @@ thead{ background:#EADBC8; color:#4A2F17; }
 
       {/* Controller */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="seg-wrap">
-          <div className="seg justify-center">
-            {/* UPDATED: TabsList now uses tabs-scroll for horizontal scrolling */}
-            <TabsList className="tabs-scroll flex items-center gap-1 bg-transparent p-0 border-0">
+        <div ref={scrollRef} className="seg-wrap tabs-scroll">
+          <div className="seg justify-start min-w-max">
+            {/* TabsList with horizontal scrolling */}
+            <TabsList className="flex items-center gap-1 bg-transparent p-2 border-0">
               <TabsTrigger
                 value="dashboard"
                 title="Dashboard"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full text-[#6b4b2b] hover:bg-amber-50"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-full text-[#6b4b2b] hover:bg-amber-50 whitespace-nowrap"
               >
                 <LayoutDashboard className="w-4 h-4" />
                 <span className="hidden sm:inline">Dashboard</span>
               </TabsTrigger>
 
-              <TabsTrigger
+                            <TabsTrigger
                 value="users"
                 title="Users"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm whitespace-nowrap"
               >
                 <Users className="w-4 h-4" />
                 <span className="hidden sm:inline">User Verification</span>
               </TabsTrigger>
 
               <TabsTrigger
-                value="bakeries"
-                title="Bakeries"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                value="inventory"
+                title="Inventory"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm whitespace-nowrap"
               >
-                <Microwave className="w-4 h-4" />
-                <span className="hidden sm:inline">Bakeries</span>
+                <Store className="w-4 h-4" />
+                <span className="hidden sm:inline">Inventory</span>
               </TabsTrigger>
 
               <TabsTrigger
-                value="charities"
-                title="Charities"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                value="donations"
+                title="Send Donations"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm whitespace-nowrap"
               >
-                <Store className="w-4 h-4" />
-                <span className="hidden sm:inline">Charities</span>
+                <HandCoins className="w-4 h-4" />
+                <span className="hidden sm:inline">Send Donations</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="donation-status"
+                title="Donation Status"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm whitespace-nowrap"
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span className="hidden sm:inline">Donation Status</span>
               </TabsTrigger>
 
               <TabsTrigger
                 value="track"
                 title="Donations"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm whitespace-nowrap"
               >
-                <HandCoins className="w-4 h-4" />
-                <span className="hidden sm:inline">Donations</span>
+                <Trophy className="w-4 h-4" />
+                <span className="hidden sm:inline">Leaderboards</span>
               </TabsTrigger>
 
               <TabsTrigger
                 value="reports"
                 title="Reports"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm whitespace-nowrap"
               >
                 <FileBarChart className="w-4 h-4" />
                 <span className="hidden sm:inline">Reports</span>
@@ -1206,7 +1394,7 @@ thead{ background:#EADBC8; color:#4A2F17; }
               <TabsTrigger
                 value="complaints"
                 title="User Concerns"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm whitespace-nowrap"
               >
                 <MessageSquareWarning className="w-4 h-4" />
                 <span className="hidden sm:inline">User Concerns</span>
@@ -1215,7 +1403,7 @@ thead{ background:#EADBC8; color:#4A2F17; }
               <TabsTrigger
                 value="audit-logs"
                 title="Audit Logs"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm text-purple-600 hover:bg-purple-50"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm text-purple-600 hover:bg-purple-50 whitespace-nowrap"
               >
                 <FileText className="w-4 h-4" />
                 <span className="hidden sm:inline">Audit Logs</span>
@@ -1224,7 +1412,7 @@ thead{ background:#EADBC8; color:#4A2F17; }
               <TabsTrigger
                 value="notifications"
                 title="Notifications"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm text-purple-600 hover:bg-purple-50"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm text-purple-600 hover:bg-purple-50 whitespace-nowrap"
               >
                 <Bell className="w-4 h-4" />
                 <span className="hidden sm:inline">System Notifs</span>
@@ -1233,7 +1421,7 @@ thead{ background:#EADBC8; color:#4A2F17; }
               <TabsTrigger
                 value="emergency"
                 title="Emergency"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm text-red-600 hover:bg-red-50"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm text-red-600 hover:bg-red-50 whitespace-nowrap"
               >
                 <AlertTriangle className="w-4 h-4" />
                 <span className="hidden sm:inline">Emergency</span>
@@ -1267,46 +1455,97 @@ thead{ background:#EADBC8; color:#4A2F17; }
             </div>
           </TabsContent>
 
-          {/* Bakeries */}
-          <TabsContent value="bakeries" className="reveal px-2">
+
+
+          {/* Inventory Tab */}
+          <TabsContent value="inventory" className="reveal px-2">
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  <Bakery />
+                  <AdminInventory />
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
-          {/* Charities */}
-          <TabsContent value="charities" className="reveal px-2">
+          {/* Donations Tab */}
+          <TabsContent value="donations" className="reveal px-2">
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  <Charity />
+                  <AdminDonations />
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
-          {/* Users */}
+          {/* Donation Status Tab */}
+          <TabsContent value="donation-status" className="reveal px-2">
+            <div className="gwrap hover-lift">
+              <Card className="glass-card shadow-none">
+                <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
+                  <AdminDonationStatus />
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Users - with nested tabs */}
           <TabsContent value="users" className="reveal px-2">
             <div className="gwrap hover-lift">
               <Card className="glass-card shadow-none">
                 <CardContent className="sm:p-4 md:p-6 text-sm text-muted-foreground">
-                  {/* Section heading - User Verification */}
+                  {/* Section heading - User Management */}
                   <div className="mb-4 sm:mb-5">
                     <h2 className="text-3xl font-extrabold text-[#6b4b2b]">
-                      User Verification
+                      User Management
                     </h2>
                     <p className="mt-1 text-sm text-[#7b5836]">
-                      Review and approve new user registrations and manage
-                      verification status.
+                      Manage user verification, donors, and charities.
                     </p>
                   </div>
 
                   <div className="border-t border-[#e3b57e]/40 pt-4 sm:pt-5">
-                    <AdminUser />
+                    {/* Nested tabs for User Verification, Bakeries, and Charities */}
+                    <Tabs defaultValue="verification">
+                      <div className="mb-4">
+                        <TabsList className="bg-[#fff7ec] border border-[#e3b57e]/30 p-1 rounded-lg">
+                          <TabsTrigger 
+                            value="verification"
+                            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:to-[#E49A52] data-[state=active]:text-white"
+                          >
+                            <Users className="w-4 h-4 mr-2" />
+                            User Verification
+                          </TabsTrigger>
+                          <TabsTrigger 
+                            value="bakeries"
+                            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:to-[#E49A52] data-[state=active]:text-white"
+                          >
+                            <Microwave className="w-4 h-4 mr-2" />
+                            Donors
+                          </TabsTrigger>
+                          <TabsTrigger 
+                            value="charities"
+                            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#F6C17C] data-[state=active]:to-[#E49A52] data-[state=active]:text-white"
+                          >
+                            <Store className="w-4 h-4 mr-2" />
+                            Charities
+                          </TabsTrigger>
+                        </TabsList>
+                      </div>
+
+                      <TabsContent value="verification">
+                        <AdminUser />
+                      </TabsContent>
+
+                      <TabsContent value="bakeries">
+                        <Bakery />
+                      </TabsContent>
+
+                      <TabsContent value="charities">
+                        <Charity />
+                      </TabsContent>
+                    </Tabs>
                   </div>
                 </CardContent>
               </Card>

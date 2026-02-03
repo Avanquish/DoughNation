@@ -187,10 +187,10 @@ def get_current_user_or_employee(
     db: Session = Depends(database.get_db)
 ):
     """
-    Unified authentication that accepts BOTH bakery owner tokens AND employee tokens.
+    Unified authentication that accepts BOTH donor owner tokens AND employee tokens.
     
     Returns:
-        - For bakery owner tokens: User model instance
+        - For donor owner tokens: User model instance
         - For employee tokens: dict with employee_id, employee_name, employee_role, bakery_id
     """
     if not SECRET_KEY or not ALGORITHM:
@@ -236,7 +236,7 @@ def get_current_user_or_employee(
                 "user_id": employee.bakery_id  # For compatibility with existing code
             }
         
-        # Bakery owner token (standard user token)
+        # Donor owner token (standard user token)
         else:
             sub = payload.get("sub")
             if sub is None:
@@ -257,7 +257,14 @@ def get_current_user_or_employee(
                     detail="User not found"
                 )
             
-            # Return user model for bakery owners
+            # Check if user is verified
+            if not user.verified:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Account pending verification"
+                )
+            
+            # Return user model for donor owners
             return user
     
     except JWTError as e:
@@ -274,7 +281,7 @@ def get_bakery_id_from_auth(current_auth):
     Helper to extract bakery_id from either User model or employee dict.
     
     Args:
-        current_auth: Either a User model (bakery owner) or dict (employee)
+        current_auth: Either a User model (donor owner) or dict (employee)
     
     Returns:
         bakery_id (int)
@@ -283,7 +290,7 @@ def get_bakery_id_from_auth(current_auth):
         # Employee authentication
         return current_auth.get("bakery_id")
     else:
-        # User model (bakery owner)
+        # User model (donor owner)
         return current_auth.id
 
 
@@ -314,7 +321,7 @@ def can_edit_own_only(
 ) -> dict:
     """
     Check if employee can only edit their own resources.
-    Owners and Managers can edit anything from their bakery.
+    Owners and Managers can edit anything from their donor organization.
     Employees can only edit their own.
     
     Args:
@@ -326,7 +333,7 @@ def can_edit_own_only(
     role = current_employee["employee_role"]
     employee_id = current_employee["employee_id"]
 
-    # Owners and Managers can edit any resource from their bakery
+    # Owners and Managers can edit any resource from their donor organization
     if role in ["Owner", "Manager"]:
         return current_employee
 
@@ -348,6 +355,6 @@ def get_donor_name_from_auth(current_auth):
         # It's an employee token
         return current_auth.get("employee_name", "Employee")
     else:
-        # It's a bakery owner (User object)
-        # Use contact_person (owner's name) instead of bakery name
+        # It's a donor owner (User object)
+        # Use contact_person (owner's name) instead of donor organization name
         return current_auth.contact_person or current_auth.name or "Owner"

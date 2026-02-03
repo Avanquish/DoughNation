@@ -27,6 +27,14 @@ def donation_history(
 ):
     current_auth, bakery_id = auth_data
     results = []
+    
+    # Get the name of the currently logged in user
+    if isinstance(current_auth, dict):
+        # Employee authentication - use employee's name
+        current_user_name = current_auth.get("name", "Unknown")
+    else:
+        # User model (bakery owner) - use contact_person field
+        current_user_name = current_auth.contact_person if hasattr(current_auth, "contact_person") else "Unknown"
 
     # Parse date filters if provided
     date_start = None
@@ -91,6 +99,25 @@ def donation_history(
         .all()
     )
 
+    # Query donations to admin
+    query_admin = db.query(models.AdminDonationRequest).filter(
+        models.AdminDonationRequest.donor_id == bakery_id,
+        models.AdminDonationRequest.tracking_status == "complete",
+        models.AdminDonationRequest.tracking_completed_at != None,
+    )
+    
+    # Apply date filters if provided
+    if date_start:
+        query_admin = query_admin.filter(
+            func.date(models.AdminDonationRequest.tracking_completed_at) >= date_start
+        )
+    if date_end:
+        query_admin = query_admin.filter(
+            func.date(models.AdminDonationRequest.tracking_completed_at) <= date_end
+        )
+    
+    admin_donations = query_admin.all()
+
     # Add donation requests
     for d in donation_requests:
         results.append({
@@ -101,20 +128,38 @@ def donation_history(
                 d.donation_name or (d.inventory_item.name if d.inventory_item else "Unknown")
             ),
             "quantity": d.donation_quantity or 0,
-            "charity_name": d.charity.name if d.charity else "Unknown",
-            "donated_by": d.rdonated_by or "Unknown",
+            "recipient_name": d.charity.name if d.charity else "Unknown",
+            "donated_by": current_user_name,
         })
 
     # Add direct donations
     for d in direct_donations:
+        # Determine recipient: if no charity, it's admin
+        if d.charity:
+            recipient_name = d.charity.name
+        else:
+            recipient_name = "Scholars Of Sustenance"
+            
         results.append({
             "id": d.id,
             "type": "direct",
             "completed_at": d.btracking_completed_at.strftime("%m-%d-%Y") if d.btracking_completed_at else None,
             "product_name": d.name or "Unknown",
             "quantity": d.quantity or 0,
-            "charity_name": d.charity.name if d.charity else "Unknown",
-            "donated_by": d.donated_by or "Unknown",  
+            "recipient_name": recipient_name,
+            "donated_by": current_user_name,
+        })
+
+    # Add admin donations
+    for d in admin_donations:
+        results.append({
+            "id": d.id,
+            "type": "admin",
+            "completed_at": d.tracking_completed_at.strftime("%m-%d-%Y") if d.tracking_completed_at else None,
+            "product_name": d.donation_name or "Unknown",
+            "quantity": d.donation_quantity or 0,
+            "recipient_name": "Scholars Of Sustenance",
+            "donated_by": current_user_name,
         })
 
     # Sort latest first
@@ -245,12 +290,37 @@ def top_donated_items(
     
     request_items = query_requests.group_by(models.DonationRequest.donation_name).all()
 
+    # --- Admin donations (only complete) ---
+    query_admin = (
+        db.query(
+            models.AdminDonationRequest.donation_name.label("product_name"),
+            func.sum(models.AdminDonationRequest.donation_quantity).label("quantity"),
+        )
+        .filter(models.AdminDonationRequest.donor_id == bakery_id)
+        .filter(models.AdminDonationRequest.tracking_status == "complete")
+    )
+    
+    # Apply date filters if provided
+    if date_start:
+        query_admin = query_admin.filter(
+            func.date(models.AdminDonationRequest.tracking_completed_at) >= date_start
+        )
+    if date_end:
+        query_admin = query_admin.filter(
+            func.date(models.AdminDonationRequest.tracking_completed_at) <= date_end
+        )
+    
+    admin_items = query_admin.group_by(models.AdminDonationRequest.donation_name).all()
+
     # --- Merge results ---
     summary = {}
     for row in direct_items:
         summary[row.product_name] = summary.get(row.product_name, 0) + int(row.quantity or 0)
 
     for row in request_items:
+        summary[row.product_name] = summary.get(row.product_name, 0) + int(row.quantity or 0)
+
+    for row in admin_items:
         summary[row.product_name] = summary.get(row.product_name, 0) + int(row.quantity or 0)
 
     # --- Convert to list of dicts, sort, and limit to 10 ---
@@ -291,6 +361,9 @@ def charity_list_report(
         "total_received_qty": 0,
         "total_transactions": 0,
     })
+    
+    # Use a special ID for admin (negative to avoid collision with real charity IDs)
+    ADMIN_ID = -1
 
     # Accepted donation requests
     query_requests = (
@@ -356,6 +429,30 @@ def charity_list_report(
         charities[cid]["charity_profile"] = d.charity.profile_picture
         charities[cid]["direct_count"] += 1
         charities[cid]["direct_qty"] += d.quantity or 0
+
+    # Admin donations
+    query_admin = db.query(models.AdminDonationRequest).filter(
+        models.AdminDonationRequest.donor_id == bakery_id,
+        models.AdminDonationRequest.tracking_status == "complete",
+    )
+    
+    # Apply date filters if provided
+    if date_start:
+        query_admin = query_admin.filter(
+            func.date(models.AdminDonationRequest.tracking_completed_at) >= date_start
+        )
+    if date_end:
+        query_admin = query_admin.filter(
+            func.date(models.AdminDonationRequest.tracking_completed_at) <= date_end
+        )
+    
+    admin_donations = query_admin.all()
+    
+    for d in admin_donations:
+        charities[ADMIN_ID]["charity_name"] = "Scholars Of Sustenance"
+        charities[ADMIN_ID]["charity_profile"] = "uploads/profile_pictures/admin_profile.png"
+        charities[ADMIN_ID]["request_count"] += 1
+        charities[ADMIN_ID]["request_qty"] += d.donation_quantity or 0
 
     #Totals per charity
     for c in charities.values():
@@ -469,6 +566,17 @@ def period_summary(
         .scalar()
     )
 
+    # --- Admin Donations (completed in period) ---
+    admin_donations = (
+        db.query(func.coalesce(func.sum(models.AdminDonationRequest.donation_quantity), 0))
+        .filter(models.AdminDonationRequest.donor_id == bakery_id)
+        .filter(models.AdminDonationRequest.tracking_status == "complete")
+        .filter(models.AdminDonationRequest.tracking_completed_at != None)
+        .filter(models.AdminDonationRequest.tracking_completed_at >= period_start,
+                models.AdminDonationRequest.tracking_completed_at < period_end_inclusive)
+        .scalar()
+    )
+
     # --- Expired products (exclude donated/complete items) ---
     expired_total = (
         db.query(func.sum(models.BakeryInventory.quantity))
@@ -514,6 +622,18 @@ def period_summary(
                     models.DirectDonation.btracking_completed_at < period_end_inclusive)
             .group_by(models.DirectDonation.name)
         )
+        .union_all(
+            db.query(
+                models.AdminDonationRequest.donation_name.label("product_name"),
+                func.sum(models.AdminDonationRequest.donation_quantity).label("quantity"),
+            )
+            .filter(models.AdminDonationRequest.donor_id == bakery_id)
+            .filter(models.AdminDonationRequest.tracking_status == "complete")
+            .filter(models.AdminDonationRequest.tracking_completed_at != None)
+            .filter(models.AdminDonationRequest.tracking_completed_at >= period_start,
+                    models.AdminDonationRequest.tracking_completed_at < period_end_inclusive)
+            .group_by(models.AdminDonationRequest.donation_name)
+        )
         .all()
     )
 
@@ -543,7 +663,8 @@ def period_summary(
         "period_label": period_label,
         "total_direct_donations": direct_donations or 0,
         "total_request_donations": request_donations or 0,
-        "total_donations": (direct_donations or 0) + (request_donations or 0),
+        "total_admin_donations": admin_donations or 0,
+        "total_donations": (direct_donations or 0) + (request_donations or 0) + (admin_donations or 0),
         "top_items": top_10_items,
         "expired_products": expired_total,
         "available_products": available_total

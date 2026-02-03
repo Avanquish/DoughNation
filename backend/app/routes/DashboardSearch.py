@@ -24,7 +24,7 @@ def search_users(
     if target == "charities":
         query = query.filter(models.User.role == "Charity")
     elif target == "bakeries":
-        query = query.filter(models.User.role == "Bakery")
+        query = query.filter(models.User.role == "Donor")
 
     results = query.all()
 

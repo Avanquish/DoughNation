@@ -75,7 +75,7 @@ export default function BakeryReports({ isViewOnly = false }) {
     { key: "donation_history", label: "Donation History", icon: History },
     { key: "expiry_loss", label: "Expiry Loss", icon: AlertTriangle },
     { key: "top_items", label: "Top Donated Items", icon: Trophy },
-    { key: "charity_list", label: "Charity List", icon: HeartHandshake },
+    { key: "charity_list", label: "Recipient List", icon: HeartHandshake },
     { key: "summary", label: "Period Summary", icon: ReportsIcon },
   ];
 
@@ -323,7 +323,15 @@ export default function BakeryReports({ isViewOnly = false }) {
   };
 
   const getBakeryHeaderHTML = (bakery, reportType) => {
-    const dateStr = new Date().toLocaleString();
+    const dateStr = new Date().toLocaleString('en-PH', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
     const profileURL = bakery.profile
       ? `${API_URL}/${bakery.profile.replace(/\\/g, "/")}`
       : "";
@@ -516,7 +524,7 @@ export default function BakeryReports({ isViewOnly = false }) {
         ? reportData
         : [reportData];
 
-      // Charity List export
+      // Recipient List export
       if (effectiveType === "charity_list" && reportData?.charities) {
         const charities = reportData.charities;
         if (charities.length === 0) {
@@ -702,7 +710,15 @@ export default function BakeryReports({ isViewOnly = false }) {
       doc.setFontSize(7);
       doc.setFont("helvetica", "normal");
       doc.text(
-        `Generated At: ${new Date().toLocaleString()}`,
+        `Generated At: ${new Date().toLocaleString('en-PH', {
+          timeZone: 'Asia/Manila',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        })}`,
         pageWidth / 2,
         currentY,
         { align: "center" }
@@ -894,7 +910,7 @@ export default function BakeryReports({ isViewOnly = false }) {
       return;
     }
 
-    // Charity list pdf
+    // Recipient list pdf
     if (effectiveType === "charity_list") {
       const doc = new jsPDF("landscape", "pt", "a4");
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -966,7 +982,7 @@ export default function BakeryReports({ isViewOnly = false }) {
 
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
-      doc.text(`CHARITY LIST REPORT`, pageWidth / 2, currentY, {
+      doc.text(`RECIPIENT LIST REPORT`, pageWidth / 2, currentY, {
         align: "center",
       });
       currentY += 14;
@@ -981,7 +997,15 @@ export default function BakeryReports({ isViewOnly = false }) {
       doc.setFontSize(7);
       doc.setFont("helvetica", "normal");
       doc.text(
-        `Generated At: ${new Date().toLocaleString()}`,
+        `Generated At: ${new Date().toLocaleString('en-PH', {
+          timeZone: 'Asia/Manila',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        })}`,
         pageWidth / 2,
         currentY,
         {
@@ -999,7 +1023,7 @@ export default function BakeryReports({ isViewOnly = false }) {
 
       const tableHeaders = [
         "Profile",
-        "Charity Name",
+        "Recipient Name",
         "Direct Donations",
         "Requests",
         "Direct Qty",
@@ -1209,7 +1233,15 @@ export default function BakeryReports({ isViewOnly = false }) {
       doc.setFontSize(7);
       doc.setFont("helvetica", "normal");
       doc.text(
-        `Generated At: ${new Date().toLocaleString()}`,
+        `Generated At: ${new Date().toLocaleString('en-PH', {
+          timeZone: 'Asia/Manila',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        })}`,
         pageWidth / 2,
         currentY,
         {
@@ -1491,7 +1523,15 @@ export default function BakeryReports({ isViewOnly = false }) {
     doc.setFontSize(7);
     doc.setFont("helvetica", "normal");
     doc.text(
-      `Generated At: ${new Date().toLocaleString()}`,
+      `Generated At: ${new Date().toLocaleString('en-PH', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      })}`,
       pageWidth / 2,
       currentY,
       {
@@ -1939,12 +1979,12 @@ export default function BakeryReports({ isViewOnly = false }) {
       reportBodyHTML = `<p>No charity data available.</p>`;
     } else {
       reportBodyHTML = `
-        <h3>Charity List</h3>
+        <h3>Recipient List</h3>
         <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; text-align: center;">
           <thead>
             <tr>
               <th>Profile</th>
-              <th>Charity Name</th>
+              <th>Recipient Name</th>
               <th>Direct Donations</th>
               <th>Request Donations</th>
               <th>Direct Donation Qty</th>
@@ -2114,7 +2154,7 @@ export default function BakeryReports({ isViewOnly = false }) {
   const renderTable = (data) => {
     if (!data) return <p className="text-gray-500">No data available</p>;
 
-    // Charity list report
+    // Recipient list report
     if (data.charities && Array.isArray(data.charities)) {
       const charities = data.charities;
       const totals = data.grand_totals || {};
@@ -2128,7 +2168,7 @@ export default function BakeryReports({ isViewOnly = false }) {
             <thead className="bg-gray-200">
               <tr>
                 <th className="px-4 py-2">Profile</th>
-                <th className="px-4 py-2">Charity Name</th>
+                <th className="px-4 py-2">Recipient Name</th>
                 <th className="px-4 py-2">Direct Donations</th>
                 <th className="px-4 py-2">Requests Donations</th>
                 <th className="px-4 py-2">Direct Donation Qty</th>
@@ -2553,12 +2593,12 @@ export default function BakeryReports({ isViewOnly = false }) {
           </Card>
         </TabsContent>
 
-        {/* Charity List Tab */}
+        {/* Recipient List Tab */}
         <TabsContent value="charity_list">
           <Card className="mt-5 rounded-2xl shadow-lg ring-1 ring-black/10 bg-white/80 backdrop-blur-sm overflow-hidden">
             <CardHeader className="p-5 sm:p-6 bg-gradient-to-r from-[#FFF3E6] via-[#FFE1BD] to-[#FFD199]">
               <CardTitle className="text-lg font-semibold text-[#6b4b2b]">
-                Charity List Report
+                Recipient List Report
               </CardTitle>
             </CardHeader>
 

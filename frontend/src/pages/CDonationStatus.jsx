@@ -637,26 +637,19 @@ const CDonationStatus = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       const dataNormal = await resNormal.json();
-      const activeNormal = (dataNormal || []).filter(
-        (d) => (d.tracking_status || "").toLowerCase() !== "complete"
-      );
       setReceivedDonations(
-        activeNormal
+        (dataNormal || [])
           .filter((d) => d.status === "accepted")
           .map((d) => ({ ...d, request_id: d.request_id || d.id }))
       );
-      setPendingDonations(activeNormal.filter((d) => d.status === "pending"));
+      setPendingDonations((dataNormal || []).filter((d) => d.status === "pending"));
 
       // Direct
       const resDirect = await fetch(`${API}/direct/mine`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const dataDirect = await resDirect.json();
-      setDirectDonations(
-        (dataDirect || []).filter(
-          (d) => (d.btracking_status || "").toLowerCase() !== "complete"
-        )
-      );
+      setDirectDonations(dataDirect || []);
     } catch (e) {
       console.error(e);
     }
@@ -784,36 +777,30 @@ const CDonationStatus = () => {
   const makeMatcher = (term) => (d) =>
     !term || haystack(d).includes(toStr(term));
 
-  // Splitters for exactly two columns per section
-  const onlyPreparing = (s) =>
-    ["preparing", "ready_for_pickup", "in_transit", "received"].includes(
-      (s || "").toLowerCase()
-    );
-  const requestedPreparing = receivedDonations.filter((d) =>
-    onlyPreparing(d.tracking_status)
-  );
-  const directPending = directDonations.filter(
-    (d) =>
-      (d.status || d.bstatus || "").toLowerCase() === "pending" ||
-      (d.btracking_status || "").toLowerCase() === "pending"
-  );
-  const directPreparing = directDonations.filter((d) =>
-    onlyPreparing(d.btracking_status)
-  );
+  // Split donations by tracking status for 4 columns
+  const getTrackingStatus = (d) => {
+    const status = (d.tracking_status || d.btracking_status || d.status || "preparing").toLowerCase();
+    // Normalize pending to preparing
+    return status === "pending" ? "preparing" : status;
+  };
 
-  // Requested section (apply qReq) – pending & preparing
-  const reqPendingFiltered = pendingDonations.filter((d) =>
-    matchesQuery(d, qReq)
-  );
-  const reqPreparingFiltered = requestedPreparing.filter((d) =>
-    matchesQuery(d, qReq)
-  );
+  // All donations combined (normal + direct)
+  const allDonations = [...receivedDonations, ...directDonations];
 
-  // Direct section (apply qDir) – pending & preparing
-  const dirPendingFiltered = directPending.filter((d) => matchesQuery(d, qDir));
-  const dirPreparingFiltered = directPreparing.filter((d) =>
-    matchesQuery(d, qDir)
-  );
+  // Filter by tracking status
+  const preparingDonations = allDonations.filter(d => getTrackingStatus(d) === "preparing");
+  const readyForPickupDonations = allDonations.filter(d => getTrackingStatus(d) === "ready_for_pickup");
+  const inTransitDonations = allDonations.filter(d => getTrackingStatus(d) === "in_transit");
+  const receivedCompleteDonations = allDonations.filter(d => {
+    const status = getTrackingStatus(d);
+    return status === "received" || status === "complete" || status === "completed";
+  });
+
+  // Apply search filter
+  const preparingFiltered = preparingDonations.filter((d) => matchesQuery(d, qReq || qDir));
+  const readyFiltered = readyForPickupDonations.filter((d) => matchesQuery(d, qReq || qDir));
+  const inTransitFiltered = inTransitDonations.filter((d) => matchesQuery(d, qReq || qDir));
+  const receivedFiltered = receivedCompleteDonations.filter((d) => matchesQuery(d, qReq || qDir));
 
   return (
     <div className="relative mx-auto max-w-[1280px] p-2">
@@ -826,105 +813,87 @@ const CDonationStatus = () => {
         </h1>
       </div>
 
-      {/* Requested Donations (Pending | Preparing) */}
-      {qDir === "" && (
-        <Section
-          title="Requested Donations"
-          count={reqPendingFiltered.length + reqPreparingFiltered.length}
-        >
-          <div className="mb-3 flex justify-end">
-            <SearchBar
-              value={qReq}
-              onSearch={(t) => {
-                setQReq(t);
-                if (t) setQDir("");
-              }}
-              onClear={() => setQReq("")}
-            />
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Requested Pending with pagination */}
-            <ScrollColumn
-              title={`Pending (${reqPendingFiltered.length})`}
-              items={reqPendingFiltered}
-              emptyText="No pending items."
-              renderItem={(d) => (
-                <Card
-                  key={`req-p-${d.id}`}
-                  d={d}
-                  highlightedId={highlightedId}
-                  compact
-                  onClick={() => setSelectedDonation(d)}
-                />
-              )}
-            />
-            {/* Requested Preparing with pagination */}
-            <ScrollColumn
-              title={`Preparing (${reqPreparingFiltered.length})`}
-              items={reqPreparingFiltered}
-              emptyText="No preparing items."
-              renderItem={(d) => (
-                <Card
-                  key={`req-prep-${d.id}`}
-                  d={d}
-                  highlightedId={highlightedId}
-                  onClick={() => setSelectedDonation(d)}
-                />
-              )}
-            />
-          </div>
-        </Section>
-      )}
-
-      {/* Direct Donations (Pending | Preparing) */}
-      {qReq === "" && (
-        <Section
-          title="Direct Donations"
-          count={dirPendingFiltered.length + dirPreparingFiltered.length}
-        >
-          <div className="mb-3 flex justify-end">
-            <SearchBar
-              value={qDir}
-              onSearch={(t) => {
-                setQDir(t);
-                if (t) setQReq("");
-              }}
-              onClear={() => setQDir("")}
-            />
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Direct Pending with pagination */}
-            <ScrollColumn
-              title={`Pending (${dirPendingFiltered.length})`}
-              items={dirPendingFiltered}
-              emptyText="No pending items."
-              renderItem={(d) => (
-                <Card
-                  key={`dir-p-${d.id}`}
-                  d={d}
-                  highlightedId={highlightedId}
-                  compact
-                  onClick={() => setSelectedDonation(d)}
-                />
-              )}
-            />
-            {/* Direct Preparing with pagination */}
-            <ScrollColumn
-              title={`Preparing (${dirPreparingFiltered.length})`}
-              items={dirPreparingFiltered}
-              emptyText="No preparing items."
-              renderItem={(d) => (
-                <Card
-                  key={`dir-prep-${d.id}`}
-                  d={d}
-                  highlightedId={highlightedId}
-                  onClick={() => setSelectedDonation(d)}
-                />
-              )}
-            />
-          </div>
-        </Section>
-      )}
+      {/* All Donations - 4 Columns by Tracking Status */}
+      <Section
+        title="All Donations"
+        count={allDonations.length}
+      >
+        <div className="mb-3 flex justify-end">
+          <SearchBar
+            value={qReq || qDir}
+            onSearch={(t) => {
+              setQReq(t);
+              setQDir(t);
+            }}
+            onClear={() => {
+              setQReq("");
+              setQDir("");
+            }}
+          />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-4 md:grid-cols-2">
+          {/* Preparing Column */}
+          <ScrollColumn
+            title={`Preparing (${preparingFiltered.length})`}
+            items={preparingFiltered}
+            emptyText="No preparing items."
+            renderItem={(d) => (
+              <Card
+                key={`prep-${d.id}`}
+                d={d}
+                highlightedId={highlightedId}
+                compact
+                onClick={() => setSelectedDonation(d)}
+              />
+            )}
+          />
+          {/* Ready for Pickup Column */}
+          <ScrollColumn
+            title={`Ready for Pickup (${readyFiltered.length})`}
+            items={readyFiltered}
+            emptyText="No items ready for pickup."
+            renderItem={(d) => (
+              <Card
+                key={`ready-${d.id}`}
+                d={d}
+                highlightedId={highlightedId}
+                compact
+                onClick={() => setSelectedDonation(d)}
+              />
+            )}
+          />
+          {/* In Transit Column */}
+          <ScrollColumn
+            title={`In Transit (${inTransitFiltered.length})`}
+            items={inTransitFiltered}
+            emptyText="No items in transit."
+            renderItem={(d) => (
+              <Card
+                key={`transit-${d.id}`}
+                d={d}
+                highlightedId={highlightedId}
+                compact
+                onClick={() => setSelectedDonation(d)}
+              />
+            )}
+          />
+          {/* Received/Complete Column */}
+          <ScrollColumn
+            title={`Received/Complete (${receivedFiltered.length})`}
+            items={receivedFiltered}
+            emptyText="No received items."
+            renderItem={(d) => (
+              <Card
+                key={`received-${d.id}`}
+                d={d}
+                highlightedId={highlightedId}
+                compact
+                onClick={() => setSelectedDonation(d)}
+              />
+            )}
+          />
+        </div>
+      </Section>
 
       {/* Details modal with updated layout */}
       {selectedDonation && (

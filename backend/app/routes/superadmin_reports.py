@@ -9,16 +9,16 @@ from app.timezone_utils import now_ph
 from typing import Optional, List
 import json
 
-router = APIRouter(prefix="/superadmin", tags=["Super Admin Reports"])
+router = APIRouter(prefix="/superadmin", tags=["Scholars Of Sustenance Reports"])
 
-# Dependency to verify Super Admin access
+# Dependency to verify Scholars Of Sustenance access
 def get_current_superadmin(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Verify that the current user is a Super Admin."""
+    """Verify that the current user is Scholars Of Sustenance (Admin)."""
     if current_user.role != "Admin":
-        raise HTTPException(status_code=403, detail="Access denied. Super Admin only.")
+        raise HTTPException(status_code=403, detail="Access denied. Scholars Of Sustenance only.")
     
     # Additional check: You can add a super_admin flag to User model if needed
-    # For now, we'll use Admin role as Super Admin
+    # For now, we'll use Admin role as Scholars Of Sustenance
     return current_user
 
 # ========== ENDPOINT 1: Get System Events with Filtering ==========

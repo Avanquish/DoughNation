@@ -205,8 +205,18 @@ def get_message_notifications(
     )
 
     for rd in all_received:
-        inventory = db.query(models.BakeryInventory).filter_by(id=rd.bakery_inventory_id).first()
-        bakery = db.query(models.User).filter_by(id=inventory.bakery_id).first() if inventory else None
+        # Check if this is an admin donation (no bakery_inventory_id)
+        if rd.bakery_inventory_id:
+            inventory = db.query(models.BakeryInventory).filter_by(id=rd.bakery_inventory_id).first()
+            bakery = db.query(models.User).filter_by(id=inventory.bakery_id).first() if inventory else None
+            bakery_name = bakery.name if bakery else "Unknown bakery"
+            bakery_profile = bakery.profile_picture if bakery else None
+        else:
+            # Admin donation - use donated_by field
+            bakery_name = "Scholars Of Sustenance" if rd.donated_by and ("admin" in rd.donated_by.lower() or "super admin" in rd.donated_by.lower()) else (rd.donated_by or "Unknown")
+            bakery_profile = "uploads/profile_pictures/admin_profile.png"
+            bakery = None
+        
         received_donations.append({
             "id": f"direct-{rd.id}-to-{user_id}",
             "donation_id": rd.id,
@@ -214,10 +224,11 @@ def get_message_notifications(
             "quantity": rd.quantity,
             "timestamp": now_ph().isoformat(),
             "read": rd.id in read_ids,
-            "bakery_name": bakery.name if bakery else "Unknown bakery",
-            "bakery_profile_picture": bakery.profile_picture if bakery else None,
+            "bakery_name": bakery_name,
+            "bakery_profile_picture": bakery_profile,
+            "donated_by": rd.donated_by,
             "type": "direct",
-            "message": f"{bakery.name if bakery else 'A bakery'} sent a donation"
+            "message": f"{bakery_name} sent a donation"
         })
 
     # Accepted requests (Charity -> Bakery)

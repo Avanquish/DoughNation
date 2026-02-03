@@ -1504,14 +1504,15 @@ def get_admin_dashboard_analytics(
         models.AdminDonationRequest.tracking_status.in_(["received", "complete"])
     ).count()
     
-    # Donations to charities from admin (DonationRequest where donor is admin)
-    # Get admin user IDs
-    admin_users = db.query(models.User.id).filter(models.User.role == "Admin").all()
-    admin_ids = [admin_id[0] for admin_id in admin_users]
+    # Donations to charities from admin (DirectDonation where admin donated to charity)
+    # Get admin user name
+    admin_user = db.query(models.User).filter(models.User.role == "Admin").first()
+    admin_name = admin_user.name if admin_user else "Super Admin"
     
-    donations_to_charities = db.query(models.DonationRequest).filter(
-        models.DonationRequest.bakery_id.in_(admin_ids),
-        models.DonationRequest.tracking_status.in_(["received", "complete"])
+    # Count DirectDonations where donated_by is the admin name (admin to charity outgoing)
+    donations_to_charities = db.query(models.DirectDonation).filter(
+        models.DirectDonation.donated_by == admin_name,
+        models.DirectDonation.btracking_status.in_(["received", "complete"])
     ).count()
     
     # Recent activity (last 7 days) - Philippines timezone

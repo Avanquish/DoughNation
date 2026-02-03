@@ -99,19 +99,27 @@ export default function NotificationBell() {
 
       // received donations (status updates)
       const mapped = sortByNewest(rDons || []).map((d) => {
+        // Check if donation is from admin (Scholars Of Sustenance)
+        const isFromAdmin = 
+          !d.bakery_name || 
+          d.donated_by?.toLowerCase().includes("admin") ||
+          d.bakery_name?.toLowerCase().includes("admin");
+        
+        const donorName = isFromAdmin ? "Scholars Of Sustenance" : d.bakery_name;
+        
         let message;
         switch (d.type) {
           case "direct":
-            message = `${d.bakery_name} sent a donation`;
+            message = `${donorName} sent a donation`;
             break;
           case "request":
-            message = `${d.bakery_name} accepted your request`;
+            message = `${donorName} accepted your request`;
             break;
           case "request_declined":
-            message = `${d.bakery_name} declined your request`;
+            message = `${donorName} declined your request`;
             break;
           default:
-            message = `Update from ${d.bakery_name}`;
+            message = `Update from ${donorName}`;
         }
 
         const wasRead = storedRead.includes(d.id);
@@ -120,6 +128,8 @@ export default function NotificationBell() {
           ...d,
           message,
           read: wasRead,
+          isFromAdmin,
+          donorName,
         };
       });
 
@@ -470,8 +480,12 @@ export default function NotificationBell() {
                           >
                             <UnreadCircle read={d.read} />
                             <img
-                              src={avatar(d.bakery_profile_picture)}
-                              alt={d.bakery_name}
+                              src={
+                                d.isFromAdmin
+                                  ? `${API}/uploads/profile_pictures/admin_profile.png`
+                                  : avatar(d.bakery_profile_picture)
+                              }
+                              alt={d.donorName || d.bakery_name}
                               className="w-8 h-8 rounded-full object-cover border"
                             />
 

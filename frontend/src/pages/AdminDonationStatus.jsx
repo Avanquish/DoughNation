@@ -693,9 +693,10 @@ export default function AdminDonationStatus() {
                           <div className="p-4">
                             {/* Charity badge */}
                             <div className="flex items-center gap-2 mb-2">
-                              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#4ade80] to-[#22c55e] grid place-items-center text-white font-bold text-xs">
-                                {donation.charity_name?.[0]?.toUpperCase() || "C"}
-                              </div>
+                              <Avatar 
+                                src={donation.charity_profile_picture} 
+                                alt={donation.charity_name} 
+                              />
                               <div className="min-w-0">
                                 <div
                                   className="text-sm font-semibold truncate"

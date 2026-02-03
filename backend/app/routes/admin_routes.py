@@ -330,3 +330,35 @@ def get_contact_support_notifications(
         }
         for n in notifications
     ]
+
+@router.get("/donation-notifications")
+def get_donation_notifications(
+    db: Session = Depends(database.get_db),
+    admin=Depends(get_current_admin)
+):
+    """
+    Fetch donation notifications from SystemNotification table.
+    Returns donation_received notifications targeted to the current admin user.
+    """
+    # Query SystemNotification table for donation_received notifications targeted at this admin
+    notifications = (
+        db.query(admin_models.SystemNotification)
+        .filter(
+            admin_models.SystemNotification.target_user_id == admin.id,
+            admin_models.SystemNotification.notification_type == "donation_received"
+        )
+        .order_by(admin_models.SystemNotification.sent_at.desc())
+        .all()
+    )
+    
+    return [
+        {
+            "id": n.id,
+            "title": n.title,
+            "message": n.message,
+            "created_at": n.sent_at.isoformat() if n.sent_at else n.created_at.isoformat() if n.created_at else None,
+            "notification_type": n.notification_type,
+            "notification_data": n.notification_data
+        }
+        for n in notifications
+    ]

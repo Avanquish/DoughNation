@@ -17,8 +17,11 @@ def get_dashboard_stats(db: Session = Depends(database.get_db), current_user=Dep
     # Total donations (if you have Donation model)
     total_donations = db.query(models.Donation).filter(models.Donation.bakery_id == bakery_id).count() if hasattr(models, "Donation") else 0
 
-    # Total inventory items uploaded by this bakery
-    total_inventory = db.query(models.BakeryInventory).filter(models.BakeryInventory.bakery_id == bakery_id).count()
+    # Total inventory items uploaded by this bakery (only visible items in inventory)
+    total_inventory = db.query(models.BakeryInventory).filter(
+        models.BakeryInventory.bakery_id == bakery_id,
+        models.BakeryInventory.quantity > 0
+    ).count()
 
     # Uploaded products (same as total inventory in your current design)
     uploaded_products = total_inventory
@@ -32,10 +35,11 @@ def get_dashboard_stats(db: Session = Depends(database.get_db), current_user=Dep
     # Get today's date in Philippine timezone
     today_philippine = today_ph()
 
-    # Expired products (expiration_date < today, meaning yesterday or earlier)
+    # Expired products (expiration_date < today, only visible items in inventory)
     expired_products = db.query(models.BakeryInventory).filter(
         models.BakeryInventory.bakery_id == bakery_id,
-        models.BakeryInventory.expiration_date < today_philippine
+        models.BakeryInventory.expiration_date < today_philippine,
+        models.BakeryInventory.quantity > 0
     ).count()
 
     # Products nearing expiration - match frontend logic exactly

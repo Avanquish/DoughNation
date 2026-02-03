@@ -1913,7 +1913,7 @@ export default function Messages({ currentUser: currentUserProp }) {
           <div className="chatlist-layer" ref={dropdownRef}>
             <div className="chatlist-dropdown">
               <div className="cl-head">
-                <div className="cl-title">Chats</div>
+                <div className="cl-title">Messages</div>
                 <button
                   type="button"
                   className="cl-close-btn"

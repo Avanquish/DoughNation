@@ -137,7 +137,7 @@ export const ThresholdAlertProvider = ({ children }) => {
       
       // Create donation to admin
       const donationResponse = await axios.post(
-        `${API_URL}/donate-to-admin`,
+        `${API_URL}/admin/donate-to-admin`,
         {
           inventory_item_id: currentAlert.id,
           quantity: currentAlert.quantity,

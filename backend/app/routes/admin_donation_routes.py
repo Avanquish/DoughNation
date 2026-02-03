@@ -12,6 +12,7 @@ import shutil
 import os
 
 from app import models, database, auth
+from app import admin_models
 from app.product_id_generator import generate_product_id, generate_admin_product_id
 from app.timezone_utils import now_ph
 from app.food_safety import calculate_donation_deadline
@@ -109,6 +110,40 @@ def create_admin_donation(
     db.commit()
     db.refresh(donation_request)
     
+    # Create notification for admin about the new donation
+    notification_title = f"New Donation from {current_user.name}"
+    notification_message = f"{current_user.name} has donated {request.quantity} {inventory_item.name} to Scholars Of Sustenance. Tracking Status: Preparing"
+    
+    notification = admin_models.SystemNotification(
+        title=notification_title,
+        message=notification_message,
+        notification_type="donation_received",
+        target_user_id=admin_user.id,
+        sent_by_admin_id=admin_user.id,
+        send_email=False,
+        send_in_app=True,
+        sent_at=now_ph(),
+        notification_data={
+            "donation_id": donation_request.id,
+            "donor_id": current_user.id,
+            "donor_name": current_user.name,
+            "donation_name": inventory_item.name,
+            "quantity": request.quantity,
+            "tracking_status": "preparing"
+        }
+    )
+    db.add(notification)
+    db.flush()
+    
+    # Create notification receipt
+    receipt = admin_models.NotificationReceipt(
+        notification_id=notification.id,
+        user_id=admin_user.id,
+        is_read=False
+    )
+    db.add(receipt)
+    db.commit()
+    
     return {
         "message": "Donation created successfully",
         "donation_id": donation_request.id,
@@ -188,6 +223,40 @@ async def create_direct_admin_donation(
     
     db.commit()
     db.refresh(donation_request)
+    
+    # Create notification for admin about the new donation
+    notification_title = f"New Donation from {current_user.name}"
+    notification_message = f"{current_user.name} has donated {donation_quantity} {inventory_item.name} to Scholars Of Sustenance. Tracking Status: Preparing"
+    
+    notification = admin_models.SystemNotification(
+        title=notification_title,
+        message=notification_message,
+        notification_type="donation_received",
+        target_user_id=admin_user.id,
+        sent_by_admin_id=admin_user.id,
+        send_email=False,
+        send_in_app=True,
+        sent_at=now_ph(),
+        notification_data={
+            "donation_id": donation_request.id,
+            "donor_id": current_user.id,
+            "donor_name": current_user.name,
+            "donation_name": inventory_item.name,
+            "quantity": donation_quantity,
+            "tracking_status": "preparing"
+        }
+    )
+    db.add(notification)
+    db.flush()
+    
+    # Create notification receipt
+    receipt = admin_models.NotificationReceipt(
+        notification_id=notification.id,
+        user_id=admin_user.id,
+        is_read=False
+    )
+    db.add(receipt)
+    db.commit()
     
     return {
         "message": "Donation created successfully",

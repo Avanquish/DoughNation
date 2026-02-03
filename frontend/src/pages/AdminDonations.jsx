@@ -457,12 +457,6 @@ const AdminDonations = () => {
               {/* Action Buttons */}
               <div className="flex gap-3 pt-4">
                 <button
-                  onClick={handleDonate}
-                  className="flex-1 px-4 py-3 bg-[#BF7326] text-white rounded-lg hover:bg-[#8B4513] font-semibold"
-                >
-                  Send Donation
-                </button>
-                <button
                   onClick={() => {
                     setShowDonationForm(false);
                     setSelectedItem(null);
@@ -470,6 +464,12 @@ const AdminDonations = () => {
                   className="flex-1 px-4 py-3 border-2 border-[#BF7326] text-[#8B4513] rounded-lg hover:bg-[#FFF6E6] font-semibold"
                 >
                   Cancel
+                </button>
+                <button
+                  onClick={handleDonate}
+                  className="flex-1 px-4 py-3 bg-[#BF7326] text-white rounded-lg hover:bg-[#8B4513] font-semibold"
+                >
+                  Send Donation
                 </button>
               </div>
             </div>

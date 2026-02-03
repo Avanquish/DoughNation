@@ -365,14 +365,6 @@ const AnalyticsDashboard = () => {
             <CardContent className="pt-1 pb-3">
               <div className="space-y-3.5 sm:space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-[#7b5836] flex items-center gap-2">
-                    Total Donations
-                  </span>
-                  <span className="text-lg sm:text-xl font-extrabold text-[#2a170a]">
-                    {donations?.total || 0}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
                   <span className="text-sm text-[#7b5836]">
                     Total Audit Events
                   </span>

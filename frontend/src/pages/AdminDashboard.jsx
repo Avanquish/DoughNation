@@ -28,9 +28,11 @@ import {
   FileText,
   AlertTriangle,
   Trophy,
+  Settings,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import axios from "../api/axios";
+import Swal from "sweetalert2";
 import AdminComplaint from "./AdminComplaint";
 import AdminReports from "./AdminReports";
 import AdminUser from "./AdminUser";
@@ -46,6 +48,7 @@ import NotificationCenter from "./NotificationCenter";
 import EmergencyControlPanel from "./EmergencyControlPanel";
 import AnalyticsDashboard from "./AnalyticsDashboard";
 import Messages1 from "./Messages1";
+import AdminSettings from "./AdminSettings";
 
 import { Link } from "react-router-dom";
 
@@ -847,9 +850,28 @@ thead{ background:#EADBC8; color:#4A2F17; }
             </div>
 
             <nav className="items-center gap-5" style={{ fontSize: 15 }}>
-              <div className="pt-1 flex items-center gap-3 relative">
+              <div className="pt-1 flex items-center gap-3">
                 {/* Messages Component for Admin */}
                 {currentUser && <Messages1 currentUser={currentUser} />}
+
+                {/* Profile */}
+                <button
+                  className="icon-btn"
+                  aria-label="Open profile"
+                  onClick={() => navigate("/admin-dashboard/profile")}
+                  title="Profile"
+                >
+                  <span
+                    className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold"
+                    style={{
+                      background: "linear-gradient(180deg,#FFE7C5,#F7C489)",
+                      color: "#7a4f1c",
+                      border: "1px solid #fff3e0",
+                    }}
+                  >
+                    {name?.trim()?.charAt(0).toUpperCase() || "A"}
+                  </span>
+                </button>
                 
                 <button
                   ref={bellRef}
@@ -1425,6 +1447,15 @@ thead{ background:#EADBC8; color:#4A2F17; }
               >
                 <AlertTriangle className="w-4 h-4" />
                 <span className="hidden sm:inline">Emergency</span>
+              </TabsTrigger>
+
+              <TabsTrigger
+                value="settings"
+                title="Settings"
+                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm text-purple-600 hover:bg-purple-50 whitespace-nowrap"
+              >
+                <Settings className="w-4 h-4" />
+                <span className="hidden sm:inline">Settings</span>
               </TabsTrigger>
             </TabsList>
           </div>

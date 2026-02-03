@@ -14,6 +14,7 @@ import CharityDashboard from "./pages/CharityDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import Profile from "./pages/BakeryProfile";
 import CharityProfile from "./pages/CharityProfile";
+import AdminProfile from "./pages/AdminProfile";
 import ForgotPassword from "./pages/ForgetPassword";
 import PrivacyTerms from "./pages/PrivacyTerms";
 import DataTableDemo from "./pages/DatatableSample";
@@ -49,6 +50,7 @@ function App() {
 
           <Route element={<ProtectedRoute allowedRoles={["Admin"]} />}>
             <Route path="/admin-dashboard/:id" element={<AdminDashboard />} />
+            <Route path="/admin-dashboard/profile" element={<AdminProfile />} />
           </Route>
 
           </Routes>

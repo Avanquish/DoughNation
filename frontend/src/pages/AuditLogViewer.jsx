@@ -228,24 +228,31 @@ const AuditLogViewer = () => {
       const availableWidth = pageWidth - margin * 2;
       let currentY = 40;
 
-      // Base64 conversion function for images
-      const toBase64 = (url) =>
-        new Promise((resolve) => {
-          const img = new Image();
-          img.crossOrigin = "anonymous";
-          img.onload = () => {
-            const canvas = document.createElement("canvas");
-            const ctx = canvas.getContext("2d");
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
-            resolve(canvas.toDataURL("image/jpeg", 0.95));
-          };
-          img.onerror = () => resolve(null);
-          img.src = url + "?t=" + Date.now();
-        });
+      // Base64 conversion function for images - Use fetch with credentials for deployed environments
+      const toBase64 = async (url) => {
+        try {
+          const token = localStorage.getItem("token") || localStorage.getItem("access_token");
+          const response = await fetch(url, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            credentials: 'include'
+          });
+          
+          if (!response.ok) return null;
+          
+          const blob = await response.blob();
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        } catch (error) {
+          console.error('Error loading image:', error);
+          return null;
+        }
+      };
 
-      // Header - Admin Profile Picture
+      // Header - Admin Profile Picture      // Header - Admin Profile Picture
       if (adminProfile && adminProfile.profile_picture) {
         try {
           const adminImgUrl = `${API_URL}/${normalizePath(

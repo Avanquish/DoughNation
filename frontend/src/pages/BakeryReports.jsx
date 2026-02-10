@@ -634,14 +634,30 @@ export default function BakeryReports({ isViewOnly = false }) {
 
       const logoSize = 40;
       if (bakeryInfo?.profile) {
-        const logo = await new Promise((resolve) => {
-          const img = new Image();
-          img.crossOrigin = "anonymous";
-          img.onload = () => resolve(img);
-          img.onerror = () => resolve(null);
-          img.src = `${API_URL}/${normalizePath(
-            bakeryInfo.profile
-          )}?t=${Date.now()}`;
+        const imageUrl = `${API_URL}/${normalizePath(bakeryInfo.profile)}`;
+        const token = localStorage.getItem("token") || localStorage.getItem("access_token");
+        
+        const logo = await new Promise(async (resolve) => {
+          try {
+            const response = await fetch(imageUrl, {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+              credentials: 'include'
+            });
+            
+            if (!response.ok) {
+              resolve(null);
+              return;
+            }
+            
+            const blob = await response.blob();
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => resolve(null);
+            img.src = URL.createObjectURL(blob);
+          } catch (error) {
+            console.error('Error loading logo:', error);
+            resolve(null);
+          }
         });
 
         if (logo) {
@@ -918,14 +934,30 @@ export default function BakeryReports({ isViewOnly = false }) {
 
       const logoSize = 40;
       if (bakeryInfo?.profile) {
-        const logo = await new Promise((resolve) => {
-          const img = new Image();
-          img.crossOrigin = "anonymous";
-          img.onload = () => resolve(img);
-          img.onerror = () => resolve(null);
-          img.src = `${API_URL}/${normalizePath(
-            bakeryInfo.profile
-          )}?t=${Date.now()}`;
+        const imageUrl = `${API_URL}/${normalizePath(bakeryInfo.profile)}`;
+        const token = localStorage.getItem("token") || localStorage.getItem("access_token");
+        
+        const logo = await new Promise(async (resolve) => {
+          try {
+            const response = await fetch(imageUrl, {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+              credentials: 'include'
+            });
+            
+            if (!response.ok) {
+              resolve(null);
+              return;
+            }
+            
+            const blob = await response.blob();
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => resolve(null);
+            img.src = URL.createObjectURL(blob);
+          } catch (error) {
+            console.error('Error loading logo:', error);
+            resolve(null);
+          }
         });
 
         if (logo) {
@@ -1035,25 +1067,29 @@ export default function BakeryReports({ isViewOnly = false }) {
       const IMG_SIZE = 36;
       const ROW_HEIGHT = 40;
 
-      const toBase64 = (url) =>
-        new Promise((resolve) => {
-          if (!url) return resolve(null);
-          const img = new Image();
-          img.crossOrigin = "anonymous";
-          img.onload = () => {
-            const SCALE = 3;
-            const canvas = document.createElement("canvas");
-            canvas.width = IMG_SIZE * SCALE;
-            canvas.height = IMG_SIZE * SCALE;
-            const ctx = canvas.getContext("2d");
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = "high";
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            resolve(canvas.toDataURL("PNG"));
-          };
-          img.onerror = () => resolve(null);
-          img.src = url + "?t=" + Date.now();
-        });
+      const toBase64 = async (url) => {
+        if (!url) return null;
+        try {
+          const token = localStorage.getItem("token") || localStorage.getItem("access_token");
+          const response = await fetch(url, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            credentials: 'include'
+          });
+          
+          if (!response.ok) return null;
+          
+          const blob = await response.blob();
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        } catch (error) {
+          console.error('Error loading image:', error);
+          return null;
+        }
+      };
 
       const charityProfiles = await Promise.all(
         charities.map((c) =>
@@ -1157,14 +1193,30 @@ export default function BakeryReports({ isViewOnly = false }) {
 
       const logoSize = 40;
       if (bakeryInfo?.profile) {
-        const logo = await new Promise((resolve) => {
-          const img = new Image();
-          img.crossOrigin = "anonymous";
-          img.onload = () => resolve(img);
-          img.onerror = () => resolve(null);
-          img.src = `${API_URL}/${normalizePath(
-            bakeryInfo.profile
-          )}?t=${Date.now()}`;
+        const imageUrl = `${API_URL}/${normalizePath(bakeryInfo.profile)}`;
+        const token = localStorage.getItem("token") || localStorage.getItem("access_token");
+        
+        const logo = await new Promise(async (resolve) => {
+          try {
+            const response = await fetch(imageUrl, {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+              credentials: 'include'
+            });
+            
+            if (!response.ok) {
+              resolve(null);
+              return;
+            }
+            
+            const blob = await response.blob();
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => resolve(null);
+            img.src = URL.createObjectURL(blob);
+          } catch (error) {
+            console.error('Error loading logo:', error);
+            resolve(null);
+          }
         });
 
         if (logo) {
@@ -1439,14 +1491,30 @@ export default function BakeryReports({ isViewOnly = false }) {
 
     const logoSize = 40;
     if (bakeryInfo?.profile) {
-      const logo = await new Promise((resolve) => {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.onload = () => resolve(img);
-        img.onerror = () => resolve(null);
-        img.src = `${API_URL}/${normalizePath(
-          bakeryInfo.profile
-        )}?t=${Date.now()}`;
+      const imageUrl = `${API_URL}/${normalizePath(bakeryInfo.profile)}`;
+      const token = localStorage.getItem("token") || localStorage.getItem("access_token");
+      
+      const logo = await new Promise(async (resolve) => {
+        try {
+          const response = await fetch(imageUrl, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            credentials: 'include'
+          });
+          
+          if (!response.ok) {
+            resolve(null);
+            return;
+          }
+          
+          const blob = await response.blob();
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => resolve(null);
+          img.src = URL.createObjectURL(blob);
+        } catch (error) {
+          console.error('Error loading logo:', error);
+          resolve(null);
+        }
       });
 
       if (logo) {
@@ -1548,35 +1616,49 @@ export default function BakeryReports({ isViewOnly = false }) {
       i === imageColIndex ? "IMAGE" : k.replace(/_/g, " ").toUpperCase()
     );
 
-    const toBase64 = (url) =>
-      new Promise((resolve) => {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.onload = () => {
-          const MAX_DIM = 180;
-          let width = img.width;
-          let height = img.height;
+    const toBase64 = async (url) => {
+      try {
+        const token = localStorage.getItem("token") || localStorage.getItem("access_token");
+        const response = await fetch(url, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: 'include'
+        });
+        
+        if (!response.ok) return null;
+        
+        const blob = await response.blob();
+        const img = await new Promise((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => resolve(image);
+          image.onerror = reject;
+          image.src = URL.createObjectURL(blob);
+        });
 
-          if (width > height && width > MAX_DIM) {
-            height = (height / width) * MAX_DIM;
-            width = MAX_DIM;
-          } else if (height > width && height > MAX_DIM) {
-            width = (width / height) * MAX_DIM;
-            height = MAX_DIM;
-          } else if (width > MAX_DIM) {
-            width = height = MAX_DIM;
-          }
+        const MAX_DIM = 180;
+        let width = img.width;
+        let height = img.height;
 
-          const canvas = document.createElement("canvas");
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          ctx.drawImage(img, 0, 0, width, height);
-          resolve({ data: canvas.toDataURL("image/jpeg"), width, height });
-        };
-        img.onerror = () => resolve(null);
-        img.src = url + "?t=" + Date.now();
-      });
+        if (width > height && width > MAX_DIM) {
+          height = (height / width) * MAX_DIM;
+          width = MAX_DIM;
+        } else if (height > width && height > MAX_DIM) {
+          width = (width / height) * MAX_DIM;
+          height = MAX_DIM;
+        } else if (width > MAX_DIM) {
+          width = height = MAX_DIM;
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        return { data: canvas.toDataURL("image/jpeg"), width, height };
+      } catch (error) {
+        console.error('Error loading image:', error);
+        return null;
+      }
+    };
 
     let processedData = [];
 

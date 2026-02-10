@@ -32,7 +32,6 @@ const AdminInventory = () => {
     description: "",
     quantity: "",
     donation_type: "Food",
-    category: "",
     expiration_date: "",
     image: "",
   });
@@ -191,7 +190,6 @@ const AdminInventory = () => {
       description: "",
       quantity: "",
       donation_type: "Food",
-      category: "",
       expiration_date: "",
       image: "",
     });
@@ -206,7 +204,6 @@ const AdminInventory = () => {
       description: item.description || "",
       quantity: item.quantity,
       donation_type: item.donation_type,
-      category: item.category || "",
       expiration_date: item.expiration_date || "",
       image: item.image || "",
     });
@@ -653,7 +650,15 @@ const AdminInventory = () => {
                   </label>
                   <select
                     value={formData.donation_type}
-                    onChange={(e) => setFormData({ ...formData, donation_type: e.target.value })}
+                    onChange={(e) => {
+                      const newType = e.target.value;
+                      setFormData({ 
+                        ...formData, 
+                        donation_type: newType,
+                        // Clear expiration date when switching to non-food items
+                        expiration_date: newType !== "Food" ? "" : formData.expiration_date
+                      });
+                    }}
                     className="w-full px-4 py-2 border-2 border-[#f2e3cf] rounded-lg focus:outline-none focus:border-[#BF7326]"
                   >
                     <option value="Food">Food</option>
@@ -664,30 +669,19 @@ const AdminInventory = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-[#4A2F17] mb-2">
-                  Category (optional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g., Bakery, Clothing"
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-[#f2e3cf] rounded-lg focus:outline-none focus:border-[#BF7326]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-[#4A2F17] mb-2">
-                  Expiration Date (optional)
-                </label>
-                <input
-                  type="date"
-                  value={formData.expiration_date}
-                  onChange={(e) => setFormData({ ...formData, expiration_date: e.target.value })}
-                  className="w-full px-4 py-2 border-2 border-[#f2e3cf] rounded-lg focus:outline-none focus:border-[#BF7326]"
-                />
-              </div>
+              {formData.donation_type === "Food" && (
+                <div>
+                  <label className="block text-sm font-semibold text-[#4A2F17] mb-2">
+                    Expiration Date (optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.expiration_date}
+                    onChange={(e) => setFormData({ ...formData, expiration_date: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-[#f2e3cf] rounded-lg focus:outline-none focus:border-[#BF7326]"
+                  />
+                </div>
+              )}
 
               <div className="flex gap-3 pt-4">
                 <button

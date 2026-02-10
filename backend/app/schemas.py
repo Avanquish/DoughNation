@@ -318,7 +318,7 @@ class FeedbackRead(BaseModel):
     donation_request_id: Optional[int] = None
     direct_donation_id: Optional[int] = None
     charity_id: int
-    bakery_id: int
+    bakery_id: Optional[int] = None
     message: str
     rating: Optional[int] = None
     reply_message: Optional[str] 

@@ -56,6 +56,11 @@ FOOD_CATEGORIES = {
         "name": "Other Food Items",
         "grace_period_days": 30,  # 1 month (default)
         "description": "Other food items not categorized above"
+    },
+    "non_food": {
+        "name": "Non-Food Items",
+        "grace_period_days": 36500,  # 100 years (effectively no expiration)
+        "description": "Non-food items with no expiration date"
     }
 }
 
@@ -76,6 +81,10 @@ def calculate_donation_deadline(
     """
     if not food_category or food_category not in FOOD_CATEGORIES:
         food_category = "other"
+    
+    # Non-food items have no expiration, return a far future date
+    if food_category == "non_food":
+        return expiration_date + timedelta(days=36500)  # 100 years
     
     grace_period_days = FOOD_CATEGORIES[food_category]["grace_period_days"]
     donation_deadline = expiration_date + timedelta(days=grace_period_days)
@@ -145,10 +154,22 @@ def get_safety_status(
         - is_safe: Is it still within donation grace period?
         - days_until_deadline: Days remaining until donation deadline
         - donation_deadline: Final date for donation
-        - status: 'fresh', 'near_expiry', 'expired_safe', 'unsafe'
+        - status: 'fresh', 'near_expiry', 'expired_safe', 'unsafe', 'non_food'
     """
     if check_date is None:
         check_date = date.today()
+    
+    # Special handling for non-food items
+    if food_category == "non_food":
+        donation_deadline = calculate_donation_deadline(expiration_date, food_category)
+        return {
+            "is_expired": False,
+            "is_safe": True,
+            "days_until_deadline": 999999,  # Effectively infinite
+            "donation_deadline": donation_deadline,
+            "status": "non_food",
+            "category_name": FOOD_CATEGORIES["non_food"]["name"]
+        }
     
     donation_deadline = calculate_donation_deadline(expiration_date, food_category)
     is_expired = check_date > expiration_date

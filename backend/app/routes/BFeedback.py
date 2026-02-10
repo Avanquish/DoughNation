@@ -15,7 +15,7 @@ def get_my_feedback(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(ensure_verified_user)
 ):
-    if current_user.role.lower() != "bakery":
+    if current_user.role.lower() not in ["bakery", "donor"]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     feedbacks = (
@@ -47,7 +47,7 @@ async def reply_feedback(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(ensure_verified_user)
 ):
-    if current_user.role.lower() != "bakery":
+    if current_user.role.lower() not in ["bakery", "donor"]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     feedback = db.query(models.Feedback).filter(

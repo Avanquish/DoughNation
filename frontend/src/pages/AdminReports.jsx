@@ -267,23 +267,29 @@ export default function AdminReports() {
     const pageWidth = doc.internal.pageSize.getWidth();
     let currentY = 40;
 
-    // Base64 conversion function - MOVED TO TOP
-    const toBase64 = (url) =>
-      new Promise((resolve) => {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d");
-          // Use original image dimensions
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
-          resolve(canvas.toDataURL("image/jpeg", 0.95));
-        };
-        img.onerror = () => resolve(null);
-        img.src = url + "?t=" + Date.now();
-      });
+    // Base64 conversion function - Use fetch with credentials for deployed environments
+    const toBase64 = async (url) => {
+      try {
+        const token = localStorage.getItem("token") || localStorage.getItem("access_token");
+        const response = await fetch(url, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: 'include'
+        });
+        
+        if (!response.ok) return null;
+        
+        const blob = await response.blob();
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(blob);
+        });
+      } catch (error) {
+        console.error('Error loading image:', error);
+        return null;
+      }
+    };
 
     // Header - Admin Profile Picture
     if (adminProfile && adminProfile.profile_picture) {
@@ -671,22 +677,29 @@ export default function AdminReports() {
     const pageWidth = doc.internal.pageSize.getWidth();
     let currentY = 40;
 
-    // Base64 conversion function
-    const toBase64 = (url) =>
-      new Promise((resolve) => {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d");
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
-          resolve(canvas.toDataURL("image/jpeg", 0.95));
-        };
-        img.onerror = () => resolve(null);
-        img.src = url + "?t=" + Date.now();
-      });
+    // Base64 conversion function - Use fetch with credentials for deployed environments
+    const toBase64 = async (url) => {
+      try {
+        const token = localStorage.getItem("token") || localStorage.getItem("access_token");
+        const response = await fetch(url, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: 'include'
+        });
+        
+        if (!response.ok) return null;
+        
+        const blob = await response.blob();
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(blob);
+        });
+      } catch (error) {
+        console.error('Error loading image:', error);
+        return null;
+      }
+    };
 
     // Header - Admin Profile Picture
     if (adminProfile && adminProfile.profile_picture) {
@@ -876,24 +889,16 @@ export default function AdminReports() {
           </style>
         </head>
         <body>
-              ${donationData.map((donation) => `
-                <tr class="${donation.type === 'Request' ? 'request' : 'direct'}">
-                  <td>${donation.type}</td>
-                  <td>${donation.donation_name || 'N/A'}</td>
-                  <td>${donation.donor_name}</td>
-                  <td>${donation.receiver_name}</td>
-                  <td style="font-weight: bold;">${donation.quantity}</td>
-                  <td>${donation.completed_at ? new Date(donation.completed_at).toLocaleString('en-PH', {
-                    timeZone: 'Asia/Manila',
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: true
-                  }) : 'N/A'}</td>
-                </tr>
-              `).join("")}ty</th>
+          ${adminImageHTML}
+          ${summaryHTML}
+          <table>
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Product Name</th>
+                <th>Donor</th>
+                <th>Receiver</th>
+                <th>Quantity</th>
                 <th>Completion Date</th>
               </tr>
             </thead>

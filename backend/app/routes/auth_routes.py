@@ -244,26 +244,32 @@ def unified_login(user: schemas.UserLogin, db: Session = Depends(database.get_db
         # Check account status
         if db_user.status == "Suspended":
             # Check if suspension has expired
-            if db_user.suspended_until and db_user.suspended_until > now_ph():
-                remaining_days = (db_user.suspended_until - now_ph()).days
-                print(f"❌ Account suspended until {db_user.suspended_until}")
-                log_system_event(
-                    db=db,
-                    event_type="failed_login",
-                    description=f"Login attempt on suspended account: {db_user.email}",
-                    severity="warning",
-                    user_id=db_user.id,
-                    metadata={"email": db_user.email, "reason": "account_suspended", "suspended_until": str(db_user.suspended_until)}
-                )
-                raise HTTPException(
-                    status_code=403, 
-                    detail=f"Account is suspended until {db_user.suspended_until.strftime('%Y-%m-%d %H:%M:%S')}. Remaining: {remaining_days} days. Reason: {db_user.status_reason or 'Not specified'}"
-                )
-            else:
-                # Suspension expired, automatically set to Active
-                db_user.status = "Active"
-                db_user.suspended_until = None
-                db.commit()
+            if db_user.suspended_until:
+                # Convert naive datetime to timezone-aware for comparison
+                from app.timezone_utils import to_ph_timezone
+                suspended_until_aware = to_ph_timezone(db_user.suspended_until)
+                current_time = now_ph()
+                
+                if suspended_until_aware > current_time:
+                    remaining_days = (suspended_until_aware - current_time).days
+                    print(f"❌ Account suspended until {db_user.suspended_until}")
+                    log_system_event(
+                        db=db,
+                        event_type="failed_login",
+                        description=f"Login attempt on suspended account: {db_user.email}",
+                        severity="warning",
+                        user_id=db_user.id,
+                        metadata={"email": db_user.email, "reason": "account_suspended", "suspended_until": str(db_user.suspended_until)}
+                    )
+                    raise HTTPException(
+                        status_code=403, 
+                        detail=f"Account is suspended until {db_user.suspended_until.strftime('%Y-%m-%d %H:%M:%S')}. Remaining: {remaining_days} days. Reason: {db_user.status_reason or 'Not specified'}"
+                    )
+                else:
+                    # Suspension expired, automatically set to Active
+                    db_user.status = "Active"
+                    db_user.suspended_until = None
+                    db.commit()
         
         if db_user.status == "Banned":
             print(f"❌ Account is banned")
@@ -2003,7 +2009,7 @@ def deactivate_account(
 ):
     """
     Allow users to deactivate their own account
-    For bakeries: Only the owner (contact_person matches employee with role='Owner') can deactivate
+    For bakeries: Only the owner (logged in as the donor user) can deactivate
     For charities: Any user can deactivate their account
     Requires password confirmation
     """
@@ -2011,30 +2017,14 @@ def deactivate_account(
     if not verify_password(password, current_user.hashed_password):
         raise HTTPException(status_code=401, detail="Incorrect password")
     
-    # Check if user is donor and verify ownership
+    # Check if user is donor - they must be logged in as the donor user account to deactivate
     if current_user.role == "Donor":
-        # Get the employee token to check if they are the owner
-        # For donor users, we need to verify they are the owner
-        owner_employee = db.query(models.Employee).filter(
-            models.Employee.bakery_id == current_user.id,
-            models.Employee.role == "Owner"
-        ).first()
-        
-        if not owner_employee:
-            raise HTTPException(
-                status_code=403, 
-                detail="Only the donor owner can deactivate the account"
-            )
-        
-        # If logged in as user (not employee), verify contact_person matches owner
-        if current_user.contact_person != owner_employee.name:
-            raise HTTPException(
-                status_code=403,
-                detail="Only the bakery owner can deactivate the account"
-            )
+        # If logged in as a donor user, they are the owner and can deactivate
+        # No additional checks needed - the fact that they're logged in as the donor user means they have ownership
+        pass
     
     # Admin accounts cannot be deactivated this way
-    if current_user.role == "Admin":
+    elif current_user.role == "Admin":
         raise HTTPException(
             status_code=403,
             detail="Admin accounts cannot be self-deactivated"

@@ -162,7 +162,7 @@ export default function DataTable({
   onCreate,
   onUpdate,
   onDelete,
-  entityType = "Item",
+  entityType = "Donor",
 }) {
   const [sorting, setSorting] = React.useState([]);
   const [columnFilters, setColumnFilters] = React.useState([]);
@@ -459,7 +459,15 @@ export default function DataTable({
 
   const handleEditSubmit = async () => {
     if (!editFormData.name) {
-      Swal.fire({ icon: "error", title: "Error", text: "Name is required" });
+      Swal.fire({ 
+        icon: "error", 
+        title: "Error", 
+        text: "Name is required",
+        heightAuto: false,
+        customClass: {
+          container: 'z-[99999]'
+        }
+      });
       return;
     }
     if (!editFormData.email || !editFormData.email.includes("@")) {
@@ -467,6 +475,10 @@ export default function DataTable({
         icon: "error",
         title: "Error",
         text: "Valid email is required",
+        heightAuto: false,
+        customClass: {
+          container: 'z-[99999]'
+        }
       });
       return;
     }
@@ -475,6 +487,10 @@ export default function DataTable({
         icon: "error",
         title: "Error",
         text: "Contact Person is required",
+        heightAuto: false,
+        customClass: {
+          container: 'z-[99999]'
+        }
       });
       return;
     }
@@ -483,11 +499,23 @@ export default function DataTable({
         icon: "error",
         title: "Error",
         text: "Contact Number is required",
+        heightAuto: false,
+        customClass: {
+          container: 'z-[99999]'
+        }
       });
       return;
     }
     if (!editFormData.address) {
-      Swal.fire({ icon: "error", title: "Error", text: "Address is required" });
+      Swal.fire({ 
+        icon: "error", 
+        title: "Error", 
+        text: "Address is required",
+        heightAuto: false,
+        customClass: {
+          container: 'z-[99999]'
+        }
+      });
       return;
     }
     
@@ -497,7 +525,27 @@ export default function DataTable({
         Swal.fire({ 
           icon: "error", 
           title: "Error", 
-          text: "Please specify suspension duration (minimum 1 day)" 
+          text: "Please specify suspension duration (minimum 1 day)",
+          heightAuto: false,
+          customClass: {
+            container: 'z-[99999]'
+          }
+        });
+        return;
+      }
+    }
+    
+    // Validate reason for banned accounts
+    if (editFormData.status === "Banned") {
+      if (!editFormData.status_reason || !editFormData.status_reason.trim()) {
+        Swal.fire({ 
+          icon: "error", 
+          title: "Error", 
+          text: "Please provide a reason for banning this account",
+          heightAuto: false,
+          customClass: {
+            container: 'z-[99999]'
+          }
         });
         return;
       }
@@ -510,6 +558,12 @@ export default function DataTable({
           latitude: editLocation?.lat,
           longitude: editLocation?.lng,
         };
+        
+        // Only include suspension_days if status is Suspended
+        if (editFormData.status === "Suspended" && editFormData.suspension_days) {
+          submitData.suspension_days = parseInt(editFormData.suspension_days);
+        }
+        
         await onUpdate(editingItemId, submitData);
         setShowEditModal(false);
         resetEditForm();
@@ -1102,7 +1156,7 @@ export default function DataTable({
       </div>
 
       {/* Create modal*/}
-      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal} modal={false}>
         <DialogContent
           className={`max-w-4xl max-h-[90vh] overflow-y-auto p-0 [&>button[aria-label='Close']]:hidden`}
         >
@@ -1357,29 +1411,29 @@ export default function DataTable({
       </Dialog>
 
       {/* Edit modal */}
-      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal} modal={false}>
         <DialogContent
           className={`max-w-4xl max-h-[90vh] overflow-y-auto p-0 [&>button[aria-label='Close']]:hidden`}
         >
           <DialogHeader className={`px-6 py-5 ${tones.sectionGrad}`}>
             <DialogTitle className="text-[#6b4b2b]">
-              Edit {entityType}
+              Edit Donor
             </DialogTitle>
             <DialogDescription className="text-[#7b5836] font-bold">
-              {entityType} Details
+              Donor Details
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-6 px-6">
             <div className="space-y-2">
               <Label htmlFor="edit-name" className="text-[#6b4b2b]">
-                {entityType} Name *
+                Donor Name *
               </Label>
               <Input
                 id="edit-name"
                 value={editFormData.name}
                 onChange={(e) => handleEditInputChange("name", e.target.value)}
-                placeholder={`Enter ${entityType.toLowerCase()} name`}
+                placeholder="Enter donor name"
                 className="rounded-2xl border-[#f2d4b5] focus:ring-[#E49A52]"
               />
             </div>
@@ -1437,15 +1491,15 @@ export default function DataTable({
                 value={editFormData.status}
                 onValueChange={(value) => handleEditInputChange("status", value)}
               >
-                <SelectTrigger className="rounded-2xl border-[#f2d4b5] focus:ring-[#E49A52]">
+                <SelectTrigger className="rounded-2xl border-[#f2d4b5] focus:ring-[#E49A52] bg-white">
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Pending">Pending</SelectItem>
-                  <SelectItem value="Suspended">Suspended</SelectItem>
-                  <SelectItem value="Banned">Banned</SelectItem>
-                  <SelectItem value="Deactivated">Deactivated</SelectItem>
+                <SelectContent className="bg-white z-[9999]">
+                  <SelectItem value="Active" className="bg-white">Active</SelectItem>
+                  <SelectItem value="Pending" className="bg-white">Pending</SelectItem>
+                  <SelectItem value="Suspended" className="bg-white">Suspended</SelectItem>
+                  <SelectItem value="Banned" className="bg-white">Banned</SelectItem>
+                  <SelectItem value="Deactivated" className="bg-white">Deactivated</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1470,10 +1524,29 @@ export default function DataTable({
               </div>
             )}
 
-            {(editFormData.status === "Suspended" || editFormData.status === "Banned" || editFormData.status === "Deactivated") && (
+            {editFormData.status === "Banned" && (
+              <div className="space-y-2 p-4 bg-red-50 rounded-2xl border-2 border-red-300">
+                <Label htmlFor="edit-status-reason" className="text-red-800 font-bold flex items-center gap-2">
+                  <span className="text-2xl">⚠️</span>
+                  Ban Reason (Required) *
+                </Label>
+                <Input
+                  id="edit-status-reason"
+                  value={editFormData.status_reason}
+                  onChange={(e) => handleEditInputChange("status_reason", e.target.value)}
+                  placeholder="Enter detailed reason for permanent ban"
+                  className="rounded-2xl border-red-400 focus:ring-red-500"
+                />
+                <p className="text-xs text-red-700 font-semibold">
+                  🔒 WARNING: Banned accounts cannot register again with the same email address.
+                </p>
+              </div>
+            )}
+            
+            {(editFormData.status === "Suspended" || editFormData.status === "Deactivated") && (
               <div className="space-y-2">
                 <Label htmlFor="edit-status-reason" className="text-[#6b4b2b]">
-                  Reason {editFormData.status === "Suspended" ? "(Optional)" : ""}
+                  Reason {editFormData.status === "Suspended" ? "" : ""}
                 </Label>
                 <Input
                   id="edit-status-reason"
@@ -1594,7 +1667,7 @@ export default function DataTable({
               Cancel
             </button>
             <button onClick={handleEditSubmit} className={tones.pillSolid}>
-              Update {entityType}
+              Update Donor
             </button>
           </DialogFooter>
         </DialogContent>

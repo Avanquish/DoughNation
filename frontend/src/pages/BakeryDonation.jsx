@@ -208,7 +208,8 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
           { value: "condiments", label: "Condiments & Sauces", grace_period_days: 45 },
           { value: "beverages", label: "Beverages", grace_period_days: 30 },
           { value: "packaged_snacks", label: "Packaged Snacks", grace_period_days: 21 },
-          { value: "other", label: "Other", grace_period_days: 14 }
+          { value: "other", label: "Other", grace_period_days: 14 },
+          { value: "non_food", label: "Non-Food Items (No Expiration)", grace_period_days: 36500 }
         ]);
       }
     };
@@ -1264,7 +1265,7 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                 {form.charity_id === "admin" && (
                   <div className="col-span-12">
                     <label className="block text-sm font-semibold text-[#6b4b2b] mb-1.5">
-                      Food Category
+                      Item Category
                       <span className="ml-2 text-xs text-[#8a5a25] font-normal">
                         (determines grace period after expiration)
                       </span>
@@ -1276,7 +1277,7 @@ const BakeryDonation = ({ highlightedDonationId, isViewOnly = false }) => {
                         setForm({ ...form, food_category: e.target.value })
                       }
                     >
-                      <option value="" disabled hidden>Select Food Category</option>
+                      <option value="" disabled hidden>Select Item Category</option>
                       {foodCategories.length > 0 ? (
                         foodCategories.map((cat) => (
                           <option key={cat.value} value={cat.value}>

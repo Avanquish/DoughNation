@@ -200,7 +200,7 @@ const OneTimePasswordChange = () => {
           </div>
         `,
         icon: "success",
-        confirmButtonText: "Go to Dashboard",
+        confirmButtonText: "Go to Login",
       }).then(() => {
         // Clear token and require re-login with new password
         localStorage.removeItem("token");

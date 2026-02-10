@@ -92,7 +92,7 @@ const Bakery = () => {
         try {
             const token = localStorage.getItem("token");
             const formData = new FormData();
-            formData.append("role", "Bakery");
+            formData.append("role", "Donor");
             formData.append("name", newData.name);
             formData.append("email", newData.email);
             formData.append("contact_person", newData.contact_person);
@@ -127,7 +127,7 @@ const Bakery = () => {
             Swal.fire({
                 icon: "success",
                 title: "Success",
-                text: "Bakery created successfully",
+                text: "Donor created successfully",
                 timer: 2000
             });
 
@@ -158,6 +158,8 @@ const Bakery = () => {
             if (updatedData.latitude) formData.append("latitude", updatedData.latitude);
             if (updatedData.longitude) formData.append("longitude", updatedData.longitude);
             if (updatedData.status) formData.append("status", updatedData.status);
+            if (updatedData.suspension_days) formData.append("suspension_days", updatedData.suspension_days);
+            if (updatedData.status_reason) formData.append("status_reason", updatedData.status_reason);
 
             const response = await axios.put(`${API}/admin/update-user/${id}`, formData, {
                 headers: { 
@@ -169,18 +171,18 @@ const Bakery = () => {
             Swal.fire({
                 icon: "success",
                 title: "Success",
-                text: "Bakery updated successfully",
+                text: "Donor updated successfully",
                 timer: 2000
             });
 
             fetchBakeries(); // Refresh the list
             return response.data;
         } catch (error) {
-            console.error("Error updating bakery:", error);
+            console.error("Error updating donor:", error);
             Swal.fire({
                 icon: "error",
                 title: "Error",
-                text: error.response?.data?.detail || "Failed to update bakery"
+                text: error.response?.data?.detail || "Failed to donor"
             });
             throw error;
         } finally {
@@ -212,7 +214,7 @@ const Bakery = () => {
                 Swal.fire({
                     icon: "success",
                     title: "Deleted!",
-                    text: "Bakery has been deleted.",
+                    text: "Donor has been deleted.",
                     timer: 2000
                 });
 
@@ -237,8 +239,8 @@ const Bakery = () => {
         <div className="space-y-6">
             <div className="p-2 pt-4 sm:p-4 md:p-6">
                 <div>
-                    <h2 className="text-3xl font-extrabold text-[#6b4b2b]">Bakeries</h2>
-                    <p className="mt-1 text-sm text-[#7b5836]">Manage bakery accounts</p>
+                    <h2 className="text-3xl font-extrabold text-[#6b4b2b]">Donors</h2>
+                    <p className="mt-1 text-sm text-[#7b5836]">Manage donor accounts</p>
                 </div>
                 <div className="overflow-x-auto">
                     {loading ? (
@@ -252,7 +254,7 @@ const Bakery = () => {
                             onCreate={handleCreate}
                             onUpdate={handleUpdate}
                             onDelete={handleDelete}
-                            entityType="Bakery"
+                            entityType="Donor"
                         />
                     )}
                 </div>

@@ -128,6 +128,17 @@ def create_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
         )
+    
+    # Check if email is banned
+    banned_user = db.query(models.User).filter(
+        models.User.email == email,
+        models.User.status == "Banned"
+    ).first()
+    if banned_user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This email address has been banned and cannot be used to register a new account. Please contact support if you believe this is an error."
+        )
 
     #Contact Number limitation set to 11 numbers only
     if contact_number and len(contact_number) != 11:

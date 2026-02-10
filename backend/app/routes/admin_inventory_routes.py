@@ -10,7 +10,7 @@ from datetime import date, datetime
 import os
 import shutil
 from app import models, schemas, database, auth
-from app.product_id_generator import generate_product_id
+from app.product_id_generator import generate_admin_product_id
 from app.timezone_utils import now_ph
 
 router = APIRouter(prefix="/admin", tags=["Admin Inventory"])
@@ -64,7 +64,7 @@ def add_inventory_item(
     current_user: dict = Depends(auth.get_current_admin)
 ):
     """Manually add item to admin inventory"""
-    product_id = generate_product_id(db, "ADMIN")
+    product_id = generate_admin_product_id(db, name)
     
     # Handle image upload
     image_path = None

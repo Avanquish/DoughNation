@@ -629,7 +629,7 @@ const EmergencyControlPanel = () => {
                     htmlFor="user-search"
                     className="text-xs font-semibold text-[#4A2F17]"
                   >
-                    Bakery / Charity Name{" "}
+                    Donor / Charity Name{" "}
                     <span className="text-[#DE7F21]">*</span>
                   </Label>
                   <div className="relative">
@@ -650,7 +650,7 @@ const EmergencyControlPanel = () => {
                         placeholder={
                           loadingUsers
                             ? "Loading users..."
-                            : "Search bakery or charity"
+                            : "Search Donors or Charity"
                         }
                         className="flex-1 bg-transparent text-xs sm:text-sm text-[#4A2F17] placeholder:text-gray-400 focus:outline-none"
                       />
@@ -884,7 +884,7 @@ const EmergencyControlPanel = () => {
                         Emergency Ownership Transfer
                       </h3>
                       <p className="text-[11px] text-[#7b5836]">
-                        Reassign a bakery to a different employee for business
+                        Reassign a donor to a different employee for business
                         continuity.
                       </p>
                     </div>
@@ -903,7 +903,7 @@ const EmergencyControlPanel = () => {
                       htmlFor="bakery-search"
                       className="text-xs font-semibold text-[#4A2F17]"
                     >
-                      Bakery Name <span className="text-[#DE7F21]">*</span>
+                      Donor Name <span className="text-[#DE7F21]">*</span>
                     </Label>
                     <div className="relative">
                       <div className="flex items-center gap-2 h-10 rounded-full border border-[#f2d4b5] bg-white/90 px-3 shadow-sm focus-within:ring-2 focus-within:ring-[#DE7F21]">
@@ -929,8 +929,8 @@ const EmergencyControlPanel = () => {
                           }
                           placeholder={
                             loadingBakeries
-                              ? "Loading bakeries..."
-                              : "Search bakery"
+                              ? "Loading donors..."
+                              : "Search donor"
                           }
                           className="flex-1 bg-transparent text-xs sm:text-sm text-[#4A2F17] placeholder:text-gray-400 focus:outline-none"
                         />
@@ -947,11 +947,11 @@ const EmergencyControlPanel = () => {
                               showAllBakeries ? (
                                 <div className="max-h-52 overflow-y-auto py-2 text-xs sm:text-sm">
                                   <div className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#BF7327]/80">
-                                    All Bakeries
+                                    All Donors
                                   </div>
                                   {verifiedBakeries.length === 0 ? (
                                     <div className="py-6 text-center text-xs sm:text-sm text-gray-500">
-                                      No verified bakeries available
+                                      No verified donors available
                                     </div>
                                   ) : (
                                     verifiedBakeries.map((bakery) => (
@@ -972,7 +972,7 @@ const EmergencyControlPanel = () => {
                                 </div>
                               ) : (
                                 <div className="py-6 text-center text-xs sm:text-sm text-gray-500">
-                                  No bakeries available
+                                  No donors available
                                 </div>
                               )
                             ) : (
@@ -1029,9 +1029,9 @@ const EmergencyControlPanel = () => {
                     </div>
                     <p className="text-[11px] text-gray-500">
                       {verifiedBakeriesCount === 0
-                        ? "No verified bakeries registered"
-                        : `Found ${verifiedBakeriesCount} verified bakery${
-                            verifiedBakeriesCount === 1 ? "" : "ies"
+                        ? "No verified donors registered"
+                        : `Found ${verifiedBakeriesCount} verified donor${
+                            verifiedBakeriesCount === 1 ? "" : "s"
                           }`}
                     </p>
                   </div>
@@ -1056,7 +1056,7 @@ const EmergencyControlPanel = () => {
                         <SelectValue
                           placeholder={
                             !bakeryId
-                              ? "Select a bakery first"
+                              ? "Select a donor first"
                               : loadingEmployees
                               ? "Loading employees..."
                               : "Select an employee"

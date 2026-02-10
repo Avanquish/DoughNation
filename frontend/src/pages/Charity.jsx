@@ -155,6 +155,9 @@ const columns = [
             if (updatedData.address) formData.append("address", updatedData.address);
             if (updatedData.latitude) formData.append("latitude", updatedData.latitude);
             if (updatedData.longitude) formData.append("longitude", updatedData.longitude);
+            if (updatedData.status) formData.append("status", updatedData.status);
+            if (updatedData.suspension_days) formData.append("suspension_days", updatedData.suspension_days);
+            if (updatedData.status_reason) formData.append("status_reason", updatedData.status_reason);
 
             const response = await axios.put(`${API}/admin/update-user/${id}`, formData, {
                 headers: { 

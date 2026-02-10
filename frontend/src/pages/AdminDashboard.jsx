@@ -48,7 +48,6 @@ import NotificationCenter from "./NotificationCenter";
 import EmergencyControlPanel from "./EmergencyControlPanel";
 import AnalyticsDashboard from "./AnalyticsDashboard";
 import Messages1 from "./Messages1";
-import AdminSettings from "./AdminSettings";
 
 import { Link } from "react-router-dom";
 
@@ -1449,14 +1448,6 @@ thead{ background:#EADBC8; color:#4A2F17; }
                 <span className="hidden sm:inline">Emergency</span>
               </TabsTrigger>
 
-              <TabsTrigger
-                value="settings"
-                title="Settings"
-                className="flex items-center gap-1 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm text-purple-600 hover:bg-purple-50 whitespace-nowrap"
-              >
-                <Settings className="w-4 h-4" />
-                <span className="hidden sm:inline">Settings</span>
-              </TabsTrigger>
             </TabsList>
           </div>
         </div>
